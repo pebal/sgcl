@@ -1,4 +1,6 @@
 # SGCL - Concurrent Garbage Collector for C++
+## About the SGCL
+SGCL is a precise concurrent garbage collector for C ++. The garbage collector works in a separate thread and never pauses other threads.
 
 ## Classes
 ```
