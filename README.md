@@ -1,18 +1,49 @@
 # SGCL - Concurrent Garbage Collector for C++
 ## About the SGCL
-SGCL is a precise concurrent garbage collector for C ++. The garbage collector works in a separate thread and never pauses other threads.
-
+SGCL is a precise concurrent garbage collector for C ++. The garbage collector works in a separate thread and never pauses other threads. All operations are lock-free.
 ## Classes
+Base class of all traced objects:
 ```
-gc::collected
-gc::object
+class object;
 
-gc::ptr<T>
-gc::weak_ptr<T>
-gc::atomic_ptr<T>
-gc::atomic_weak_ptr<T>
+// example
+class foo : public virtual gc::object {};
 ```
+A class that simplifies traced class definition: 
+```
+class collected;
 
+// example
+class foo : public gc::collected {};
+```
+Traced pointers:
+```
+class ptr<T>;
+class weak_ptr<T>;
+class atomic_ptr<T>;
+class atomic_weak_ptr<T>;
+
+// example
+gc::ptr<foo> a;
+```
+## Functions
+Create a tracked object:
+```
+ptr<T> make(...);
+
+// example
+auto a = gc::make<foo>();
+```
+Pointer cast:
+```
+ptr<T> static_pointer_cast(ptr<U>);
+ptr<T> dynamic_pointer_cast(ptr<U>);
+ptr<T> const_pointer_cast(ptr<U>);
+
+// example
+gc::ptr<object> a = gc::make<foo>();
+auto b = gc::dynamic_pointer_cast<foo>(a);
+```
 ## Example usage
 ```
 #include "sgcl.h"
@@ -47,10 +78,9 @@ struct baz : public foo, public bar {
 };
 
 int main() {
-  auto a = gc::make<baz>();
-  gc::ptr<foo> b = a;
-  auto c = a.clone();
-  auto d = gc::dynamic_pointer_cast<bar>(c);
+  gc::ptr<foo> a = gc::make<baz>();
+  auto b = a.clone();
+  auto c = gc::dynamic_pointer_cast<bar>(b);
   return 0;
 }
 ```
@@ -67,3 +97,14 @@ int main() {
   return 0;
 }
 ```
+## Not working
+Cycles are not detected when a traced object contains dynamic container with traced pointers.
+```
+class foo : public gc::collected {
+  std::vector<gc::ptr<foo>> vec = {gc::ptr<foo>(this)};
+};
+
+```
+## To do
+- Implement dedicated containers
+- Test it in a variety of scenarios
