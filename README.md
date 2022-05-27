@@ -106,5 +106,5 @@ class foo : public gc::collected {
 
 ```
 ## To do
-- Implement dedicated containers
+- Implement dedicated containers (to detect cycles)
 - Test it in a variety of scenarios
