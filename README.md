@@ -51,8 +51,7 @@ auto b = gc::dynamic_pointer_cast<foo>(a);
 #include "sgcl.h"
 
 struct node : public gc::collected {
-  gc::ptr<node> l;
-  gc::ptr<node> r;
+  gc::ptr<node> l, r;
 };
 
 gc::ptr<node> tree(int c) {
@@ -105,7 +104,6 @@ Cycles are not detected when a traced object contains dynamic container with tra
 class foo : public gc::collected {
   std::vector<gc::ptr<foo>> vec = {gc::ptr<foo>(this)};
 };
-
 ```
 ## To do
 - Implement dedicated containers (to detect cycles)
