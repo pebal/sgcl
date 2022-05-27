@@ -105,6 +105,6 @@ class foo : public gc::collected {
   std::vector<gc::ptr<foo>> vec = {gc::ptr<foo>(this)};
 };
 ```
-## To do
+## Todo
 - Implement dedicated containers (to detect cycles)
 - Test it in a variety of scenarios
