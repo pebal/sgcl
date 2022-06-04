@@ -8,10 +8,11 @@
 
 #include <atomic>
 #include <cassert>
+#include <chrono>
 #include <functional>
 #include <memory>
-#include <type_traits>
 #include <thread>
+#include <type_traits>
 
 #define SGCL_MAX_SLEEP_TIME_SEC 10
 #define SGCL_TRIGER_PERCENTAGE 25
@@ -614,10 +615,10 @@ namespace gc {
 			};
 
 			void _mark_root_objects() noexcept {
-				static auto clock = std::chrono::high_resolution_clock::now();
+				static auto clock = std::chrono::steady_clock::now();
 				//static int counter = 0;
 				static double rest = 0;
-				auto c = std::chrono::high_resolution_clock::now();
+				auto c = std::chrono::steady_clock::now();
 				double duration = std::chrono::duration<double, std::milli>(c - clock).count();
 				duration = Object_metadata::atomic_update_value * duration / 100 + rest; // 100ms for atomic_update_value
 				int iduration = (int)duration;
