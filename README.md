@@ -75,7 +75,7 @@ class foo : public gc::collected {
 };
 class bar : public gc::collected {
 };
-struct baz : public foo, public bar {
+class baz : public foo, public bar {
 };
 
 int main() {
