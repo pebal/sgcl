@@ -50,7 +50,7 @@ auto b = gc::dynamic_pointer_cast<foo>(a);
 ```
 #include "sgcl.h"
 
-struct node : public gc::collected {
+struct node : gc::collected {
   gc::ptr<node> l, r;
 };
 
