@@ -23,7 +23,7 @@
 #endif
 
 #ifdef __MINGW32__
-#define GC_MAX_STACK_OFFSET 1024
+#define SGCL_MAX_STACK_OFFSET 1024
 #endif
 
 namespace gc {
@@ -100,8 +100,8 @@ namespace gc {
 			bool is_container = {false};
 			bool is_registered = {false};
 
-			static constexpr int8_t atomic_update_value = std::numeric_limits<int8_t>::max();
-			static constexpr int8_t lock_update_value = std::numeric_limits<int8_t>::min();
+			static constexpr int8_t ValueAtomicUpdate = std::numeric_limits<int8_t>::max();
+			static constexpr int8_t ValueExpired = std::numeric_limits<int8_t>::min();
 		};
 
 		class Collector;
@@ -217,8 +217,8 @@ namespace gc {
 		};
 
 		struct Memory_buffer : Object {
-			Memory_buffer(bool s)
-			: _fixed_size(s) {
+			Memory_buffer(bool f)
+			: _fixed_size(f) {
 				metadata.is_container = true;
 				new (&metadata.first_memory_block) std::atomic<Memory_block*>(nullptr);
 			}
@@ -391,13 +391,13 @@ namespace gc {
 		class Ptr {
 		public:
 			Ptr() noexcept {
-#if GC_MAX_STACK_OFFSET
+#if SGCL_MAX_STACK_OFFSET
 				int local = 0;
 				size_t this_addr = reinterpret_cast<size_t>(this);
 				size_t local_addr = reinterpret_cast<size_t>(&local);
 				size_t offset = local_addr > this_addr ? local_addr - this_addr : this_addr - local_addr;
 
-				if (offset > GC_MAX_STACK_OFFSET) {
+				if (offset > SGCL_MAX_STACK_OFFSET) {
 #endif
 					auto& state = Memory::local_alloc_state();
 					bool root = !(this >= state.range.first && this < state.range.second);
@@ -409,7 +409,7 @@ namespace gc {
 							state.last_ptr = state.last_ptr->_next_ptr = this;
 						}
 					}
-#if GC_MAX_STACK_OFFSET
+#if SGCL_MAX_STACK_OFFSET
 				} else {
 					this->_type = Ptr_type::root;
 				}
@@ -445,8 +445,8 @@ namespace gc {
 			}
 
 			static void _update_atomic(const Object* p) noexcept {
-				if (p && p->metadata.update_counter.load(std::memory_order_acquire) < Object_metadata::atomic_update_value) {
-					p->metadata.update_counter.store(Object_metadata::atomic_update_value, std::memory_order_release);
+				if (p && p->metadata.update_counter.load(std::memory_order_acquire) < Object_metadata::ValueAtomicUpdate) {
+					p->metadata.update_counter.store(Object_metadata::ValueAtomicUpdate, std::memory_order_release);
 				}
 			}
 
@@ -542,7 +542,7 @@ namespace gc {
 			}
 
 			inline static bool _expired(Object* p) noexcept {
-				return !p->metadata.weak_ref_counter.load(std::memory_order_acquire);
+				return p->metadata.update_counter.load(std::memory_order_acquire) == Object_metadata::ValueExpired;
 			}
 
 			inline static bool _try_lock(Object* p) noexcept {
@@ -551,7 +551,7 @@ namespace gc {
 					auto counter = p->metadata.update_counter.load(std::memory_order_acquire);
 					while(!counter &&
 								!p->metadata.update_counter.compare_exchange_weak(counter, 1, std::memory_order_release, std::memory_order_relaxed));
-					return counter != Object_metadata::lock_update_value;
+					return counter != Object_metadata::ValueExpired;
 				}
 				return false;
 			}
@@ -620,9 +620,9 @@ namespace gc {
 				static double rest = 0;
 				auto c = std::chrono::steady_clock::now();
 				double duration = std::chrono::duration<double, std::milli>(c - clock).count();
-				duration = Object_metadata::atomic_update_value * duration / 100 + rest; // 100ms for atomic_update_value
+				duration = Object_metadata::ValueAtomicUpdate * duration / 100 + rest; // 100ms for ValueAtomicUpdate
 				int iduration = (int)duration;
-				int grain = std::min((int)Object_metadata::atomic_update_value, iduration);
+				int grain = std::min((int)Object_metadata::ValueAtomicUpdate, iduration);
 				if (iduration >= 1) {
 					clock = c;
 					rest = duration - iduration;
@@ -635,7 +635,7 @@ namespace gc {
 					int new_counter = 0;
 					int counter = ptr->metadata.update_counter.load(std::memory_order_acquire);
 					if (counter > 0) {
-						new_counter = !abort ? counter == 1 || counter == Object_metadata::atomic_update_value ? counter - 1 : counter - std::min(counter, grain) : 0;
+						new_counter = !abort ? counter == 1 || counter == Object_metadata::ValueAtomicUpdate ? counter - 1 : counter - std::min(counter, grain) : 0;
 						if (new_counter != counter) {
 							ptr->metadata.update_counter.store(new_counter, std::memory_order_release);
 						}
@@ -738,7 +738,7 @@ namespace gc {
 					if (ptr->metadata.weak_ref_counter.load(std::memory_order_acquire)) {
 						auto counter = ptr->metadata.update_counter.load(std::memory_order_acquire);
 						while(!counter &&
-									!ptr->metadata.update_counter.compare_exchange_weak(counter, Object_metadata::lock_update_value, std::memory_order_release, std::memory_order_relaxed));
+									!ptr->metadata.update_counter.compare_exchange_weak(counter, Object_metadata::ValueExpired, std::memory_order_release, std::memory_order_relaxed));
 						if (counter) {
 							_objects.pop(ptr);
 							tmp_list.push(ptr);
@@ -760,7 +760,7 @@ namespace gc {
 				p->metadata.prev_object = nullptr;
 				if (p->metadata.can_remove_object && p->metadata.weak_ref_counter.load(std::memory_order_acquire) == 0) {
 					assert(p->metadata.update_counter.load(std::memory_order_acquire) == 0 ||
-								 p->metadata.update_counter.load(std::memory_order_acquire) == Object_metadata::lock_update_value);
+								 p->metadata.update_counter.load(std::memory_order_acquire) == Object_metadata::ValueExpired);
 					auto raw_ptr = p->metadata.raw_ptr;
 					p->metadata.~Object_metadata();
 					if (!_abort.load(std::memory_order_acquire)) {
@@ -813,7 +813,7 @@ namespace gc {
 #endif
 				using namespace std::chrono_literals;
 				std::thread destroyer;
-				int finalizeation_counter = 2;
+				int finalization_counter = 2;
 				do {
 					_mark_root_objects();
 
@@ -860,9 +860,9 @@ namespace gc {
 					}
 
 					if (_abort.load(std::memory_order_acquire) && !garbage) {
-						--finalizeation_counter;
+						--finalization_counter;
 					}
-				} while(finalizeation_counter);
+				} while(finalization_counter);
 
 				if (destroyer.joinable()) {
 					destroyer.join();
