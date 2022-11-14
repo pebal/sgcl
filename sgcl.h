@@ -6,6 +6,7 @@
 #ifndef SGCL_H
 #define SGCL_H
 
+#include <array>
 #include <atomic>
 #include <cassert>
 #include <chrono>
@@ -14,16 +15,13 @@
 #include <thread>
 #include <type_traits>
 
+#define SGCL_MAX_POINTER_TYPES 1024
 #define SGCL_MAX_SLEEP_TIME_SEC 10
 #define SGCL_TRIGER_PERCENTAGE 25
 #define SGCL_LOG_PRINT_LEVEL 1
 
 #if SGCL_LOG_PRINT_LEVEL
 #include <iostream>
-#endif
-
-#ifdef __MINGW32__
-#define SGCL_MAX_STACK_OFFSET 1024
 #endif
 
 namespace gc {
@@ -72,56 +70,52 @@ namespace gc {
 	struct Priv {
 		Priv() = delete;
 
+		class Object;
 		class Ptr;
 		class Weak_ptr;
-		class Object;
-		class Memory_block;
 
-		struct Object_metadata {
-			std::atomic<Object*> next_allocated_object = {nullptr};
-			Object* prev_object = {nullptr};
-			Object* next_object = {nullptr};
-			union {
-				Ptr* first_ptr = {nullptr};
-				std::atomic<Memory_block*> first_memory_block;
+		static constexpr int8_t ValueAtomicUpdate = std::numeric_limits<int8_t>::max();
+		static constexpr int8_t ValueExpired = std::numeric_limits<int8_t>::min();
+
+		struct Metadata {
+			struct Static {
+				size_t object_count;
+				size_t object_size;
+				std::pair<Metadata*(*)(void*), size_t>* pointer_offsets;
 			};
-			union {
-				Object* (*vget)(void*);
-				Object* (*clone)(const Object*);
-				void* raw_ptr;
-			};
-			std::atomic_uint ref_counter = {0};
+
+			virtual ~Metadata() = default;
+			virtual void destroy() const noexcept {}
+			virtual Object* clone(const Object*) {
+				return nullptr;
+			}
+			virtual Static static_metadata() const noexcept {
+				return {0, 0, nullptr};
+			}
+
+			std::atomic<Metadata*> next_allocated_object = {nullptr};
+			Metadata* prev_object = {nullptr};
+			Metadata* next_object = {nullptr};
+			//std::atomic_uint ref_counter = {0};
 			std::atomic_uint weak_ref_counter = {0};
 			std::atomic_int8_t update_counter = {1};
 			std::atomic_bool next_object_can_registered = {true};
 			bool can_remove_object = {false};
 			bool is_reachable = {true};
-			bool is_managed = {false};
 			bool is_container = {false};
 			bool is_registered = {false};
-
-			static constexpr int8_t ValueAtomicUpdate = std::numeric_limits<int8_t>::max();
-			static constexpr int8_t ValueExpired = std::numeric_limits<int8_t>::min();
 		};
 
-		class Collector;
-		struct Memory;
+		//class Collector;
+		//struct Memory;
 		struct Thread_data;
 
 		class Object {
 		protected:
 			Object() = default;
-			Object(const Object&) noexcept {}
-
 			virtual ~Object() = default;
 
-			Object& operator=(const Object&) noexcept {
-				return *this;
-			}
-
-			union {
-				mutable Object_metadata metadata = {};
-			};
+			Metadata* metadata = nullptr;
 
 			friend struct Priv;
 			template<typename, typename> friend class ptr;
@@ -132,222 +126,218 @@ namespace gc {
 			return data_instance;
 		}
 
-		class Memory_block {
-		public:
-			struct data {
-				Object* get() const noexcept {
-					return ptr.load(std::memory_order_relaxed);
-				}
+		struct Stack {
+			static constexpr int BlockSize = 256;
+			using Block = std::array<std::atomic<void*>, BlockSize>;
 
-				Object* vget() const noexcept {
-					return ptr.load(std::memory_order_acquire);
-				}
-
-				void set(Object* p) noexcept {
-					ptr.store(p, std::memory_order_release);
-					if (p && !p->metadata.update_counter.load(std::memory_order_acquire)) {
-						p->metadata.update_counter.store(1, std::memory_order_release);
-					}
-				}
-
-				std::atomic<Object*> ptr = {nullptr};
-				union {
-					Memory_block* memory_block;
-					struct {
-						unsigned offset;
-						unsigned next_data;
-					};
-				};
+			struct Block_node {
+				Metadata*(*metadata)(void*) = {nullptr};
+				Block_node* next = {nullptr};
+				Block data = {nullptr};
 			};
 
-			Memory_block(data* const b, unsigned s)
-			: buffer(b)
-			, size(s)
-			, free_counter(s) {
-				for (unsigned i = 0; i < size; ++i) {
-					buffer[i].offset = i;
-					buffer[i].next_data = i + 1;
+			struct Indexes {
+				Indexes() : _position(size()) {
 				}
-			}
-
-			virtual ~Memory_block() = default;
-
-			data* alloc() noexcept {
-				if (free_counter) {
-					data* c = &buffer[_free_cell];
-					_free_cell = buffer[_free_cell].next_data;
-					--free_counter;
-					return c;
-				}
-				_blocked = true;
-				return nullptr;
-			}
-
-			void free(data* d) noexcept {
-				d->next_data = _free_cell;
-				_free_cell = d->offset;
-				++free_counter;
-				if (free_counter == size) {
-					is_rechable.store(false, std::memory_order_release);
-				}
-			}
-
-			bool realloc_request() const noexcept {
-				return _blocked && free_counter >= size / 2;
-			}
-
-			Memory_block* prev_block = {nullptr};
-			std::atomic<Memory_block*> next_block = {nullptr};
-			data* const buffer;
-			const unsigned size;
-			unsigned free_counter;
-			std::atomic<bool> is_rechable = {true};
-
-		private:
-			unsigned _free_cell = 0;
-			bool _blocked = {false};
-		};
-
-		template<unsigned Size = 16>
-		struct Memory_block_data : Memory_block {
-			Memory_block_data()
-			: Memory_block(buffer, Size) {
-			}
-			data buffer[Size];
-		};
-
-		struct Memory_buffer : Object {
-			Memory_buffer(bool f)
-			: _fixed_size(f) {
-				metadata.is_container = true;
-				new (&metadata.first_memory_block) std::atomic<Memory_block*>(nullptr);
-			}
-
-			Memory_block::data* alloc() {
-				Memory_block::data* data = nullptr;
-				auto last_block = _block;
-				if (_block) {
-					data = _block->alloc();
-					if (!data) {
-						_block = nullptr;
+				Indexes(Block& block) : _position(0) {
+					for(int i = 0; i < size(); ++i) {
+						_indexes[i] = &block[i];
 					}
 				}
-				if (!_block) {
-					_block = _new_block();
-					if (last_block) {
-						_block->prev_block = last_block;
-						last_block->next_block.store(_block, std::memory_order_release);
-					} else {
-						metadata.first_memory_block.store(_block, std::memory_order_release);
+				constexpr int size() const noexcept {
+					return (int)_indexes.size();
+				}
+				bool is_empty() const noexcept {
+					return _position == size();
+				}
+				bool is_full() const noexcept {
+					return _position == 0;
+				}
+				std::atomic<void*>* alloc() noexcept {
+					return _indexes[_position++];
+				}
+				void free(std::atomic<void*>* p) noexcept {
+					p->store(nullptr, std::memory_order_relaxed);
+					_indexes[--_position] = p;
+				}
+
+				Indexes* next = nullptr;
+
+			private:
+				std::array<std::atomic<void*>*, BlockSize> _indexes;
+				int _position;
+			};
+
+			Stack() {
+				_indexes = new std::atomic<Indexes*>[SGCL_MAX_POINTER_TYPES]{nullptr};
+				_empty_indexes = new std::atomic<Indexes*>[SGCL_MAX_POINTER_TYPES]{nullptr};
+			}
+
+			template<class T>
+			static Metadata* metadata_getter(void* p) {
+				return static_cast<T*>(p)->metadata;
+			}
+
+			template<class T>
+			std::atomic<void*>* alloc() {
+				auto type_index = Stack::Type<T>::index;
+				auto& indexes = _local_indexes[type_index];
+				auto [idx1, idx2] = indexes;
+				if (idx1 && !idx1->is_empty()) {
+					return idx1->alloc();
+				}
+				if (idx2 && !idx2->is_empty()) {
+					indexes = {idx2, idx1};
+					return idx2->alloc();
+				}
+				auto new_idx = _indexes[type_index].load(std::memory_order_acquire);
+				while(new_idx && !_indexes[type_index].compare_exchange_weak(new_idx, new_idx->next, std::memory_order_release, std::memory_order_acquire));
+				if (!new_idx) {
+					auto block = new Block_node{metadata_getter<T>};
+					new_idx = new Indexes(block->data);
+					block->next = blocks.load(std::memory_order_acquire);
+					while(!blocks.compare_exchange_weak(block->next, block, std::memory_order_release, std::memory_order_relaxed));
+				}
+				if (idx1) {
+					if (idx2) {
+						idx2->next = _empty_indexes[type_index].load(std::memory_order_acquire);
+						while(!_empty_indexes[type_index].compare_exchange_weak(idx2->next, idx2, std::memory_order_release, std::memory_order_relaxed));
 					}
-					data = _block->alloc();
+					idx2 = idx1;
 				}
-				++_size;
-				return data;
+				idx1 = new_idx;
+				indexes = {idx1, idx2};
+				return idx1->alloc();
 			}
-
-			void free(Memory_block::data* d) noexcept {
-				auto* block = _block_of(d);
-				block->free(d);
-				--_size;
-			}
-
-			void realloc(Memory_block::data*& d) noexcept {
-				auto data = alloc();
-				data->set(d->get());
-				free(d);
-				d = data;
-			}
-
-			void update(Memory_block::data*& d) noexcept {
-				if (_block_of(d)->realloc_request()) {
-					realloc(d);
+			template<class T>
+			void free(std::atomic<void*>* p) noexcept {
+				auto type_index = Stack::Type<T>::index;
+				auto& indexes = _local_indexes[type_index];
+				auto [idx1, idx2] = indexes;
+				if (idx1 && !idx1->is_full()) {
+					idx1->free(p);
+					return;
 				}
+				if (idx2 && !idx2->is_full()) {
+					idx2->free(p);
+					indexes = {idx2, idx1};
+					return;
+				}
+				auto new_idx = _empty_indexes[type_index].load(std::memory_order_acquire);
+				while(new_idx && !_empty_indexes[type_index].compare_exchange_weak(new_idx, new_idx->next, std::memory_order_release, std::memory_order_acquire));
+				if (!new_idx) {
+					new_idx = new Indexes();
+				}
+				if (idx1) {
+					if (idx2) {
+						idx2->next = _indexes[type_index].load(std::memory_order_acquire);
+						while(!_indexes[type_index].compare_exchange_weak(idx2->next, idx2, std::memory_order_release, std::memory_order_relaxed));
+					}
+					idx2 = idx1;
+				}
+				idx1 = new_idx;
+				indexes = {idx1, idx2};
+				idx1->free(p);
 			}
+
+			std::atomic<Block_node*> blocks = {nullptr};
 
 		private:
-			const bool _fixed_size;
-			unsigned _size = {0};
-			Memory_block* _block = {nullptr};
+			std::atomic<Indexes*>* _indexes;
+			std::atomic<Indexes*>* _empty_indexes;
 
-			static constexpr unsigned _index_of(unsigned s, unsigned i = 0) noexcept {
-				return s ? _index_of(s / 2, i + 1) : i;
-			}
+			struct Local_indexes {
+				Local_indexes() : _data(nullptr) {}
+				~Local_indexes() {
+					if (_data) {
+						for (int i = 0; i < SGCL_MAX_POINTER_TYPES; ++i) {
+							for(auto idx : _data[i]) {
+								if (idx) {
+									auto& indexes = idx->is_empty() ? stack._empty_indexes[i] : stack._indexes[i];
+									idx->next = indexes.load(std::memory_order_acquire);
+									while(!indexes.compare_exchange_weak(idx->next, idx, std::memory_order_release, std::memory_order_relaxed));
+								}
+							}
+						}
+						delete[] _data;
+					}
+				}
+				std::array<Indexes*, 2>& operator[](int type_index) {
+					assert(type_index < SGCL_MAX_POINTER_TYPES);
+					if (!_data) {
+						_data = new std::array<Indexes*, 2>[SGCL_MAX_POINTER_TYPES]{std::array<Indexes*, 2>{nullptr, nullptr}};
+					}
+					return _data[type_index];
+				}
+			private:
+				std::array<Indexes*, 2>* _data;
+			};
 
-			static Memory_block* _block_of(Memory_block::data* d) noexcept {
-				Memory_block* block = (Memory_block_data<>*)((char*)(d - d->offset) - (char*)&(((Memory_block_data<>*)nullptr)->buffer));
-				return block;
-			}
+			inline static thread_local Local_indexes _local_indexes;
+			inline static std::atomic<int> _type_index = {0};
 
-			Memory_block* _new_block() const {
-				static std::function<Memory_block*()> new_block[] = {
-					[]{ return new Memory_block_data<16>(); },
-					[]{ return new Memory_block_data<32>(); },
-					[]{ return new Memory_block_data<64>(); },
-					[]{ return new Memory_block_data<128>(); },
-					[]{ return new Memory_block_data<256>(); },
-					[]{ return new Memory_block_data<512>(); },
-					[]{ return new Memory_block_data<1024>(); },
-					[]{ return new Memory_block_data<2048>(); },
-					[]{ return new Memory_block_data<4096>(); }
-				};
-				return _fixed_size ? new_block[0]() : new_block[std::min((unsigned)std::size(new_block) - 1, std::max(4u, _index_of(_size)) - 3)]();
-			}
+		public:
+			template<class T>
+			struct Type {
+				inline static int index = _type_index++;
+			};
 		};
+
+		inline static Stack stack;
 
 		struct Memory {
 			struct alloc_state {
 				std::pair<Ptr*, Ptr*> range;
-				Ptr* first_ptr;
-				Ptr* last_ptr;
+				size_t size;
+				std::pair<Metadata*(*)(void*), std::atomic<void*>*>* ptrs;
 			};
 
 			static alloc_state& local_alloc_state() {
-				static thread_local alloc_state _local_alloc_state = {{nullptr, nullptr}, nullptr, nullptr};
+				static thread_local alloc_state _local_alloc_state = {{nullptr, nullptr}, 0, nullptr};
 				return _local_alloc_state;
 			}
 
-			static void register_object(Object* p) noexcept {
+			static void register_object(Metadata* p) noexcept {
 				auto& thread_data = local_thread_data();
-				thread_data.last_allocated_object->metadata.next_allocated_object.store(p, std::memory_order_release);
+				thread_data.last_allocated_object->next_allocated_object.store(p, std::memory_order_release);
 				thread_data.last_allocated_object = p;
 			}
 
-			static void register_container(Object* p) noexcept {
+			static void register_container(Metadata* p) noexcept {
 				auto& thread_data = local_thread_data();
-				thread_data.last_allocated_container->metadata.next_allocated_object.store(p, std::memory_order_release);
+				thread_data.last_allocated_container->next_allocated_object.store(p, std::memory_order_release);
 				thread_data.last_allocated_container = p;
 			}
 
-			static Object* try_lock_last_ptr() noexcept {
+			static Metadata* try_lock_last_ptr() noexcept {
 				auto& thread_data = local_thread_data();
 				auto last_ptr = thread_data.last_allocated_object;
-				if (last_ptr->metadata.next_object_can_registered.load(std::memory_order_relaxed)) {
-					last_ptr->metadata.next_object_can_registered.store(false, std::memory_order_release);
+				if (last_ptr->next_object_can_registered.load(std::memory_order_relaxed)) {
+					last_ptr->next_object_can_registered.store(false, std::memory_order_release);
 					return last_ptr;
 				}
 				return nullptr;
 			}
 
-			static void unlock_last_ptr(Object* p) noexcept {
+			static void unlock_last_ptr(Metadata* p) noexcept {
 				if (p) {
-					p->metadata.next_object_can_registered.store(true, std::memory_order_release);
+					p->next_object_can_registered.store(true, std::memory_order_release);
 				}
 			}
 		};
 
 		struct Thread_data {
-			struct local_list : Object {
-				explicit local_list(Object* p = nullptr) noexcept
+			struct local_list : Metadata {
+				explicit local_list(Metadata* p = nullptr) noexcept
 				: first_ptr(p) {
-					metadata.is_reachable = false;
-					metadata.can_remove_object = true;
+					is_reachable = false;
+					can_remove_object = true;
 					if (p) {
-						p->metadata.is_reachable = false;
+						p->is_reachable = false;
 					}
 				}
-				std::atomic<bool> is_reachable = {true};
-				Object* first_ptr;
+				std::atomic<bool> is_used = {true};
+				Metadata* first_ptr;
 				std::atomic<local_list*> next_local_list = {nullptr};
 			};
 
@@ -362,8 +352,8 @@ namespace gc {
 			};
 
 			Thread_data()
-			: last_allocated_object(new Object)
-			, last_allocated_container(new Object)
+			: last_allocated_object(new Metadata)
+			, last_allocated_container(new Metadata)
 			, _local_list(new local_list {last_allocated_object}) {
 #if SGCL_LOG_PRINT_LEVEL
 				std::cout << "[sgcl] start thread id: " << std::this_thread::get_id() << std::endl;
@@ -376,12 +366,12 @@ namespace gc {
 #if SGCL_LOG_PRINT_LEVEL
 				std::cout << "[sgcl] stop thread id: " << std::this_thread::get_id() << std::endl;
 #endif
-				_local_list->is_reachable.store(false, std::memory_order_release);
+				_local_list->is_used.store(false, std::memory_order_release);
 			}
 
 			volatile bool init = {false};
-			Object* last_allocated_object;
-			Object* last_allocated_container;
+			Metadata* last_allocated_object;
+			Metadata* last_allocated_container;
 			inline static global_list list = {};
 
 		private:
@@ -390,135 +380,55 @@ namespace gc {
 
 		class Ptr {
 		public:
-			Ptr() noexcept {
-#if SGCL_MAX_STACK_OFFSET
-				int local = 0;
-				size_t this_addr = reinterpret_cast<size_t>(this);
-				size_t local_addr = reinterpret_cast<size_t>(&local);
-				size_t offset = local_addr > this_addr ? local_addr - this_addr : this_addr - local_addr;
-
-				if (offset > SGCL_MAX_STACK_OFFSET) {
-#endif
-					auto& state = Memory::local_alloc_state();
-					bool root = !(this >= state.range.first && this < state.range.second);
-					this->_type = root ? Ptr_type::root : Ptr_type::undefined;
-					if (!root) {
-						if (!state.last_ptr){
-							state.first_ptr = state.last_ptr = this;
-						} else {
-							state.last_ptr = state.last_ptr->_next_ptr = this;
-						}
-					}
-#if SGCL_MAX_STACK_OFFSET
-				} else {
-					this->_type = Ptr_type::root;
+			template<class T>
+			Ptr(T*) noexcept {
+				auto& state = Memory::local_alloc_state();
+				bool root = !(this >= state.range.first && this < state.range.second);
+				if (!root && state.ptrs) {
+					state.ptrs[state.size++] = {Stack::metadata_getter<T>, &__ptr};
 				}
-#endif
+				_ref = root ? stack.alloc<T>() : &__ptr;
 			}
 
 			Ptr(const Ptr&) = delete;
-			virtual ~Ptr() = default;
 			Ptr& operator=(const Ptr&) = delete;
 
-			Ptr* next_ptr() const noexcept {
-				return _next_ptr;
-			}
-
-			virtual const Object* vget() const noexcept = 0;
-			virtual void vreset() noexcept = 0;
-
 		protected:
-			bool _is_root() const noexcept {
-				return _type == Ptr_type::root;
-			}
-
-			static void _update_counter(const Object* p, int v) noexcept {
-				if (p) {
-					p->metadata.ref_counter.fetch_add(v, std::memory_order_release);
+			template<class T>
+			void _free_ref() {
+				if (_ref != &__ptr) {
+					stack.free<T>(_ref);
 				}
 			}
 
 			static void _update(const Object* p) noexcept {
-				if (p && !p->metadata.update_counter.load(std::memory_order_acquire)) {
-					p->metadata.update_counter.store(1, std::memory_order_release);
-				}
-			}
-
-			static void _update_atomic(const Object* p) noexcept {
-				if (p && p->metadata.update_counter.load(std::memory_order_acquire) < Object_metadata::ValueAtomicUpdate) {
-					p->metadata.update_counter.store(Object_metadata::ValueAtomicUpdate, std::memory_order_release);
-				}
-			}
-
-			void _create(const Object* p) const noexcept {
-				_update(p);
-				if (!_is_root()) {
-					p->metadata.ref_counter.store(0, std::memory_order_release);
-				}
-			}
-
-			void _init(const Object* p) const noexcept {
-				if (_is_root()) {
-					_update_counter(p, 1);
-				}
-				_update(p);
-			}
-
-			void _init_move(const Object* p, bool p_is_root) const noexcept {
 				if (p) {
-					if (_is_root() && !p_is_root) {
-						_update_counter(p, 1);
-					} else if (!_is_root() && p_is_root) {
-						_update_counter(p, -1);
-					}
-				}
-				_update(p);
-			}
-
-			void _set(const Object* l, const Object* r, bool u = true) const noexcept {
-				if (_is_root()) {
-					_update_counter(l, -1);
-					_update_counter(r, 1);
-				}
-				if (u) {
-					_update(r);
-				}
-			}
-
-			void _set_move(const Object* l, const Object* r, bool p_is_root) const noexcept {
-				if (_is_root()) {
-					_update_counter(l, -1);
-				}
-				_init_move(r, p_is_root);
-			}
-
-			void _remove(const Object* p) const noexcept {
-				if (_is_root()) {
-					_update_counter(p, -1);
+					p->metadata->update_counter.store(1, std::memory_order_release);
 				}
 			}
 
 			Object* _clone(const Object* ptr) const {
-				return ptr->metadata.clone(ptr);
+				return ptr->metadata->clone(ptr);
+			}
+
+			std::atomic<void*>& _ptr() noexcept {
+				return *_ref;
+			}
+
+			const std::atomic<void*>& _ptr() const noexcept {
+				return *_ref;
 			}
 
 		private:
-			enum class Ptr_type : size_t {
-				undefined = 0,
-				root = 1
-			};
-
-			union {
-				Ptr* _next_ptr;
-				Ptr_type _type;
-			};
+			std::atomic<void*>* _ref;
+			std::atomic<void*> __ptr;
 		};
 
 		class Weak_ptr {
 		protected:
 			inline static void _init(Object* p) noexcept {
 				if (p) {
-					p->metadata.weak_ref_counter.fetch_add(1, std::memory_order_release);
+					p->metadata->weak_ref_counter.fetch_add(1, std::memory_order_release);
 				}
 			}
 
@@ -537,22 +447,24 @@ namespace gc {
 
 			inline static void _remove(Object* p) noexcept {
 				if (p) {
-					p->metadata.weak_ref_counter.fetch_sub(1, std::memory_order_release);
+					p->metadata->weak_ref_counter.fetch_sub(1, std::memory_order_release);
 				}
 			}
 
 			inline static bool _expired(Object* p) noexcept {
-				return p->metadata.update_counter.load(std::memory_order_acquire) == Object_metadata::ValueExpired;
+				return p->metadata->update_counter.load(std::memory_order_acquire) == ValueExpired;
 			}
 
 			inline static bool _try_lock(Object* p) noexcept {
+				/*
 				if (p) {
-					p->metadata.ref_counter.fetch_add(1, std::memory_order_release);
-					auto counter = p->metadata.update_counter.load(std::memory_order_acquire);
+					p->metadata->ref_counter.fetch_add(1, std::memory_order_release);
+					auto counter = p->metadata->update_counter.load(std::memory_order_acquire);
 					while(!counter &&
-								!p->metadata.update_counter.compare_exchange_weak(counter, 1, std::memory_order_release, std::memory_order_relaxed));
-					return counter != Object_metadata::ValueExpired;
+								!p->metadata->update_counter.compare_exchange_weak(counter, 1, std::memory_order_release, std::memory_order_relaxed));
+					return counter != ValueExpired;
 				}
+				*/
 				return false;
 			}
 		};
@@ -570,38 +482,38 @@ namespace gc {
 
 		private:
 			struct object_list {
-				void push(Object* p) noexcept {
+				void push(Metadata* p) noexcept {
 					if (!first) {
 						first = last = p;
 					} else {
-						last->metadata.next_object = p;
-						p->metadata.prev_object = last;
+						last->next_object = p;
+						p->prev_object = last;
 						last = p;
 					}
 				}
 
-				void push(Object* f, Object* l) noexcept {
+				void push(Metadata* f, Metadata* l) noexcept {
 					if (f) {
 						if (!first) {
 							first = f;
 						} else {
-							last->metadata.next_object = f;
-							f->metadata.prev_object = last;
+							last->next_object = f;
+							f->prev_object = last;
 						}
 						last = l;
 					}
 				}
 
-				void pop(Object* p) noexcept {
-					auto prev = p->metadata.prev_object;
-					auto next = p->metadata.next_object;
+				void pop(Metadata* p) noexcept {
+					auto prev = p->prev_object;
+					auto next = p->next_object;
 					if (prev) {
-						prev->metadata.next_object = next;
-						p->metadata.prev_object = nullptr;
+						prev->next_object = next;
+						p->prev_object = nullptr;
 					}
 					if (next) {
-						next->metadata.prev_object = prev;
-						p->metadata.next_object = nullptr;
+						next->prev_object = prev;
+						p->next_object = nullptr;
 					}
 					if (first == p) {
 						first = next;
@@ -610,19 +522,20 @@ namespace gc {
 						last = prev;
 					}
 				}
-				Object* first = {nullptr};
-				Object* last = {nullptr};
+				Metadata* first = {nullptr};
+				Metadata* last = {nullptr};
 			};
 
+			/*
 			void _mark_root_objects() noexcept {
 				static auto clock = std::chrono::steady_clock::now();
 				//static int counter = 0;
 				static double rest = 0;
 				auto c = std::chrono::steady_clock::now();
 				double duration = std::chrono::duration<double, std::milli>(c - clock).count();
-				duration = Object_metadata::ValueAtomicUpdate * duration / 100 + rest; // 100ms for ValueAtomicUpdate
+				duration = ValueAtomicUpdate * duration / 100 + rest; // 100ms for ValueAtomicUpdate
 				int iduration = (int)duration;
-				int grain = std::min((int)Object_metadata::ValueAtomicUpdate, iduration);
+				int grain = std::min((int)ValueAtomicUpdate, iduration);
 				if (iduration >= 1) {
 					clock = c;
 					rest = duration - iduration;
@@ -631,41 +544,94 @@ namespace gc {
 				bool abort = _abort.load(std::memory_order_acquire);
 				auto ptr = _objects.first;
 				while(ptr) {
-					auto next = ptr->metadata.next_object;
+					auto next = ptr->next_object;
 					int new_counter = 0;
-					int counter = ptr->metadata.update_counter.load(std::memory_order_acquire);
+					int counter = ptr->update_counter.load(std::memory_order_acquire);
 					if (counter > 0) {
-						new_counter = !abort ? counter == 1 || counter == Object_metadata::ValueAtomicUpdate ? counter - 1 : counter - std::min(counter, grain) : 0;
+						new_counter = !abort ? counter == 1 || counter == ValueAtomicUpdate ? counter - 1 : counter - std::min(counter, grain) : 0;
 						if (new_counter != counter) {
-							ptr->metadata.update_counter.store(new_counter, std::memory_order_release);
+							ptr->update_counter.store(new_counter, std::memory_order_release);
 						}
 					}
-					auto ref_counter = ptr->metadata.ref_counter.load(std::memory_order_acquire);
+					auto ref_counter = ptr->ref_counter.load(std::memory_order_acquire);
 					if (ref_counter > 0 || new_counter > 0) {
-						ptr->metadata.is_reachable = true;
+						ptr->is_reachable = true;
 						_objects.pop(ptr);
 						_reachable_objects.push(ptr);
 					} else {
-						ptr->metadata.is_reachable = false;
+						ptr->is_reachable = false;
 					}
 					ptr = next;
 				}
 			}
+			*/
+
+			void _mark_root_objects() noexcept {
+				static auto clock = std::chrono::steady_clock::now();
+				static double rest = 0;
+				auto c = std::chrono::steady_clock::now();
+				double duration = std::chrono::duration<double, std::milli>(c - clock).count();
+				duration = ValueAtomicUpdate * duration / 100 + rest; // 100ms for ValueAtomicUpdate
+				int iduration = (int)duration;
+				int grain = std::min((int)ValueAtomicUpdate, iduration);
+				if (iduration >= 1) {
+					clock = c;
+					rest = duration - iduration;
+				}
+
+				bool abort = _abort.load(std::memory_order_acquire);
+				auto ptr = _objects.first;
+				while(ptr) {
+					auto next = ptr->next_object;
+					int new_counter = 0;
+					int counter = ptr->update_counter.load(std::memory_order_acquire);
+					if (counter > 0) {
+						new_counter = !abort ? counter == 1 || counter == ValueAtomicUpdate ? counter - 1 : counter - std::min(counter, grain) : 0;
+						if (new_counter != counter) {
+							ptr->update_counter.store(new_counter, std::memory_order_release);
+						}
+					}
+					if (new_counter > 0) {
+						ptr->is_reachable = true;
+						_objects.pop(ptr);
+						_reachable_objects.push(ptr);
+					} else {
+						ptr->is_reachable = false;
+					}
+					ptr = next;
+				}
+
+				auto block = stack.blocks.load(std::memory_order_acquire);
+				while(block) {
+					for (auto& child : block->data) {
+						auto object = child.load(std::memory_order_acquire);
+						if (object) {
+							auto ptr = block->metadata(object);
+							if (!ptr->is_reachable) {
+								ptr->is_reachable = true;
+								_objects.pop(ptr);
+								_reachable_objects.push(ptr);
+							}
+						}
+					}
+					block = block->next;
+				}
+			}
 
 			void _mark_local_allocated_objects(Thread_data::local_list* l) {
-				bool list_is_unreachable = !l->is_reachable.load(std::memory_order_acquire);
-				Object* next = l->first_ptr;
+				bool list_is_used = l->is_used.load(std::memory_order_acquire);
+				Metadata* next = l->first_ptr;
 				while(next) {
-					Object* ptr = l->first_ptr;
-					if (!ptr->metadata.is_registered) {
-						(ptr->metadata.is_reachable ? _reachable_objects : _objects).push(ptr);
-						ptr->metadata.is_registered = true;
+					Metadata* ptr = l->first_ptr;
+					if (!ptr->is_registered) {
+						(ptr->is_reachable ? _reachable_objects : _objects).push(ptr);
+						ptr->is_registered = true;
 						++_last_allocated_objects_number;
 					}
-					if (ptr->metadata.next_object_can_registered) {
-						next = ptr->metadata.next_allocated_object;
-						if (next || list_is_unreachable) {
-							ptr->metadata.can_remove_object = true;
+					if (ptr->next_object_can_registered.load(std::memory_order_acquire)) {
+						next = ptr->next_allocated_object;
+						if (next || !list_is_used) {
+							ptr->can_remove_object = true;
 							l->first_ptr = next;
 						}
 					} else {
@@ -695,21 +661,27 @@ namespace gc {
 				}
 			}
 
-			void _mark_child_objects(Object*& p) noexcept {
-				auto ptr = p ? p->metadata.next_object : _reachable_objects.first;
+			void _mark_child_objects(Metadata*& p) noexcept {
+				auto ptr = p ? p->next_object : _reachable_objects.first;
 				while(ptr) {
-					auto child_ptr = ptr->metadata.first_ptr;
-					while(child_ptr) {
-						if (auto p = const_cast<Object*>(child_ptr->vget())) {
-							if (!p->metadata.is_reachable) {
-								p->metadata.is_reachable = true;
-								_objects.pop(p);
-								_reachable_objects.push(p);
+					auto data = ptr->static_metadata();
+					for (size_t i = 0; i < data.object_count; ++i) {
+						auto offset = data.pointer_offsets;
+						while(offset->second) {
+							auto child_ptr = (std::atomic<void*>*)((size_t)ptr + data.object_size * i + offset->second);
+							auto object = child_ptr->load(std::memory_order_acquire);
+							if (object) {
+								auto ptr = offset->first(object);
+								if (!ptr->is_reachable) {
+									ptr->is_reachable = true;
+									_objects.pop(ptr);
+									_reachable_objects.push(ptr);
+								}
 							}
+							++offset;
 						}
-						child_ptr = child_ptr->next_ptr();
 					}
-					ptr = ptr->metadata.next_object;
+					ptr = ptr->next_object;
 				}
 				p = _reachable_objects.last;
 			}
@@ -718,10 +690,10 @@ namespace gc {
 				auto last_processed_object = _reachable_objects.last;
 				auto ptr = _objects.first;
 				while(ptr) {
-					auto next = ptr->metadata.next_object;
-					assert(!ptr->metadata.is_reachable);
-					if (ptr->metadata.update_counter.load(std::memory_order_acquire)) {
-						ptr->metadata.is_reachable = true;
+					auto next = ptr->next_object;
+					assert(!ptr->is_reachable);
+					if (ptr->update_counter.load(std::memory_order_acquire)) {
+						ptr->is_reachable = true;
 						_objects.pop(ptr);
 						_reachable_objects.push(ptr);
 					}
@@ -734,11 +706,11 @@ namespace gc {
 				object_list tmp_list;
 				auto ptr = _objects.first;
 				while(ptr) {
-					auto next = ptr->metadata.next_object;
-					if (ptr->metadata.weak_ref_counter.load(std::memory_order_acquire)) {
-						auto counter = ptr->metadata.update_counter.load(std::memory_order_acquire);
+					auto next = ptr->next_object;
+					if (ptr->weak_ref_counter.load(std::memory_order_acquire)) {
+						auto counter = ptr->update_counter.load(std::memory_order_acquire);
 						while(!counter &&
-									!ptr->metadata.update_counter.compare_exchange_weak(counter, Object_metadata::ValueExpired, std::memory_order_release, std::memory_order_relaxed));
+									!ptr->update_counter.compare_exchange_weak(counter, ValueExpired, std::memory_order_release, std::memory_order_relaxed));
 						if (counter) {
 							_objects.pop(ptr);
 							tmp_list.push(ptr);
@@ -755,16 +727,14 @@ namespace gc {
 				_reachable_objects = {nullptr, nullptr};
 			}
 
-			bool _try_delete(Object* p) noexcept {
-				p->metadata.next_object = nullptr;
-				p->metadata.prev_object = nullptr;
-				if (p->metadata.can_remove_object && p->metadata.weak_ref_counter.load(std::memory_order_acquire) == 0) {
-					assert(p->metadata.update_counter.load(std::memory_order_acquire) == 0 ||
-								 p->metadata.update_counter.load(std::memory_order_acquire) == Object_metadata::ValueExpired);
-					auto raw_ptr = p->metadata.raw_ptr;
-					p->metadata.~Object_metadata();
+			bool _try_delete(Metadata* p) noexcept {
+				p->next_object = nullptr;
+				p->prev_object = nullptr;
+				if (p->can_remove_object && p->weak_ref_counter.load(std::memory_order_acquire) == 0) {
+					assert(p->update_counter.load(std::memory_order_acquire) == 0 ||
+								 p->update_counter.load(std::memory_order_acquire) == ValueExpired);
 					if (!_abort.load(std::memory_order_acquire)) {
-						::operator delete(raw_ptr);
+						delete p;
 					}
 					return true;
 				}
@@ -775,7 +745,7 @@ namespace gc {
 				object_list tmp_list;
 				auto ptr = _garbage_objects.first;
 				while(ptr) {
-					auto next = ptr->metadata.next_object;
+					auto next = ptr->next_object;
 					if (!_try_delete(ptr)) {
 						tmp_list.push(ptr);
 					}
@@ -784,27 +754,30 @@ namespace gc {
 				_garbage_objects = tmp_list;
 			}
 
-			void _sweep() noexcept {
+			size_t _sweep(object_list objects) noexcept {
+				size_t destroyed_objects_number = 0;
 				object_list tmp_list;
-				auto ptr = _unreachable_objects.first;
+				auto ptr = objects.first;
 				while(ptr) {
-					auto next = ptr->metadata.next_object;
-					auto child_ptr = ptr->metadata.first_ptr;
-					while(child_ptr) {
-						child_ptr->vreset();
-						child_ptr = child_ptr->next_ptr();
+					auto next = ptr->next_object;
+					auto data = ptr->static_metadata();
+					for (size_t i = 0; i < data.object_count; ++i) {
+						auto offset = data.pointer_offsets;
+						while(offset->second) {
+							auto child_ptr = (std::atomic<void*>*)((size_t)ptr + data.object_size * i + offset->second);
+							child_ptr->store(nullptr, std::memory_order_relaxed);
+							++offset;
+						}
 					}
-					ptr->metadata.raw_ptr = dynamic_cast<void*>(ptr);
-					ptr->metadata.is_managed = false;
-					ptr->~Object();
+					ptr->destroy();
 					if (!_try_delete(ptr)) {
 						tmp_list.push(ptr);
 					}
-					++_last_destroyed_objects_number;
+					++destroyed_objects_number;
 					ptr = next;
 				}
 				_garbage_objects.push(tmp_list.first, tmp_list.last);
-				_unreachable_objects = {nullptr, nullptr};
+				return destroyed_objects_number;
 			}
 
 			void _main_loop() noexcept {
@@ -821,19 +794,20 @@ namespace gc {
 					int i = 0;
 					do {
 						_mark_allocated_objects();
-						if (_last_allocated_objects_number * 100 / SGCL_TRIGER_PERCENTAGE >= _live_objects_number + 4000 ||
-								_last_destroyed_objects_number * 100 / SGCL_TRIGER_PERCENTAGE >= _live_objects_number ||
+						if (std::max(_last_allocated_objects_number, _last_destroyed_objects_number.load(std::memory_order_acquire)) * 100 / SGCL_TRIGER_PERCENTAGE >= _live_objects_number + 4000 ||
 								_abort.load(std::memory_order_acquire)) {
 							break;
 						}
 						std::this_thread::sleep_for(1ms);
 					} while(++i < SGCL_MAX_SLEEP_TIME_SEC * 1000);
 
-					Object* last_processed_object = nullptr;
+					Metadata* last_processed_object = nullptr;
 					do {
 						_mark_child_objects(last_processed_object);
 					}
 					while(_mark_updated_objects());
+					bool garbage = _objects.first != _objects.last;
+					_move_objects_to_unreachable();
 					if (destroyer.joinable()) {
 						destroyer.join();
 					}
@@ -846,12 +820,10 @@ namespace gc {
 										<< _last_destroyed_objects_number << "/"
 										<< _live_objects_number << std::endl;
 #endif
-					_last_destroyed_objects_number = 0;
-					bool garbage = _objects.first != _objects.last;
-					_move_objects_to_unreachable();
-					destroyer = std::thread([this]{
+					destroyer = std::thread([this, objects = _unreachable_objects]{
 						_remove_garbage();
-						_sweep();
+						auto destroyed_objects_number = _sweep(objects);
+						_last_destroyed_objects_number.store(destroyed_objects_number, std::memory_order_release);
 					});
 					_move_reachable_to_objects();
 
@@ -883,7 +855,7 @@ namespace gc {
 			object_list _garbage_objects;
 
 			size_t _last_allocated_objects_number = {0};
-			size_t _last_destroyed_objects_number = {0};
+			std::atomic<size_t> _last_destroyed_objects_number = {0};
 			size_t _live_objects_number = {0};
 		};
 
@@ -894,36 +866,82 @@ namespace gc {
 			return ptr<T>(p, nullptr);
 		}
 
+		template<class T>
+		struct Type_data {
+			inline static std::atomic<std::pair<Metadata*(*)(void*), size_t>*> pointer_offsets = nullptr;
+			struct Metadata : Priv::Metadata {
+				Metadata(const T* p) : ptr(p) {}
+				Object* clone(const Object* p) override {
+					if constexpr (std::is_copy_constructible_v<T>) {
+						auto n = dynamic_cast<const T*>(p);
+						return make<T>(*n);
+					} else {
+						std::ignore = p;
+						assert(!"clone: no copy constructor");
+						return nullptr;
+					}
+				}
+				void destroy() const noexcept override {
+					ptr->~T();
+				}
+				Static static_metadata() const noexcept override {
+					return {1, sizeof(T), pointer_offsets.load(std::memory_order_acquire)};
+				}
+				const T* ptr;
+			};
+		};
+
 		template<typename T, typename ...A>
 		static T* make(A&&... a) {
-			auto last_ptr = Memory::try_lock_last_ptr();
+			using Type = Type_data<T>;
+			using M = typename Type::Metadata;
 
-			auto mem = static_cast<Ptr*>(::operator new(sizeof(T)));
+			std::pair<Metadata*(*)(void*), std::atomic<void*>*>* ptrs = nullptr;
+			if (!Type::pointer_offsets.load(std::memory_order_acquire)) {
+				ptrs = static_cast<std::pair<Metadata*(*)(void*), std::atomic<void*>*>*>(::operator new(sizeof(T)));
+			}
+
+			auto last_ptr = Memory::try_lock_last_ptr();
+			auto mem = static_cast<Ptr*>(::operator new(sizeof(M) + sizeof(T)));
 
 			auto& state = Memory::local_alloc_state();
 			auto old_state = state;
-			state = {{mem, mem + sizeof(T) / sizeof(Ptr*)}, nullptr, nullptr};
+			state = {{mem, mem + (sizeof(M) + sizeof(T)) / sizeof(Ptr*)}, 0, ptrs};
 
 			T* obj;
+			M* meta;
 			try {
-				obj = new(mem) T(std::forward<A>(a)...);
+				obj = new((M*)mem + 1) T(std::forward<A>(a)...);
+				meta = new(mem) M(obj);
 			}
 			catch (...) {
 				::operator delete(mem);
+				if (ptrs) {
+					::operator delete(ptrs);
+				}
 				state = old_state;
 				Memory::unlock_last_ptr(last_ptr);
 				throw;
 			}
 
-			auto& metadata = obj->_metadata();
-			metadata.first_ptr = state.first_ptr;
-			metadata.clone = ptr<T>::_Clone;
-			metadata.is_managed = true;
-			metadata.ref_counter.store(1, std::memory_order_relaxed);
+			if (ptrs) {
+				auto new_offset = new std::pair<Metadata*(*)(void*), size_t>[state.size + 1];
+				for (size_t i = 0; i < state.size; ++i) {
+					new_offset[i] = {ptrs[i].first, (size_t)ptrs[i].second - (size_t)static_cast<Metadata*>(meta)};
+				}
+				new_offset[state.size].second = 0;
+				::operator delete(ptrs);
+				std::pair<Metadata*(*)(void*), size_t>* o = nullptr;
+				if (!Type::pointer_offsets.compare_exchange_strong(o, new_offset)) {
+					::operator delete(new_offset);
+				}
+			}
+
+			obj->metadata = meta;
 
 			state = old_state;
 
-			Memory::register_object(obj);
+			Memory::register_object(meta);
 			Memory::unlock_last_ptr(last_ptr);
 
 			return obj;
@@ -960,13 +978,9 @@ namespace gc {
 			return ::operator new(c, p);
 		}
 
-		Priv::Object_metadata& _metadata() noexcept {
-			return metadata;
-		}
-
 	public:
 		bool is_managed() const noexcept {
-			return metadata.is_managed;
+			return metadata != nullptr;
 		}
 
 		friend struct Priv;
@@ -981,43 +995,45 @@ namespace gc {
 		using value_type = T;
 
 		constexpr ptr() noexcept
-		: _ptr(nullptr) {
+		: Ptr((T*)(0)) {
+			_ptr().store(nullptr, std::memory_order_relaxed);
 		}
 
 		constexpr ptr(std::nullptr_t) noexcept
-		: _ptr(nullptr) {
+		: Ptr((T*)(0)) {
+			_ptr().store(nullptr, std::memory_order_relaxed);
 		}
 
 		explicit ptr(T* p) noexcept
-		: _ptr(p && p->is_managed() ? p : nullptr) {
+		: Ptr((T*)(0)) {
+			_ptr().store(p && p->is_managed() ? (std::remove_cv_t<T>*)p : nullptr, std::memory_order_relaxed);
 			assert(!p || p->is_managed());
-			Ptr::_init(p);
 		}
 
 		ptr(const ptr& p) noexcept
-		: Ptr() {
+		: Ptr((T*)(0)) {
 			_init(p, std::memory_order_relaxed);
 		}
 
 		template<typename U, typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
 		ptr(const ptr<U>& p) noexcept
-		: Ptr() {
+		: Ptr((T*)(0)) {
 			_init(p, std::memory_order_relaxed);
 		}
 
 		ptr(ptr&& p) noexcept
-		: Ptr() {
+		: Ptr((T*)(0)) {
 			_init_move(std::move(p));
 		}
 
 		template<typename U, typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
 		ptr(ptr<U>&& p) noexcept
-		: Ptr() {
+		: Ptr((T*)(0)) {
 			_init_move(std::move(p));
 		}
 
 		~ptr() noexcept {
-			reset();
+			_free_ref<T>();
 		}
 
 		ptr& operator=(std::nullptr_t) noexcept {
@@ -1081,89 +1097,75 @@ namespace gc {
 
 		void swap(ptr& p) noexcept {
 			if (this != &p) {
-				T* r = p._ptr.load(std::memory_order_relaxed);
-				T* l = _ptr.load(std::memory_order_relaxed);
+				T* r = (T*)p._ptr().load(std::memory_order_relaxed);
+				T* l = (T*)_ptr().load(std::memory_order_relaxed);
 				if (l != r) {
-					p._ptr.store(l, std::memory_order_release);
-					_ptr.store(r, std::memory_order_release);
-					Ptr::_init(r);
-					p.Ptr::_init(l);
-					Ptr::_remove(l);
-					p.Ptr::_remove(r);
+					p._ptr().store(l, std::memory_order_relaxed);
+					_ptr().store(r, std::memory_order_relaxed);
+					_update(l);
+					_update(r);
 				}
 			}
 		}
 
 	private:
-		std::atomic<T*> _ptr;
-
 		// for make
 		explicit ptr(T* p, std::nullptr_t) noexcept
-		: _ptr(p) {
-			Ptr::_create(p);
+		: Ptr((T*)(0)) {
+			_ptr().store(p, std::memory_order_relaxed);
+			_update(p);
 		}
 
 		ptr(const ptr& p, std::memory_order m) noexcept
-		: Ptr() {
+		: Ptr((T*)(0)) {
 			_init(p, m);
 		}
 
 		template<typename U>
 		void _init(const ptr<U>& p, std::memory_order m) noexcept {
-			T* rp = p._ptr.load(m);
-			_ptr.store(rp, std::memory_order_release);
-			Ptr::_init(rp);
+			T* rp = (U*)p._ptr().load(m);
+			_ptr().store(rp, std::memory_order_relaxed);
+			_update(rp);
 		}
 
 		template<typename U>
 		void _init_move(ptr<U>&& p) noexcept {
-			T* rp = p._ptr.load(std::memory_order_relaxed);
-			_ptr.store(rp, std::memory_order_release);
-			Ptr::_init_move(rp, p._is_root());
-			p._ptr.store(nullptr, std::memory_order_relaxed);
+			T* rp = (U*)p._ptr().load(std::memory_order_relaxed);
+			_ptr().store(rp, std::memory_order_relaxed);
+			p._ptr().store(nullptr, std::memory_order_relaxed);
+			_update(rp);
 		}
 
 		void _set(std::nullptr_t) noexcept {
-			T* p = _ptr.load(std::memory_order_relaxed);
+			T* p = (T*)_ptr().load(std::memory_order_relaxed);
 			if (p != nullptr) {
-				_ptr.store(nullptr, std::memory_order_relaxed);
-				Ptr::_remove(p);
+				_ptr().store(nullptr, std::memory_order_relaxed);
 			}
 		}
 
 		template<typename U>
 		void _set(const ptr<U>& p) {
-			T* r = p._ptr.load(std::memory_order_relaxed);
-			T* l = _ptr.load(std::memory_order_relaxed);
+			T* r = (U*)p._ptr().load(std::memory_order_relaxed);
+			T* l = (T*)_ptr().load(std::memory_order_relaxed);
 			if (l != r) {
-				_ptr.store(r, std::memory_order_release);
-				Ptr::_set(l, r);
+				_ptr().store(r, std::memory_order_relaxed);
+				_update(r);
 			}
 		}
 
 		template<typename U>
 		void _move(ptr<U>&& p) noexcept {
-			T* r = p._ptr.load(std::memory_order_relaxed);
-			T* l = _ptr.load(std::memory_order_relaxed);
+			T* r = (U*)p._ptr().load(std::memory_order_relaxed);
+			T* l = (T*)_ptr().load(std::memory_order_relaxed);
 			if (l != r) {
-				_ptr.store(r, std::memory_order_release);
-				Ptr::_set_move(l, r, p._is_root());
-			} else {
-				p.Ptr::_remove(r);
+				_ptr().store(r, std::memory_order_relaxed);
+				_update(r);
 			}
-			p._ptr.store(nullptr, std::memory_order_relaxed);
+			p._ptr().store(nullptr, std::memory_order_relaxed);
 		}
 
 		T* _get() const noexcept {
-			return _ptr.load(std::memory_order_relaxed);
-		}
-
-		const Priv::Object* vget() const noexcept override {
-			return _ptr.load(std::memory_order_acquire);
-		}
-
-		void vreset() noexcept override {
-			_ptr.store(nullptr, std::memory_order_relaxed);
+			return (T*)_ptr().load(std::memory_order_relaxed);
 		}
 
 		ptr _load(std::memory_order m = std::memory_order_seq_cst) const noexcept {
@@ -1172,33 +1174,17 @@ namespace gc {
 
 		void _store(const ptr& p, std::memory_order m = std::memory_order_seq_cst) noexcept {
 			if (this != &p) {
-				T* l = _ptr.load(std::memory_order_acquire);
-				T* r = p._ptr.load(std::memory_order_relaxed);
-				if (l != r) {
-					Ptr::_update_atomic(l);
-					Ptr::_update_atomic(r);
-					if (_is_root()) {
-						l = _ptr.exchange(r, m == std::memory_order_release ? std::memory_order_acq_rel : m);
-						if (l != r) {
-							Ptr::_set(l, r, false);
-						}
-					} else {
-						_ptr.store(r, m);
-					}
-				}
+				T* r = (T*)p._ptr().load(std::memory_order_relaxed);
+				_ptr().store(r, m);
+				_update(r);
 			}
 		}
 
 		ptr _exchange(const ptr& p, std::memory_order m = std::memory_order_seq_cst) noexcept {
 			if (this != &p) {
-				T* l = _ptr.load(std::memory_order_acquire);
-				T* r = p._ptr.load(std::memory_order_relaxed);
-				Ptr::_update_atomic(l);
-				Ptr::_update_atomic(r);
-				l = _ptr.exchange(r, m);
-				if (l != r) {
-					Ptr::_set(l, r, false);
-				}
+				T* r = (T*)p._ptr().load(std::memory_order_relaxed);
+				T* l = (T*)_ptr().exchange(r, m);
+				_update(r);
 				return ptr(l);
 			}
 			return *this;
@@ -1223,34 +1209,18 @@ namespace gc {
 		template<class F>
 		bool _compare_exchange(ptr& o, const ptr& n, F f) noexcept {
 			if (this != &n) {
-				T* r = n._ptr.load(std::memory_order_relaxed);
-				T* e = o._ptr.load(std::memory_order_relaxed);
-				T* l = e;
-				Ptr::_update_atomic(l);
-				Ptr::_update_atomic(r);
-				bool result = f(_ptr, l, r);
+				T* r = (T*)n._ptr().load(std::memory_order_relaxed);
+				T* l = (T*)o._ptr().load(std::memory_order_relaxed);
+				bool result = f(_ptr(), l, r);
 				if (result) {
-					if (l != r) {
-						Ptr::_set(l, r, false);
-					}
+					_update(r);
 				} else {
-					o._ptr.store(l, std::memory_order_release);
-					o.Ptr::_set(e, l);
+					o._ptr().store(l, std::memory_order_relaxed);
+					_update(l);
 				}
 				return result;
 			}
 			return true;
-		}
-
-		static Priv::Object* _Clone(const Priv::Object* p) {
-			if constexpr (std::is_copy_constructible_v<T>) {
-				auto n = dynamic_cast<const T*>(p);
-				return Priv::make<std::remove_const_t<T>>(*n);
-			} else {
-				std::ignore = p;
-				assert(!"clone: no copy constructor");
-				return nullptr;
-			}
 		}
 
 		template<typename, typename> friend class ptr;
