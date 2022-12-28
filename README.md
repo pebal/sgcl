@@ -32,9 +32,9 @@ auto arr = make_tracked<char[]>(6);
 arr[3] = 's';
 
 struct foo {
-        auto ptr() {
-                return tracked_ptr<foo>(this);
-        }
+  auto ptr() {
+    return tracked_ptr<foo>(this);
+  }
 };
 auto f = make_tracked<foo>();
 auto f2 = f->ptr();
