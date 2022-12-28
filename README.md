@@ -1,110 +1,52 @@
 # SGCL
 ## About the SGCL
-SGCL is a precise pauseless concurrent garbage collector for C++. The garbage collector works in a separate thread and never pauses other threads. All operations are lock-free.
+SGCL is a real-time garbage collector for C++. Provides fully tracked smart pointers, similar in use to shared_ptr.
+## Features
+- Thread safe
+- Does not use reference counters
+- Easy to use like shared_ptr
+- Less memory overhead than shared_ptr
+- Faster than shared_ptr in many scenarios
+- Automatic roots registration
+- Never stop the world
+- Cyclic data structures friendly
+- CoW friendly
+- Executing destructors in a separate thread
+- Atomic pointers always lock-free
+- Only one header file
+
 ## Compiling
-C++17 compiler required.
-## Classes
-Base class of all traced objects:
-```
-class object;
-
-// example
-class foo : public virtual gc::object {};
-```
-A class that simplifies traced class definition: 
-```
-class collected;
-
-// example
-class foo : public gc::collected {};
-```
-Traced pointers:
-```
-class ptr<T>;
-class weak_ptr<T>;
-class atomic_ptr<T>;
-class atomic_weak_ptr<T>;
-
-// example
-gc::ptr<foo> a;
-```
-## Functions
-Create a tracked object:
-```
-ptr<T> make(...);
-
-// example
-auto a = gc::make<foo>();
-```
-Pointer cast:
-```
-ptr<T> static_pointer_cast(ptr<U>);
-ptr<T> dynamic_pointer_cast(ptr<U>);
-ptr<T> const_pointer_cast(ptr<U>);
-
-// example
-gc::ptr<object> a = gc::make<foo>();
-auto b = gc::dynamic_pointer_cast<foo>(a);
-```
-## Example usage
+C++17 compiler required. Tested on Windows with VC++, Clang and MinGW compilers. MinGW is not recommended because it TLS emulation.
+## Example
 ```
 #include "sgcl.h"
 
-struct node : gc::collected {
-  gc::ptr<node> l, r;
+using namespace sgcl;
+
+tracked_ptr<int> i = make_tracked<int>(10);
+tracked_ptr<void> v = i;
+tracked_ptr<int> i2 = static_pointer_cast<int>(v);
+tracked_ptr<int> i3 = i2.clone();
+
+auto arr = make_tracked<char[]>(6);
+arr[3] = 's';
+
+struct foo {
+        auto ptr() {
+                return tracked_ptr<foo>(this);
+        }
 };
+auto f = make_tracked<foo>();
+auto f2 = f->ptr();
 
-gc::ptr<node> tree(int c) {
-  auto n = gc::make<node>();
-  if (c) {
-    n->l = tree(c - 1);
-    n->r = tree(c - 1);
-  }
-  return n;
-}
+metadata<foo>::user_data = new int(3);
+tracked_ptr<void> b = f2;
+std::cout << b.metadata().type_info.name() << std::endl;
+std::cout << *(int*)(b.metadata().user_data) << std::endl;
 
-int main() {
-  tree(10);    
-  return 0;
-}
-```
-```
-#include "sgcl.h"
-
-class foo : public gc::collected {
-};
-class bar : public gc::collected {
-};
-class baz : public foo, public bar {
-};
-
-int main() {
-  gc::ptr<foo> a = gc::make<baz>();
-  auto b = a.clone();
-  auto c = gc::dynamic_pointer_cast<bar>(b);
-  return 0;
-}
-```
-```
-#include "sgcl.h"
-
-class foo : public gc::collected {
-};
-
-int main() {
-  gc::atomic_ptr<foo> a = gc::make<foo>();
-  gc::atomic_ptr<foo> b = a.load(std::memory_order_relaxed);
-  auto c = b.exchange(gc::make<foo>()); 
-  return 0;
-}
+std::atomic<tracked_ptr<int>> a;
+a.store(i, std::memory_order_relaxed);
+a.compare_exchange_strong(i, i3);
 ```
 ## Not working
-Cycles are not detected when a traced object contains dynamic container with traced pointers.
-```
-class foo : public gc::collected {
-  std::vector<gc::ptr<foo>> vec = {gc::ptr<foo>(this)};
-};
-```
-## Todo
-- Implement dedicated containers (to detect cycles)
-- Test it in a variety of scenarios
+Currently cycles are not detected in the standard containers. All pointers in the containers are roots.

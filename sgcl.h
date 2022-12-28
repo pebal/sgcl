@@ -1,7 +1,7 @@
 /*******************************************************************************
-** SGCL - Concurrent Garbage Collector
+** SGCL - Realtime Garbage Collector
 ** Copyright (c) 2022 Sebastian Nibisz
-** Distributed under the MIT License.
+** Distributed under the GPLv3 license.
 *******************************************************************************/
 #ifndef SGCL_H
 #define SGCL_H
@@ -10,1618 +10,2128 @@
 #include <atomic>
 #include <cassert>
 #include <chrono>
+#include <cstdlib>
 #include <functional>
 #include <memory>
 #include <thread>
 #include <type_traits>
+#include <vector>
 
-#define SGCL_MAX_POINTER_TYPES 1024
-#define SGCL_MAX_SLEEP_TIME_SEC 10
+#define SGCL_MAX_SLEEP_TIME_SEC 30
 #define SGCL_TRIGER_PERCENTAGE 25
-#define SGCL_LOG_PRINT_LEVEL 1
+//#define SGCL_DEBUG
 
-#if SGCL_LOG_PRINT_LEVEL
-#include <iostream>
+#ifdef SGCL_DEBUG
+	#define SGCL_LOG_PRINT_LEVEL 2
 #endif
 
-namespace gc {
-	class collected;
-	class object;
+#if SGCL_LOG_PRINT_LEVEL
+#endif
+#include <iostream>
 
-	template<typename T, typename = std::enable_if_t<std::is_convertible_v<T*, const object*>>>
-	class ptr;
+/*******************************************************************************
+ * Reduces memory usage on x86 platforms by using two highest bits of pointer.
+ *
+ * Warning!
+ * User heap must be allocated in the low half of virtual address space.
+ ******************************************************************************/
+#if defined(__x86_64__) || defined(_M_X64)
+	#define SGCL_ARCH_X86_64
+#endif
 
-	template<typename T>
-	class ptr<T[]>;
+namespace sgcl {
+	template<class>
+	class tracked_ptr;
 
-	template<typename T, size_t N>
-	class ptr<T[N]>;
+	template<class T, size_t N>
+	class tracked_ptr<T[N]>;
 
-	template<typename T, typename = std::enable_if_t<std::is_convertible_v<T*, const object*>>>
-	class weak_ptr;
+	template<class T, class ...A>
+	auto make_tracked(A&&...);
 
-	template<typename T>
-	class weak_ptr<T[]>;
+	template<class T>
+	tracked_ptr<void> Priv_clone(const void* p);
 
-	template<typename T, size_t N>
-	class weak_ptr<T[N]>;
+	struct metadata_base {
+		const std::type_info& type_info;
+		void*& user_data;
 
-	template<typename T, typename = std::enable_if_t<std::is_convertible_v<T*, const object*>>>
-	class atomic_ptr;
+	protected:
+		metadata_base(const std::type_info& type_info, void*& user_data)
+		: type_info(type_info)
+		, user_data(user_data) {
+		}
+	};
 
-	template<typename T>
-	class atomic_ptr<T[]>;
+	template<class T>
+	struct metadata : metadata_base {
+		metadata()
+		: metadata_base(typeid(T), user_data) {
+		}
+		inline static void* user_data = nullptr;
+	};
 
-	template<typename T, size_t N>
-	class atomic_ptr<T[N]>;
+	namespace Priv {
+		using Pointer_type = std::atomic<void*>;
+		static constexpr size_t SqrMaxPointerTypes = 64;
+		static constexpr size_t MaxPointerTypes = SqrMaxPointerTypes * SqrMaxPointerTypes;
+		static constexpr ptrdiff_t MaxStackOffset = 1024;
+		static constexpr size_t PageSize = 4096;
+		static constexpr size_t DataSize = PageSize - sizeof(uintptr_t);
+		static constexpr size_t PointerSize = sizeof(Pointer_type);
+		static constexpr size_t PointerCount = PageSize / PointerSize;
 
-	template<typename T, typename = std::enable_if_t<std::is_convertible_v<T*, const object*>>>
-	class atomic_weak_ptr;
-
-	template<typename T>
-	class atomic_weak_ptr<T[]>;
-
-	template<typename T, size_t N>
-	class atomic_weak_ptr<T[N]>;
-
-	template<typename T, typename ...A>
-	std::enable_if_t<std::is_convertible_v<T*, const object*>, ptr<T>> make(A&&...);
-
-	struct Priv {
-		Priv() = delete;
-
-		class Object;
-		class Ptr;
-		class Weak_ptr;
-
-		static constexpr int8_t ValueAtomicUpdate = std::numeric_limits<int8_t>::max();
-		static constexpr int8_t ValueExpired = std::numeric_limits<int8_t>::min();
-
-		struct Metadata {
-			struct Static {
-				size_t object_count;
-				size_t object_size;
-				std::pair<Metadata*(*)(void*), size_t>* pointer_offsets;
-			};
-
-			virtual ~Metadata() = default;
-			virtual void destroy() const noexcept {}
-			virtual Object* clone(const Object*) {
-				return nullptr;
-			}
-			virtual Static static_metadata() const noexcept {
-				return {0, 0, nullptr};
-			}
-
-			std::atomic<Metadata*> next_allocated_object = {nullptr};
-			Metadata* prev_object = {nullptr};
-			Metadata* next_object = {nullptr};
-			//std::atomic_uint ref_counter = {0};
-			std::atomic_uint weak_ref_counter = {0};
-			std::atomic_int8_t update_counter = {1};
-			std::atomic_bool next_object_can_registered = {true};
-			bool can_remove_object = {false};
-			bool is_reachable = {true};
-			bool is_container = {false};
-			bool is_registered = {false};
+		struct States {
+			using Value_type = uint8_t;
+			static constexpr Value_type Unused = std::numeric_limits<uint8_t>::max();
+			static constexpr Value_type BadAlloc = Unused - 1;
+			static constexpr Value_type AtomicReachable = BadAlloc - 1;
+			static constexpr Value_type Reachable = 1;
+			static constexpr Value_type Unreachable = 0;
 		};
 
-		//class Collector;
-		//struct Memory;
-		struct Thread_data;
+		struct Array_metadata;
+		struct Array_base {
+			constexpr Array_base(size_t c) noexcept
+			: count(c) {
+			}
+			~Array_base() noexcept;
+			std::atomic<Array_metadata*> metadata = {nullptr};
+			const size_t count;
 
-		class Object {
-		protected:
-			Object() = default;
-			virtual ~Object() = default;
-
-			Metadata* metadata = nullptr;
-
-			friend struct Priv;
-			template<typename, typename> friend class ptr;
+			template<class T>
+			static void destroy(void* data, size_t count) noexcept {
+				for (size_t i = count; i > 0; --i) {
+					std::destroy_at((T*)data + i - 1);
+				}
+			}
 		};
 
-		static Thread_data& local_thread_data() {
-			static thread_local Thread_data data_instance;
-			return data_instance;
+		struct Page_header;
+
+		template<class T>
+		struct Heap_page_info;
+
+		template<class T>
+		tracked_ptr<void> Clone(const void*);
+
+		struct Metadata final {
+			template<class T>
+			Metadata(T*)
+			: pointer_offsets(Heap_page_info<T>::pointer_offsets)
+			, destroy(!std::is_trivially_destructible_v<T> || std::is_base_of_v<Array_base, T> ? Heap_page_info<T>::destroy : nullptr)
+			, free(Heap_page_info<T>::Heap_allocator::free)
+			, clone(!std::is_base_of_v<Array_base, T> ? Clone<T> : nullptr)
+			, object_size(Heap_page_info<T>::ObjectSize)
+			, object_count(Heap_page_info<T>::ObjectCount)
+			, is_array(std::is_base_of_v<Array_base, T>)
+			, metadata(Heap_page_info<T>::public_metadata) {
+			}
+
+			std::atomic<ptrdiff_t*>& pointer_offsets;
+			void (*const destroy)(void*) noexcept;
+			void (*const free)(Page_header*);
+			tracked_ptr<void> (*const clone)(const void*);
+			const size_t object_size;
+			const unsigned object_count;
+			bool is_array;
+			metadata_base& metadata;
+			Page_header* free_page = {nullptr};
+			Metadata* next = {nullptr};
+		};
+
+		struct Array_metadata final {
+			template<class T>
+			Array_metadata(T*)
+			: pointer_offsets(Heap_page_info<T>::pointer_offsets)
+			, destroy(!std::is_trivially_destructible_v<T> ? Array_base::destroy<T> : nullptr)
+			, object_size(Heap_page_info<T>::ObjectSize)
+			, metadata(Heap_page_info<T[]>::public_metadata) {
+			}
+
+			std::atomic<ptrdiff_t*>& pointer_offsets;
+			void (*const destroy)(void*, size_t) noexcept;
+			const size_t object_size;
+			metadata_base& metadata;
+		};
+
+		Array_base::~Array_base() noexcept {
+			auto metadata = this->metadata.load(std::memory_order_acquire);
+			if (metadata && metadata->destroy) {
+				metadata->destroy(this+ 1, count);
+			}
 		}
 
-		struct Stack {
-			static constexpr int BlockSize = 256;
-			using Block = std::array<std::atomic<void*>, BlockSize>;
+		struct Block_header;
+		struct Page_header {
+			using State_type = States::Value_type;
+			using Flag_type = uint64_t;
+			static constexpr auto FlagBitCount = sizeof(Flag_type) * 8;
 
-			struct Block_node {
-				Metadata*(*metadata)(void*) = {nullptr};
-				Block_node* next = {nullptr};
-				Block data = {nullptr};
+			struct Flags {
+				Flag_type registered = {0};
+				Flag_type reachable = {0};
+				Flag_type marked = {0};
 			};
 
-			struct Indexes {
-				Indexes() : _position(size()) {
+			template<class T>
+			Page_header(Block_header* block, T* data) noexcept
+			: metadata(&Heap_page_info<T>::private_metadata)
+			, block_header(block)
+			, data((uintptr_t)data)
+			, multiplier((1ull << 32 | 0x10000) / metadata->object_size) {
+				assert(metadata != nullptr);
+				assert(data != nullptr);
+				auto states = this->states();
+				for (unsigned i = 0; i < metadata->object_count; ++i) {
+					new(states + i) std::atomic<State_type>(States::Unreachable);
 				}
-				Indexes(Block& block) : _position(0) {
-					for(int i = 0; i < size(); ++i) {
-						_indexes[i] = &block[i];
+				auto flags = this->flags();
+				auto count = this->flags_count();
+				for (unsigned i = 0; i < count; ++i) {
+					new (flags + i) Flags;
+				}
+			}
+
+			~Page_header() {
+				if constexpr(!std::is_trivially_destructible_v<std::atomic<State_type>>) {
+					auto states = this->states();
+					std::destroy(states, states + metadata->object_count);
+				}
+			}
+
+			std::atomic<State_type>* states() const noexcept {
+				return (std::atomic<State_type>*)(this + 1);
+			}
+
+			Flags* flags() const noexcept {
+				auto states_size = (sizeof(std::atomic<State_type>) * metadata->object_count + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1);
+				return (Flags*)((uintptr_t)states() + states_size);
+			}
+
+			unsigned flags_count() const noexcept {
+				return (metadata->object_count + FlagBitCount - 1) / FlagBitCount;
+			}
+
+			void clear_flags() noexcept {
+				auto flags = this->flags();
+				auto count = flags_count();
+				for (unsigned i = 0; i < count; ++i) {
+					flags[i].reachable = 0;
+					flags[i].marked = 0;
+				}
+			}
+
+			static constexpr unsigned flag_index_of(unsigned i) noexcept {
+				return i / FlagBitCount;
+			}
+
+			static constexpr Flag_type flag_mask_of(unsigned i) noexcept {
+				return Flag_type(1) << (i % FlagBitCount);
+			}
+
+			unsigned index_of(const void* p) noexcept {
+				return ((uintptr_t)p - data) * multiplier >> 32;
+			}
+
+			static Metadata& metadata_of(const void* p) noexcept {
+				auto page = Page_header::page_of(p);
+				return *page->metadata;
+			}
+
+			static void set_state(const void* p, States::Value_type s) noexcept {
+				auto page = Page_header::page_of(p);
+				auto index = page->index_of(p);
+				auto &state = page->states()[index];
+				state.store((State_type)s, std::memory_order_release);
+			}
+
+			static Page_header* page_of(const void* p) noexcept {
+				auto page = ((uintptr_t)p & ~(uintptr_t)(PageSize - 1));
+				return *((Page_header**)page);
+			}
+
+			Metadata* const metadata;
+			Block_header* const block_header;
+			const uintptr_t data;
+			const uint64_t multiplier;
+			bool reachable = {false};
+			bool registered = {false};
+			bool is_used = {true};
+			std::atomic_bool on_free_list = {false};
+			Page_header* next_reachable = {nullptr};
+			Page_header* next_registered = {nullptr};
+			Page_header* next_free = {nullptr};
+			Page_header* next = {nullptr};
+		};
+
+		struct Pointer_indexes_base {
+			Pointer_indexes_base(unsigned s, unsigned o)
+			: _size(s)
+			, _offset(o)
+			, _position(s) {
+			}
+			void fill(void* data) {
+				for(auto i = 0u; i < _size; ++i, data = (void*)((uintptr_t)data + _offset)) {
+					_indexes[i] = data;
+				}
+				_position = 0;
+			}
+			void fill(Page_header* page) {
+				auto data = page->data;
+				auto object_size = page->metadata->object_size;
+				auto states = page->states();
+				auto count = page->metadata->object_count;
+				for(int i = count - 1; i >= 0; --i) {
+					if (states[i].load(std::memory_order_relaxed) == States::Unused) {
+						_indexes[--_position] = (void*)(data + i * object_size);
+						states[i].store(States::Unreachable, std::memory_order_relaxed);
 					}
 				}
-				constexpr int size() const noexcept {
-					return (int)_indexes.size();
-				}
-				bool is_empty() const noexcept {
-					return _position == size();
-				}
-				bool is_full() const noexcept {
-					return _position == 0;
-				}
-				std::atomic<void*>* alloc() noexcept {
-					return _indexes[_position++];
-				}
-				void free(std::atomic<void*>* p) noexcept {
-					p->store(nullptr, std::memory_order_relaxed);
-					_indexes[--_position] = p;
-				}
+			}
+			unsigned pointer_count() const noexcept {
+				return _size - _position;
+			}
+			bool is_empty() const noexcept {
+				return _position == _size;
+			}
+			bool is_full() const noexcept {
+				return _position == 0;
+			}
+			void* alloc() noexcept {
+				return _indexes[_position++];
+			}
+			void free(void* p) noexcept {
+				_indexes[--_position] = p;
+			}
 
-				Indexes* next = nullptr;
+		protected:
+			void** _indexes;
 
-			private:
-				std::array<std::atomic<void*>*, BlockSize> _indexes;
-				int _position;
+		private:
+			const unsigned _size;
+			const unsigned _offset;
+			unsigned _position;
+		};
+
+		template<unsigned Size, unsigned Offset>
+		struct Pointer_indexes : Pointer_indexes_base {
+			constexpr Pointer_indexes()
+			: Pointer_indexes_base(Size, Offset) {
+				Pointer_indexes_base::_indexes = _indexes.data();
+			}
+			Pointer_indexes(void* data)
+			: Pointer_indexes() {
+				Pointer_indexes_base::_indexes = _indexes.data();
+				fill(data);
+			}
+
+			Pointer_indexes* next = nullptr;
+
+		private:
+			std::array<void*, Size> _indexes;
+		};
+
+		template<class>
+		struct Large_object_allocator;
+
+		template<class>
+		struct Heap_allocator;
+
+		template<class T>
+		struct Heap_page_info {
+			static constexpr size_t ObjectSize = sizeof(std::remove_extent_t<std::conditional_t<std::is_same_v<T, void>, char, T>>);
+			static constexpr size_t ObjectCount = std::max(size_t(1), DataSize / ObjectSize);
+			static constexpr size_t StatesSize = (sizeof(std::atomic<Page_header::State_type>) * ObjectCount + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1);
+			static constexpr size_t FlagsCount = (ObjectCount + Page_header::FlagBitCount - 1) / Page_header::FlagBitCount;
+			static constexpr size_t FlagsSize = sizeof(Page_header::Flags) * FlagsCount;
+			static constexpr size_t HeaderSize = sizeof(Page_header) + StatesSize + FlagsSize;
+			using Heap_allocator = std::conditional_t<ObjectSize <= DataSize, Heap_allocator<T>, Large_object_allocator<T>>;
+
+			static void destroy(void* p) noexcept {
+				std::destroy_at((T*)p);
+			}
+
+			inline static sgcl::metadata<T> public_metadata;
+			inline static Metadata private_metadata = {(std::remove_extent_t<T>*)0};
+			inline static Array_metadata array_metadata = {(std::remove_extent_t<std::conditional_t<std::is_same_v<T, void>, char, T>>*)0};
+			inline static std::atomic<ptrdiff_t*> pointer_offsets = nullptr;
+		};
+
+		template<size_t Size = 1>
+		struct Array : Array_base {
+			constexpr Array(size_t c) noexcept
+			: Array_base(c) {
+			}
+			template<class T>
+			void init() {
+				if constexpr(!std::is_trivial_v<T>) {
+					_init<T>();
+				}
+			}
+			template<class T>
+			void init(const T& v) {
+				_init<T>(v);
+			}
+			char data[Size];
+
+		private:
+			template<class T, class... A>
+			void _init(A&&... a);
+		};
+
+		template<>
+		struct Heap_page_info<Array<>> : public Heap_page_info<Array<DataSize>> {
+			using Heap_allocator = Large_object_allocator<Array<>>;
+
+			static void destroy(void* p) noexcept {
+				std::destroy_at((Array<>*)p);
+			}
+		};
+
+		struct Block_header {
+			static constexpr size_t PageCount = 15;
+
+			Block_header() noexcept {
+				void* data = this + 1;
+				for (size_t i = 0; i < PageCount; ++i) {
+					*((Block_header**)data) = this;
+					data = (void*)((uintptr_t)data + PageSize);
+				}
+			}
+
+			static void* operator new(size_t) noexcept {
+				void* mem = ::operator new(sizeof(uintptr_t) + sizeof(Block_header) + PageSize * (PageCount + 1));
+				uintptr_t addres = (uintptr_t)mem + sizeof(uintptr_t) + sizeof(Block_header) + PageSize;
+				addres = addres & ~(PageSize - 1);
+				void* ptr = (void*)addres;
+				Block_header* block = (Block_header*)ptr - 1;
+				*((void**)block - 1) = mem;
+				return block;
+			}
+
+			static void operator delete(void* p, size_t) noexcept {
+				::operator delete(*((void**)p - 1));
+			}
+
+			Block_header* next = {nullptr};
+			unsigned page_count = {0};
+		};
+
+		struct Block_allocator {
+			using Indexes = Pointer_indexes<Block_header::PageCount, PageSize>;
+
+			~Block_allocator() noexcept {
+				void* page = nullptr;
+				while (!_indexes.is_empty()) {
+					auto data = _indexes.alloc();
+					*((void**)data + 1) = page;
+					page = (void*)data;
+				}
+				if (page) {
+					free(page);
+				}
+			}
+
+			void* alloc() {
+				if (_indexes.is_empty()) {
+					auto page = _pages.load(std::memory_order_acquire);
+					while(page && !_pages.compare_exchange_weak(page, *((void**)page + 1), std::memory_order_relaxed, std::memory_order_acquire));
+					if (page) {
+						return page;
+					} else {
+						auto block = new Block_header;
+						_indexes.fill(block + 1);
+					}
+				}
+				return _indexes.alloc();
+			}
+
+			static void free(void* page) {
+				auto last = page;
+				while(*((void**)last + 1)) {
+					last = *((void**)last + 1);
+				}
+				*((void**)last + 1) = _pages.exchange(nullptr, std::memory_order_acquire);
+				Block_header* block = nullptr;
+				auto p = page;
+				while(p) {
+					Block_header* b = *((Block_header**)p);
+					if (!b->page_count) {
+						b->next = block;
+						block = b;
+					}
+					++b->page_count;
+					p = *((void**)p + 1);
+				}
+				void* prev = nullptr;
+				p = page;
+				while(p) {
+					auto next = *((void**)p + 1);
+					Block_header* b = *((Block_header**)p);
+					if (b->page_count == Block_header::PageCount) {
+						if (!prev) {
+							page = next;
+						} else {
+							*((void**)prev + 1) = next;
+						}
+					} else {
+						prev = p;
+					}
+					p = next;
+				}
+				while(block) {
+					auto next = block->next;
+					if (block->page_count == Block_header::PageCount) {
+						delete block;
+					} else {
+						block->page_count = 0;
+					}
+					block = next;
+				}
+				_pages.store(page, std::memory_order_release);
+			}
+
+		private:
+			inline static std::atomic<void*> _pages = {nullptr};
+			inline static std::atomic_int count = 0;
+			Indexes _indexes;
+		};
+
+		struct Heap_allocator_base {
+			virtual ~Heap_allocator_base() noexcept = default;
+			inline static std::atomic<Page_header*> pages = {nullptr};
+		};
+
+		template<class T>
+		struct Large_object_allocator final : Heap_allocator_base {
+			T* alloc(size_t size = 0) const {
+				auto mem = ::operator new(sizeof(T) + size + sizeof(uintptr_t), std::align_val_t(PageSize));
+				auto data = (T*)((uintptr_t)mem + sizeof(uintptr_t));
+				auto hmem = ::operator new(sizeof(Page_header) + Heap_page_info<T>::HeaderSize);
+				auto page = new(hmem) Page_header(nullptr, data);
+				*((Page_header**)mem) = page;
+				page->next = pages.load(std::memory_order_relaxed);
+				while(!pages.compare_exchange_weak(page->next, page, std::memory_order_release, std::memory_order_relaxed));
+				return data;
+			}
+
+			static void free(Page_header* page) noexcept {
+				while(page) {
+					auto data = (void*)(page->data - sizeof(uintptr_t));
+					::operator delete(data, std::align_val_t(PageSize));
+					page->is_used = false;
+					page = page->next_free;
+				}
+			}
+		};
+
+		struct Heap_allocator_nt : Heap_allocator_base {
+			Heap_allocator_nt(Block_allocator& ba, Pointer_indexes_base& i, std::atomic<Page_header*>& fp) noexcept
+			: _block_allocator(ba)
+			, _indexes(i)
+			, _free_pages(fp) {
+			}
+
+			~Heap_allocator_nt() noexcept override {
+				while (!_indexes.is_empty()) {
+					auto ptr = _indexes.alloc();
+					auto index = _current_page->index_of(ptr);
+					_current_page->states()[index].store(States::Unused, std::memory_order_relaxed);
+				}
+			}
+
+			void* alloc(size_t) {
+				if  (_indexes.is_empty()) {
+					auto page = _free_pages.load(std::memory_order_acquire);
+					while(page && !_free_pages.compare_exchange_weak(page, page->next_free, std::memory_order_relaxed, std::memory_order_acquire));
+					if (page) {
+						_indexes.fill(page);
+						page->on_free_list.store(false, std::memory_order_relaxed);
+					} else {
+						page = _alloc_page();
+						_indexes.fill((void*)(page->data));
+						page->next = pages.load(std::memory_order_relaxed);
+						while(!pages.compare_exchange_weak(page->next, page, std::memory_order_release, std::memory_order_relaxed));
+					}
+					_current_page = page;
+				}
+				assert(!_indexes.is_empty());
+				return (void*)_indexes.alloc();
+			}
+
+		private:
+			Block_allocator& _block_allocator;
+			Pointer_indexes_base& _indexes;
+			std::atomic<Page_header*>& _free_pages;
+			Page_header* _current_page = {nullptr};
+
+			virtual Page_header* _create_page(Block_header* block, void* data) = 0;
+
+			Page_header* _alloc_page() {
+				auto mem = _block_allocator.alloc();
+				auto block = *((Block_header**)mem);
+				auto data = (void*)((uintptr_t)mem + sizeof(uintptr_t));
+				auto page = _create_page(block, data);
+				*((Page_header**)mem) = page;
+				return page;
+			}
+
+		protected:
+			static void _remove_empty(Page_header*& free_pages, Page_header*& empty) noexcept {
+				auto page = free_pages;
+				Page_header* prev = nullptr;
+				while(page) {
+					auto next = page->next_free;
+					auto states = page->states();
+					auto count = page->metadata->object_count;
+					auto free_count = 0u;
+					for (unsigned i = 0; i < count; ++i) {
+						auto state = states[i].load(std::memory_order_relaxed);
+						if (state == States::Unused) {
+							++free_count;
+						}
+					}
+					if (free_count == count) {
+						page->next_free = empty;
+						empty = page;
+						if (!prev) {
+							free_pages = next;
+						} else {
+							prev->next_free = next;
+						}
+					} else {
+						prev = page;
+					}
+					page = next;
+				}
+			}
+
+			static void _free(Page_header* page) noexcept {
+				void* empty = nullptr;
+				while(page) {
+					auto data = page->data - sizeof(uintptr_t);
+					*((Block_header**)data) = page->block_header;
+					page->is_used = false;
+					*((void**)data + 1) = empty;
+					empty = (void*)data;
+					page = page->next_free;
+				}
+				Block_allocator::free(empty);
+			}
+
+			static void _free(Page_header* page, std::atomic<Page_header*>& free_pages) noexcept {
+				Page_header* empty = nullptr;
+				_remove_empty(page, empty);
+				page = free_pages.exchange(page, std::memory_order_relaxed);
+				_remove_empty(page, empty);
+				page = free_pages.exchange(page, std::memory_order_relaxed);
+				if (page) {
+					auto last = page;
+					while(last->next_free) {
+						last = last->next_free;
+					}
+					last->next_free = free_pages.load(std::memory_order_relaxed);
+					while(!free_pages.compare_exchange_weak(last->next_free, page, std::memory_order_release, std::memory_order_relaxed));
+				}
+				if (empty) {
+					_free(empty);
+				}
+			}
+		};
+
+		template<class T>
+		struct Heap_allocator : Heap_allocator_nt {
+			using Indexes = Pointer_indexes<Heap_page_info<T>::ObjectCount, sizeof(std::conditional_t<std::is_same_v<T, void>, char, T>)>;
+
+			constexpr Heap_allocator(Block_allocator& a) noexcept
+			: Heap_allocator_nt(a, _indexes, _free_pages) {
+			}
+
+			static void free(Page_header* page) {
+				_free(page, _free_pages);
+			}
+
+		private:
+			inline static std::atomic<Page_header*> _free_pages = {nullptr};
+			Indexes _indexes;
+
+			Page_header* _create_page(Block_header* block, void* data) override {
+				auto mem = ::operator new(sizeof(Page_header) + Heap_page_info<T>::HeaderSize);
+				auto page = new(mem) Page_header(block, (T*)data);
+				return page;
+			}
+		};
+
+		struct Roots_allocator {
+			using Page = std::array<Pointer_type, PointerCount>;
+			using Indexes = Pointer_indexes<PointerCount, sizeof(Pointer_type)>;
+
+			struct Page_node {
+				Page_node* next = {nullptr};
+				Page page = {nullptr};
 			};
 
-			Stack() {
-				_indexes = new std::atomic<Indexes*>[SGCL_MAX_POINTER_TYPES]{nullptr};
-				_empty_indexes = new std::atomic<Indexes*>[SGCL_MAX_POINTER_TYPES]{nullptr};
+			constexpr Roots_allocator() noexcept
+			:_indexes({nullptr, nullptr}) {
 			}
 
-			template<class T>
-			static Metadata* metadata_getter(void* p) {
-				return static_cast<T*>(p)->metadata;
+			~Roots_allocator() noexcept {
+				for(auto idx : _indexes) {
+					if (idx) {
+						auto& indexes = idx->is_empty() ? _global_empty_indexes : _global_indexes;
+						idx->next = indexes.load(std::memory_order_acquire);
+						while(!indexes.compare_exchange_weak(idx->next, idx, std::memory_order_release, std::memory_order_relaxed));
+					}
+				}
 			}
 
-			template<class T>
-			std::atomic<void*>* alloc() {
-				auto type_index = Stack::Type<T>::index;
-				auto& indexes = _local_indexes[type_index];
-				auto [idx1, idx2] = indexes;
+			Pointer_type* alloc() {
+				auto [idx1, idx2] = _indexes;
 				if (idx1 && !idx1->is_empty()) {
-					return idx1->alloc();
+					return (Pointer_type*)idx1->alloc();
 				}
 				if (idx2 && !idx2->is_empty()) {
-					indexes = {idx2, idx1};
-					return idx2->alloc();
+					_indexes = {idx2, idx1};
+					return (Pointer_type*)idx2->alloc();
 				}
-				auto new_idx = _indexes[type_index].load(std::memory_order_acquire);
-				while(new_idx && !_indexes[type_index].compare_exchange_weak(new_idx, new_idx->next, std::memory_order_release, std::memory_order_acquire));
+				auto new_idx = _global_indexes.load(std::memory_order_acquire);
+				while(new_idx && !_global_indexes.compare_exchange_weak(new_idx, new_idx->next, std::memory_order_release, std::memory_order_acquire));
 				if (!new_idx) {
-					auto block = new Block_node{metadata_getter<T>};
-					new_idx = new Indexes(block->data);
-					block->next = blocks.load(std::memory_order_acquire);
-					while(!blocks.compare_exchange_weak(block->next, block, std::memory_order_release, std::memory_order_relaxed));
+					auto node = new Page_node;
+					new_idx = new Indexes(node->page.data());
+					node->next = pages.load(std::memory_order_acquire);
+					while(!pages.compare_exchange_weak(node->next, node, std::memory_order_release, std::memory_order_relaxed));
 				}
 				if (idx1) {
 					if (idx2) {
-						idx2->next = _empty_indexes[type_index].load(std::memory_order_acquire);
-						while(!_empty_indexes[type_index].compare_exchange_weak(idx2->next, idx2, std::memory_order_release, std::memory_order_relaxed));
+						idx2->next = _global_empty_indexes.load(std::memory_order_acquire);
+						while(!_global_empty_indexes.compare_exchange_weak(idx2->next, idx2, std::memory_order_release, std::memory_order_relaxed));
 					}
 					idx2 = idx1;
 				}
 				idx1 = new_idx;
-				indexes = {idx1, idx2};
-				return idx1->alloc();
+				_indexes = {idx1, idx2};
+				return (Pointer_type*)idx1->alloc();
 			}
-			template<class T>
-			void free(std::atomic<void*>* p) noexcept {
-				auto type_index = Stack::Type<T>::index;
-				auto& indexes = _local_indexes[type_index];
-				auto [idx1, idx2] = indexes;
+
+			void free(Pointer_type* p) noexcept {
+				auto [idx1, idx2] = _indexes;
 				if (idx1 && !idx1->is_full()) {
 					idx1->free(p);
 					return;
 				}
 				if (idx2 && !idx2->is_full()) {
 					idx2->free(p);
-					indexes = {idx2, idx1};
+					_indexes = {idx2, idx1};
 					return;
 				}
-				auto new_idx = _empty_indexes[type_index].load(std::memory_order_acquire);
-				while(new_idx && !_empty_indexes[type_index].compare_exchange_weak(new_idx, new_idx->next, std::memory_order_release, std::memory_order_acquire));
+				auto new_idx = _global_empty_indexes.load(std::memory_order_acquire);
+				while(new_idx && !_global_empty_indexes.compare_exchange_weak(new_idx, new_idx->next, std::memory_order_release, std::memory_order_acquire));
 				if (!new_idx) {
 					new_idx = new Indexes();
 				}
 				if (idx1) {
 					if (idx2) {
-						idx2->next = _indexes[type_index].load(std::memory_order_acquire);
-						while(!_indexes[type_index].compare_exchange_weak(idx2->next, idx2, std::memory_order_release, std::memory_order_relaxed));
+						idx2->next = _global_indexes.load(std::memory_order_acquire);
+						while(!_global_indexes.compare_exchange_weak(idx2->next, idx2, std::memory_order_release, std::memory_order_relaxed));
 					}
 					idx2 = idx1;
 				}
 				idx1 = new_idx;
-				indexes = {idx1, idx2};
+				_indexes = {idx1, idx2};
 				idx1->free(p);
 			}
 
-			std::atomic<Block_node*> blocks = {nullptr};
+			inline static std::atomic<Page_node*> pages = {nullptr};
 
 		private:
-			std::atomic<Indexes*>* _indexes;
-			std::atomic<Indexes*>* _empty_indexes;
-
-			struct Local_indexes {
-				Local_indexes() : _data(nullptr) {}
-				~Local_indexes() {
-					if (_data) {
-						for (int i = 0; i < SGCL_MAX_POINTER_TYPES; ++i) {
-							for(auto idx : _data[i]) {
-								if (idx) {
-									auto& indexes = idx->is_empty() ? stack._empty_indexes[i] : stack._indexes[i];
-									idx->next = indexes.load(std::memory_order_acquire);
-									while(!indexes.compare_exchange_weak(idx->next, idx, std::memory_order_release, std::memory_order_relaxed));
-								}
-							}
-						}
-						delete[] _data;
-					}
-				}
-				std::array<Indexes*, 2>& operator[](int type_index) {
-					assert(type_index < SGCL_MAX_POINTER_TYPES);
-					if (!_data) {
-						_data = new std::array<Indexes*, 2>[SGCL_MAX_POINTER_TYPES]{std::array<Indexes*, 2>{nullptr, nullptr}};
-					}
-					return _data[type_index];
-				}
-			private:
-				std::array<Indexes*, 2>* _data;
-			};
-
-			inline static thread_local Local_indexes _local_indexes;
-			inline static std::atomic<int> _type_index = {0};
-
-		public:
-			template<class T>
-			struct Type {
-				inline static int index = _type_index++;
-			};
+			std::array<Indexes*, 2> _indexes;
+			inline static std::atomic<Indexes*> _global_indexes = {nullptr};
+			inline static std::atomic<Indexes*> _global_empty_indexes = {nullptr};
 		};
 
-		inline static Stack stack;
+		struct Stack_allocator {
+			static constexpr unsigned PageCount = 256;
+			using Page = std::array<Pointer_type, PointerCount>;
 
-		struct Memory {
-			struct alloc_state {
-				std::pair<Ptr*, Ptr*> range;
-				size_t size;
-				std::pair<Metadata*(*)(void*), std::atomic<void*>*>* ptrs;
-			};
-
-			static alloc_state& local_alloc_state() {
-				static thread_local alloc_state _local_alloc_state = {{nullptr, nullptr}, 0, nullptr};
-				return _local_alloc_state;
-			}
-
-			static void register_object(Metadata* p) noexcept {
-				auto& thread_data = local_thread_data();
-				thread_data.last_allocated_object->next_allocated_object.store(p, std::memory_order_release);
-				thread_data.last_allocated_object = p;
-			}
-
-			static void register_container(Metadata* p) noexcept {
-				auto& thread_data = local_thread_data();
-				thread_data.last_allocated_container->next_allocated_object.store(p, std::memory_order_release);
-				thread_data.last_allocated_container = p;
-			}
-
-			static Metadata* try_lock_last_ptr() noexcept {
-				auto& thread_data = local_thread_data();
-				auto last_ptr = thread_data.last_allocated_object;
-				if (last_ptr->next_object_can_registered.load(std::memory_order_relaxed)) {
-					last_ptr->next_object_can_registered.store(false, std::memory_order_release);
-					return last_ptr;
-				}
-				return nullptr;
-			}
-
-			static void unlock_last_ptr(Metadata* p) noexcept {
-				if (p) {
-					p->next_object_can_registered.store(true, std::memory_order_release);
+			~Stack_allocator() noexcept {
+				for (auto& page : pages) {
+					delete page.load(std::memory_order_relaxed);
 				}
 			}
+
+			Pointer_type* alloc(void* p) {
+				auto index = ((uintptr_t)p / PageSize) % PageCount;
+				auto page = pages[index].load(std::memory_order_relaxed);
+				if (!page) {
+					page = new Page{nullptr};
+					pages[index].store(page, std::memory_order_release);
+				}
+				auto offset = ((uintptr_t)p % PageSize) / PointerSize;
+				return &(*page)[offset];
+			}
+
+			std::atomic<Page*> pages[PageCount] = {nullptr};
 		};
 
-		struct Thread_data {
-			struct local_list : Metadata {
-				explicit local_list(Metadata* p = nullptr) noexcept
-				: first_ptr(p) {
-					is_reachable = false;
-					can_remove_object = true;
-					if (p) {
-						p->is_reachable = false;
-					}
+		struct Thread {
+			struct Data {
+				Data(Block_allocator* b, Stack_allocator* s) noexcept
+				: block_allocator(b)
+				, stack_allocator(s) {
 				}
+				std::unique_ptr<Block_allocator> block_allocator;
+				std::unique_ptr<Stack_allocator> stack_allocator;
 				std::atomic<bool> is_used = {true};
-				Metadata* first_ptr;
-				std::atomic<local_list*> next_local_list = {nullptr};
+				Pointer_type recursive_alloc_pointer = {nullptr};
+				void* last_recursive_alloc_pointer = {nullptr};
+				std::atomic<uint64_t> alloc_count = {0};
+				std::atomic<uint64_t> alloc_size = {0};
+				Data* next = {nullptr};
 			};
 
-			struct global_list {
-				global_list() {
-					auto new_list = new local_list;
-					first_local_list = new_list;
-					last_local_list.store(new_list, std::memory_order_release);
-				}
-				local_list* first_local_list;
-				std::atomic<local_list*> last_local_list;
+			struct Alloc_state {
+				std::pair<uintptr_t, uintptr_t> range;
+				size_t size;
+				Pointer_type** ptrs;
 			};
 
-			Thread_data()
-			: last_allocated_object(new Metadata)
-			, last_allocated_container(new Metadata)
-			, _local_list(new local_list {last_allocated_object}) {
-#if SGCL_LOG_PRINT_LEVEL
+			Thread()
+			:	block_allocator(new Block_allocator)
+			, stack_allocator(new Stack_allocator)
+			, roots_allocator(new Roots_allocator)
+			, _data(new Data{block_allocator, stack_allocator}){
+#if SGCL_LOG_PRINT_LEVEL >= 3
 				std::cout << "[sgcl] start thread id: " << std::this_thread::get_id() << std::endl;
 #endif
-				auto old_list = list.last_local_list.exchange(_local_list, std::memory_order_relaxed);
-				old_list->next_local_list.store(_local_list, std::memory_order_release);
+				_data->next = threads_data.load(std::memory_order_acquire);
+				while(!threads_data.compare_exchange_weak(_data->next, _data, std::memory_order_release, std::memory_order_relaxed));
 			}
 
-			~Thread_data() {
-#if SGCL_LOG_PRINT_LEVEL
+			~Thread() {
+				using namespace std::chrono_literals;
+				_data->is_used.store(false, std::memory_order_release);
+				if (std::this_thread::get_id() == main_thread_id) {
+					auto a = abort.exchange(2, std::memory_order_relaxed);
+					if (!a) {
+						do {
+							std::this_thread::sleep_for(1ms);
+						}	while(abort.load(std::memory_order_relaxed));
+					}
+				}
+#if SGCL_LOG_PRINT_LEVEL >= 3
 				std::cout << "[sgcl] stop thread id: " << std::this_thread::get_id() << std::endl;
 #endif
-				_local_list->is_used.store(false, std::memory_order_release);
 			}
 
-			volatile bool init = {false};
-			Metadata* last_allocated_object;
-			Metadata* last_allocated_container;
-			inline static global_list list = {};
-
-		private:
-			local_list* const _local_list;
-		};
-
-		class Ptr {
-		public:
 			template<class T>
-			Ptr(T*) noexcept {
-				auto& state = Memory::local_alloc_state();
-				bool root = !(this >= state.range.first && this < state.range.second);
-				if (!root && state.ptrs) {
-					state.ptrs[state.size++] = {Stack::metadata_getter<T>, &__ptr};
-				}
-				_ref = root ? stack.alloc<T>() : &__ptr;
-			}
-
-			Ptr(const Ptr&) = delete;
-			Ptr& operator=(const Ptr&) = delete;
-
-		protected:
-			template<class T>
-			void _free_ref() {
-				if (_ref != &__ptr) {
-					stack.free<T>(_ref);
-				}
-			}
-
-			static void _update(const Object* p) noexcept {
-				if (p) {
-					p->metadata->update_counter.store(1, std::memory_order_release);
-				}
-			}
-
-			Object* _clone(const Object* ptr) const {
-				return ptr->metadata->clone(ptr);
-			}
-
-			std::atomic<void*>& _ptr() noexcept {
-				return *_ref;
-			}
-
-			const std::atomic<void*>& _ptr() const noexcept {
-				return *_ref;
-			}
-
-		private:
-			std::atomic<void*>* _ref;
-			std::atomic<void*> __ptr;
-		};
-
-		class Weak_ptr {
-		protected:
-			inline static void _init(Object* p) noexcept {
-				if (p) {
-					p->metadata->weak_ref_counter.fetch_add(1, std::memory_order_release);
-				}
-			}
-
-			inline static void _set(Object* l, Object* r) noexcept {
-				if (l != r) {
-					_remove(l);
-					_init(r);
-				}
-			}
-
-			inline static void _move(Object* l, Object* r) noexcept {
-				if (l != r) {
-					_remove(l);
-				}
-			}
-
-			inline static void _remove(Object* p) noexcept {
-				if (p) {
-					p->metadata->weak_ref_counter.fetch_sub(1, std::memory_order_release);
-				}
-			}
-
-			inline static bool _expired(Object* p) noexcept {
-				return p->metadata->update_counter.load(std::memory_order_acquire) == ValueExpired;
-			}
-
-			inline static bool _try_lock(Object* p) noexcept {
-				/*
-				if (p) {
-					p->metadata->ref_counter.fetch_add(1, std::memory_order_release);
-					auto counter = p->metadata->update_counter.load(std::memory_order_acquire);
-					while(!counter &&
-								!p->metadata->update_counter.compare_exchange_weak(counter, 1, std::memory_order_release, std::memory_order_relaxed));
-					return counter != ValueExpired;
-				}
-				*/
-				return false;
-			}
-		};
-
-		class Collector {
-		public:
-			Collector() {
-				_thread = std::thread([this]{_main_loop();});
-			}
-
-			~Collector() {
-				_abort.store(true, std::memory_order_release);
-				_thread.join();
-			}
-
-		private:
-			struct object_list {
-				void push(Metadata* p) noexcept {
-					if (!first) {
-						first = last = p;
-					} else {
-						last->next_object = p;
-						p->prev_object = last;
-						last = p;
+			auto& alocator() {
+				if constexpr(std::is_same_v<typename Heap_page_info<T>::Heap_allocator, Heap_allocator<T>>) {
+					static unsigned index = _type_index++;
+					(void)MaxPointerTypes;
+					assert(index < MaxPointerTypes);
+					auto ax = heaps.get();
+					if (!ax) {
+						ax = new std::array<std::unique_ptr<std::array<std::unique_ptr<Heap_allocator_base>, SqrMaxPointerTypes>>, SqrMaxPointerTypes>;
+						heaps.reset(ax);
 					}
+					auto& ay = (*ax)[index / SqrMaxPointerTypes];
+					if (!ay) {
+						ay.reset(new std::array<std::unique_ptr<Heap_allocator_base>, SqrMaxPointerTypes>);
+					}
+					auto& alocator = (*ay)[index % SqrMaxPointerTypes];
+					if (!alocator) {
+						alocator.reset(new Heap_allocator<T>(*block_allocator));
+					}
+					return static_cast<Heap_allocator<T>&>(*alocator);
 				}
-
-				void push(Metadata* f, Metadata* l) noexcept {
-					if (f) {
-						if (!first) {
-							first = f;
-						} else {
-							last->next_object = f;
-							f->prev_object = last;
-						}
-						last = l;
-					}
-				}
-
-				void pop(Metadata* p) noexcept {
-					auto prev = p->prev_object;
-					auto next = p->next_object;
-					if (prev) {
-						prev->next_object = next;
-						p->prev_object = nullptr;
-					}
-					if (next) {
-						next->prev_object = prev;
-						p->next_object = nullptr;
-					}
-					if (first == p) {
-						first = next;
-					}
-					if (last == p) {
-						last = prev;
-					}
-				}
-				Metadata* first = {nullptr};
-				Metadata* last = {nullptr};
-			};
-
-			/*
-			void _mark_root_objects() noexcept {
-				static auto clock = std::chrono::steady_clock::now();
-				//static int counter = 0;
-				static double rest = 0;
-				auto c = std::chrono::steady_clock::now();
-				double duration = std::chrono::duration<double, std::milli>(c - clock).count();
-				duration = ValueAtomicUpdate * duration / 100 + rest; // 100ms for ValueAtomicUpdate
-				int iduration = (int)duration;
-				int grain = std::min((int)ValueAtomicUpdate, iduration);
-				if (iduration >= 1) {
-					clock = c;
-					rest = duration - iduration;
-				}
-
-				bool abort = _abort.load(std::memory_order_acquire);
-				auto ptr = _objects.first;
-				while(ptr) {
-					auto next = ptr->next_object;
-					int new_counter = 0;
-					int counter = ptr->update_counter.load(std::memory_order_acquire);
-					if (counter > 0) {
-						new_counter = !abort ? counter == 1 || counter == ValueAtomicUpdate ? counter - 1 : counter - std::min(counter, grain) : 0;
-						if (new_counter != counter) {
-							ptr->update_counter.store(new_counter, std::memory_order_release);
-						}
-					}
-					auto ref_counter = ptr->ref_counter.load(std::memory_order_acquire);
-					if (ref_counter > 0 || new_counter > 0) {
-						ptr->is_reachable = true;
-						_objects.pop(ptr);
-						_reachable_objects.push(ptr);
-					} else {
-						ptr->is_reachable = false;
-					}
-					ptr = next;
-				}
-			}
-			*/
-
-			void _mark_root_objects() noexcept {
-				static auto clock = std::chrono::steady_clock::now();
-				static double rest = 0;
-				auto c = std::chrono::steady_clock::now();
-				double duration = std::chrono::duration<double, std::milli>(c - clock).count();
-				duration = ValueAtomicUpdate * duration / 100 + rest; // 100ms for ValueAtomicUpdate
-				int iduration = (int)duration;
-				int grain = std::min((int)ValueAtomicUpdate, iduration);
-				if (iduration >= 1) {
-					clock = c;
-					rest = duration - iduration;
-				}
-
-				bool abort = _abort.load(std::memory_order_acquire);
-				auto ptr = _objects.first;
-				while(ptr) {
-					auto next = ptr->next_object;
-					int new_counter = 0;
-					int counter = ptr->update_counter.load(std::memory_order_acquire);
-					if (counter > 0) {
-						new_counter = !abort ? counter == 1 || counter == ValueAtomicUpdate ? counter - 1 : counter - std::min(counter, grain) : 0;
-						if (new_counter != counter) {
-							ptr->update_counter.store(new_counter, std::memory_order_release);
-						}
-					}
-					if (new_counter > 0) {
-						ptr->is_reachable = true;
-						_objects.pop(ptr);
-						_reachable_objects.push(ptr);
-					} else {
-						ptr->is_reachable = false;
-					}
-					ptr = next;
-				}
-
-				auto block = stack.blocks.load(std::memory_order_acquire);
-				while(block) {
-					for (auto& child : block->data) {
-						auto object = child.load(std::memory_order_acquire);
-						if (object) {
-							auto ptr = block->metadata(object);
-							if (!ptr->is_reachable) {
-								ptr->is_reachable = true;
-								_objects.pop(ptr);
-								_reachable_objects.push(ptr);
-							}
-						}
-					}
-					block = block->next;
+				else {
+					static Large_object_allocator<T> allocator;
+					return allocator;
 				}
 			}
 
-			void _mark_local_allocated_objects(Thread_data::local_list* l) {
-				bool list_is_used = l->is_used.load(std::memory_order_acquire);
-				Metadata* next = l->first_ptr;
-				while(next) {
-					Metadata* ptr = l->first_ptr;
-					if (!ptr->is_registered) {
-						(ptr->is_reachable ? _reachable_objects : _objects).push(ptr);
-						ptr->is_registered = true;
-						++_last_allocated_objects_number;
-					}
-					if (ptr->next_object_can_registered.load(std::memory_order_acquire)) {
-						next = ptr->next_allocated_object;
-						if (next || !list_is_used) {
-							ptr->can_remove_object = true;
-							l->first_ptr = next;
-						}
-					} else {
-						next = nullptr;
-					}
-				}
-			}
-
-			void _mark_allocated_objects() noexcept {
-				Thread_data::local_list* prev_list = nullptr;
-				auto list = _allocated_objects.first_local_list;
-				while(list) {
-					auto next_list = list->next_local_list.load(std::memory_order_acquire);
-					_mark_local_allocated_objects(list);
-					if (!list->first_ptr && next_list) {
-						_objects.push(list);
-						++_last_allocated_objects_number;
-						if (!prev_list) {
-							_allocated_objects.first_local_list = next_list;
-						} else {
-							prev_list->next_local_list.store(next_list, std::memory_order_relaxed);
-						}
-					} else {
-						prev_list = list;
-					}
-					list = next_list;
-				}
-			}
-
-			void _mark_child_objects(Metadata*& p) noexcept {
-				auto ptr = p ? p->next_object : _reachable_objects.first;
-				while(ptr) {
-					auto data = ptr->static_metadata();
-					for (size_t i = 0; i < data.object_count; ++i) {
-						auto offset = data.pointer_offsets;
-						while(offset->second) {
-							auto child_ptr = (std::atomic<void*>*)((size_t)ptr + data.object_size * i + offset->second);
-							auto object = child_ptr->load(std::memory_order_acquire);
-							if (object) {
-								auto ptr = offset->first(object);
-								if (!ptr->is_reachable) {
-									ptr->is_reachable = true;
-									_objects.pop(ptr);
-									_reachable_objects.push(ptr);
-								}
-							}
-							++offset;
-						}
-					}
-					ptr = ptr->next_object;
-				}
-				p = _reachable_objects.last;
-			}
-
-			bool _mark_updated_objects() noexcept {
-				auto last_processed_object = _reachable_objects.last;
-				auto ptr = _objects.first;
-				while(ptr) {
-					auto next = ptr->next_object;
-					assert(!ptr->is_reachable);
-					if (ptr->update_counter.load(std::memory_order_acquire)) {
-						ptr->is_reachable = true;
-						_objects.pop(ptr);
-						_reachable_objects.push(ptr);
-					}
-					ptr = next;
-				}
-				return last_processed_object != _reachable_objects.last;
-			}
-
-			void _move_objects_to_unreachable() noexcept {
-				object_list tmp_list;
-				auto ptr = _objects.first;
-				while(ptr) {
-					auto next = ptr->next_object;
-					if (ptr->weak_ref_counter.load(std::memory_order_acquire)) {
-						auto counter = ptr->update_counter.load(std::memory_order_acquire);
-						while(!counter &&
-									!ptr->update_counter.compare_exchange_weak(counter, ValueExpired, std::memory_order_release, std::memory_order_relaxed));
-						if (counter) {
-							_objects.pop(ptr);
-							tmp_list.push(ptr);
-						}
-					}
-					ptr = next;
-				}
-				_unreachable_objects = _objects;
-				_objects = tmp_list;
-			}
-
-			void _move_reachable_to_objects() noexcept {
-				_objects.push(_reachable_objects.first, _reachable_objects.last);
-				_reachable_objects = {nullptr, nullptr};
-			}
-
-			bool _try_delete(Metadata* p) noexcept {
-				p->next_object = nullptr;
-				p->prev_object = nullptr;
-				if (p->can_remove_object && p->weak_ref_counter.load(std::memory_order_acquire) == 0) {
-					assert(p->update_counter.load(std::memory_order_acquire) == 0 ||
-								 p->update_counter.load(std::memory_order_acquire) == ValueExpired);
-					if (!_abort.load(std::memory_order_acquire)) {
-						delete p;
-					}
+			bool set_recursive_alloc_pointer(void* p) noexcept {
+				if (!_data->recursive_alloc_pointer.load(std::memory_order_relaxed)) {
+					_data->recursive_alloc_pointer.store(p, std::memory_order_release);
 					return true;
 				}
 				return false;
 			}
 
-			void _remove_garbage() noexcept {
-				object_list tmp_list;
-				auto ptr = _garbage_objects.first;
-				while(ptr) {
-					auto next = ptr->next_object;
-					if (!_try_delete(ptr)) {
-						tmp_list.push(ptr);
-					}
-					ptr = next;
-				}
-				_garbage_objects = tmp_list;
+			void clear_recursive_alloc_pointer() noexcept {
+				_data->recursive_alloc_pointer.store(nullptr, std::memory_order_release);
 			}
 
-			size_t _sweep(object_list objects) noexcept {
-				size_t destroyed_objects_number = 0;
-				object_list tmp_list;
-				auto ptr = objects.first;
-				while(ptr) {
-					auto next = ptr->next_object;
-					auto data = ptr->static_metadata();
-					for (size_t i = 0; i < data.object_count; ++i) {
-						auto offset = data.pointer_offsets;
-						while(offset->second) {
-							auto child_ptr = (std::atomic<void*>*)((size_t)ptr + data.object_size * i + offset->second);
-							child_ptr->store(nullptr, std::memory_order_relaxed);
-							++offset;
+			void update_allocated(size_t s) {
+				auto v = _data->alloc_count.load(std::memory_order_relaxed);
+				_data->alloc_count.store(v + 1, std::memory_order_relaxed);
+				v = _data->alloc_size.load(std::memory_order_relaxed);
+				_data->alloc_size.store(v + s, std::memory_order_relaxed);
+			}
+
+			Block_allocator* const block_allocator;
+			Stack_allocator* const stack_allocator;
+			const std::unique_ptr<Roots_allocator> roots_allocator;
+			std::unique_ptr<std::array<std::unique_ptr<std::array<std::unique_ptr<Heap_allocator_base>, SqrMaxPointerTypes>>, SqrMaxPointerTypes>> heaps;
+			Alloc_state alloc_state = {{0, 0}, 0, nullptr};
+
+			inline static std::atomic<Data*> threads_data = {nullptr};
+			inline static std::thread::id main_thread_id = {};
+			inline static std::atomic<uint8_t> abort = {0};
+
+		private:
+			Data* const _data;
+			inline static std::atomic<int> _type_index = {0};
+		};
+
+		static Thread& current_thread() {
+			static thread_local Thread instance;
+			return instance;
+		}
+
+		struct Collector {
+			struct Counter {
+				Counter operator+(const Counter& c) const noexcept {
+					return {count + c.count, size + c.size};
+				}
+				Counter operator-(const Counter& c) const noexcept {
+					return {count - c.count, size - c.size};
+				}
+				void operator+=(const Counter& c) noexcept {
+					count += c.count;
+					size += c.size;
+				}
+				void operator-=(const Counter& c) noexcept {
+					count += c.count;
+					size += c.size;
+				}
+				uint64_t count = {0};
+				uint64_t size = {0};
+			};
+
+			Collector() {
+				_thread = std::thread([this]{_main_loop();});
+				Thread::main_thread_id = std::this_thread::get_id();
+			}
+
+			~Collector() {
+				Thread::abort.store(1, std::memory_order_release);
+				_thread.join();
+			}
+
+		private:
+			Counter _alloc_counter() const {
+				Counter allocated;
+				auto data = Thread::threads_data.load(std::memory_order_acquire);
+				while(data) {
+					allocated.count += data->alloc_count.load(std::memory_order_relaxed);
+					allocated.size += data->alloc_size.load(std::memory_order_relaxed);
+					data = data->next;
+				}
+				return allocated + _allocated_rest;
+			}
+
+			bool _check_threads() noexcept {
+				Thread::Data* prev = nullptr;
+				auto data = Thread::threads_data.load(std::memory_order_acquire);
+				while(data) {
+					auto next = data->next;
+					if (data->is_used.load(std::memory_order_acquire)) {
+						auto ptr = data->recursive_alloc_pointer.load(std::memory_order_relaxed);
+						if (ptr && ptr == data->last_recursive_alloc_pointer) {
+							return false;
+						}
+						prev = data;
+					} else {
+						if (!prev) {
+							auto rdata = data;
+							if (!Thread::threads_data.compare_exchange_strong(rdata, next, std::memory_order_relaxed, std::memory_order_acquire)) {
+								while(rdata->next != data) {
+									rdata = rdata->next;
+								}
+								prev = rdata;
+							}
+						}
+						if (prev) {
+							prev->next = next;
+						}
+						_allocated_rest.count += data->alloc_count.load(std::memory_order_relaxed);
+						_allocated_rest.size += data->alloc_size.load(std::memory_order_relaxed);
+						delete data;
+					}
+					data = next;
+				}
+				data = Thread::threads_data.load(std::memory_order_acquire);
+				while(data) {
+					auto ptr = data->recursive_alloc_pointer.load(std::memory_order_relaxed);
+					data->last_recursive_alloc_pointer = ptr;
+					data = data->next;
+				}
+				return true;
+			}
+
+			struct Timer {
+				Timer() noexcept {
+					reset();
+				}
+				double duration() noexcept {
+					auto clock = std::chrono::steady_clock::now();
+					return std::chrono::duration<double, std::milli>(clock - _clock).count();
+				}
+				void reset() noexcept {
+					_clock = std::chrono::steady_clock::now();
+				}
+
+			private:
+				std::chrono::steady_clock::time_point _clock;
+			};
+
+			void _update_states() {
+				static Timer timer;
+				static double rest = 0;
+				double duration = timer.duration();
+				duration = States::AtomicReachable * duration / 100 + rest; // 100ms for AtomicReachable
+				auto iduration = (unsigned)duration;
+				if (iduration >= 1) {
+					timer.reset();
+					rest = duration - iduration;
+				}
+				auto time_value = (States::Value_type)std::min((unsigned)States::AtomicReachable, iduration);
+				auto page = _registered_pages;
+				while(page) {
+					auto states = page->states();
+					auto flags = page->flags();
+					auto count = page->metadata->object_count;
+					for (unsigned i = 0; i < count; ++i) {
+						auto state = states[i].load(std::memory_order_relaxed);
+						if (state >= States::Reachable && state <= States::AtomicReachable) {
+							auto index = Page_header::flag_index_of(i);
+							auto mask = Page_header::flag_mask_of(i);
+							auto& flag = flags[index];
+							if (flag.registered & mask) {
+								state -= state == States::Reachable || state == States::AtomicReachable ? 1 : std::min(state, time_value);
+								states[i].store(state, std::memory_order_relaxed);
+							}
 						}
 					}
-					ptr->destroy();
-					if (!_try_delete(ptr)) {
-						tmp_list.push(ptr);
-					}
-					++destroyed_objects_number;
-					ptr = next;
+					page = page->next_registered;
 				}
-				_garbage_objects.push(tmp_list.first, tmp_list.last);
-				return destroyed_objects_number;
+			}
+
+			void _mark_live_objects() noexcept {
+				Page_header* prev = nullptr;
+				auto page = Heap_allocator_base::pages.load(std::memory_order_acquire);
+				while(page) {
+					auto next = page->next;
+					if (!page->is_used) {
+						if (!prev) {
+							auto rpage = page;
+							if (!Heap_allocator_base::pages.compare_exchange_strong(rpage, next, std::memory_order_relaxed, std::memory_order_acquire)) {
+								while(rpage->next != page) {
+									rpage = rpage->next;
+								}
+								prev = rpage;
+							}
+						}
+						if (prev) {
+							prev->next = next;
+						}
+						delete page;
+					} else {
+						page->clear_flags();
+						auto states = page->states();
+						auto flags = page->flags();
+						auto count = page->metadata->object_count;
+						for (unsigned i = 0; i < count; ++i) {
+							auto state = states[i].load(std::memory_order_relaxed);
+							if (state != States::Unused) {
+								if (state == States::BadAlloc) {
+									// to implement
+									continue;
+								}
+								if (state >= States::Reachable) {
+									auto index = Page_header::flag_index_of(i);
+									auto mask = Page_header::flag_mask_of(i);
+									auto& flag = flags[index];
+									if (!(flag.registered & mask)) {
+										if (!page->registered) {
+											page->registered = true;
+											page->next_registered = _registered_pages;
+											_registered_pages = page;
+										}
+										if (!page->reachable) {
+											page->reachable = true;
+											page->next_reachable = _reachable_pages;
+											_reachable_pages = page;
+										}
+										flag.registered |= mask;
+										flag.reachable |= mask;
+									}
+								}
+							}
+						}
+						prev = page;
+					}
+					page = next;
+				}
+			}
+
+			void _mark(const void* p) noexcept {
+				if (p) {
+					auto page = Page_header::page_of(p);
+					auto object_index = page->index_of(p);
+					auto index = Page_header::flag_index_of(object_index);
+					auto mask = Page_header::flag_mask_of(object_index);
+					auto& flag = page->flags()[index];
+					if (flag.registered & mask && !(flag.marked & mask)) {
+						if (!page->reachable) {
+							page->reachable = true;
+							page->next_reachable = _reachable_pages;
+							_reachable_pages = page;
+						}
+						flag.reachable |= mask;
+					}
+				}
+			}
+
+			void _mark_stack() noexcept {
+				auto data = Thread::threads_data.load(std::memory_order_acquire);
+				while(data) {
+					for (unsigned i = 0; i < Stack_allocator::PageCount; ++i) {
+						auto page = data->stack_allocator->pages[i].load(std::memory_order_relaxed);
+						if (page) {
+							for (unsigned j = 0; j < PointerCount; ++j) {
+								_mark((*page)[j].load(std::memory_order_relaxed));
+							}
+						}
+					}
+					data = data->next;
+				}
+			}
+
+			void _mark_roots() noexcept {
+				auto node = Roots_allocator::pages.load(std::memory_order_acquire);
+				while(node) {
+					for (auto& p :node->page) {
+						_mark(p.load(std::memory_order_relaxed));
+					}
+					node = node->next;
+				}
+			}
+
+			void _mark_childs(Page_header* page, size_t index) noexcept {
+				auto data = page->data + index * page->metadata->object_size;
+				auto offsets = page->metadata->pointer_offsets.load(std::memory_order_acquire);
+				unsigned size = (unsigned)offsets[0];
+				for (unsigned i = 1; i <= size; ++i) {
+					auto p = (Pointer_type*)(data + offsets[i]);
+					_mark(p->load(std::memory_order_relaxed));
+				}
+			}
+
+			void _mark_array_childs(Page_header* page, size_t index) noexcept {
+				auto data = page->data + index * page->metadata->object_size;
+				auto array = (Array_base*)data;
+				auto metadata = array->metadata.load(std::memory_order_acquire);
+				if (metadata) {
+					auto offsets = metadata->pointer_offsets.load(std::memory_order_acquire);
+					if (offsets) {
+						unsigned size = (unsigned)offsets[0];
+						if (size) {
+							data += sizeof(Array_base);
+							auto object_size = metadata->object_size;
+							for (size_t c = 0; c < array->count; ++c, data += object_size) {
+								for (unsigned i = 1; i <= size; ++i) {
+									auto p = (Pointer_type*)(data + offsets[i]);
+									_mark(p->load(std::memory_order_relaxed));
+								}
+							}
+						}
+					}
+				}
+			}
+
+			void _mark_reachable() noexcept {
+				auto page = _reachable_pages;
+				_reachable_pages = nullptr;
+				while(page) {
+					auto flags = page->flags();
+					auto count = page->flags_count();
+					bool marked;
+					do {
+						marked = false;
+						for (unsigned i = 0; i < count; ++i) {
+							auto& flag = flags[i];
+							while (flag.reachable) {
+								for (unsigned j = 0; j < Page_header::FlagBitCount; ++j) {
+									auto mask = Page_header::Flag_type(1) << j;
+									if (flag.reachable & mask) {
+										flag.marked |= mask;
+										marked = true;
+										auto index = i * Page_header::FlagBitCount + j;
+										if (page->metadata->is_array) {
+											_mark_array_childs(page, index);
+										} else {
+											_mark_childs(page, index);
+										}
+									}
+								}
+								flag.reachable &= ~flag.marked;
+							}
+						}
+					} while(marked);
+					page->reachable = false;
+					page = page->next_reachable;
+					if (!page) {
+						page = _reachable_pages;
+						_reachable_pages = nullptr;
+					}
+				}
+			}
+
+			void _mark_updated() noexcept {
+				auto page = _registered_pages;
+				while(page) {
+					bool reachable = false;
+					auto states = page->states();
+					auto flags = page->flags();
+					auto count = page->metadata->object_count;
+					for (unsigned i = 0; i < count; ++i) {
+						auto state = states[i].load(std::memory_order_relaxed);
+						if (state >= States::Reachable && state <= States::AtomicReachable) {
+							auto index = Page_header::flag_index_of(i);
+							auto mask = Page_header::flag_mask_of(i);
+							auto& flag = flags[index];
+							if ((flag.registered & mask) && !(flag.marked & mask)) {
+								flag.reachable |= mask;
+								reachable = true;
+							}
+						}
+					}
+					if (reachable && !page->reachable) {
+							page->reachable = true;
+							page->next_reachable = _reachable_pages;
+							_reachable_pages = page;
+					}
+					page = page->next_registered;
+				}
+			}
+
+			Counter _remove_garbage() noexcept {
+				Counter released;
+				auto page = _registered_pages;
+				Metadata* metadata = nullptr;
+				while(page) {
+					bool deregistered = false;
+					auto destroy = page->metadata->destroy;
+					auto states = page->states();
+					auto data = page->data;
+					auto object_size = page->metadata->object_size;
+					auto flags = page->flags();
+					auto count = page->flags_count();
+					bool on_free_list = false;
+					for (unsigned i = 0; i < count; ++i) {
+						auto& flag = flags[i];
+						auto f = flag.registered & ~flag.marked;
+						if (f) {
+							for (unsigned j = 0; j < Page_header::FlagBitCount; ++j) {
+								auto mask = Page_header::Flag_type(1) << j;
+								if (f & mask) {
+									auto index = i * Page_header::FlagBitCount + j;
+									if (destroy) {
+										auto p = data + index * object_size;
+										auto data = page->data + index * page->metadata->object_size;
+										auto offsets = page->metadata->pointer_offsets.load(std::memory_order_acquire);
+										unsigned size = (unsigned)offsets[0];
+										for (unsigned i = 1; i <= size; ++i) {
+											auto p = (Pointer_type*)(data + offsets[i]);
+											p->store(nullptr, std::memory_order_relaxed);
+										}
+										destroy((void*)p);
+									}
+									released.count++;
+									released.size += object_size;
+									flag.registered &= ~mask;
+									if (!deregistered) {
+										on_free_list = page->on_free_list.exchange(true, std::memory_order_relaxed);
+										deregistered = true;
+									}
+									states[index].store(States::Unused, std::memory_order_relaxed);
+								}
+							}
+						}
+					}
+					if (deregistered && !on_free_list) {
+						if (!page->metadata->free_page) {
+							page->metadata->next = metadata;
+							metadata = page->metadata;
+						}
+						page->next_free = page->metadata->free_page;
+						page->metadata->free_page = page;
+					}
+					page = page->next_registered;
+				}
+				while(metadata) {
+					metadata->free(metadata->free_page);
+					metadata->free_page = nullptr;
+					metadata = metadata->next;
+				}
+				Page_header* prev = nullptr;
+				page = _registered_pages;
+				while(page) {
+					auto next = page->next_registered;
+					if (!page->is_used) {
+						if (!prev) {
+							_registered_pages = next;
+						} else {
+							prev->next_registered = next;
+						}
+					} else {
+						prev = page;
+					}
+					page = next;
+				}
+				return released;
 			}
 
 			void _main_loop() noexcept {
+				static constexpr size_t MinLiveSize = PageSize;
+				static constexpr size_t MinLiveCount = MinLiveSize / sizeof(uintptr_t) * 2;
 #if SGCL_LOG_PRINT_LEVEL
 				std::cout << "[sgcl] start collector id: " << std::this_thread::get_id() << std::endl;
 #endif
 				using namespace std::chrono_literals;
-				std::thread destroyer;
-				int finalization_counter = 2;
+				int finalization_counter = 5;
+				Counter allocated;
+				Counter removed;
 				do {
-					_mark_root_objects();
-
-					_last_allocated_objects_number = 0;
-					int i = 0;
-					do {
-						_mark_allocated_objects();
-						if (std::max(_last_allocated_objects_number, _last_destroyed_objects_number.load(std::memory_order_acquire)) * 100 / SGCL_TRIGER_PERCENTAGE >= _live_objects_number + 4000 ||
-								_abort.load(std::memory_order_acquire)) {
-							break;
-						}
-						std::this_thread::sleep_for(1ms);
-					} while(++i < SGCL_MAX_SLEEP_TIME_SEC * 1000);
-
-					Metadata* last_processed_object = nullptr;
-					do {
-						_mark_child_objects(last_processed_object);
-					}
-					while(_mark_updated_objects());
-					bool garbage = _objects.first != _objects.last;
-					_move_objects_to_unreachable();
-					if (destroyer.joinable()) {
-						destroyer.join();
-					}
-					_live_objects_number += _last_allocated_objects_number;
-					_live_objects_number -= _last_destroyed_objects_number;
-
-#if SGCL_LOG_PRINT_LEVEL == 2
-					std::cout << "[sgcl] last registered/destroyed/live objects number: "
-										<< _last_allocated_objects_number << "/"
-										<< _last_destroyed_objects_number << "/"
-										<< _live_objects_number << std::endl;
+#if SGCL_LOG_PRINT_LEVEL >= 2
+					auto start = std::chrono::high_resolution_clock::now();
 #endif
-					destroyer = std::thread([this, objects = _unreachable_objects]{
-						_remove_garbage();
-						auto destroyed_objects_number = _sweep(objects);
-						_last_destroyed_objects_number.store(destroyed_objects_number, std::memory_order_release);
-					});
-					_move_reachable_to_objects();
-
-					if (!_abort.load(std::memory_order_acquire)) {
-						std::this_thread::yield();
+					if (_check_threads()) {
+						_update_states();
+						_mark_live_objects();
+						_mark_stack();
+						_mark_roots();
+						while(_reachable_pages) {
+							_mark_reachable();
+							_mark_updated();
+						}
+						Counter last_removed = _remove_garbage();
+						Counter last_allocated = _alloc_counter() - allocated;
+						Counter live = allocated + last_allocated - (removed + last_removed);
+#if SGCL_LOG_PRINT_LEVEL >= 2
+						auto end = std::chrono::high_resolution_clock::now();
+						std::cout << "[sgcl] live objects: " << live.count << ", destroyed: " << last_removed.count << ", time: "
+											<< std::chrono::duration<double, std::milli>(end - start).count() << "ms"
+											<< std::endl;
+#endif
+						Timer timer;
+						do {
+							auto last_allocated = _alloc_counter() - allocated;
+							auto live = allocated + last_allocated - (removed + last_removed);
+							if ((std::max(last_allocated.count, last_removed.count) * 100 / SGCL_TRIGER_PERCENTAGE >= live.count + MinLiveCount) ||
+									(std::max(last_allocated.size, last_removed.size) * 100 / SGCL_TRIGER_PERCENTAGE >= live.size + MinLiveSize) ||
+									Thread::abort.load(std::memory_order_relaxed)) {
+								break;
+							}
+							std::this_thread::sleep_for(1ms);
+						} while(!live.count || timer.duration() < SGCL_MAX_SLEEP_TIME_SEC * 1000);
+						allocated += last_allocated;
+						removed += last_removed;
+						if (!last_removed.count && Thread::abort.load(std::memory_order_relaxed)) {
+							if (live.count) {
+								--finalization_counter;
+							} else {
+								finalization_counter = 0;
+							}
+						}
 					}
-
-					if (_abort.load(std::memory_order_acquire) && !garbage) {
-						--finalization_counter;
+					if (!Thread::abort.load(std::memory_order_relaxed)) {
+						std::this_thread::yield();
 					}
 				} while(finalization_counter);
 
-				if (destroyer.joinable()) {
-					destroyer.join();
-				}
-
 #if SGCL_LOG_PRINT_LEVEL
 				std::cout << "[sgcl] stop collector id: " << std::this_thread::get_id() << std::endl;
-				std::cout << "[sgcl] live objects number: " << _live_objects_number << std::endl;
 #endif
+				if (Thread::abort.load(std::memory_order_relaxed) == 2) {
+					Thread::abort.store(false, std::memory_order_relaxed);
+				}
 			}
 
+			Page_header* _reachable_pages = {nullptr};
+			Page_header* _registered_pages = {nullptr};
+			Counter _allocated_rest;
 			std::thread _thread;
-			std::atomic<bool> _abort = {false};
-			Thread_data::global_list& _allocated_objects = Thread_data::list;
-			object_list _objects;
-			object_list _reachable_objects;
-			object_list _unreachable_objects;
-			object_list _garbage_objects;
-
-			size_t _last_allocated_objects_number = {0};
-			std::atomic<size_t> _last_destroyed_objects_number = {0};
-			size_t _live_objects_number = {0};
 		};
 
 		inline static Collector collector_instance;
 
-		template<typename T>
-		static ptr<T> make_ptr(T* p) noexcept {
-			return ptr<T>(p, nullptr);
-		}
+		class Tracked_ptr {
+#ifdef SGCL_ARCH_X86_64
+			static constexpr uintptr_t StackFlag = uintptr_t(1) << 63;
+			static constexpr uintptr_t ExternalHeapFlag = uintptr_t(1) << 62;
+#else
+			static constexpr uintptr_t StackFlag = 1;
+			static constexpr uintptr_t ExternalHeapFlag = 2;
+#endif
+			static constexpr uintptr_t ClearMask = ~(StackFlag | ExternalHeapFlag);
 
-		template<class T>
-		struct Type_data {
-			inline static std::atomic<std::pair<Metadata*(*)(void*), size_t>*> pointer_offsets = nullptr;
-			struct Metadata : Priv::Metadata {
-				Metadata(const T* p) : ptr(p) {}
-				Object* clone(const Object* p) override {
-					if constexpr (std::is_copy_constructible_v<T>) {
-						auto n = dynamic_cast<const T*>(p);
-						return make<T>(*n);
+		protected:
+			Tracked_ptr(Tracked_ptr* p = nullptr) {
+				uintptr_t this_addr = (uintptr_t)this;
+				uintptr_t stack_addr = (uintptr_t)&this_addr;
+				ptrdiff_t offset = this_addr - stack_addr;
+				bool stack = -MaxStackOffset <= offset && offset <= MaxStackOffset;
+				if (!stack) {
+					auto& thread = current_thread();
+					auto& state = thread.alloc_state;
+					bool root = !(state.range.first <= this_addr && this_addr < state.range.second);
+					if (!root) {
+						if (state.ptrs) {
+							state.ptrs[state.size++] = &_ptr_value;
+						}
+#ifdef SGCL_ARCH_X86_64
+						_ref = nullptr;
+#else
+						_ref = &_ptr_value;
+#endif
 					} else {
-						std::ignore = p;
-						assert(!"clone: no copy constructor");
-						return nullptr;
+						if (p && p->_allocated_on_external_heap()) {
+							_ref = p->_ref;
+						} else {
+							auto ref = thread.roots_allocator->alloc();
+							_ref = _set_flag(ref, ExternalHeapFlag);
+						}
+					}
+				} else {
+					auto ref = current_thread().stack_allocator->alloc(this);
+					_ref = _set_flag(ref, StackFlag);
+				}
+			}
+
+			~Tracked_ptr() {
+#ifdef SGCL_DEBUG
+				if (_allocated_on_heap()) {
+					_store_no_update((void*)1);
+					return;
+				}
+#endif
+				if (_ref && !_allocated_on_heap()) {
+					_store(nullptr);
+					if (!_allocated_on_stack()) {
+						current_thread().roots_allocator->free(_ref);
 					}
 				}
-				void destroy() const noexcept override {
-					ptr->~T();
+			}
+
+			Tracked_ptr(const Tracked_ptr& r) = delete;
+			Tracked_ptr& operator=(const Tracked_ptr&) = delete;
+
+			void _clear_ref() noexcept {
+				_ref = nullptr;
+			}
+
+			bool _allocated_on_heap() const noexcept {
+				return !((uintptr_t)_ref & (StackFlag | ExternalHeapFlag));
+			}
+
+			bool _allocated_on_stack() const noexcept {
+				return (uintptr_t)_ref & StackFlag;
+			}
+
+			bool _allocated_on_external_heap() const noexcept {
+				return (uintptr_t)_ref & ExternalHeapFlag;
+			}
+
+			static void _update(const void* p) noexcept {
+				if (p) {
+					Page_header::set_state(p, States::Reachable);
 				}
-				Static static_metadata() const noexcept override {
-					return {1, sizeof(T), pointer_offsets.load(std::memory_order_acquire)};
+			}
+
+			static void _update_atomic(const void* p) noexcept {
+				if (p) {
+					Page_header::set_state(p, States::AtomicReachable);
 				}
-				const T* ptr;
+			}
+
+			void* _load() const noexcept {
+				return _ptr()->load(std::memory_order_relaxed);
+			}
+
+			void* _load(const std::memory_order m) const noexcept {
+				auto l = _ptr()->load(m);
+				_update_atomic(l);
+				return l;
+			}
+
+			void _store(std::nullptr_t) noexcept {
+				_ptr()->store(nullptr, std::memory_order_relaxed);
+			}
+
+			void _store_no_update(const void* p) noexcept {
+				_ptr()->store(const_cast<void*>(p), std::memory_order_relaxed);
+			}
+
+			void _store(const void* p) noexcept {
+				_store_no_update(p);
+				_update(p);
+			}
+
+			void _store(const void* p, const std::memory_order m) noexcept {
+				_ptr()->store(const_cast<void*>(p), m);
+				_update_atomic(p);
+			}
+
+			void* _exchange(const void* p, const std::memory_order m) noexcept {
+				auto l = _load();
+				_update_atomic(l);
+				_update_atomic(p);
+				l = _ptr()->exchange(const_cast<void*>(p), m);
+				return l;
+			}
+
+			template<class F>
+			bool _compare_exchange(void*& o, const void* n, F f) noexcept {
+				auto l = _load();
+				_update_atomic(l);
+				_update_atomic(n);
+				return f(_ptr(), o, n);
+			}
+
+		private:
+			template<class T>
+			static T _set_flag(T p, uintptr_t f) noexcept {
+				auto v = (uintptr_t)p | f;
+				return (T)v;
+			}
+
+			template<class T>
+			static constexpr T _remove_flags(T p) noexcept {
+				auto v = (uintptr_t)p & ClearMask;
+				return (T)v;
+			}
+
+#ifdef SGCL_ARCH_X86_64
+			Pointer_type* _ptr() noexcept {
+				if (_allocated_on_heap()) {
+					return &_ptr_value;
+				}
+				return _remove_flags(_ref);
+			}
+
+			const Pointer_type* _ptr() const noexcept {
+				if (_allocated_on_heap()) {
+					return &_ptr_value;
+				}
+				return _remove_flags(_ref);
+			}
+
+			union {
+				Pointer_type* _ref;
+				Pointer_type _ptr_value;
 			};
+#else
+			Pointer_type* _ptr() noexcept {
+				return _remove_flags(_ref);
+			}
+
+			const Pointer_type* _ptr() const noexcept {
+				return _remove_flags(_ref);
+			}
+
+			Pointer_type* _ref;
+			Pointer_type _ptr_value;
+#endif
+			template<size_t> friend struct Array;
 		};
 
-		template<typename T, typename ...A>
-		static T* make(A&&... a) {
-			using Type = Type_data<T>;
-			using M = typename Type::Metadata;
-
-			std::pair<Metadata*(*)(void*), std::atomic<void*>*>* ptrs = nullptr;
-			if (!Type::pointer_offsets.load(std::memory_order_acquire)) {
-				ptrs = static_cast<std::pair<Metadata*(*)(void*), std::atomic<void*>*>*>(::operator new(sizeof(T)));
+		template<size_t S>
+		template<class T, class... A>
+		void Array<S>::_init(A&&... a) {
+			using Info = Heap_page_info<std::remove_cv_t<T>>;
+			Pointer_type** ptrs = nullptr;
+			if (!Info::pointer_offsets.load(std::memory_order_acquire)) {
+				ptrs = (Pointer_type**)(::operator new(sizeof(T)));
 			}
-
-			auto last_ptr = Memory::try_lock_last_ptr();
-			auto mem = static_cast<Ptr*>(::operator new(sizeof(M) + sizeof(T)));
-
-			auto& state = Memory::local_alloc_state();
+			auto& thread = current_thread();
+			auto& state = thread.alloc_state;
 			auto old_state = state;
-			state = {{mem, mem + (sizeof(M) + sizeof(T)) / sizeof(Ptr*)}, 0, ptrs};
-
-			T* obj;
-			M* meta;
+			state = {{(uintptr_t)(this->data), (uintptr_t)((T*)this->data + count)}, 0, ptrs};
 			try {
-				obj = new((M*)mem + 1) T(std::forward<A>(a)...);
-				meta = new(mem) M(obj);
+				new(const_cast<char*>(this->data)) T(std::forward<A>(a)...);
 			}
 			catch (...) {
-				::operator delete(mem);
 				if (ptrs) {
 					::operator delete(ptrs);
 				}
 				state = old_state;
-				Memory::unlock_last_ptr(last_ptr);
+				throw;
+			}
+			if (ptrs) {
+				auto offsets = new ptrdiff_t[state.size + 1];
+				offsets[0] = state.size;
+				for (size_t i = 0; i < state.size; ++i) {
+					offsets[i + 1] = (uintptr_t)ptrs[i] - (uintptr_t)this->data;
+				}
+				::operator delete(ptrs);
+				ptrdiff_t* old = nullptr;
+				if (!Info::pointer_offsets.compare_exchange_strong(old, offsets)) {
+					::operator delete(offsets);
+				}
+			}
+			state.ptrs = nullptr;
+			if constexpr(std::is_base_of_v<Tracked_ptr, T>) {
+				for (size_t i = 1; i < count; ++i) {
+					auto p = (Tracked_ptr*)const_cast<std::remove_cv_t<T>*>((T*)this->data + i);
+					if constexpr(sizeof...(A)) {
+						p->_ptr_value.store((a.get())..., std::memory_order_relaxed);
+					} else {
+						p->_ptr_value.store(nullptr, std::memory_order_relaxed);
+					}
+#ifndef SGCL_ARCH_X86_64
+					p->_ref = &p->_ptr_value;
+#endif
+				}
+			} else {
+				for (size_t i = 1; i < count; ++i) {
+					new(const_cast<std::remove_cv_t<T>*>((T*)this->data + i)) T(std::forward<A>(a)...);
+				}
+			}
+			state = old_state;
+			metadata.store(&Heap_page_info<T>::array_metadata, std::memory_order_release);
+		}
+
+		template<class T, class U = T, class ...A>
+		static tracked_ptr<U> Make_tracked(size_t size, A&&... a) {
+			using Info = Heap_page_info<std::remove_cv_t<T>>;
+
+			Pointer_type** ptrs = nullptr;
+			if (!Info::pointer_offsets.load(std::memory_order_acquire)) {
+				ptrs = (Pointer_type**)(::operator new(sizeof(T)));
+			}
+
+			auto& thread = current_thread();
+			auto& allocator = thread.alocator<std::remove_cv_t<T>>();
+			auto mem = (T*)allocator.alloc(size);
+			bool first_recursive_pointer = thread.set_recursive_alloc_pointer(mem);
+
+			auto& state = thread.alloc_state;
+			auto old_state = state;
+			state = {{(uintptr_t)(mem), (uintptr_t)(mem + 1)}, 0, ptrs};
+
+			std::remove_cv_t<T>* ptr;
+			try {
+				ptr = const_cast<std::remove_cv_t<T>*>(new(mem) T(std::forward<A>(a)...));
+				thread.update_allocated(sizeof(T));
+			}
+			catch (...) {
+				Page_header::set_state(mem, States::BadAlloc);
+				if (ptrs) {
+					::operator delete(ptrs);
+				}
+				state = old_state;
 				throw;
 			}
 
 			if (ptrs) {
-				auto new_offset = new std::pair<Metadata*(*)(void*), size_t>[state.size + 1];
+				auto offsets = new ptrdiff_t[state.size + 1];
+				offsets[0] = state.size;
 				for (size_t i = 0; i < state.size; ++i) {
-					new_offset[i] = {ptrs[i].first, (size_t)ptrs[i].second - (size_t)static_cast<Metadata*>(meta)};
+					offsets[i + 1] = (uintptr_t)ptrs[i] - (uintptr_t)ptr;
 				}
-				new_offset[state.size].second = 0;
 				::operator delete(ptrs);
-				std::pair<Metadata*(*)(void*), size_t>* o = nullptr;
-				if (!Type::pointer_offsets.compare_exchange_strong(o, new_offset)) {
-					::operator delete(new_offset);
+				ptrdiff_t* old = nullptr;
+				if (!Info::pointer_offsets.compare_exchange_strong(old, offsets)) {
+					::operator delete(offsets);
 				}
 			}
-
-			obj->metadata = meta;
 
 			state = old_state;
 
-			Memory::register_object(meta);
-			Memory::unlock_last_ptr(last_ptr);
-
-			return obj;
-		}
-
-		friend class collected;
-		friend class object;
-		template<typename, typename> friend class ptr;
-		template<typename, typename> friend class weak_ptr;
-		template<typename T, typename ...A> friend std::enable_if_t<std::is_convertible_v<T*, const object*>, ptr<T>> gc::make(A&&...);
-		template<typename> friend struct std::less;
-
-	public:
-		template<typename T>
-		static auto raw_ptr(const T& p) noexcept {
-			return p._get();
-		}
-
-		template<class T>
-		struct Proxy_ptr {
-			template<class ...A>
-			Proxy_ptr(A&& ...a) : value(std::forward<A>(a)...) {}
-			operator T() const { return  value; }
-			T value;
-		};
-	}; // class Priv
-
-	class object : public Priv::Object {
-		void operator&() = delete;
-		void *operator new(size_t) = delete;
-		void *operator new[](size_t) = delete;
-
-		static void* operator new(std::size_t c, void* p) {
-			return ::operator new(c, p);
-		}
-
-	public:
-		bool is_managed() const noexcept {
-			return metadata != nullptr;
-		}
-
-		friend struct Priv;
-	};
-
-	class collected : public virtual object {
-	};
-
-	template<typename T = object, typename>
-	class ptr final : protected Priv::Ptr {
-	public:
-		using value_type = T;
-
-		constexpr ptr() noexcept
-		: Ptr((T*)(0)) {
-			_ptr().store(nullptr, std::memory_order_relaxed);
-		}
-
-		constexpr ptr(std::nullptr_t) noexcept
-		: Ptr((T*)(0)) {
-			_ptr().store(nullptr, std::memory_order_relaxed);
-		}
-
-		explicit ptr(T* p) noexcept
-		: Ptr((T*)(0)) {
-			_ptr().store(p && p->is_managed() ? (std::remove_cv_t<T>*)p : nullptr, std::memory_order_relaxed);
-			assert(!p || p->is_managed());
-		}
-
-		ptr(const ptr& p) noexcept
-		: Ptr((T*)(0)) {
-			_init(p, std::memory_order_relaxed);
-		}
-
-		template<typename U, typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
-		ptr(const ptr<U>& p) noexcept
-		: Ptr((T*)(0)) {
-			_init(p, std::memory_order_relaxed);
-		}
-
-		ptr(ptr&& p) noexcept
-		: Ptr((T*)(0)) {
-			_init_move(std::move(p));
-		}
-
-		template<typename U, typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
-		ptr(ptr<U>&& p) noexcept
-		: Ptr((T*)(0)) {
-			_init_move(std::move(p));
-		}
-
-		~ptr() noexcept {
-			_free_ref<T>();
-		}
-
-		ptr& operator=(std::nullptr_t) noexcept {
-			_set(nullptr);
-			return *this;
-		}
-
-		ptr& operator=(const ptr& p) {
-			if (this != &p) {
-				_set(p);
+			if constexpr(std::is_same_v<T, U>) {
+				return tracked_ptr<T>(ptr, [&]{
+					if (first_recursive_pointer) {
+						thread.clear_recursive_alloc_pointer();
+					}
+				});
+			} else {
+				return tracked_ptr<U>(ptr->data, [&]{
+					if (first_recursive_pointer) {
+						thread.clear_recursive_alloc_pointer();
+					}
+				});
 			}
-			return *this;
+		}
+	}; // namespace Priv
+
+
+	template<class T>
+	class tracked_ptr final : Priv::Tracked_ptr {
+	public:
+		using element_type = std::remove_extent_t<T>;
+
+		constexpr tracked_ptr()
+		: Tracked_ptr() {
+			_store(nullptr);
 		}
 
-		template<typename U, typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
-		ptr& operator=(const ptr<U>& p) {
-			_set(p);
-			return *this;
+		constexpr tracked_ptr(std::nullptr_t)
+		: Tracked_ptr() {
+			_store(nullptr);
 		}
 
-		ptr& operator=(ptr&& p) noexcept {
-			if (this != &p) {
-				_move(std::move(p));
+		template<class U, std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
+		explicit tracked_ptr(U* p)
+		: Tracked_ptr() {
+			_store(p);
+		}
+
+		tracked_ptr(const tracked_ptr& p)
+		: Tracked_ptr() {
+			_store(p.get());
+		}
+
+		template<class U, std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
+		tracked_ptr(const tracked_ptr<U>& p)
+		: Tracked_ptr() {
+			_store(static_cast<T*>(p.get()));
+		}
+
+		tracked_ptr(tracked_ptr&& p)
+		: Tracked_ptr(&p) {
+			if (_allocated_on_external_heap() && p._allocated_on_external_heap()) {
+				p._clear_ref();
+			} else {
+				_store(p.get());
+				p._store(nullptr);
 			}
+		}
+
+		template<class U, std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
+		tracked_ptr(tracked_ptr<U>&& p)
+		: Tracked_ptr(&p) {
+			if (_allocated_on_external_heap() && p._allocated_on_external_heap()) {
+				p._clear_ref();
+			} else {
+				_store(static_cast<T*>(p.get()));
+				p._store(nullptr);
+			}
+		}
+
+		tracked_ptr& operator=(std::nullptr_t) noexcept {
+			_store(nullptr);
 			return *this;
 		}
 
-		template<typename U, typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
-		ptr& operator=(ptr<U>&& p) noexcept {
-			_move(std::move(p));
+		tracked_ptr& operator=(const tracked_ptr& p) noexcept {
+			_store(p.get());
+			return *this;
+		}
+
+		template<class U, std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
+		tracked_ptr& operator=(const tracked_ptr<U>& p) noexcept {
+			_store(static_cast<T*>(p.get()));
+			return *this;
+		}
+
+		tracked_ptr& operator=(tracked_ptr&& p) noexcept {
+			_store(p.get());
+			p._store(nullptr);
+			return *this;
+		}
+
+		template<class U, std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
+		tracked_ptr& operator=(tracked_ptr<U>&& p) noexcept {
+			_store(static_cast<T*>(p.get()));
+			p._store(nullptr);
 			return *this;
 		}
 
 		explicit operator bool() const noexcept {
-			return (_get() != nullptr);
+			return (get() != nullptr);
 		}
 
-		T* operator->() const noexcept {
-			assert(_get() != nullptr);
-			return _get();
+		template <class U = T, std::enable_if_t<!std::disjunction_v<std::is_void<U>, std::is_array<U>>, int> = 0>
+		U& operator*() const noexcept {
+			assert(get() != nullptr);
+			return *get();
 		}
 
-		T& operator*() noexcept {
-			assert(_get() != nullptr);
-			return *_get();
+		template <class U = T, std::enable_if_t<!std::disjunction_v<std::is_void<U>, std::is_array<U>>, int> = 0>
+		U* operator->() const noexcept {
+			assert(get() != nullptr);
+			return get();
 		}
 
-		const T& operator*() const noexcept {
-			assert(_get() != nullptr);
-			return *_get();
+		template <class U = T, class E = element_type, std::enable_if_t<std::is_array_v<U>, int> = 0>
+		E& operator[](size_t i) const noexcept {
+			assert(get() != nullptr);
+			return get()[i];
 		}
 
-		ptr<T> clone() const {
-			auto p = _get();
-			return p ? Priv::make_ptr(dynamic_cast<T*>(_clone(p))) : ptr<T>();
+		element_type* get() const noexcept {
+			return (element_type*)_load();
 		}
 
 		void reset() noexcept {
-			_set(nullptr);
+			_store(nullptr);
 		}
 
-		void swap(ptr& p) noexcept {
-			if (this != &p) {
-				T* r = (T*)p._ptr().load(std::memory_order_relaxed);
-				T* l = (T*)_ptr().load(std::memory_order_relaxed);
-				if (l != r) {
-					p._ptr().store(l, std::memory_order_relaxed);
-					_ptr().store(r, std::memory_order_relaxed);
-					_update(l);
-					_update(r);
+		void swap(tracked_ptr& p) noexcept {
+			auto l = get();
+			_store(p.get());
+			p._store(l);
+		}
+
+		template <class U = T, std::enable_if_t<!std::is_array_v<U>, int> = 0>
+		tracked_ptr<T> clone() const {
+			auto p = Priv::Page_header::metadata_of(get()).clone(get());
+			return tracked_ptr<T>((T*)p.get());
+		}
+
+		auto metadata() const noexcept {
+			if constexpr(std::is_array_v<T>) {
+				return (metadata_base&)Priv::Heap_page_info<T>::public_metadata;
+			} else {
+				auto p = get();
+				if (p) {
+					return Priv::Page_header::metadata_of(p).metadata;
+				} else {
+					return (metadata_base&)Priv::Heap_page_info<T>::public_metadata;
 				}
 			}
 		}
 
 	private:
 		// for make
-		explicit ptr(T* p, std::nullptr_t) noexcept
-		: Ptr((T*)(0)) {
-			_ptr().store(p, std::memory_order_relaxed);
-			_update(p);
-		}
-
-		ptr(const ptr& p, std::memory_order m) noexcept
-		: Ptr((T*)(0)) {
-			_init(p, m);
-		}
-
-		template<typename U>
-		void _init(const ptr<U>& p, std::memory_order m) noexcept {
-			T* rp = (U*)p._ptr().load(m);
-			_ptr().store(rp, std::memory_order_relaxed);
-			_update(rp);
-		}
-
-		template<typename U>
-		void _init_move(ptr<U>&& p) noexcept {
-			T* rp = (U*)p._ptr().load(std::memory_order_relaxed);
-			_ptr().store(rp, std::memory_order_relaxed);
-			p._ptr().store(nullptr, std::memory_order_relaxed);
-			_update(rp);
-		}
-
-		void _set(std::nullptr_t) noexcept {
-			T* p = (T*)_ptr().load(std::memory_order_relaxed);
-			if (p != nullptr) {
-				_ptr().store(nullptr, std::memory_order_relaxed);
-			}
-		}
-
-		template<typename U>
-		void _set(const ptr<U>& p) {
-			T* r = (U*)p._ptr().load(std::memory_order_relaxed);
-			T* l = (T*)_ptr().load(std::memory_order_relaxed);
-			if (l != r) {
-				_ptr().store(r, std::memory_order_relaxed);
-				_update(r);
-			}
-		}
-
-		template<typename U>
-		void _move(ptr<U>&& p) noexcept {
-			T* r = (U*)p._ptr().load(std::memory_order_relaxed);
-			T* l = (T*)_ptr().load(std::memory_order_relaxed);
-			if (l != r) {
-				_ptr().store(r, std::memory_order_relaxed);
-				_update(r);
-			}
-			p._ptr().store(nullptr, std::memory_order_relaxed);
-		}
-
-		T* _get() const noexcept {
-			return (T*)_ptr().load(std::memory_order_relaxed);
-		}
-
-		ptr _load(std::memory_order m = std::memory_order_seq_cst) const noexcept {
-			return ptr(*this, m);
-		}
-
-		void _store(const ptr& p, std::memory_order m = std::memory_order_seq_cst) noexcept {
-			if (this != &p) {
-				T* r = (T*)p._ptr().load(std::memory_order_relaxed);
-				_ptr().store(r, m);
-				_update(r);
-			}
-		}
-
-		ptr _exchange(const ptr& p, std::memory_order m = std::memory_order_seq_cst) noexcept {
-			if (this != &p) {
-				T* r = (T*)p._ptr().load(std::memory_order_relaxed);
-				T* l = (T*)_ptr().exchange(r, m);
-				_update(r);
-				return ptr(l);
-			}
-			return *this;
-		}
-
-		bool _compare_exchange_weak(ptr& o, const ptr& n, std::memory_order m = std::memory_order_seq_cst) noexcept {
-			return _compare_exchange(o, n, [m](auto& p, auto& l, auto r){ return p.compare_exchange_weak(l, r, m); });
-		}
-
-		bool _compare_exchange_weak(ptr& o, const ptr& n, std::memory_order s, std::memory_order f) noexcept {
-			return _compare_exchange(o, n, [s, f](auto& p, auto& l, auto r){ return p.compare_exchange_weak(l, r, s, f); });
-		}
-
-		bool _compare_exchange_strong(ptr& o, const ptr& n, std::memory_order m = std::memory_order_seq_cst) noexcept {
-			return _compare_exchange(o, n, [m](auto& p, auto& l, auto r){ return p.compare_exchange_strong(l, r, m); });
-		}
-
-		bool _compare_exchange_strong(ptr& o, const ptr& n, std::memory_order s, std::memory_order f) noexcept {
-			return _compare_exchange(o, n, [s, f](auto& p, auto& l, auto r){ return p.compare_exchange_strong(l, r, s, f); });
-		}
-
 		template<class F>
-		bool _compare_exchange(ptr& o, const ptr& n, F f) noexcept {
-			if (this != &n) {
-				T* r = (T*)n._ptr().load(std::memory_order_relaxed);
-				T* l = (T*)o._ptr().load(std::memory_order_relaxed);
-				bool result = f(_ptr(), l, r);
-				if (result) {
-					_update(r);
-				} else {
-					o._ptr().store(l, std::memory_order_relaxed);
-					_update(l);
-				}
-				return result;
-			}
-			return true;
+		explicit tracked_ptr(void* p, F f)
+		: Tracked_ptr() {
+			_store(p);
+			f();
 		}
 
-		template<typename, typename> friend class ptr;
-		template<typename, typename> friend class atomic_ptr;
-		template<typename U> friend auto Priv::raw_ptr(const U&) noexcept;
-		template<typename U> friend ptr<U> Priv::make_ptr(U*) noexcept;
-		template<typename U, typename ...A> friend U* Priv::make(A&&...);
+		tracked_ptr(const tracked_ptr& p, const std::memory_order m)
+		: Tracked_ptr() {
+			auto r = p._load(m);
+			_store_no_update(r);
+		}
+
+		template<class> friend class tracked_ptr;
+		template<class> friend class atomic_ptr;
+		template<class, class U, class ...A> friend tracked_ptr<U> Priv::Make_tracked(size_t, A&&...);
+		friend std::atomic<tracked_ptr>;
 	};
 
-	template<typename T, typename U>
-	inline bool operator==(const ptr<T>& a, const ptr<U>& b) noexcept {
-		return Priv::raw_ptr(a) == Priv::raw_ptr(b);
+	template<class T, class U>
+	inline bool operator==(const tracked_ptr<T>& a, const tracked_ptr<U>& b) noexcept {
+		return a.get() == b.get();
 	}
 
-	template<typename T>
-	inline bool operator==(const ptr<T>& a, std::nullptr_t) noexcept {
+	template<class T>
+	inline bool operator==(const tracked_ptr<T>& a, std::nullptr_t) noexcept {
 		return !a;
 	}
 
-	template<typename T>
-	inline bool operator==(std::nullptr_t, const ptr<T>& a) noexcept {
+	template<class T>
+	inline bool operator==(std::nullptr_t, const tracked_ptr<T>& a) noexcept {
 		return !a;
 	}
 
-	template<typename T, typename U>
-	inline bool operator!=(const ptr<T>& a, const ptr<U>& b) noexcept {
+	template<class T, class U>
+	inline bool operator!=(const tracked_ptr<T>& a, const tracked_ptr<U>& b) noexcept {
 		return !(a == b);
 	}
 
-	template<typename T>
-	inline bool operator!=(const ptr<T>& a, std::nullptr_t) noexcept {
+	template<class T>
+	inline bool operator!=(const tracked_ptr<T>& a, std::nullptr_t) noexcept {
 		return (bool)a;
 	}
 
-	template<typename T>
-	inline bool operator!=(std::nullptr_t, const ptr<T>& a) noexcept {
+	template<class T>
+	inline bool operator!=(std::nullptr_t, const tracked_ptr<T>& a) noexcept {
 		return (bool)a;
 	}
 
-	template<typename T, typename U>
-	inline bool operator<(const ptr<T>& a, const ptr<U>& b) noexcept {
+	template<class T, class U>
+	inline bool operator<(const tracked_ptr<T>& a, const tracked_ptr<U>& b) noexcept {
 		using V = typename std::common_type<T*, U*>::type;
-		return std::less<V>()(Priv::raw_ptr(a), Priv::raw_ptr(b));
+		return std::less<V>()(a.get(), b.get());
 	}
 
-	template<typename T>
-	inline bool operator<(const ptr<T>& a, std::nullptr_t) noexcept {
-		return std::less<T*>()(Priv::raw_ptr(a), nullptr);
+	template<class T>
+	inline bool operator<(const tracked_ptr<T>& a, std::nullptr_t) noexcept {
+		return std::less<T*>()(a.get(), nullptr);
 	}
 
-	template<typename T>
-	inline bool operator<(std::nullptr_t, const ptr<T>& a) noexcept {
-		return std::less<T*>()(nullptr, Priv::raw_ptr(a));
+	template<class T>
+	inline bool operator<(std::nullptr_t, const tracked_ptr<T>& a) noexcept {
+		return std::less<T*>()(nullptr, a.get());
 	}
 
-	template<typename T, typename U>
-	inline bool operator<=(const ptr<T>& a, const ptr<U>& b) noexcept {
+	template<class T, class U>
+	inline bool operator<=(const tracked_ptr<T>& a, const tracked_ptr<U>& b) noexcept {
 		return !(b < a);
 	}
 
-	template<typename T>
-	inline bool operator<=(const ptr<T>& a, std::nullptr_t) noexcept {
+	template<class T>
+	inline bool operator<=(const tracked_ptr<T>& a, std::nullptr_t) noexcept {
 		return !(nullptr < a);
 	}
 
-	template<typename T>
-	inline bool operator<=(std::nullptr_t, const ptr<T>& a) noexcept {
+	template<class T>
+	inline bool operator<=(std::nullptr_t, const tracked_ptr<T>& a) noexcept {
 		return !(a < nullptr);
 	}
 
-	template<typename T, typename U>
-	inline bool operator>(const ptr<T>& a, const ptr<U>& b) noexcept {
+	template<class T, class U>
+	inline bool operator>(const tracked_ptr<T>& a, const tracked_ptr<U>& b) noexcept {
 		return (b < a);
 	}
 
-	template<typename T>
-	inline bool operator>(const ptr<T>& a, std::nullptr_t) noexcept {
+	template<class T>
+	inline bool operator>(const tracked_ptr<T>& a, std::nullptr_t) noexcept {
 		return nullptr < a;
 	}
 
-	template<typename T>
-	inline bool operator>(std::nullptr_t, const ptr<T>& a) noexcept {
+	template<class T>
+	inline bool operator>(std::nullptr_t, const tracked_ptr<T>& a) noexcept {
 		return a < nullptr;
 	}
 
-	template<typename T, typename U>
-	inline bool operator>=(const ptr<T>& a, const ptr<U>& b) noexcept {
+	template<class T, class U>
+	inline bool operator>=(const tracked_ptr<T>& a, const tracked_ptr<U>& b) noexcept {
 		return !(a < b);
 	}
 
-	template<typename T>
-	inline bool operator>=(const ptr<T>& a, std::nullptr_t) noexcept {
+	template<class T>
+	inline bool operator>=(const tracked_ptr<T>& a, std::nullptr_t) noexcept {
 		return !(a < nullptr);
 	}
 
-	template<typename T>
-	inline bool operator>=(std::nullptr_t, const ptr<T>& a) noexcept {
+	template<class T>
+	inline bool operator>=(std::nullptr_t, const tracked_ptr<T>& a) noexcept {
 		return !(nullptr < a);
 	}
 
-	template<typename T, typename U>
-	inline ptr<T> static_pointer_cast(const ptr<U>& r) noexcept {
-		return ptr<T>(static_cast<T*>(Priv::raw_ptr(r)));
+	template<class T, class U>
+	inline tracked_ptr<T> static_pointer_cast(const tracked_ptr<U>& r) noexcept {
+		return tracked_ptr<T>(static_cast<T*>(r.get()));
 	}
 
-	template<typename T, typename U>
-	inline ptr<T> const_pointer_cast(const ptr<U>& r) noexcept {
-		return ptr<T>(const_cast<T*>(Priv::raw_ptr(r)));
+	template<class T, class U>
+	inline tracked_ptr<T> const_pointer_cast(const tracked_ptr<U>& r) noexcept {
+		return tracked_ptr<T>(const_cast<T*>(r.get()));
 	}
 
-	template<typename T, typename U>
-	inline ptr<T> dynamic_pointer_cast(const ptr<U>& r) noexcept {
-		return ptr<T>(dynamic_cast<T*>(Priv::raw_ptr(r)));
+	template<class T, class U>
+	inline tracked_ptr<T> dynamic_pointer_cast(const tracked_ptr<U>& r) noexcept {
+		return tracked_ptr<T>(dynamic_cast<T*>(r.get()));
 	}
 
-	template<typename T>
-	std::ostream& operator<<(std::ostream& s, const ptr<T>& p) {
-		s << Priv::raw_ptr(p);
+	template<class T>
+	std::ostream& operator<<(std::ostream& s, const tracked_ptr<T>& p) {
+		s << p.get();
 		return s;
 	}
 
-	template<typename T = object, typename>
-	class weak_ptr final : protected Priv::Weak_ptr {
-	public:
-		using value_type = T;
-
-		constexpr weak_ptr() noexcept
-		: _ptr(nullptr) {
-		}
-
-		weak_ptr(std::nullptr_t) noexcept
-		: _ptr(nullptr) {
-		}
-
-		weak_ptr(T* p) noexcept
-		: _ptr(p) {
-			assert(!p || p->is_managed());
-			_init(p);
-		}
-
-		weak_ptr(const weak_ptr& p) noexcept
-		: _ptr(p._ptr) {
-			_init(p._ptr);
-		}
-
-		template<class U, typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
-		weak_ptr(const weak_ptr<U>& p) noexcept
-		: _ptr(p._ptr) {
-			_init(p._ptr);
-		}
-
-		template<class U, typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
-		weak_ptr(const gc::ptr<U>& p) noexcept
-			: _ptr(Priv::raw_ptr(p)) {
-			_init(_ptr);
-		}
-
-		weak_ptr(weak_ptr&& p) noexcept
-		: _ptr(p._ptr) {
-			p._ptr = nullptr;
-		}
-
-		template<class U, typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
-		weak_ptr(weak_ptr<U>&& p) noexcept
-		: _ptr(p._ptr) {
-			p._ptr = nullptr;
-		}
-
-		weak_ptr& operator=(const weak_ptr& p) noexcept {
-			if (this != &p) {
-				_set(_ptr, p._ptr);
-				_ptr = p._ptr;
-			}
-			return *this;
-		}
-
-		template<class U, typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
-		weak_ptr& operator=(const weak_ptr<U>& p) noexcept {
-			_set(_ptr, p._ptr);
-			_ptr = p._ptr;
-			return *this;
-		}
-
-		template<class U, typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
-		weak_ptr& operator=(const gc::ptr<U>& p) noexcept {
-			auto r = Priv::raw_ptr(p);
-			_set(_ptr, r);
-			_ptr = r;
-			return *this;
-		}
-
-		weak_ptr& operator=(weak_ptr&& p) noexcept {
-			if (this != &p) {
-				_move(_ptr, p._ptr);
-				_ptr = p._ptr;
-				p._ptr = nullptr;
-			}
-			return *this;
-		}
-
-		template<class U, typename = std::enable_if_t<std::is_convertible_v<U*, T*>>>
-		weak_ptr& operator=(weak_ptr<U>&& p) noexcept {
-			_move(_ptr, p._ptr);
-			_ptr = p._ptr;
-			p._ptr = nullptr;
-			return *this;
-		}
-
-		bool expired() const noexcept {
-			if (_ptr && _expired(_ptr)) {
-				_remove(_ptr);
-				_ptr = nullptr;
-			}
-			return _ptr == nullptr;
-		}
-
-		gc::ptr<T> lock() const noexcept {
-			if (_try_lock(_ptr)) {
-				return gc::ptr<T>(_ptr, nullptr);
-			}
-			_remove(_ptr);
-			_ptr = nullptr;
-			return {nullptr};
-		}
-
-		void reset() {
-			_remove(_ptr);
-		}
-
-		void swap(weak_ptr& p) noexcept {
-			std::swap(_ptr, p._ptr);
-		}
-
-	private:
-		mutable T* _ptr;
-
-		weak_ptr(T* p, std::nullptr_t) noexcept
-		: _ptr(p) {
-		}
-
-		template<typename, typename> friend class atomic_weak_ptr;
-	};
-
-	template<typename T = object, typename>
-	class atomic_ptr {
-	public:
-		using value_type = typename ptr<T>::value_type;
-
-		atomic_ptr() = default;
-		atomic_ptr(const atomic_ptr&) = delete;
-
-		atomic_ptr(const ptr<T>& p) noexcept
-		: _ptr(p) {
-		}
-
-		atomic_ptr(ptr<T>&& p) noexcept
-			: _ptr(std::move(p)) {
-		}
-
-		atomic_ptr operator=(const atomic_ptr&) = delete;
-
-		void operator=(const ptr<T>& p) noexcept {
-			store(p);
-		}
-
-		bool is_lock_free() const noexcept {
-			return _ptr._ptr.is_lock_free();
-		}
-
-		operator ptr<T>() const noexcept {
-			return load();
-		}
-
-		ptr<T> load(std::memory_order m = std::memory_order_seq_cst) const noexcept {
-			return _ptr._load(m);
-		}
-
-		void store(const ptr<T>& p, std::memory_order m = std::memory_order_seq_cst) noexcept {
-			_ptr._store(p, m);
-		}
-
-		ptr<T> exchange(const ptr<T>& p, std::memory_order m = std::memory_order_seq_cst) noexcept {
-			return _ptr._exchange(p, m);
-		}
-
-		bool compare_exchange_weak(ptr<T>& e, const ptr<T>& p, std::memory_order m = std::memory_order_seq_cst) noexcept {
-			return _ptr._compare_exchange_weak(e, p, m);
-		}
-
-		bool compare_exchange_weak(ptr<T>& e, const ptr<T>& p, std::memory_order s, std::memory_order f) noexcept {
-			return _ptr._compare_exchange_weak(e, p, s, f);
-		}
-
-		bool compare_exchange_strong(ptr<T>& e, const ptr<T>& p, std::memory_order m = std::memory_order_seq_cst) noexcept {
-			return _ptr._compare_exchange_strong(e, p, m);
-		}
-
-		bool compare_exchange_strong(ptr<T>& e, const ptr<T>& p, std::memory_order s, std::memory_order f) noexcept {
-			return _ptr._compare_exchange_strong(e, p, s, f);
-		}
-
-	private:
-		ptr<T> _ptr;
-	};
-
-	template<typename T = object, typename>
-	class atomic_weak_ptr {
-	public:
-		using value_type = T;
-
-		atomic_weak_ptr() noexcept
-		: _ptr(nullptr) {
-		}
-
-		atomic_weak_ptr(const atomic_weak_ptr&) = delete;
-
-		atomic_weak_ptr(const weak_ptr<T>& p) noexcept
-		: _ptr(p._ptr) {
-			weak_ptr<T>::_init(p._ptr);
-		}
-
-		atomic_weak_ptr(weak_ptr<T>&& p) noexcept
-		: _ptr(std::move(p._ptr)) {
-			p._ptr = nullptr;
-		}
-
-		atomic_weak_ptr operator=(const atomic_weak_ptr&) = delete;
-
-		void operator=(const weak_ptr<T>& p) noexcept {
-			store(p);
-		}
-
-		bool is_lock_free() const noexcept {
-			return _ptr.is_lock_free();
-		}
-
-		operator weak_ptr<T>() const noexcept {
-			return load();
-		}
-
-		weak_ptr<T> load(std::memory_order m = std::memory_order_seq_cst) const noexcept {
-			return weak_ptr<T>(_ptr._load(m));
-		}
-
-		void store(const weak_ptr<T>& p, std::memory_order m = std::memory_order_seq_cst) noexcept {
-			auto l = _ptr.load(std::memory_order_acquire);
-			if (l != p._ptr) {
-				auto l = _ptr.exchange(p._ptr, m == std::memory_order_release ? std::memory_order_acq_rel : m);
-				if (l != p._ptr) {
-					weak_ptr<T>::_set(l, p._ptr);
-				}
-			}
-		}
-
-		weak_ptr<T> exchange(const weak_ptr<T>& p, std::memory_order m = std::memory_order_seq_cst) noexcept {
-			auto l = _ptr.exchange(p._ptr, m);
-			weak_ptr<T>::_init(p._ptr);
-			return weak_ptr<T>(l, nullptr);
-		}
-
-		bool _compare_exchange_weak(weak_ptr<T>& o, const weak_ptr<T>& n, std::memory_order m = std::memory_order_seq_cst) noexcept {
-			return _compare_exchange(o, n, [m](auto& p, auto& l, auto r){ return p.compare_exchange_weak(l, r, m); });
-		}
-
-		bool _compare_exchange_weak(weak_ptr<T>& o, const weak_ptr<T>& n, std::memory_order s, std::memory_order f) noexcept {
-			return _compare_exchange(o, n, [s, f](auto& p, auto& l, auto r){ return p.compare_exchange_weak(l, r, s, f); });
-		}
-
-		bool _compare_exchange_strong(weak_ptr<T>& o, const weak_ptr<T>& n, std::memory_order m = std::memory_order_seq_cst) noexcept {
-			return _compare_exchange(o, n, [m](auto& p, auto& l, auto r){ return p.compare_exchange_strong(l, r, m); });
-		}
-
-		bool _compare_exchange_strong(weak_ptr<T>& o, const weak_ptr<T>& n, std::memory_order s, std::memory_order f) noexcept {
-			return _compare_exchange(o, n, [s, f](auto& p, auto& l, auto r){ return p.compare_exchange_strong(l, r, s, f); });
-		}
-
-	private:
-		std::atomic<T*> _ptr;
-
-		template<class F>
-		bool _compare_exchange(weak_ptr<T>& o, const weak_ptr<T>& n, F f) noexcept {
-			T* r = n._ptr;
-			T* e = o._ptr;
-			T* l = e;
-			bool result = f(_ptr, l, r);
-			if (result) {
-				if (l != r) {
-					weak_ptr<T>::Ptr::_set(l, r);
-				}
+	namespace Priv {
+		template<class T>
+		tracked_ptr<void> Clone(const void* p) {
+			if constexpr (std::is_copy_constructible_v<T>) {
+				return p ? make_tracked<T>(*((const T*)p)) : nullptr;
 			} else {
-				o._ptr = l;
-				weak_ptr<T>::_set(e, l);
+				std::ignore = p;
+				assert(!"[sgcl] clone(): no copy constructor");
+				return nullptr;
 			}
-			return result;
 		}
-	};
 
-	template<typename T, typename ...A>
-	std::enable_if_t<std::is_convertible_v<T*, const object*>, ptr<T>> make(A&&... a) {
-		return Priv::make_ptr(Priv::make<T>(std::forward<A>(a)...));
+		template<class T>
+		struct Maker {
+			template<class ...A>
+			static tracked_ptr<T> make_tracked(A&&... a) {
+				return Make_tracked<T>(0, std::forward<A>(a)...);
+			}
+		};
+
+		template<class T>
+		struct Maker<T[]> {
+			static tracked_ptr<T[]> make_tracked(size_t count) {
+				tracked_ptr<T[]> p;
+				_make_tracked(count, p);
+				return p;
+			}
+			static tracked_ptr<T[]> make_tracked(size_t count, const std::remove_extent_t<T>& v) {
+				tracked_ptr<T[]> p;
+				_make_tracked(count, p, &v);
+				return p;
+			}
+
+		private:
+			template<size_t N>
+			static void _make(size_t count, tracked_ptr<T[]>& p) {
+				if (sizeof(T) * count <= N && sizeof(Array<N>) <= DataSize) {
+					p = Make_tracked<Array<N>, T[]>(0, count);
+				} else {
+					if constexpr(sizeof(Array<N>) < DataSize) {
+						_make<N * 2>(count, p);
+					} else {
+						if (sizeof(T) * count <= DataSize - sizeof(Array_base)) {
+							p = Make_tracked<Array<DataSize - sizeof(Array_base)>, T[]>(0, count);
+						} else {
+							p = Make_tracked<Array<>, T[]>(sizeof(T) * count, count);
+						}
+					}
+				}
+			}
+			static void _make_tracked(size_t count, tracked_ptr<T[]>& p, const std::remove_extent_t<T>* v = nullptr) {
+				if (count) {
+					auto offset = (size_t)(&((Array<>*)0)->data);
+					_make<1>(count, p);
+					auto array = (Array<>*)((char*)p.get() - offset);
+					if (v) {
+						array->template init<T>(*v);
+					} else {
+						array->template init<T>();
+					}
+				}
+			}
+		};
 	}
-} // namespace gc
+
+	template<class T, class ...A>
+	auto make_tracked(A&&... a) {
+		return Priv::Maker<T>::make_tracked(std::forward<A>(a)...);
+	}
+}
+
+template<class T>
+struct std::atomic<sgcl::tracked_ptr<T>> {
+	using value_type = sgcl::tracked_ptr<T>;
+
+	atomic() = default;
+
+	atomic(std::nullptr_t)
+	: _ptr(nullptr) {
+	}
+
+	atomic(const value_type& p)
+	: _ptr(p) {
+	}
+
+	atomic(const atomic&) = delete;
+	atomic& operator =(const atomic&) = delete;
+
+	static constexpr bool is_always_lock_free = std::atomic<T*>::is_always_lock_free;
+
+	bool is_lock_free() const noexcept {
+		return std::atomic<T*>::is_lock_free();
+	}
+
+	void operator=(const value_type& p) noexcept {
+		store(p);
+	}
+
+	void store(const value_type& p, const memory_order m = std::memory_order_seq_cst) noexcept {
+		_store(p, m);
+	}
+
+	value_type load(const memory_order m = std::memory_order_seq_cst) const {
+		return _load(m);
+	}
+
+	void load(value_type& o, const memory_order m = std::memory_order_seq_cst) const noexcept {
+		_load(o, m);
+	}
+
+	value_type exchange(const value_type& p, const memory_order m = std::memory_order_seq_cst) {
+		return _exchange(p, m);
+	}
+
+	void exchange(value_type& o, const value_type& p, const memory_order m = std::memory_order_seq_cst) noexcept {
+		_exchange(o, p, m);
+	}
+
+	bool compare_exchange_strong(value_type& o, const value_type& n, const memory_order m = std::memory_order_seq_cst) noexcept {
+		return _compare_exchange_strong(o, n, m);
+	}
+
+	bool compare_exchange_strong(value_type& o, const value_type& n, const memory_order s, const memory_order f) noexcept {
+		return _compare_exchange_strong(o, n, s, f);
+	}
+
+	bool compare_exchange_weak(value_type& o, const value_type& n, const memory_order m = std::memory_order_seq_cst) noexcept {
+		return _compare_exchange_weak(o, n, m);
+	}
+
+	bool compare_exchange_weak(value_type& o, const value_type& n, const memory_order s, const memory_order f) noexcept {
+		return _compare_exchange_weak(o, n, s, f);
+	}
+
+	operator value_type() const noexcept {
+		return load();
+	}
+
+private:
+	value_type _load(const std::memory_order m = std::memory_order_seq_cst) const {
+		return value_type(_ptr, m);
+	}
+
+	void _load(value_type& o, const std::memory_order m = std::memory_order_seq_cst) const noexcept {
+		auto l = _ptr._load(m);
+		o._store_no_update(l);
+	}
+
+	void _store(const value_type& p, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+		auto r = p.get();
+		_ptr._store(r, m);
+	}
+
+	value_type _exchange(const value_type& p, const std::memory_order m = std::memory_order_seq_cst) {
+		auto r = p.get();
+		return value_type((T*)_ptr._exchange(r, m));
+	}
+
+	void _exchange(value_type& o, const value_type& p, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+		auto r = p.get();
+		auto l = _ptr._exchange(r, m);
+		o._store_no_update(l);
+	}
+
+	bool _compare_exchange_weak(value_type& o, const value_type& n, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+		return _compare_exchange(o, n, [m](auto p, auto& l, auto r){ return p->compare_exchange_weak(l, const_cast<void*>(r), m); });
+	}
+
+	bool _compare_exchange_weak(value_type& o, const value_type& n, std::memory_order s, std::memory_order f) noexcept {
+		return _compare_exchange(o, n, [s, f](auto p, auto& l, auto r){ return p->compare_exchange_weak(l, const_cast<void*>(r), s, f); });
+	}
+
+	bool _compare_exchange_strong(value_type& o, const value_type& n, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+		return _compare_exchange(o, n, [m](auto p, auto& l, auto r){ return p->compare_exchange_strong(l, const_cast<void*>(r), m); });
+	}
+
+	bool _compare_exchange_strong(value_type& o, const value_type& n, std::memory_order s, std::memory_order f) noexcept {
+		return _compare_exchange(o, n, [s, f](auto p, auto& l, auto r){ return p->compare_exchange_strong(l, const_cast<void*>(r), s, f); });
+	}
+
+	template<class F>
+	bool _compare_exchange(value_type& o, const value_type& n, F f) noexcept {
+		auto r = n.get();
+		void* l = const_cast<std::remove_cv_t<typename value_type::element_type>*>(o.get());
+		if (!_ptr._compare_exchange(l, r, f)) {
+			o._store_no_update(l);
+			return false;
+		}
+		return true;
+	}
+
+	sgcl::tracked_ptr<T> _ptr;
+};
 
 #endif // SGCL_H
