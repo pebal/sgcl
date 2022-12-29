@@ -1,7 +1,7 @@
 /*******************************************************************************
 ** SGCL - Realtime Garbage Collector
 ** Copyright (c) 2022 Sebastian Nibisz
-** Distributed under the GPLv3 license.
+** Distributed under the LGPLv3 license.
 *******************************************************************************/
 #ifndef SGCL_H
 #define SGCL_H
