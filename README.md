@@ -33,6 +33,7 @@ auto array = make_tracked<int[]>(4);
 tracked_ptr<void> any = value;
 if (any.is<int>() || any.type() == typeid(int)) {
     value = any.as<int>();
+    // equivalent
     value = static_pointer_cast<int>(any);
 }
 
