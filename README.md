@@ -32,9 +32,9 @@ auto array = make_tracked<int[]>(4);
 // cast pointer
 tracked_ptr<void> any = value;
 if (any.is<int>() || any.type() == typeid(int)) {
-        value = any.as<int>();
-        // or
-        value = static_pointer_cast<int>(any);
+  value = any.as<int>();
+  // or
+  value = static_pointer_cast<int>(any);
 }
 
 // copy pointer
@@ -45,8 +45,8 @@ auto value2 = value.clone();
 
 // pointer in structure
 struct node {
-        float data;
-        tracked_ptr<node> next;
+  float data;
+  tracked_ptr<node> next;
 };
 
 // create node on tracked heap
