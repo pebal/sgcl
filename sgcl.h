@@ -1385,8 +1385,6 @@ namespace sgcl {
 			std::thread _thread;
 		};
 
-		inline static Collector collector_instance;
-
 		class Tracked_ptr {
 #ifdef SGCL_ARCH_X86_64
 			static constexpr uintptr_t StackFlag = uintptr_t(1) << 63;
@@ -1623,9 +1621,14 @@ namespace sgcl {
 			metadata.store(&Heap_page_info<T>::array_metadata, std::memory_order_release);
 		}
 
+		void collector_init() {
+			static Collector collector_instance;
+		}
+
 		template<class T, class U = T, class ...A>
 		static tracked_ptr<U> Make_tracked(size_t size, A&&... a) {
 			using Info = Heap_page_info<std::remove_cv_t<T>>;
+			collector_init();
 
 			Pointer_type** ptrs = nullptr;
 			if (!Info::pointer_offsets.load(std::memory_order_acquire)) {
