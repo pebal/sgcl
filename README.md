@@ -23,30 +23,60 @@ C++17 compiler required. Tested on Windows with VC++, Clang and MinGW compilers.
 
 using namespace sgcl;
 
-tracked_ptr<int> i = make_tracked<int>(10);
-tracked_ptr<void> v = i;
-tracked_ptr<int> i2 = static_pointer_cast<int>(v);
-tracked_ptr<int> i3 = i2.clone();
+// create object
+auto value = make_tracked<int>(10);
 
-auto arr = make_tracked<char[]>(6);
-arr[3] = 's';
+// create array
+auto array = make_tracked<int[]>(4);
 
-struct foo {
-  auto ptr() {
-    return tracked_ptr<foo>(this);
-  }
+// cast pointer
+tracked_ptr<void> any = value;
+if (any.is<int>() || any.type() == typeid(int)) {
+        value = any.as<int>();
+        // or
+        value = static_pointer_cast<int>(any);
+}
+
+// copy pointer
+auto ref = value;
+
+// clone object
+auto value2 = value.clone();
+
+// pointer in structure
+struct node {
+        float data;
+        tracked_ptr<node> next;
 };
-auto f = make_tracked<foo>();
-auto f2 = f->ptr();
 
-metadata<foo>::user_data = new int(3);
-tracked_ptr<void> b = f2;
-std::cout << b.metadata().type_info.name() << std::endl;
-std::cout << *(int*)(b.metadata().user_data) << std::endl;
+// create node on tracked heap
+auto tracked_node = make_tracked<node>();
 
-std::atomic<tracked_ptr<int>> a;
-a.store(i, std::memory_order_relaxed);
-a.compare_exchange_strong(i, i3);
+// create node on standard heap
+auto unique_node = std::make_unique<node>();
+auto shared_node = std::make_shared<node>();
+
+// create node on stack
+node stack_node;
+
+// create object based on raw pointer
+tracked_ptr<node> tracked_node_ref(tracked_node.get());
+// undefined behavior
+// tracked_ptr<node> unique_node_ref(unique_node.get());
+// tracked_ptr<node> shared_node_ref(shared_node.get());
+// tracked_ptr<node> stack_node_ref(&stack_node);
+
+// create alias
+// !!! only if size of owner object is less or equal than MaxAliasingDataSize
+tracked_ptr<float> alias(&tracked_node->data);
+
+// atomic pointer
+std::atomic<tracked_ptr<int>> atomic = value;
+
+// metadata using
+metadata<int>::set(3.14);
+std::cout << any.metadata<double>() << std::endl;  // ok, any is int and metadata is double
+std::cout << std::any_cast<double>(any.metadata()) << std::endl;  // also ok
 ```
 ## Not working
 Currently cycles are not detected in the standard containers. All pointers in the containers are roots.

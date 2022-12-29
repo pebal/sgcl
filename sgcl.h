@@ -6,6 +6,7 @@
 #ifndef SGCL_H
 #define SGCL_H
 
+#include <any>
 #include <array>
 #include <atomic>
 #include <cassert>
@@ -53,34 +54,51 @@ namespace sgcl {
 	tracked_ptr<void> Priv_clone(const void* p);
 
 	struct metadata_base {
-		const std::type_info& type_info;
-		void*& user_data;
+		const std::type_info& type;
+		std::any& user_data;
 
 	protected:
-		metadata_base(const std::type_info& type_info, void*& user_data)
-		: type_info(type_info)
+		metadata_base(const std::type_info& type, std::any& user_data)
+		: type(type)
 		, user_data(user_data) {
 		}
+
+	private:
 	};
 
 	template<class T>
 	struct metadata : metadata_base {
 		metadata()
-		: metadata_base(typeid(T), user_data) {
+		: metadata_base(typeid(T), _user_data) {
 		}
-		inline static void* user_data = nullptr;
+		template<class U>
+
+		static void set(U t) noexcept {
+			_user_data = std::move(t);
+		}
+
+		static const std::any& get() noexcept {
+			return _user_data;
+		}
+
+	private:
+		inline static std::any _user_data = nullptr;
 	};
 
 	namespace Priv {
 		using Pointer_type = std::atomic<void*>;
 		static constexpr size_t SqrMaxPointerTypes = 64;
-		static constexpr size_t MaxPointerTypes = SqrMaxPointerTypes * SqrMaxPointerTypes;
+		[[maybe_unused]] static constexpr size_t MaxPointerTypes = SqrMaxPointerTypes * SqrMaxPointerTypes;
 		static constexpr ptrdiff_t MaxStackOffset = 1024;
 		static constexpr size_t PageSize = 4096;
 		static constexpr size_t DataSize = PageSize - sizeof(uintptr_t);
 		static constexpr size_t PointerSize = sizeof(Pointer_type);
 		static constexpr size_t PointerCount = PageSize / PointerSize;
+	}
 
+	[[maybe_unused]] static constexpr size_t MaxAliasingDataSize = Priv::DataSize;
+
+	namespace Priv {
 		struct States {
 			using Value_type = uint8_t;
 			static constexpr Value_type Unused = std::numeric_limits<uint8_t>::max();
@@ -829,7 +847,6 @@ namespace sgcl {
 			auto& alocator() {
 				if constexpr(std::is_same_v<typename Heap_page_info<T>::Heap_allocator, Heap_allocator<T>>) {
 					static unsigned index = _type_index++;
-					(void)MaxPointerTypes;
 					assert(index < MaxPointerTypes);
 					auto ax = heaps.get();
 					if (!ax) {
@@ -1794,17 +1811,27 @@ namespace sgcl {
 			return tracked_ptr<T>((T*)p.get());
 		}
 
-		auto metadata() const noexcept {
-			if constexpr(std::is_array_v<T>) {
-				return (metadata_base&)Priv::Heap_page_info<T>::public_metadata;
-			} else {
-				auto p = get();
-				if (p) {
-					return Priv::Page_header::metadata_of(p).metadata;
-				} else {
-					return (metadata_base&)Priv::Heap_page_info<T>::public_metadata;
-				}
-			}
+		template<class U>
+		bool is() const noexcept {
+			return type() == typeid(U);
+		}
+
+		template<class U>
+		tracked_ptr<U> as() const noexcept {
+			return static_pointer_cast<U>(*this);
+		}
+
+		const std::type_info& type() const noexcept {
+			return _metadata().type;
+		}
+
+		const std::any& metadata() const noexcept {
+			return _metadata().user_data;
+		}
+
+		template<class U>
+		const U& metadata() const noexcept {
+			return *std::any_cast<U>(&_metadata().user_data);
 		}
 
 	private:
@@ -1820,6 +1847,19 @@ namespace sgcl {
 		: Tracked_ptr() {
 			auto r = p._load(m);
 			_store_no_update(r);
+		}
+
+		auto _metadata() const noexcept {
+			if constexpr(std::is_array_v<T>) {
+				return (metadata_base&)Priv::Heap_page_info<T>::public_metadata;
+			} else {
+				auto p = get();
+				if (p) {
+					return Priv::Page_header::metadata_of(p).metadata;
+				} else {
+					return (metadata_base&)Priv::Heap_page_info<T>::public_metadata;
+				}
+			}
 		}
 
 		template<class> friend class tracked_ptr;
