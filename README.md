@@ -79,4 +79,4 @@ std::cout << any.metadata<double>() << std::endl;  // ok, any is int and metadat
 std::cout << std::any_cast<double>(any.metadata()) << std::endl;  // also ok
 ```
 ## Not working
-Currently cycles are not detected in the standard containers. All pointers in the containers are roots.
+Currently cycles are not detected in the standard containers. All pointers in these containers are roots.
