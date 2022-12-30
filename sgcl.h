@@ -182,7 +182,7 @@ namespace sgcl {
 		struct Page_header {
 			using State_type = States::Value_type;
 			using Flag_type = uint64_t;
-			static constexpr auto FlagBitCount = sizeof(Flag_type) * 8;
+			static constexpr unsigned FlagBitCount = sizeof(Flag_type) * 8;
 
 			struct Flags {
 				Flag_type registered = {0};
@@ -250,6 +250,10 @@ namespace sgcl {
 				return ((uintptr_t)p - data) * multiplier >> 32;
 			}
 
+			uintptr_t data_of(unsigned index) noexcept {
+				return data + index * metadata->object_size;
+			}
+
 			static Metadata& metadata_of(const void* p) noexcept {
 				auto page = Page_header::page_of(p);
 				return *page->metadata;
@@ -265,6 +269,12 @@ namespace sgcl {
 			static Page_header* page_of(const void* p) noexcept {
 				auto page = ((uintptr_t)p & ~(uintptr_t)(PageSize - 1));
 				return *((Page_header**)page);
+			}
+
+			static void* base_address_of(const void* p) noexcept {
+				auto page = page_of(p);
+				auto index = page->index_of(p);
+				return (void*)page->data_of(index);
 			}
 
 			Metadata* const metadata;
@@ -1142,8 +1152,8 @@ namespace sgcl {
 				}
 			}
 
-			void _mark_childs(Page_header* page, size_t index) noexcept {
-				auto data = page->data + index * page->metadata->object_size;
+			void _mark_childs(Page_header* page, unsigned index) noexcept {
+				auto data = page->data_of(index);
 				auto offsets = page->metadata->pointer_offsets.load(std::memory_order_acquire);
 				unsigned size = (unsigned)offsets[0];
 				for (unsigned i = 1; i <= size; ++i) {
@@ -1152,8 +1162,8 @@ namespace sgcl {
 				}
 			}
 
-			void _mark_array_childs(Page_header* page, size_t index) noexcept {
-				auto data = page->data + index * page->metadata->object_size;
+			void _mark_array_childs(Page_header* page, unsigned index) noexcept {
+				auto data = page->data_of(index);
 				auto array = (Array_base*)data;
 				auto metadata = array->metadata.load(std::memory_order_acquire);
 				if (metadata) {
@@ -1263,7 +1273,7 @@ namespace sgcl {
 									auto index = i * Page_header::FlagBitCount + j;
 									if (destroy) {
 										auto p = data + index * object_size;
-										auto data = page->data + index * page->metadata->object_size;
+										auto data = page->data_of(index);
 										auto offsets = page->metadata->pointer_offsets.load(std::memory_order_acquire);
 										unsigned size = (unsigned)offsets[0];
 										for (unsigned i = 1; i <= size; ++i) {
@@ -1520,6 +1530,10 @@ namespace sgcl {
 				_update_atomic(l);
 				_update_atomic(n);
 				return f(_ptr(), o, n);
+			}
+
+			void* _base_address_of(const void* p) const noexcept {
+				return Page_header::base_address_of(p);
 			}
 
 		private:
@@ -1818,14 +1832,15 @@ namespace sgcl {
 			return tracked_ptr<T>((T*)p.get());
 		}
 
-		template<class U>
+		template<class U, std::enable_if_t<!std::is_array_v<U>, int> = 0>
 		bool is() const noexcept {
 			return type() == typeid(U);
 		}
 
-		template<class U>
+		template<class U, std::enable_if_t<!std::is_array_v<U>, int> = 0>
 		tracked_ptr<U> as() const noexcept {
-			return static_pointer_cast<U>(*this);
+			auto address = _base_address_of(get());
+			return tracked_ptr<U>((U*)address);
 		}
 
 		const std::type_info& type() const noexcept {
