@@ -23,7 +23,7 @@
 //#define SGCL_DEBUG
 
 #ifdef SGCL_DEBUG
-	#define SGCL_LOG_PRINT_LEVEL 2
+	#define SGCL_LOG_PRINT_LEVEL 3
 #endif
 
 #if SGCL_LOG_PRINT_LEVEL
@@ -62,8 +62,6 @@ namespace sgcl {
 		: type(type)
 		, user_data(user_data) {
 		}
-
-	private:
 	};
 
 	template<class T>
@@ -903,6 +901,13 @@ namespace sgcl {
 			inline static std::atomic<int> _type_index = {0};
 		};
 
+		struct Main_thread_detector {
+			Main_thread_detector() noexcept {
+				Thread::main_thread_id = std::this_thread::get_id();
+			}
+		};
+		static Main_thread_detector main_thread_detector;
+
 		static Thread& current_thread() {
 			static thread_local Thread instance;
 			return instance;
@@ -930,7 +935,6 @@ namespace sgcl {
 
 			Collector() {
 				_thread = std::thread([this]{_main_loop();});
-				Thread::main_thread_id = std::this_thread::get_id();
 			}
 
 			~Collector() {
