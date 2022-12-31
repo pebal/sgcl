@@ -31,10 +31,9 @@ auto array = make_tracked<int[]>(4);
 
 // cast pointer
 tracked_ptr<void> any = value;
+value = static_pointer_cast<int>(any);
 if (any.is<int>() || any.type() == typeid(int)) {
     value = any.as<int>();
-    // equivalent
-    value = static_pointer_cast<int>(any);
 }
 
 // copy pointer
