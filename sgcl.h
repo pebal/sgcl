@@ -1839,8 +1839,12 @@ namespace sgcl {
 
 		template<class U, std::enable_if_t<!std::is_array_v<U>, int> = 0>
 		tracked_ptr<U> as() const noexcept {
-			auto address = _base_address_of(get());
-			return tracked_ptr<U>((U*)address);
+			if (is<U>()) {
+				auto address = _base_address_of(get());
+				return tracked_ptr<U>((U*)address);
+			} else {
+				return {nullptr};
+			}
 		}
 
 		const std::type_info& type() const noexcept {
