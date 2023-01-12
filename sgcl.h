@@ -1,8 +1,8 @@
-/*******************************************************************************
-** SGCL - Realtime Garbage Collector
-** Copyright (c) 2022 Sebastian Nibisz
-** Distributed under the LGPLv3 license.
-*******************************************************************************/
+//------------------------------------------------------------------------------
+// SGCL - a real-time Garbage Collector for C++
+// Copyright (c) Sebastian Nibisz
+// SPDX-License-Identifier: LGPL-3.0-only
+//------------------------------------------------------------------------------
 #ifndef SGCL_H
 #define SGCL_H
 
@@ -16,10 +16,12 @@
 #include <memory>
 #include <thread>
 #include <type_traits>
-#include <vector>
 
+// the maximum sleep time of the GC thread in seconds
 #define SGCL_MAX_SLEEP_TIME_SEC 30
+// the percentage amount of allocations that will wake up the GC thread
 #define SGCL_TRIGER_PERCENTAGE 25
+
 //#define SGCL_DEBUG
 
 #ifdef SGCL_DEBUG
@@ -27,15 +29,15 @@
 #endif
 
 #if SGCL_LOG_PRINT_LEVEL
+	#include <iostream>
 #endif
-#include <iostream>
 
-/*******************************************************************************
- * Reduces memory usage on x86 platforms by using two highest bits of pointer.
- *
- * Warning!
- * User heap must be allocated in the low half of virtual address space.
- ******************************************************************************/
+//------------------------------------------------------------------------------
+// Reduces memory usage on x86-64 platforms by using two highest bits of pointer
+//
+// Warning!
+// User heap must be allocated in the low half of virtual address space
+//------------------------------------------------------------------------------
 #if defined(__x86_64__) || defined(_M_X64)
 	#define SGCL_ARCH_X86_64
 #endif
@@ -84,26 +86,24 @@ namespace sgcl {
 	};
 
 	namespace Priv {
-		using Pointer_type = std::atomic<void*>;
-		static constexpr size_t SqrMaxPointerTypes = 64;
-		[[maybe_unused]] static constexpr size_t MaxPointerTypes = SqrMaxPointerTypes * SqrMaxPointerTypes;
+		static constexpr size_t SqrMaxTypeNumber = 64;
+		[[maybe_unused]] static constexpr size_t MaxTypeNumber = SqrMaxTypeNumber * SqrMaxTypeNumber;
 		static constexpr ptrdiff_t MaxStackOffset = 1024;
 		static constexpr size_t PageSize = 4096;
-		static constexpr size_t DataSize = PageSize - sizeof(uintptr_t);
-		static constexpr size_t PointerSize = sizeof(Pointer_type);
-		static constexpr size_t PointerCount = PageSize / PointerSize;
+		static constexpr size_t PageDataSize = PageSize - sizeof(uintptr_t);
+		using Pointer = std::atomic<void*>;
 	}
 
-	[[maybe_unused]] static constexpr size_t MaxAliasingDataSize = Priv::DataSize;
+	[[maybe_unused]] static constexpr size_t MaxAliasingDataSize = Priv::PageDataSize;
 
 	namespace Priv {
 		struct States {
-			using Value_type = uint8_t;
-			static constexpr Value_type Unused = std::numeric_limits<uint8_t>::max();
-			static constexpr Value_type BadAlloc = Unused - 1;
-			static constexpr Value_type AtomicReachable = BadAlloc - 1;
-			static constexpr Value_type Reachable = 1;
-			static constexpr Value_type Unreachable = 0;
+			using Value = uint8_t;
+			static constexpr Value Unused = std::numeric_limits<uint8_t>::max();
+			static constexpr Value BadAlloc = Unused - 1;
+			static constexpr Value AtomicReachable = BadAlloc - 1;
+			static constexpr Value Reachable = 1;
+			static constexpr Value Used = 0;
 		};
 
 		struct Array_metadata;
@@ -111,9 +111,8 @@ namespace sgcl {
 			constexpr Array_base(size_t c) noexcept
 			: count(c) {
 			}
+
 			~Array_base() noexcept;
-			std::atomic<Array_metadata*> metadata = {nullptr};
-			const size_t count;
 
 			template<class T>
 			static void destroy(void* data, size_t count) noexcept {
@@ -121,12 +120,15 @@ namespace sgcl {
 					std::destroy_at((T*)data + i - 1);
 				}
 			}
+
+			std::atomic<Array_metadata*> metadata = {nullptr};
+			const size_t count;
 		};
 
-		struct Page_header;
+		struct Page;
 
 		template<class T>
-		struct Heap_page_info;
+		struct Page_info;
 
 		template<class T>
 		tracked_ptr<void> Clone(const void*);
@@ -134,41 +136,41 @@ namespace sgcl {
 		struct Metadata final {
 			template<class T>
 			Metadata(T*)
-			: pointer_offsets(Heap_page_info<T>::pointer_offsets)
-			, destroy(!std::is_trivially_destructible_v<T> || std::is_base_of_v<Array_base, T> ? Heap_page_info<T>::destroy : nullptr)
-			, free(Heap_page_info<T>::Heap_allocator::free)
+			: pointer_offsets(Page_info<T>::pointer_offsets)
+			, destroy(!std::is_trivially_destructible_v<T> || std::is_base_of_v<Array_base, T> ? Page_info<T>::destroy : nullptr)
+			, free(Page_info<T>::Heap_allocator::free)
 			, clone(!std::is_base_of_v<Array_base, T> ? Clone<T> : nullptr)
-			, object_size(Heap_page_info<T>::ObjectSize)
-			, object_count(Heap_page_info<T>::ObjectCount)
+			, object_size(Page_info<T>::ObjectSize)
+			, object_count(Page_info<T>::ObjectCount)
 			, is_array(std::is_base_of_v<Array_base, T>)
-			, metadata(Heap_page_info<T>::public_metadata) {
+			, public_metadata(Page_info<T>::public_metadata) {
 			}
 
 			std::atomic<ptrdiff_t*>& pointer_offsets;
 			void (*const destroy)(void*) noexcept;
-			void (*const free)(Page_header*);
+			void (*const free)(Page*);
 			tracked_ptr<void> (*const clone)(const void*);
 			const size_t object_size;
 			const unsigned object_count;
 			bool is_array;
-			metadata_base& metadata;
-			Page_header* free_page = {nullptr};
+			metadata_base& public_metadata;
+			Page* empty_page = {nullptr};
 			Metadata* next = {nullptr};
 		};
 
 		struct Array_metadata final {
 			template<class T>
 			Array_metadata(T*)
-			: pointer_offsets(Heap_page_info<T>::pointer_offsets)
+			: pointer_offsets(Page_info<T>::pointer_offsets)
 			, destroy(!std::is_trivially_destructible_v<T> ? Array_base::destroy<T> : nullptr)
-			, object_size(Heap_page_info<T>::ObjectSize)
-			, metadata(Heap_page_info<T[]>::public_metadata) {
+			, object_size(Page_info<T>::ObjectSize)
+			, public_metadata(Page_info<T[]>::public_metadata) {
 			}
 
 			std::atomic<ptrdiff_t*>& pointer_offsets;
 			void (*const destroy)(void*, size_t) noexcept;
 			const size_t object_size;
-			metadata_base& metadata;
+			metadata_base& public_metadata;
 		};
 
 		Array_base::~Array_base() noexcept {
@@ -178,29 +180,29 @@ namespace sgcl {
 			}
 		}
 
-		struct Block_header;
-		struct Page_header {
-			using State_type = States::Value_type;
-			using Flag_type = uint64_t;
-			static constexpr unsigned FlagBitCount = sizeof(Flag_type) * 8;
+		struct Block;
+		struct Page {
+			using State = States::Value;
+			using Flag = uint64_t;
+			static constexpr unsigned FlagBitCount = sizeof(Flag) * 8;
 
 			struct Flags {
-				Flag_type registered = {0};
-				Flag_type reachable = {0};
-				Flag_type marked = {0};
+				Flag registered = {0};
+				Flag reachable = {0};
+				Flag marked = {0};
 			};
 
 			template<class T>
-			Page_header(Block_header* block, T* data) noexcept
-			: metadata(&Heap_page_info<T>::private_metadata)
-			, block_header(block)
+			Page(Block* block, T* data) noexcept
+			: metadata(&Page_info<T>::private_metadata)
+			, block(block)
 			, data((uintptr_t)data)
 			, multiplier((1ull << 32 | 0x10000) / metadata->object_size) {
 				assert(metadata != nullptr);
 				assert(data != nullptr);
 				auto states = this->states();
 				for (unsigned i = 0; i < metadata->object_count; ++i) {
-					new(states + i) std::atomic<State_type>(States::Unreachable);
+					new(states + i) std::atomic<State>(States::Used);
 				}
 				auto flags = this->flags();
 				auto count = this->flags_count();
@@ -209,19 +211,19 @@ namespace sgcl {
 				}
 			}
 
-			~Page_header() {
-				if constexpr(!std::is_trivially_destructible_v<std::atomic<State_type>>) {
+			~Page() {
+				if constexpr(!std::is_trivially_destructible_v<std::atomic<State>>) {
 					auto states = this->states();
 					std::destroy(states, states + metadata->object_count);
 				}
 			}
 
-			std::atomic<State_type>* states() const noexcept {
-				return (std::atomic<State_type>*)(this + 1);
+			std::atomic<State>* states() const noexcept {
+				return (std::atomic<State>*)(this + 1);
 			}
 
 			Flags* flags() const noexcept {
-				auto states_size = (sizeof(std::atomic<State_type>) * metadata->object_count + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1);
+				auto states_size = (sizeof(std::atomic<State>) * metadata->object_count + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1);
 				return (Flags*)((uintptr_t)states() + states_size);
 			}
 
@@ -242,8 +244,8 @@ namespace sgcl {
 				return i / FlagBitCount;
 			}
 
-			static constexpr Flag_type flag_mask_of(unsigned i) noexcept {
-				return Flag_type(1) << (i % FlagBitCount);
+			static constexpr Flag flag_mask_of(unsigned i) noexcept {
+				return Flag(1) << (i % FlagBitCount);
 			}
 
 			unsigned index_of(const void* p) noexcept {
@@ -254,21 +256,14 @@ namespace sgcl {
 				return data + index * metadata->object_size;
 			}
 
-			static Metadata& metadata_of(const void* p) noexcept {
-				auto page = Page_header::page_of(p);
-				return *page->metadata;
-			}
-
-			static void set_state(const void* p, States::Value_type s) noexcept {
-				auto page = Page_header::page_of(p);
-				auto index = page->index_of(p);
-				auto &state = page->states()[index];
-				state.store((State_type)s, std::memory_order_release);
-			}
-
-			static Page_header* page_of(const void* p) noexcept {
+			static Page* page_of(const void* p) noexcept {
 				auto page = ((uintptr_t)p & ~(uintptr_t)(PageSize - 1));
-				return *((Page_header**)page);
+				return *((Page**)page);
+			}
+
+			static Metadata& metadata_of(const void* p) noexcept {
+				auto page = Page::page_of(p);
+				return *page->metadata;
 			}
 
 			static void* base_address_of(const void* p) noexcept {
@@ -277,22 +272,29 @@ namespace sgcl {
 				return (void*)page->data_of(index);
 			}
 
+			static void set_state(const void* p, State s) noexcept {
+				auto page = Page::page_of(p);
+				auto index = page->index_of(p);
+				auto &state = page->states()[index];
+				state.store(s, std::memory_order_release);
+			}
+
 			Metadata* const metadata;
-			Block_header* const block_header;
+			Block* const block;
 			const uintptr_t data;
 			const uint64_t multiplier;
 			bool reachable = {false};
 			bool registered = {false};
 			bool is_used = {true};
-			std::atomic_bool on_free_list = {false};
-			Page_header* next_reachable = {nullptr};
-			Page_header* next_registered = {nullptr};
-			Page_header* next_free = {nullptr};
-			Page_header* next = {nullptr};
+			std::atomic_bool on_empty_list = {false};
+			Page* next_reachable = {nullptr};
+			Page* next_registered = {nullptr};
+			Page* next_empty = {nullptr};
+			Page* next = {nullptr};
 		};
 
-		struct Pointer_indexes_base {
-			Pointer_indexes_base(unsigned s, unsigned o)
+		struct Pointer_pool_base {
+			Pointer_pool_base(unsigned s, unsigned o)
 			: _size(s)
 			, _offset(o)
 			, _position(s) {
@@ -303,7 +305,7 @@ namespace sgcl {
 				}
 				_position = 0;
 			}
-			void fill(Page_header* page) {
+			void fill(Page* page) {
 				auto data = page->data;
 				auto object_size = page->metadata->object_size;
 				auto states = page->states();
@@ -311,7 +313,7 @@ namespace sgcl {
 				for(int i = count - 1; i >= 0; --i) {
 					if (states[i].load(std::memory_order_relaxed) == States::Unused) {
 						_indexes[--_position] = (void*)(data + i * object_size);
-						states[i].store(States::Unreachable, std::memory_order_relaxed);
+						states[i].store(States::Used, std::memory_order_relaxed);
 					}
 				}
 			}
@@ -341,18 +343,18 @@ namespace sgcl {
 		};
 
 		template<unsigned Size, unsigned Offset>
-		struct Pointer_indexes : Pointer_indexes_base {
-			constexpr Pointer_indexes()
-			: Pointer_indexes_base(Size, Offset) {
-				Pointer_indexes_base::_indexes = _indexes.data();
+		struct Pointer_pool : Pointer_pool_base {
+			constexpr Pointer_pool()
+			: Pointer_pool_base(Size, Offset) {
+				Pointer_pool_base::_indexes = _indexes.data();
 			}
-			Pointer_indexes(void* data)
-			: Pointer_indexes() {
-				Pointer_indexes_base::_indexes = _indexes.data();
+			Pointer_pool(void* data)
+			: Pointer_pool() {
+				Pointer_pool_base::_indexes = _indexes.data();
 				fill(data);
 			}
 
-			Pointer_indexes* next = nullptr;
+			Pointer_pool* next = nullptr;
 
 		private:
 			std::array<void*, Size> _indexes;
@@ -362,17 +364,17 @@ namespace sgcl {
 		struct Large_object_allocator;
 
 		template<class>
-		struct Heap_allocator;
+		struct Small_object_allocator;
 
 		template<class T>
-		struct Heap_page_info {
+		struct Page_info {
 			static constexpr size_t ObjectSize = sizeof(std::remove_extent_t<std::conditional_t<std::is_same_v<T, void>, char, T>>);
-			static constexpr size_t ObjectCount = std::max(size_t(1), DataSize / ObjectSize);
-			static constexpr size_t StatesSize = (sizeof(std::atomic<Page_header::State_type>) * ObjectCount + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1);
-			static constexpr size_t FlagsCount = (ObjectCount + Page_header::FlagBitCount - 1) / Page_header::FlagBitCount;
-			static constexpr size_t FlagsSize = sizeof(Page_header::Flags) * FlagsCount;
-			static constexpr size_t HeaderSize = sizeof(Page_header) + StatesSize + FlagsSize;
-			using Heap_allocator = std::conditional_t<ObjectSize <= DataSize, Heap_allocator<T>, Large_object_allocator<T>>;
+			static constexpr size_t ObjectCount = std::max(size_t(1), PageDataSize / ObjectSize);
+			static constexpr size_t StatesSize = (sizeof(std::atomic<Page::State>) * ObjectCount + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1);
+			static constexpr size_t FlagsCount = (ObjectCount + Page::FlagBitCount - 1) / Page::FlagBitCount;
+			static constexpr size_t FlagsSize = sizeof(Page::Flags) * FlagsCount;
+			static constexpr size_t HeaderSize = sizeof(Page) + StatesSize + FlagsSize;
+			using Heap_allocator = std::conditional_t<ObjectSize <= PageDataSize, Small_object_allocator<T>, Large_object_allocator<T>>;
 
 			static void destroy(void* p) noexcept {
 				std::destroy_at((T*)p);
@@ -394,12 +396,12 @@ namespace sgcl {
 				if constexpr(!std::is_trivial_v<T>) {
 					_init<T>();
 				}
-				metadata.store(&Heap_page_info<T>::array_metadata, std::memory_order_release);
+				metadata.store(&Page_info<T>::array_metadata, std::memory_order_release);
 			}
 			template<class T>
 			void init(const T& v) {
 				_init<T>(v);
-				metadata.store(&Heap_page_info<T>::array_metadata, std::memory_order_release);
+				metadata.store(&Page_info<T>::array_metadata, std::memory_order_release);
 			}
 			char data[Size];
 
@@ -409,7 +411,7 @@ namespace sgcl {
 		};
 
 		template<>
-		struct Heap_page_info<Array<>> : public Heap_page_info<Array<DataSize>> {
+		struct Page_info<Array<>> : public Page_info<Array<PageDataSize>> {
 			using Heap_allocator = Large_object_allocator<Array<>>;
 
 			static void destroy(void* p) noexcept {
@@ -417,23 +419,23 @@ namespace sgcl {
 			}
 		};
 
-		struct Block_header {
+		struct Block {
 			static constexpr size_t PageCount = 15;
 
-			Block_header() noexcept {
+			Block() noexcept {
 				void* data = this + 1;
 				for (size_t i = 0; i < PageCount; ++i) {
-					*((Block_header**)data) = this;
+					*((Block**)data) = this;
 					data = (void*)((uintptr_t)data + PageSize);
 				}
 			}
 
 			static void* operator new(size_t) noexcept {
-				void* mem = ::operator new(sizeof(uintptr_t) + sizeof(Block_header) + PageSize * (PageCount + 1));
-				uintptr_t addres = (uintptr_t)mem + sizeof(uintptr_t) + sizeof(Block_header) + PageSize;
+				void* mem = ::operator new(sizeof(uintptr_t) + sizeof(Block) + PageSize * (PageCount + 1));
+				uintptr_t addres = (uintptr_t)mem + sizeof(uintptr_t) + sizeof(Block) + PageSize;
 				addres = addres & ~(PageSize - 1);
 				void* ptr = (void*)addres;
-				Block_header* block = (Block_header*)ptr - 1;
+				Block* block = (Block*)ptr - 1;
 				*((void**)block - 1) = mem;
 				return block;
 			}
@@ -442,17 +444,17 @@ namespace sgcl {
 				::operator delete(*((void**)p - 1));
 			}
 
-			Block_header* next = {nullptr};
+			Block* next = {nullptr};
 			unsigned page_count = {0};
 		};
 
 		struct Block_allocator {
-			using Indexes = Pointer_indexes<Block_header::PageCount, PageSize>;
+			using Pointer_pool = Priv::Pointer_pool<Block::PageCount, PageSize>;
 
 			~Block_allocator() noexcept {
 				void* page = nullptr;
-				while (!_indexes.is_empty()) {
-					auto data = _indexes.alloc();
+				while (!_pointer_pool.is_empty()) {
+					auto data = _pointer_pool.alloc();
 					*((void**)data + 1) = page;
 					page = (void*)data;
 				}
@@ -462,17 +464,17 @@ namespace sgcl {
 			}
 
 			void* alloc() {
-				if (_indexes.is_empty()) {
-					auto page = _pages.load(std::memory_order_acquire);
-					while(page && !_pages.compare_exchange_weak(page, *((void**)page + 1), std::memory_order_relaxed, std::memory_order_acquire));
+				if (_pointer_pool.is_empty()) {
+					auto page = _empty_pages.load(std::memory_order_acquire);
+					while(page && !_empty_pages.compare_exchange_weak(page, *((void**)page + 1), std::memory_order_relaxed, std::memory_order_acquire));
 					if (page) {
 						return page;
 					} else {
-						auto block = new Block_header;
-						_indexes.fill(block + 1);
+						auto block = new Block;
+						_pointer_pool.fill(block + 1);
 					}
 				}
-				return _indexes.alloc();
+				return _pointer_pool.alloc();
 			}
 
 			static void free(void* page) {
@@ -480,11 +482,11 @@ namespace sgcl {
 				while(*((void**)last + 1)) {
 					last = *((void**)last + 1);
 				}
-				*((void**)last + 1) = _pages.exchange(nullptr, std::memory_order_acquire);
-				Block_header* block = nullptr;
+				*((void**)last + 1) = _empty_pages.exchange(nullptr, std::memory_order_acquire);
+				Block* block = nullptr;
 				auto p = page;
 				while(p) {
-					Block_header* b = *((Block_header**)p);
+					Block* b = *((Block**)p);
 					if (!b->page_count) {
 						b->next = block;
 						block = b;
@@ -496,8 +498,8 @@ namespace sgcl {
 				p = page;
 				while(p) {
 					auto next = *((void**)p + 1);
-					Block_header* b = *((Block_header**)p);
-					if (b->page_count == Block_header::PageCount) {
+					Block* b = *((Block**)p);
+					if (b->page_count == Block::PageCount) {
 						if (!prev) {
 							page = next;
 						} else {
@@ -508,27 +510,26 @@ namespace sgcl {
 					}
 					p = next;
 				}
+				_empty_pages.store(page, std::memory_order_release);
 				while(block) {
 					auto next = block->next;
-					if (block->page_count == Block_header::PageCount) {
+					if (block->page_count == Block::PageCount) {
 						delete block;
 					} else {
 						block->page_count = 0;
 					}
 					block = next;
 				}
-				_pages.store(page, std::memory_order_release);
 			}
 
 		private:
-			inline static std::atomic<void*> _pages = {nullptr};
-			inline static std::atomic_int count = 0;
-			Indexes _indexes;
+			inline static std::atomic<void*> _empty_pages = {nullptr};
+			Pointer_pool _pointer_pool;
 		};
 
 		struct Heap_allocator_base {
 			virtual ~Heap_allocator_base() noexcept = default;
-			inline static std::atomic<Page_header*> pages = {nullptr};
+			inline static std::atomic<Page*> pages = {nullptr};
 		};
 
 		template<class T>
@@ -536,97 +537,98 @@ namespace sgcl {
 			T* alloc(size_t size = 0) const {
 				auto mem = ::operator new(sizeof(T) + size + sizeof(uintptr_t), std::align_val_t(PageSize));
 				auto data = (T*)((uintptr_t)mem + sizeof(uintptr_t));
-				auto hmem = ::operator new(Heap_page_info<T>::HeaderSize);
-				auto page = new(hmem) Page_header(nullptr, data);
-				*((Page_header**)mem) = page;
+				auto hmem = ::operator new(Page_info<T>::HeaderSize);
+				auto page = new(hmem) Page(nullptr, data);
+				*((Page**)mem) = page;
 				page->next = pages.load(std::memory_order_relaxed);
 				while(!pages.compare_exchange_weak(page->next, page, std::memory_order_release, std::memory_order_relaxed));
 				return data;
 			}
 
-			static void free(Page_header* page) noexcept {
+			static void free(Page* pages) noexcept {
+				Page* page = pages;
 				while(page) {
 					auto data = (void*)(page->data - sizeof(uintptr_t));
 					::operator delete(data, std::align_val_t(PageSize));
 					page->is_used = false;
-					page = page->next_free;
+					page = page->next_empty;
 				}
 			}
 		};
 
-		struct Heap_allocator_nt : Heap_allocator_base {
-			Heap_allocator_nt(Block_allocator& ba, Pointer_indexes_base& i, std::atomic<Page_header*>& fp) noexcept
+		struct Small_object_allocator_base : Heap_allocator_base {
+			Small_object_allocator_base(Block_allocator& ba, Pointer_pool_base& pa, std::atomic<Page*>& pb) noexcept
 			: _block_allocator(ba)
-			, _indexes(i)
-			, _free_pages(fp) {
+			, _pointer_pool(pa)
+			, _pages_buffer(pb) {
 			}
 
-			~Heap_allocator_nt() noexcept override {
-				while (!_indexes.is_empty()) {
-					auto ptr = _indexes.alloc();
+			~Small_object_allocator_base() noexcept override {
+				while (!_pointer_pool.is_empty()) {
+					auto ptr = _pointer_pool.alloc();
 					auto index = _current_page->index_of(ptr);
 					_current_page->states()[index].store(States::Unused, std::memory_order_relaxed);
 				}
 			}
 
 			void* alloc(size_t) {
-				if  (_indexes.is_empty()) {
-					auto page = _free_pages.load(std::memory_order_acquire);
-					while(page && !_free_pages.compare_exchange_weak(page, page->next_free, std::memory_order_relaxed, std::memory_order_acquire));
+				if  (_pointer_pool.is_empty()) {
+					auto page = _pages_buffer.load(std::memory_order_acquire);
+					while(page && !_pages_buffer.compare_exchange_weak(page, page->next_empty, std::memory_order_relaxed, std::memory_order_acquire));
 					if (page) {
-						_indexes.fill(page);
-						page->on_free_list.store(false, std::memory_order_relaxed);
+						_pointer_pool.fill(page);
+						page->on_empty_list.store(false, std::memory_order_relaxed);
 					} else {
 						page = _alloc_page();
-						_indexes.fill((void*)(page->data));
+						_pointer_pool.fill((void*)(page->data));
 						page->next = pages.load(std::memory_order_relaxed);
 						while(!pages.compare_exchange_weak(page->next, page, std::memory_order_release, std::memory_order_relaxed));
 					}
 					_current_page = page;
 				}
-				assert(!_indexes.is_empty());
-				return (void*)_indexes.alloc();
+				assert(!_pointer_pool.is_empty());
+				return (void*)_pointer_pool.alloc();
 			}
 
 		private:
 			Block_allocator& _block_allocator;
-			Pointer_indexes_base& _indexes;
-			std::atomic<Page_header*>& _free_pages;
-			Page_header* _current_page = {nullptr};
+			Pointer_pool_base& _pointer_pool;
+			std::atomic<Page*>& _pages_buffer;
+			Page* _current_page = {nullptr};
 
-			virtual Page_header* _create_page(Block_header* block, void* data) = 0;
+			virtual Page* _create_page_parameters(Block* block, void* data) = 0;
 
-			Page_header* _alloc_page() {
+			Page* _alloc_page() {
 				auto mem = _block_allocator.alloc();
-				auto block = *((Block_header**)mem);
+				auto block = *((Block**)mem);
 				auto data = (void*)((uintptr_t)mem + sizeof(uintptr_t));
-				auto page = _create_page(block, data);
-				*((Page_header**)mem) = page;
+				auto page = _create_page_parameters(block, data);
+				*((Page**)mem) = page;
 				return page;
 			}
 
 		protected:
-			static void _remove_empty(Page_header*& free_pages, Page_header*& empty) noexcept {
-				auto page = free_pages;
-				Page_header* prev = nullptr;
+			static void _remove_empty(Page*& pages, Page*& empty_pages) noexcept {
+				auto page = pages;
+				Page* prev = nullptr;
 				while(page) {
-					auto next = page->next_free;
+					auto next = page->next_empty;
 					auto states = page->states();
-					auto count = page->metadata->object_count;
-					auto free_count = 0u;
-					for (unsigned i = 0; i < count; ++i) {
+					auto object_count = page->metadata->object_count;
+					auto unused_count = 0u;
+					for (unsigned i = 0; i < object_count; ++i) {
 						auto state = states[i].load(std::memory_order_relaxed);
 						if (state == States::Unused) {
-							++free_count;
+							++unused_count;
 						}
 					}
-					if (free_count == count) {
-						page->next_free = empty;
-						empty = page;
+					if (unused_count == object_count) {
+						page->next_empty = empty_pages;
+						empty_pages = page;
 						if (!prev) {
-							free_pages = next;
+							pages = next;
 						} else {
-							prev->next_free = next;
+							prev->next_empty = next;
 						}
 					} else {
 						prev = page;
@@ -635,65 +637,67 @@ namespace sgcl {
 				}
 			}
 
-			static void _free(Page_header* page) noexcept {
+			static void _free(Page* pages) noexcept {
+				Page* page = pages;
 				void* empty = nullptr;
 				while(page) {
 					auto data = page->data - sizeof(uintptr_t);
-					*((Block_header**)data) = page->block_header;
+					*((Block**)data) = page->block;
 					page->is_used = false;
 					*((void**)data + 1) = empty;
 					empty = (void*)data;
-					page = page->next_free;
+					page = page->next_empty;
 				}
 				Block_allocator::free(empty);
 			}
 
-			static void _free(Page_header* page, std::atomic<Page_header*>& free_pages) noexcept {
-				Page_header* empty = nullptr;
-				_remove_empty(page, empty);
-				page = free_pages.exchange(page, std::memory_order_relaxed);
-				_remove_empty(page, empty);
-				page = free_pages.exchange(page, std::memory_order_relaxed);
-				if (page) {
-					auto last = page;
-					while(last->next_free) {
-						last = last->next_free;
+			static void _free(Page* pages, std::atomic<Page*>& pages_buffer) noexcept {
+				Page* empty_pages = nullptr;
+				_remove_empty(pages, empty_pages);
+				pages = pages_buffer.exchange(pages, std::memory_order_relaxed);
+				_remove_empty(pages, empty_pages);
+				pages = pages_buffer.exchange(pages, std::memory_order_relaxed);
+				if (pages) {
+					auto last = pages;
+					while(last->next_empty) {
+						last = last->next_empty;
 					}
-					last->next_free = free_pages.load(std::memory_order_relaxed);
-					while(!free_pages.compare_exchange_weak(last->next_free, page, std::memory_order_release, std::memory_order_relaxed));
+					last->next_empty = pages_buffer.load(std::memory_order_relaxed);
+					while(!pages_buffer.compare_exchange_weak(last->next_empty, pages, std::memory_order_release, std::memory_order_relaxed));
 				}
-				if (empty) {
-					_free(empty);
+				if (empty_pages) {
+					_free(empty_pages);
 				}
 			}
 		};
 
 		template<class T>
-		struct Heap_allocator : Heap_allocator_nt {
-			using Indexes = Pointer_indexes<Heap_page_info<T>::ObjectCount, sizeof(std::conditional_t<std::is_same_v<T, void>, char, T>)>;
+		struct Small_object_allocator : Small_object_allocator_base {
+			using Indexes = Pointer_pool<Page_info<T>::ObjectCount, sizeof(std::conditional_t<std::is_same_v<T, void>, char, T>)>;
 
-			constexpr Heap_allocator(Block_allocator& a) noexcept
-			: Heap_allocator_nt(a, _indexes, _free_pages) {
+			constexpr Small_object_allocator(Block_allocator& a) noexcept
+			: Small_object_allocator_base(a, _pointer_pool, _pages_buffer) {
 			}
 
-			static void free(Page_header* page) {
-				_free(page, _free_pages);
+			static void free(Page* pages) {
+				_free(pages, _pages_buffer);
 			}
 
 		private:
-			inline static std::atomic<Page_header*> _free_pages = {nullptr};
-			Indexes _indexes;
+			inline static std::atomic<Page*> _pages_buffer = {nullptr};
+			Indexes _pointer_pool;
 
-			Page_header* _create_page(Block_header* block, void* data) override {
-				auto mem = ::operator new(Heap_page_info<T>::HeaderSize);
-				auto page = new(mem) Page_header(block, (T*)data);
+			Page* _create_page_parameters(Block* block, void* data) override {
+				auto mem = ::operator new(Page_info<T>::HeaderSize);
+				auto page = new(mem) Page(block, (T*)data);
 				return page;
 			}
 		};
 
 		struct Roots_allocator {
-			using Page = std::array<Pointer_type, PointerCount>;
-			using Indexes = Pointer_indexes<PointerCount, sizeof(Pointer_type)>;
+			static constexpr size_t PointerCount = PageSize / sizeof(Pointer);
+			using Page = std::array<Pointer, PointerCount>;
+			using Indexes = Pointer_pool<PointerCount, sizeof(Pointer)>;
 
 			struct Page_node {
 				Page_node* next = {nullptr};
@@ -701,87 +705,88 @@ namespace sgcl {
 			};
 
 			constexpr Roots_allocator() noexcept
-			:_indexes({nullptr, nullptr}) {
+			:_pointer_pool({nullptr, nullptr}) {
 			}
 
 			~Roots_allocator() noexcept {
-				for(auto idx : _indexes) {
-					if (idx) {
-						auto& indexes = idx->is_empty() ? _global_empty_indexes : _global_indexes;
-						idx->next = indexes.load(std::memory_order_acquire);
-						while(!indexes.compare_exchange_weak(idx->next, idx, std::memory_order_release, std::memory_order_relaxed));
+				for(auto pointer_pool : _pointer_pool) {
+					if (pointer_pool) {
+						auto& pool = pointer_pool->is_empty() ? _global_empty_pointer_pool : _global_pointer_pool;
+						pointer_pool->next = pool.load(std::memory_order_acquire);
+						while(!pool.compare_exchange_weak(pointer_pool->next, pointer_pool, std::memory_order_release, std::memory_order_relaxed));
 					}
 				}
 			}
 
-			Pointer_type* alloc() {
-				auto [idx1, idx2] = _indexes;
-				if (idx1 && !idx1->is_empty()) {
-					return (Pointer_type*)idx1->alloc();
+			Pointer* alloc() {
+				auto [pool1, pool2] = _pointer_pool;
+				if (pool1 && !pool1->is_empty()) {
+					return (Pointer*)pool1->alloc();
 				}
-				if (idx2 && !idx2->is_empty()) {
-					_indexes = {idx2, idx1};
-					return (Pointer_type*)idx2->alloc();
+				if (pool2 && !pool2->is_empty()) {
+					_pointer_pool = {pool2, pool1};
+					return (Pointer*)pool2->alloc();
 				}
-				auto new_idx = _global_indexes.load(std::memory_order_acquire);
-				while(new_idx && !_global_indexes.compare_exchange_weak(new_idx, new_idx->next, std::memory_order_release, std::memory_order_acquire));
-				if (!new_idx) {
+				auto new_pool = _global_pointer_pool.load(std::memory_order_acquire);
+				while(new_pool && !_global_pointer_pool.compare_exchange_weak(new_pool, new_pool->next, std::memory_order_release, std::memory_order_acquire));
+				if (!new_pool) {
 					auto node = new Page_node;
-					new_idx = new Indexes(node->page.data());
+					new_pool = new Indexes(node->page.data());
 					node->next = pages.load(std::memory_order_acquire);
 					while(!pages.compare_exchange_weak(node->next, node, std::memory_order_release, std::memory_order_relaxed));
 				}
-				if (idx1) {
-					if (idx2) {
-						idx2->next = _global_empty_indexes.load(std::memory_order_acquire);
-						while(!_global_empty_indexes.compare_exchange_weak(idx2->next, idx2, std::memory_order_release, std::memory_order_relaxed));
+				if (pool1) {
+					if (pool2) {
+						pool2->next = _global_empty_pointer_pool.load(std::memory_order_acquire);
+						while(!_global_empty_pointer_pool.compare_exchange_weak(pool2->next, pool2, std::memory_order_release, std::memory_order_relaxed));
 					}
-					idx2 = idx1;
+					pool2 = pool1;
 				}
-				idx1 = new_idx;
-				_indexes = {idx1, idx2};
-				return (Pointer_type*)idx1->alloc();
+				pool1 = new_pool;
+				_pointer_pool = {pool1, pool2};
+				return (Pointer*)pool1->alloc();
 			}
 
-			void free(Pointer_type* p) noexcept {
-				auto [idx1, idx2] = _indexes;
-				if (idx1 && !idx1->is_full()) {
-					idx1->free(p);
+			void free(Pointer* p) noexcept {
+				auto [pool1, pool2] = _pointer_pool;
+				if (pool1 && !pool1->is_full()) {
+					pool1->free(p);
 					return;
 				}
-				if (idx2 && !idx2->is_full()) {
-					idx2->free(p);
-					_indexes = {idx2, idx1};
+				if (pool2 && !pool2->is_full()) {
+					pool2->free(p);
+					_pointer_pool = {pool2, pool1};
 					return;
 				}
-				auto new_idx = _global_empty_indexes.load(std::memory_order_acquire);
-				while(new_idx && !_global_empty_indexes.compare_exchange_weak(new_idx, new_idx->next, std::memory_order_release, std::memory_order_acquire));
-				if (!new_idx) {
-					new_idx = new Indexes();
+				auto new_pool = _global_empty_pointer_pool.load(std::memory_order_acquire);
+				while(new_pool && !_global_empty_pointer_pool.compare_exchange_weak(new_pool, new_pool->next, std::memory_order_release, std::memory_order_acquire));
+				if (!new_pool) {
+					new_pool = new Indexes();
 				}
-				if (idx1) {
-					if (idx2) {
-						idx2->next = _global_indexes.load(std::memory_order_acquire);
-						while(!_global_indexes.compare_exchange_weak(idx2->next, idx2, std::memory_order_release, std::memory_order_relaxed));
+				if (pool1) {
+					if (pool2) {
+						pool2->next = _global_pointer_pool.load(std::memory_order_acquire);
+						while(!_global_pointer_pool.compare_exchange_weak(pool2->next, pool2, std::memory_order_release, std::memory_order_relaxed));
 					}
-					idx2 = idx1;
+					pool2 = pool1;
 				}
-				idx1 = new_idx;
-				_indexes = {idx1, idx2};
-				idx1->free(p);
+				pool1 = new_pool;
+				_pointer_pool = {pool1, pool2};
+				pool1->free(p);
 			}
 
 			inline static std::atomic<Page_node*> pages = {nullptr};
 
 		private:
-			std::array<Indexes*, 2> _indexes;
-			inline static std::atomic<Indexes*> _global_indexes = {nullptr};
-			inline static std::atomic<Indexes*> _global_empty_indexes = {nullptr};
+			std::array<Indexes*, 2> _pointer_pool;
+			inline static std::atomic<Indexes*> _global_pointer_pool = {nullptr};
+			inline static std::atomic<Indexes*> _global_empty_pointer_pool = {nullptr};
 		};
 
 		struct Stack_allocator {
 			static constexpr unsigned PageCount = 256;
-			using Page = std::array<Pointer_type, PointerCount>;
+			static constexpr size_t PointerCount = PageSize / sizeof(Pointer);
+			using Page = std::array<Pointer, PointerCount>;
 
 			~Stack_allocator() noexcept {
 				for (auto& page : pages) {
@@ -789,14 +794,14 @@ namespace sgcl {
 				}
 			}
 
-			Pointer_type* alloc(void* p) {
+			Pointer* alloc(void* p) {
 				auto index = ((uintptr_t)p / PageSize) % PageCount;
 				auto page = pages[index].load(std::memory_order_relaxed);
 				if (!page) {
 					page = new Page{nullptr};
 					pages[index].store(page, std::memory_order_release);
 				}
-				auto offset = ((uintptr_t)p % PageSize) / PointerSize;
+				auto offset = ((uintptr_t)p % PageSize) / sizeof(Pointer);
 				return &(*page)[offset];
 			}
 
@@ -812,7 +817,7 @@ namespace sgcl {
 				std::unique_ptr<Block_allocator> block_allocator;
 				std::unique_ptr<Stack_allocator> stack_allocator;
 				std::atomic<bool> is_used = {true};
-				Pointer_type recursive_alloc_pointer = {nullptr};
+				Pointer recursive_alloc_pointer = {nullptr};
 				void* last_recursive_alloc_pointer = {nullptr};
 				std::atomic<uint64_t> alloc_count = {0};
 				std::atomic<uint64_t> alloc_size = {0};
@@ -822,7 +827,7 @@ namespace sgcl {
 			struct Alloc_state {
 				std::pair<uintptr_t, uintptr_t> range;
 				size_t size;
-				Pointer_type** ptrs;
+				Pointer** ptrs;
 			};
 
 			Thread()
@@ -855,23 +860,23 @@ namespace sgcl {
 
 			template<class T>
 			auto& alocator() {
-				if constexpr(std::is_same_v<typename Heap_page_info<T>::Heap_allocator, Heap_allocator<T>>) {
+				if constexpr(std::is_same_v<typename Page_info<T>::Heap_allocator, Small_object_allocator<T>>) {
 					static unsigned index = _type_index++;
-					assert(index < MaxPointerTypes);
+					assert(index < MaxTypeNumber);
 					auto ax = heaps.get();
 					if (!ax) {
-						ax = new std::array<std::unique_ptr<std::array<std::unique_ptr<Heap_allocator_base>, SqrMaxPointerTypes>>, SqrMaxPointerTypes>;
+						ax = new std::array<std::unique_ptr<std::array<std::unique_ptr<Heap_allocator_base>, SqrMaxTypeNumber>>, SqrMaxTypeNumber>;
 						heaps.reset(ax);
 					}
-					auto& ay = (*ax)[index / SqrMaxPointerTypes];
+					auto& ay = (*ax)[index / SqrMaxTypeNumber];
 					if (!ay) {
-						ay.reset(new std::array<std::unique_ptr<Heap_allocator_base>, SqrMaxPointerTypes>);
+						ay.reset(new std::array<std::unique_ptr<Heap_allocator_base>, SqrMaxTypeNumber>);
 					}
-					auto& alocator = (*ay)[index % SqrMaxPointerTypes];
+					auto& alocator = (*ay)[index % SqrMaxTypeNumber];
 					if (!alocator) {
-						alocator.reset(new Heap_allocator<T>(*block_allocator));
+						alocator.reset(new Small_object_allocator<T>(*block_allocator));
 					}
-					return static_cast<Heap_allocator<T>&>(*alocator);
+					return static_cast<Small_object_allocator<T>&>(*alocator);
 				}
 				else {
 					static Large_object_allocator<T> allocator;
@@ -901,7 +906,7 @@ namespace sgcl {
 			Block_allocator* const block_allocator;
 			Stack_allocator* const stack_allocator;
 			const std::unique_ptr<Roots_allocator> roots_allocator;
-			std::unique_ptr<std::array<std::unique_ptr<std::array<std::unique_ptr<Heap_allocator_base>, SqrMaxPointerTypes>>, SqrMaxPointerTypes>> heaps;
+			std::unique_ptr<std::array<std::unique_ptr<std::array<std::unique_ptr<Heap_allocator_base>, SqrMaxTypeNumber>>, SqrMaxTypeNumber>> heaps;
 			Alloc_state alloc_state = {{0, 0}, 0, nullptr};
 
 			inline static std::atomic<Data*> threads_data = {nullptr};
@@ -1031,7 +1036,7 @@ namespace sgcl {
 					timer.reset();
 					rest = duration - iduration;
 				}
-				auto time_value = (States::Value_type)std::min((unsigned)States::AtomicReachable, iduration);
+				auto time_value = (States::Value)std::min((unsigned)States::AtomicReachable, iduration);
 				auto page = _registered_pages;
 				while(page) {
 					auto states = page->states();
@@ -1040,8 +1045,8 @@ namespace sgcl {
 					for (unsigned i = 0; i < count; ++i) {
 						auto state = states[i].load(std::memory_order_relaxed);
 						if (state >= States::Reachable && state <= States::AtomicReachable) {
-							auto index = Page_header::flag_index_of(i);
-							auto mask = Page_header::flag_mask_of(i);
+							auto index = Page::flag_index_of(i);
+							auto mask = Page::flag_mask_of(i);
 							auto& flag = flags[index];
 							if (flag.registered & mask) {
 								state -= state == States::Reachable || state == States::AtomicReachable ? 1 : std::min(state, time_value);
@@ -1054,7 +1059,7 @@ namespace sgcl {
 			}
 
 			void _mark_live_objects() noexcept {
-				Page_header* prev = nullptr;
+				Page* prev = nullptr;
 				auto page = Heap_allocator_base::pages.load(std::memory_order_acquire);
 				while(page) {
 					auto next = page->next;
@@ -1085,8 +1090,8 @@ namespace sgcl {
 									continue;
 								}
 								if (state >= States::Reachable) {
-									auto index = Page_header::flag_index_of(i);
-									auto mask = Page_header::flag_mask_of(i);
+									auto index = Page::flag_index_of(i);
+									auto mask = Page::flag_mask_of(i);
 									auto& flag = flags[index];
 									if (!(flag.registered & mask)) {
 										if (!page->registered) {
@@ -1113,10 +1118,10 @@ namespace sgcl {
 
 			void _mark(const void* p) noexcept {
 				if (p) {
-					auto page = Page_header::page_of(p);
+					auto page = Page::page_of(p);
 					auto object_index = page->index_of(p);
-					auto index = Page_header::flag_index_of(object_index);
-					auto mask = Page_header::flag_mask_of(object_index);
+					auto index = Page::flag_index_of(object_index);
+					auto mask = Page::flag_mask_of(object_index);
 					auto& flag = page->flags()[index];
 					if (flag.registered & mask && !(flag.marked & mask)) {
 						if (!page->reachable) {
@@ -1132,11 +1137,11 @@ namespace sgcl {
 			void _mark_stack() noexcept {
 				auto data = Thread::threads_data.load(std::memory_order_acquire);
 				while(data) {
-					for (unsigned i = 0; i < Stack_allocator::PageCount; ++i) {
-						auto page = data->stack_allocator->pages[i].load(std::memory_order_relaxed);
+					for (auto& p: data->stack_allocator->pages) {
+						auto page = p.load(std::memory_order_relaxed);
 						if (page) {
-							for (unsigned j = 0; j < PointerCount; ++j) {
-								_mark((*page)[j].load(std::memory_order_relaxed));
+							for (auto& p: *page) {
+								_mark(p.load(std::memory_order_relaxed));
 							}
 						}
 					}
@@ -1154,17 +1159,17 @@ namespace sgcl {
 				}
 			}
 
-			void _mark_childs(Page_header* page, unsigned index) noexcept {
+			void _mark_childs(Page* page, unsigned index) noexcept {
 				auto data = page->data_of(index);
 				auto offsets = page->metadata->pointer_offsets.load(std::memory_order_acquire);
 				unsigned size = (unsigned)offsets[0];
 				for (unsigned i = 1; i <= size; ++i) {
-					auto p = (Pointer_type*)(data + offsets[i]);
+					auto p = (Pointer*)(data + offsets[i]);
 					_mark(p->load(std::memory_order_relaxed));
 				}
 			}
 
-			void _mark_array_childs(Page_header* page, unsigned index) noexcept {
+			void _mark_array_childs(Page* page, unsigned index) noexcept {
 				auto data = page->data_of(index);
 				auto array = (Array_base*)data;
 				auto metadata = array->metadata.load(std::memory_order_acquire);
@@ -1177,7 +1182,7 @@ namespace sgcl {
 							auto object_size = metadata->object_size;
 							for (size_t c = 0; c < array->count; ++c, data += object_size) {
 								for (unsigned i = 1; i <= size; ++i) {
-									auto p = (Pointer_type*)(data + offsets[i]);
+									auto p = (Pointer*)(data + offsets[i]);
 									_mark(p->load(std::memory_order_relaxed));
 								}
 							}
@@ -1198,12 +1203,12 @@ namespace sgcl {
 						for (unsigned i = 0; i < count; ++i) {
 							auto& flag = flags[i];
 							while (flag.reachable) {
-								for (unsigned j = 0; j < Page_header::FlagBitCount; ++j) {
-									auto mask = Page_header::Flag_type(1) << j;
+								for (unsigned j = 0; j < Page::FlagBitCount; ++j) {
+									auto mask = Page::Flag(1) << j;
 									if (flag.reachable & mask) {
 										flag.marked |= mask;
 										marked = true;
-										auto index = i * Page_header::FlagBitCount + j;
+										auto index = i * Page::FlagBitCount + j;
 										if (page->metadata->is_array) {
 											_mark_array_childs(page, index);
 										} else {
@@ -1234,8 +1239,8 @@ namespace sgcl {
 					for (unsigned i = 0; i < count; ++i) {
 						auto state = states[i].load(std::memory_order_relaxed);
 						if (state >= States::Reachable && state <= States::AtomicReachable) {
-							auto index = Page_header::flag_index_of(i);
-							auto mask = Page_header::flag_mask_of(i);
+							auto index = Page::flag_index_of(i);
+							auto mask = Page::flag_mask_of(i);
 							auto& flag = flags[index];
 							if ((flag.registered & mask) && !(flag.marked & mask)) {
 								flag.reachable |= mask;
@@ -1269,10 +1274,10 @@ namespace sgcl {
 						auto& flag = flags[i];
 						auto f = flag.registered & ~flag.marked;
 						if (f) {
-							for (unsigned j = 0; j < Page_header::FlagBitCount; ++j) {
-								auto mask = Page_header::Flag_type(1) << j;
+							for (unsigned j = 0; j < Page::FlagBitCount; ++j) {
+								auto mask = Page::Flag(1) << j;
 								if (f & mask) {
-									auto index = i * Page_header::FlagBitCount + j;
+									auto index = i * Page::FlagBitCount + j;
 									if (destroy) {
 										auto p = data + index * object_size;
 										auto data = page->data_of(index);
@@ -1280,7 +1285,7 @@ namespace sgcl {
 											auto offsets = page->metadata->pointer_offsets.load(std::memory_order_acquire);
 											unsigned size = (unsigned)offsets[0];
 											for (unsigned i = 1; i <= size; ++i) {
-												auto p = (Pointer_type*)(data + offsets[i]);
+												auto p = (Pointer*)(data + offsets[i]);
 												p->store(nullptr, std::memory_order_relaxed);
 											}
 										} else {
@@ -1294,7 +1299,7 @@ namespace sgcl {
 													auto object_size = metadata->object_size;
 													for (size_t c = 0; c < array->count; ++c, data += object_size) {
 														for (unsigned i = 1; i <= size; ++i) {
-															auto p = (Pointer_type*)(data + offsets[i]);
+															auto p = (Pointer*)(data + offsets[i]);
 															p->store(nullptr, std::memory_order_relaxed);
 														}
 													}
@@ -1304,7 +1309,7 @@ namespace sgcl {
 										destroy((void*)p);
 									}
 									released.count++;
-									if (!page->metadata->is_array || object_size != sizeof(Array<DataSize>)) {
+									if (!page->metadata->is_array || object_size != sizeof(Array<PageDataSize>)) {
 										released.size += object_size;
 									} else {
 										auto array = (Array_base*)data;
@@ -1313,7 +1318,7 @@ namespace sgcl {
 									}
 									flag.registered &= ~mask;
 									if (!deregistered) {
-										on_free_list = page->on_free_list.exchange(true, std::memory_order_relaxed);
+										on_free_list = page->on_empty_list.exchange(true, std::memory_order_relaxed);
 										deregistered = true;
 									}
 									states[index].store(States::Unused, std::memory_order_relaxed);
@@ -1322,21 +1327,21 @@ namespace sgcl {
 						}
 					}
 					if (deregistered && !on_free_list) {
-						if (!page->metadata->free_page) {
+						if (!page->metadata->empty_page) {
 							page->metadata->next = metadata;
 							metadata = page->metadata;
 						}
-						page->next_free = page->metadata->free_page;
-						page->metadata->free_page = page;
+						page->next_empty = page->metadata->empty_page;
+						page->metadata->empty_page = page;
 					}
 					page = page->next_registered;
 				}
 				while(metadata) {
-					metadata->free(metadata->free_page);
-					metadata->free_page = nullptr;
+					metadata->free(metadata->empty_page);
+					metadata->empty_page = nullptr;
 					metadata = metadata->next;
 				}
-				Page_header* prev = nullptr;
+				Page* prev = nullptr;
 				page = _registered_pages;
 				while(page) {
 					auto next = page->next_registered;
@@ -1420,8 +1425,8 @@ namespace sgcl {
 				}
 			}
 
-			Page_header* _reachable_pages = {nullptr};
-			Page_header* _registered_pages = {nullptr};
+			Page* _reachable_pages = {nullptr};
+			Page* _registered_pages = {nullptr};
 			Counter _allocated_rest;
 			std::thread _thread;
 		};
@@ -1505,13 +1510,13 @@ namespace sgcl {
 
 			static void _update(const void* p) noexcept {
 				if (p) {
-					Page_header::set_state(p, States::Reachable);
+					Page::set_state(p, States::Reachable);
 				}
 			}
 
 			static void _update_atomic(const void* p) noexcept {
 				if (p) {
-					Page_header::set_state(p, States::AtomicReachable);
+					Page::set_state(p, States::AtomicReachable);
 				}
 			}
 
@@ -1560,7 +1565,21 @@ namespace sgcl {
 			}
 
 			void* _base_address_of(const void* p) const noexcept {
-				return Page_header::base_address_of(p);
+				return Page::base_address_of(p);
+			}
+
+			template<class T>
+			auto _metadata() const noexcept {
+				if constexpr(std::is_array_v<T>) {
+					return (metadata_base&)Page_info<T>::public_metadata;
+				} else {
+					auto p = _load();
+					if (p) {
+						return Page::metadata_of(p).public_metadata;
+					} else {
+						return (metadata_base&)Page_info<T>::public_metadata;
+					}
+				}
 			}
 
 		private:
@@ -1577,14 +1596,14 @@ namespace sgcl {
 			}
 
 #ifdef SGCL_ARCH_X86_64
-			Pointer_type* _ptr() noexcept {
+			Pointer* _ptr() noexcept {
 				if (_allocated_on_heap()) {
 					return &_ptr_value;
 				}
 				return _remove_flags(_ref);
 			}
 
-			const Pointer_type* _ptr() const noexcept {
+			const Pointer* _ptr() const noexcept {
 				if (_allocated_on_heap()) {
 					return &_ptr_value;
 				}
@@ -1592,8 +1611,8 @@ namespace sgcl {
 			}
 
 			union {
-				Pointer_type* _ref;
-				Pointer_type _ptr_value;
+				Pointer* _ref;
+				Pointer _ptr_value;
 			};
 #else
 			Pointer_type* _ptr() noexcept {
@@ -1613,10 +1632,10 @@ namespace sgcl {
 		template<size_t S>
 		template<class T, class... A>
 		void Array<S>::_init(A&&... a) {
-			using Info = Heap_page_info<std::remove_cv_t<T>>;
-			Pointer_type** ptrs = nullptr;
+			using Info = Page_info<std::remove_cv_t<T>>;
+			Pointer** ptrs = nullptr;
 			if (!Info::pointer_offsets.load(std::memory_order_acquire)) {
-				ptrs = (Pointer_type**)(::operator new(sizeof(T)));
+				ptrs = (Pointer**)(::operator new(sizeof(T)));
 			}
 			auto& thread = current_thread();
 			auto& state = thread.alloc_state;
@@ -1671,12 +1690,12 @@ namespace sgcl {
 
 		template<class T, class U = T, class ...A>
 		static tracked_ptr<U> Make_tracked(size_t size, A&&... a) {
-			using Info = Heap_page_info<std::remove_cv_t<T>>;
+			using Info = Page_info<std::remove_cv_t<T>>;
 			collector_init();
 
-			Pointer_type** ptrs = nullptr;
+			Pointer** ptrs = nullptr;
 			if (!Info::pointer_offsets.load(std::memory_order_acquire)) {
-				ptrs = (Pointer_type**)(::operator new(sizeof(T)));
+				ptrs = (Pointer**)(::operator new(sizeof(T)));
 			}
 
 			auto& thread = current_thread();
@@ -1694,7 +1713,7 @@ namespace sgcl {
 				thread.update_allocated(sizeof(T) + size);
 			}
 			catch (...) {
-				Page_header::set_state(mem, States::BadAlloc);
+				Page::set_state(mem, States::BadAlloc);
 				if (ptrs) {
 					::operator delete(ptrs);
 				}
@@ -1854,7 +1873,7 @@ namespace sgcl {
 
 		template <class U = T, std::enable_if_t<!std::is_array_v<U>, int> = 0>
 		tracked_ptr<T> clone() const {
-			auto p = Priv::Page_header::metadata_of(get()).clone(get());
+			auto p = Priv::Page::metadata_of(get()).clone(get());
 			return tracked_ptr<T>((T*)p.get());
 		}
 
@@ -1902,16 +1921,7 @@ namespace sgcl {
 		}
 
 		auto _metadata() const noexcept {
-			if constexpr(std::is_array_v<T>) {
-				return (metadata_base&)Priv::Heap_page_info<T>::public_metadata;
-			} else {
-				auto p = get();
-				if (p) {
-					return Priv::Page_header::metadata_of(p).metadata;
-				} else {
-					return (metadata_base&)Priv::Heap_page_info<T>::public_metadata;
-				}
-			}
+			return Priv::Tracked_ptr::_metadata<T>();
 		}
 
 		template<class> friend class tracked_ptr;
@@ -2068,14 +2078,14 @@ namespace sgcl {
 		private:
 			template<size_t N>
 			static void _make(size_t count, tracked_ptr<T[]>& p) {
-				if (sizeof(T) * count <= N && sizeof(Array<N>) <= DataSize) {
+				if (sizeof(T) * count <= N && sizeof(Array<N>) <= PageDataSize) {
 					p = Make_tracked<Array<N>, T[]>(0, count);
 				} else {
-					if constexpr(sizeof(Array<N>) < DataSize) {
+					if constexpr(sizeof(Array<N>) < PageDataSize) {
 						_make<N * 2>(count, p);
 					} else {
-						if (sizeof(T) * count <= DataSize - sizeof(Array_base)) {
-							p = Make_tracked<Array<DataSize - sizeof(Array_base)>, T[]>(0, count);
+						if (sizeof(T) * count <= PageDataSize - sizeof(Array_base)) {
+							p = Make_tracked<Array<PageDataSize - sizeof(Array_base)>, T[]>(0, count);
 						} else {
 							p = Make_tracked<Array<>, T[]>(sizeof(T) * count, count);
 						}
