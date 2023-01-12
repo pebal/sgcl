@@ -536,7 +536,7 @@ namespace sgcl {
 			T* alloc(size_t size = 0) const {
 				auto mem = ::operator new(sizeof(T) + size + sizeof(uintptr_t), std::align_val_t(PageSize));
 				auto data = (T*)((uintptr_t)mem + sizeof(uintptr_t));
-				auto hmem = ::operator new(sizeof(Page_header) + Heap_page_info<T>::HeaderSize);
+				auto hmem = ::operator new(Heap_page_info<T>::HeaderSize);
 				auto page = new(hmem) Page_header(nullptr, data);
 				*((Page_header**)mem) = page;
 				page->next = pages.load(std::memory_order_relaxed);
@@ -685,7 +685,7 @@ namespace sgcl {
 			Indexes _indexes;
 
 			Page_header* _create_page(Block_header* block, void* data) override {
-				auto mem = ::operator new(sizeof(Page_header) + Heap_page_info<T>::HeaderSize);
+				auto mem = ::operator new(Heap_page_info<T>::HeaderSize);
 				auto page = new(mem) Page_header(block, (T*)data);
 				return page;
 			}
