@@ -394,10 +394,12 @@ namespace sgcl {
 				if constexpr(!std::is_trivial_v<T>) {
 					_init<T>();
 				}
+				metadata.store(&Heap_page_info<T>::array_metadata, std::memory_order_release);
 			}
 			template<class T>
 			void init(const T& v) {
 				_init<T>(v);
+				metadata.store(&Heap_page_info<T>::array_metadata, std::memory_order_release);
 			}
 			char data[Size];
 
@@ -1274,16 +1276,41 @@ namespace sgcl {
 									if (destroy) {
 										auto p = data + index * object_size;
 										auto data = page->data_of(index);
-										auto offsets = page->metadata->pointer_offsets.load(std::memory_order_acquire);
-										unsigned size = (unsigned)offsets[0];
-										for (unsigned i = 1; i <= size; ++i) {
-											auto p = (Pointer_type*)(data + offsets[i]);
-											p->store(nullptr, std::memory_order_relaxed);
+										if (!page->metadata->is_array) {
+											auto offsets = page->metadata->pointer_offsets.load(std::memory_order_acquire);
+											unsigned size = (unsigned)offsets[0];
+											for (unsigned i = 1; i <= size; ++i) {
+												auto p = (Pointer_type*)(data + offsets[i]);
+												p->store(nullptr, std::memory_order_relaxed);
+											}
+										} else {
+											auto array = (Array_base*)data;
+											auto metadata = array->metadata.load(std::memory_order_acquire);
+											auto offsets = metadata->pointer_offsets.load(std::memory_order_acquire);
+											if (offsets) {
+												unsigned size = (unsigned)offsets[0];
+												if (size) {
+													auto data = (uintptr_t)array + sizeof(Array_base);
+													auto object_size = metadata->object_size;
+													for (size_t c = 0; c < array->count; ++c, data += object_size) {
+														for (unsigned i = 1; i <= size; ++i) {
+															auto p = (Pointer_type*)(data + offsets[i]);
+															p->store(nullptr, std::memory_order_relaxed);
+														}
+													}
+												}
+											}
 										}
 										destroy((void*)p);
 									}
 									released.count++;
-									released.size += object_size;
+									if (!page->metadata->is_array || object_size != sizeof(Array<DataSize>)) {
+										released.size += object_size;
+									} else {
+										auto array = (Array_base*)data;
+										auto metadata = array->metadata.load(std::memory_order_acquire);
+										released.size += sizeof(Array<>) + metadata->object_size * array->count;
+									}
 									flag.registered &= ~mask;
 									if (!deregistered) {
 										on_free_list = page->on_free_list.exchange(true, std::memory_order_relaxed);
@@ -1636,7 +1663,6 @@ namespace sgcl {
 				}
 			}
 			state = old_state;
-			metadata.store(&Heap_page_info<T>::array_metadata, std::memory_order_release);
 		}
 
 		void collector_init() {
@@ -1665,7 +1691,7 @@ namespace sgcl {
 			std::remove_cv_t<T>* ptr;
 			try {
 				ptr = const_cast<std::remove_cv_t<T>*>(new(mem) T(std::forward<A>(a)...));
-				thread.update_allocated(sizeof(T));
+				thread.update_allocated(sizeof(T) + size);
 			}
 			catch (...) {
 				Page_header::set_state(mem, States::BadAlloc);
