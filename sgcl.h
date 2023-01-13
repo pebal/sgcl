@@ -143,7 +143,7 @@ namespace sgcl {
 			, object_size(Page_info<T>::ObjectSize)
 			, object_count(Page_info<T>::ObjectCount)
 			, is_array(std::is_base_of_v<Array_base, T>)
-			, public_metadata(Page_info<T>::public_metadata) {
+			, public_metadata(Page_info<T>::public_metadata()) {
 			}
 
 			std::atomic<ptrdiff_t*>& pointer_offsets;
@@ -164,7 +164,7 @@ namespace sgcl {
 			: pointer_offsets(Page_info<T>::pointer_offsets)
 			, destroy(!std::is_trivially_destructible_v<T> ? Array_base::destroy<T> : nullptr)
 			, object_size(Page_info<T>::ObjectSize)
-			, public_metadata(Page_info<T[]>::public_metadata) {
+			, public_metadata(Page_info<T[]>::public_metadata()) {
 			}
 
 			std::atomic<ptrdiff_t*>& pointer_offsets;
@@ -194,7 +194,7 @@ namespace sgcl {
 
 			template<class T>
 			Page(Block* block, T* data) noexcept
-			: metadata(&Page_info<T>::private_metadata)
+			: metadata(&Page_info<T>::private_metadata())
 			, block(block)
 			, data((uintptr_t)data)
 			, multiplier((1ull << 32 | 0x10000) / metadata->object_size) {
@@ -380,9 +380,21 @@ namespace sgcl {
 				std::destroy_at((T*)p);
 			}
 
-			inline static sgcl::metadata<T> public_metadata;
-			inline static Metadata private_metadata = {(std::remove_extent_t<T>*)0};
-			inline static Array_metadata array_metadata = {(std::remove_extent_t<std::conditional_t<std::is_same_v<T, void>, char, T>>*)0};
+			inline static auto& public_metadata() {
+				static auto metadata = new sgcl::metadata<T>;
+				return *metadata;
+			}
+
+			inline static auto& private_metadata() {
+				static auto metadata = new Metadata((std::remove_extent_t<T>*)0);
+				return *metadata;
+			}
+
+			inline static auto& array_metadata() {
+				static auto metadata = new Array_metadata((std::remove_extent_t<std::conditional_t<std::is_same_v<T, void>, char, T>>*)0);
+				return *metadata;
+			}
+
 			inline static std::atomic<ptrdiff_t*> pointer_offsets = nullptr;
 		};
 
@@ -396,12 +408,12 @@ namespace sgcl {
 				if constexpr(!std::is_trivial_v<T>) {
 					_init<T>();
 				}
-				metadata.store(&Page_info<T>::array_metadata, std::memory_order_release);
+				metadata.store(&Page_info<T>::array_metadata(), std::memory_order_release);
 			}
 			template<class T>
 			void init(const T& v) {
 				_init<T>(v);
-				metadata.store(&Page_info<T>::array_metadata, std::memory_order_release);
+				metadata.store(&Page_info<T>::array_metadata(), std::memory_order_release);
 			}
 			char data[Size];
 
@@ -430,7 +442,7 @@ namespace sgcl {
 				}
 			}
 
-			static void* operator new(size_t) noexcept {
+			static void* operator new(size_t) {
 				void* mem = ::operator new(sizeof(uintptr_t) + sizeof(Block) + PageSize * (PageCount + 1));
 				uintptr_t addres = (uintptr_t)mem + sizeof(uintptr_t) + sizeof(Block) + PageSize;
 				addres = addres & ~(PageSize - 1);
@@ -842,21 +854,7 @@ namespace sgcl {
 				while(!threads_data.compare_exchange_weak(_data->next, _data, std::memory_order_release, std::memory_order_relaxed));
 			}
 
-			~Thread() {
-				using namespace std::chrono_literals;
-				_data->is_used.store(false, std::memory_order_release);
-				if (std::this_thread::get_id() == main_thread_id) {
-					auto a = abort.exchange(2, std::memory_order_relaxed);
-					if (!a) {
-						do {
-							std::this_thread::sleep_for(1ms);
-						}	while(abort.load(std::memory_order_relaxed));
-					}
-				}
-#if SGCL_LOG_PRINT_LEVEL >= 3
-				std::cout << "[sgcl] stop thread id: " << std::this_thread::get_id() << std::endl;
-#endif
-			}
+			~Thread();
 
 			template<class T>
 			auto& alocator() {
@@ -911,7 +909,6 @@ namespace sgcl {
 
 			inline static std::atomic<Data*> threads_data = {nullptr};
 			inline static std::thread::id main_thread_id = {};
-			inline static std::atomic<uint8_t> abort = {0};
 
 		private:
 			Data* const _data;
@@ -951,12 +948,19 @@ namespace sgcl {
 			};
 
 			Collector() {
-				_thread = std::thread([this]{_main_loop();});
+				std::thread([this]{_main_loop();}).detach();
 			}
 
 			~Collector() {
-				Thread::abort.store(1, std::memory_order_release);
-				_thread.join();
+				abort();
+			}
+
+			inline static void abort() noexcept {
+				_abort.store(true, std::memory_order_relaxed);
+			}
+
+			inline static bool aborted() noexcept {
+				return _abort.load(std::memory_order_relaxed);
 			}
 
 		private:
@@ -1395,16 +1399,16 @@ namespace sgcl {
 						do {
 							auto last_allocated = _alloc_counter() - allocated;
 							auto live = allocated + last_allocated - (removed + last_removed);
-							if ((std::max(last_allocated.count, last_removed.count) * 100 / SGCL_TRIGER_PERCENTAGE >= live.count + MinLiveCount) ||
-									(std::max(last_allocated.size, last_removed.size) * 100 / SGCL_TRIGER_PERCENTAGE >= live.size + MinLiveSize) ||
-									Thread::abort.load(std::memory_order_relaxed)) {
+							if ((std::max(last_allocated.count, last_removed.count) * 100 / SGCL_TRIGER_PERCENTAGE >= live.count + MinLiveCount)
+							 || (std::max(last_allocated.size, last_removed.size) * 100 / SGCL_TRIGER_PERCENTAGE >= live.size + MinLiveSize)
+							 || aborted()) {
 								break;
 							}
 							std::this_thread::sleep_for(1ms);
 						} while(!live.count || timer.duration() < SGCL_MAX_SLEEP_TIME_SEC * 1000);
 						allocated += last_allocated;
 						removed += last_removed;
-						if (!last_removed.count && Thread::abort.load(std::memory_order_relaxed)) {
+						if (!last_removed.count && aborted()) {
 							if (live.count) {
 								--finalization_counter;
 							} else {
@@ -1412,7 +1416,7 @@ namespace sgcl {
 							}
 						}
 					}
-					if (!Thread::abort.load(std::memory_order_relaxed)) {
+					if (!aborted()) {
 						std::this_thread::yield();
 					}
 				} while(finalization_counter);
@@ -1420,16 +1424,25 @@ namespace sgcl {
 #if SGCL_LOG_PRINT_LEVEL
 				std::cout << "[sgcl] stop collector id: " << std::this_thread::get_id() << std::endl;
 #endif
-				if (Thread::abort.load(std::memory_order_relaxed) == 2) {
-					Thread::abort.store(false, std::memory_order_relaxed);
-				}
 			}
 
 			Page* _reachable_pages = {nullptr};
 			Page* _registered_pages = {nullptr};
-			Counter _allocated_rest;
-			std::thread _thread;
+			Counter _allocated_rest;		
+
+			inline static std::atomic<bool> _abort = {false};
 		};
+
+		Thread::~Thread() {
+			using namespace std::chrono_literals;
+			_data->is_used.store(false, std::memory_order_release);
+			if (std::this_thread::get_id() == main_thread_id) {
+				Collector::abort();
+			}
+#if SGCL_LOG_PRINT_LEVEL >= 3
+			std::cout << "[sgcl] stop thread id: " << std::this_thread::get_id() << std::endl;
+#endif
+		}
 
 		class Tracked_ptr {
 #ifdef SGCL_ARCH_X86_64
@@ -1483,7 +1496,7 @@ namespace sgcl {
 #endif
 				if (_ref && !_allocated_on_heap()) {
 					_store(nullptr);
-					if (!_allocated_on_stack()) {
+					if (!_allocated_on_stack() && !Collector::aborted()) {
 						current_thread().roots_allocator->free(_ref);
 					}
 				}
@@ -1569,15 +1582,15 @@ namespace sgcl {
 			}
 
 			template<class T>
-			auto _metadata() const noexcept {
+			metadata_base& _metadata() const noexcept {
 				if constexpr(std::is_array_v<T>) {
-					return (metadata_base&)Page_info<T>::public_metadata;
+					return Page_info<T>::public_metadata();
 				} else {
 					auto p = _load();
 					if (p) {
 						return Page::metadata_of(p).public_metadata;
 					} else {
-						return (metadata_base&)Page_info<T>::public_metadata;
+						return Page_info<T>::public_metadata();
 					}
 				}
 			}
@@ -1615,16 +1628,16 @@ namespace sgcl {
 				Pointer _ptr_value;
 			};
 #else
-			Pointer_type* _ptr() noexcept {
+			Pointer* _ptr() noexcept {
 				return _remove_flags(_ref);
 			}
 
-			const Pointer_type* _ptr() const noexcept {
+			const Pointer* _ptr() const noexcept {
 				return _remove_flags(_ref);
 			}
 
-			Pointer_type* _ref;
-			Pointer_type _ptr_value;
+			Pointer* _ref;
+			Pointer _ptr_value;
 #endif
 			template<size_t> friend struct Array;
 		};
