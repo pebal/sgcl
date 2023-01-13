@@ -133,7 +133,7 @@ namespace sgcl {
 		template<class T>
 		tracked_ptr<void> Clone(const void*);
 
-		struct Metadata final {
+		struct Metadata {
 			template<class T>
 			Metadata(T*)
 			: pointer_offsets(Page_info<T>::pointer_offsets)
@@ -158,7 +158,7 @@ namespace sgcl {
 			Metadata* next = {nullptr};
 		};
 
-		struct Array_metadata final {
+		struct Array_metadata {
 			template<class T>
 			Array_metadata(T*)
 			: pointer_offsets(Page_info<T>::pointer_offsets)
@@ -533,7 +533,7 @@ namespace sgcl {
 		};
 
 		template<class T>
-		struct Large_object_allocator final : Heap_allocator_base {
+		struct Large_object_allocator : Heap_allocator_base {
 			T* alloc(size_t size = 0) const {
 				auto mem = ::operator new(sizeof(T) + size + sizeof(uintptr_t), std::align_val_t(PageSize));
 				auto data = (T*)((uintptr_t)mem + sizeof(uintptr_t));
@@ -673,7 +673,7 @@ namespace sgcl {
 
 		template<class T>
 		struct Small_object_allocator : Small_object_allocator_base {
-			using Indexes = Pointer_pool<Page_info<T>::ObjectCount, sizeof(std::conditional_t<std::is_same_v<T, void>, char, T>)>;
+			using Pointer_pool = Priv::Pointer_pool<Page_info<T>::ObjectCount, sizeof(std::conditional_t<std::is_same_v<T, void>, char, T>)>;
 
 			constexpr Small_object_allocator(Block_allocator& a) noexcept
 			: Small_object_allocator_base(a, _pointer_pool, _pages_buffer) {
@@ -685,7 +685,7 @@ namespace sgcl {
 
 		private:
 			inline static std::atomic<Page*> _pages_buffer = {nullptr};
-			Indexes _pointer_pool;
+			Pointer_pool _pointer_pool;
 
 			Page* _create_page_parameters(Block* block, void* data) override {
 				auto mem = ::operator new(Page_info<T>::HeaderSize);
@@ -697,7 +697,7 @@ namespace sgcl {
 		struct Roots_allocator {
 			static constexpr size_t PointerCount = PageSize / sizeof(Pointer);
 			using Page = std::array<Pointer, PointerCount>;
-			using Indexes = Pointer_pool<PointerCount, sizeof(Pointer)>;
+			using Pointer_pool = Priv::Pointer_pool<PointerCount, sizeof(Pointer)>;
 
 			struct Page_node {
 				Page_node* next = {nullptr};
@@ -731,7 +731,7 @@ namespace sgcl {
 				while(new_pool && !_global_pointer_pool.compare_exchange_weak(new_pool, new_pool->next, std::memory_order_release, std::memory_order_acquire));
 				if (!new_pool) {
 					auto node = new Page_node;
-					new_pool = new Indexes(node->page.data());
+					new_pool = new Pointer_pool(node->page.data());
 					node->next = pages.load(std::memory_order_acquire);
 					while(!pages.compare_exchange_weak(node->next, node, std::memory_order_release, std::memory_order_relaxed));
 				}
@@ -761,7 +761,7 @@ namespace sgcl {
 				auto new_pool = _global_empty_pointer_pool.load(std::memory_order_acquire);
 				while(new_pool && !_global_empty_pointer_pool.compare_exchange_weak(new_pool, new_pool->next, std::memory_order_release, std::memory_order_acquire));
 				if (!new_pool) {
-					new_pool = new Indexes();
+					new_pool = new Pointer_pool();
 				}
 				if (pool1) {
 					if (pool2) {
@@ -778,9 +778,9 @@ namespace sgcl {
 			inline static std::atomic<Page_node*> pages = {nullptr};
 
 		private:
-			std::array<Indexes*, 2> _pointer_pool;
-			inline static std::atomic<Indexes*> _global_pointer_pool = {nullptr};
-			inline static std::atomic<Indexes*> _global_empty_pointer_pool = {nullptr};
+			std::array<Pointer_pool*, 2> _pointer_pool;
+			inline static std::atomic<Pointer_pool*> _global_pointer_pool = {nullptr};
+			inline static std::atomic<Pointer_pool*> _global_empty_pointer_pool = {nullptr};
 		};
 
 		struct Stack_allocator {
@@ -1754,7 +1754,7 @@ namespace sgcl {
 
 
 	template<class T>
-	class tracked_ptr final : Priv::Tracked_ptr {
+	class tracked_ptr : Priv::Tracked_ptr {
 	public:
 		using element_type = std::remove_extent_t<T>;
 
@@ -1921,7 +1921,7 @@ namespace sgcl {
 		}
 
 		auto _metadata() const noexcept {
-			return Priv::Tracked_ptr::_metadata<T>();
+			return Tracked_ptr::_metadata<T>();
 		}
 
 		template<class> friend class tracked_ptr;
