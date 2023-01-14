@@ -1876,6 +1876,22 @@ namespace sgcl {
 			return get()[i];
 		}
 
+		template <class U = T, std::enable_if_t<std::is_array_v<U>, int> = 0>
+		size_t size() const noexcept {
+			auto array = (Priv::Array_base*)_base_address_of(get());
+			return array->count;
+		}
+
+		template <class U = T, std::enable_if_t<std::is_array_v<U>, int> = 0>
+		element_type* begin() const noexcept {
+			return get();
+		}
+
+		template <class U = T, std::enable_if_t<std::is_array_v<U>, int> = 0>
+		element_type* end() const noexcept {
+			return begin() + size();
+		}
+
 		element_type* get() const noexcept {
 			return (element_type*)_load();
 		}
