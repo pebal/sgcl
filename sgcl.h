@@ -158,25 +158,28 @@ namespace sgcl {
 			Metadata* next = {nullptr};
 		};
 
+		class Tracked_ptr;
 		struct Array_metadata {
 			template<class T>
 			Array_metadata(T*)
 			: pointer_offsets(Page_info<T>::pointer_offsets)
 			, destroy(!std::is_trivially_destructible_v<T> ? Array_base::destroy<T> : nullptr)
 			, object_size(Page_info<T>::ObjectSize)
-			, public_metadata(Page_info<T[]>::public_metadata()) {
+			, public_metadata(Page_info<T[]>::public_metadata())
+			, tracked_ptrs_only(std::is_base_of_v<Tracked_ptr, T>) {
 			}
 
 			std::atomic<ptrdiff_t*>& pointer_offsets;
 			void (*const destroy)(void*, size_t) noexcept;
 			const size_t object_size;
 			metadata_base& public_metadata;
+			const bool tracked_ptrs_only;
 		};
 
 		Array_base::~Array_base() noexcept {
 			auto metadata = this->metadata.load(std::memory_order_acquire);
 			if (metadata && metadata->destroy) {
-				metadata->destroy(this+ 1, count);
+				metadata->destroy(this + 1, count);
 			}
 		}
 
@@ -1292,25 +1295,28 @@ namespace sgcl {
 												auto p = (Pointer*)(data + offsets[i]);
 												p->store(nullptr, std::memory_order_relaxed);
 											}
+											destroy((void*)p);
 										} else {
 											auto array = (Array_base*)data;
 											auto metadata = array->metadata.load(std::memory_order_acquire);
-											auto offsets = metadata->pointer_offsets.load(std::memory_order_acquire);
-											if (offsets) {
-												unsigned size = (unsigned)offsets[0];
-												if (size) {
-													auto data = (uintptr_t)array + sizeof(Array_base);
-													auto object_size = metadata->object_size;
-													for (size_t c = 0; c < array->count; ++c, data += object_size) {
-														for (unsigned i = 1; i <= size; ++i) {
-															auto p = (Pointer*)(data + offsets[i]);
-															p->store(nullptr, std::memory_order_relaxed);
+											if (!metadata->tracked_ptrs_only) {
+												auto offsets = metadata->pointer_offsets.load(std::memory_order_acquire);
+												if (offsets) {
+													unsigned size = (unsigned)offsets[0];
+													if (size) {
+														auto data = (uintptr_t)array + sizeof(Array_base);
+														auto object_size = metadata->object_size;
+														for (size_t c = 0; c < array->count; ++c, data += object_size) {
+															for (unsigned i = 1; i <= size; ++i) {
+																auto p = (Pointer*)(data + offsets[i]);
+																p->store(nullptr, std::memory_order_relaxed);
+															}
 														}
 													}
 												}
+												destroy((void*)p);
 											}
 										}
-										destroy((void*)p);
 									}
 									released.count++;
 									if (!page->metadata->is_array || object_size != sizeof(Array<PageDataSize>)) {
@@ -2107,8 +2113,8 @@ namespace sgcl {
 			}
 			static void _make_tracked(size_t count, tracked_ptr<T[]>& p, const std::remove_extent_t<T>* v = nullptr) {
 				if (count) {
-					auto offset = (size_t)(&((Array<>*)0)->data);
 					_make<1>(count, p);
+					auto offset = (size_t)(&((Array<>*)0)->data);
 					auto array = (Array<>*)((char*)p.get() - offset);
 					if (v) {
 						array->template init<T>(*v);
