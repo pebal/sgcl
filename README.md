@@ -29,6 +29,11 @@ auto value = make_tracked<int>(10);
 // create array
 auto array = make_tracked<int[]>(4);
 
+// array iteration
+for (auto& v: array) {
+    v = 5;
+}
+
 // cast pointer
 tracked_ptr<void> any = value;
 value = static_pointer_cast<int>(any);
