@@ -1878,8 +1878,12 @@ namespace sgcl {
 
 		template <class U = T, std::enable_if_t<std::is_array_v<U>, int> = 0>
 		size_t size() const noexcept {
-			auto array = (Priv::Array_base*)_base_address_of(get());
-			return array->count;
+			if (get()) {
+				auto array = (Priv::Array_base*)_base_address_of(get());
+				return array->count;
+			} else {
+				return 0;
+			}
 		}
 
 		template <class U = T, std::enable_if_t<std::is_array_v<U>, int> = 0>
