@@ -1427,14 +1427,14 @@ namespace sgcl {
 #endif
 						Timer timer;
 						do {
-							auto last_allocated = _alloc_counter() - allocated;
-							auto live = allocated + last_allocated - (removed + last_removed);
 							if ((std::max(last_allocated.count, last_removed.count) * 100 / SGCL_TRIGER_PERCENTAGE >= live.count + MinLiveCount)
 							 || (std::max(last_allocated.size, last_removed.size) * 100 / SGCL_TRIGER_PERCENTAGE >= live.size + MinLiveSize)
 							 || aborted()) {
 								break;
 							}
 							std::this_thread::sleep_for(1ms);
+							last_allocated = _alloc_counter() - allocated;
+							live = allocated + last_allocated - (removed + last_removed);
 						} while(!live.count || timer.duration() < SGCL_MAX_SLEEP_TIME_SEC * 1000);
 						allocated += last_allocated;
 						removed += last_removed;
