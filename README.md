@@ -81,6 +81,12 @@ std::atomic<tracked_ptr<int>> atomic = value;
 metadata<int>::set(3.14);
 std::cout << any.metadata<double>() << std::endl;  // ok, any is int and metadata is double
 std::cout << std::any_cast<double>(any.metadata()) << std::endl;  // also ok
+
+// create tracked containers to detect potential cycles
+tracked_vector<node> vec;
+tracked_list<tracked_ptr<node>> lst;
+//...
+
+// create tracked container based on other container
+tracked_container<std::deque<node, tracked_allocator<node>>> deq;
 ```
-## Not working
-Currently cycles are not detected in the standard containers. All pointers in these containers are roots.
