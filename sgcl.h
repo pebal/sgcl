@@ -10,9 +10,9 @@
 #include <array>
 #include <atomic>
 #include <cassert>
+#include <cstring>
 #include <chrono>
 #include <cstdlib>
-#include <functional>
 #include <memory>
 #include <thread>
 #include <type_traits>
@@ -92,6 +92,7 @@ namespace sgcl {
 		static constexpr size_t PageSize = 4096;
 		static constexpr size_t PageDataSize = PageSize - sizeof(uintptr_t);
 		using Pointer = std::atomic<void*>;
+		using Const_pointer = std::atomic<const void*>;
 	}
 
 	[[maybe_unused]] static constexpr size_t MaxAliasingDataSize = Priv::PageDataSize;
@@ -108,7 +109,7 @@ namespace sgcl {
 
 		struct Array_metadata;
 		struct Array_base {
-			constexpr Array_base(size_t c) noexcept
+			Array_base(size_t c) noexcept
 			: count(c) {
 			}
 
@@ -123,6 +124,23 @@ namespace sgcl {
 
 			std::atomic<Array_metadata*> metadata = {nullptr};
 			const size_t count;
+
+			tracked_ptr<void>& next() noexcept {
+				return (tracked_ptr<void>&)_next;
+			}
+
+			tracked_ptr<void>& prev() noexcept {
+				return (tracked_ptr<void>&)_prev;
+			}
+
+		private:
+#ifdef SGCL_ARCH_X86_64
+			uintptr_t _prev;
+			uintptr_t _next;
+#else
+			uintptr_t _prev[2];
+			uintptr_t _next[2];
+#endif
 		};
 
 		struct Page;
@@ -411,12 +429,14 @@ namespace sgcl {
 				if constexpr(!std::is_trivial_v<T>) {
 					_init<T>();
 				}
-				metadata.store(&Page_info<T>::array_metadata(), std::memory_order_release);
+				using Info = Page_info<std::remove_cv_t<T>>;
+				metadata.store(&Info::array_metadata(), std::memory_order_release);
 			}
 			template<class T>
 			void init(const T& v) {
 				_init<T>(v);
-				metadata.store(&Page_info<T>::array_metadata(), std::memory_order_release);
+				using Info = Page_info<std::remove_cv_t<T>>;
+				metadata.store(&Info::array_metadata(), std::memory_order_release);
 			}
 			char data[Size];
 
@@ -832,10 +852,10 @@ namespace sgcl {
 				std::unique_ptr<Block_allocator> block_allocator;
 				std::unique_ptr<Stack_allocator> stack_allocator;
 				std::atomic<bool> is_used = {true};
-				Pointer recursive_alloc_pointer = {nullptr};
-				void* last_recursive_alloc_pointer = {nullptr};
-				std::atomic<uint64_t> alloc_count = {0};
-				std::atomic<uint64_t> alloc_size = {0};
+				Const_pointer recursive_alloc_pointer = {nullptr};
+				const void* last_recursive_alloc_pointer = {nullptr};
+				std::atomic<int64_t> alloc_count = {0};
+				std::atomic<int64_t> alloc_size = {0};
 				Data* next = {nullptr};
 			};
 
@@ -885,16 +905,16 @@ namespace sgcl {
 				}
 			}
 
-			bool set_recursive_alloc_pointer(void* p) noexcept {
+			bool set_recursive_alloc_pointer(const void* p) noexcept {
 				if (!_data->recursive_alloc_pointer.load(std::memory_order_relaxed)) {
-					_data->recursive_alloc_pointer.store(p, std::memory_order_release);
+					_data->recursive_alloc_pointer.store(p, std::memory_order_relaxed);
 					return true;
 				}
 				return false;
 			}
 
 			void clear_recursive_alloc_pointer() noexcept {
-				_data->recursive_alloc_pointer.store(nullptr, std::memory_order_release);
+				_data->recursive_alloc_pointer.store(nullptr, std::memory_order_relaxed);
 			}
 
 			void update_allocated(size_t s) {
@@ -946,8 +966,8 @@ namespace sgcl {
 					count += c.count;
 					size += c.size;
 				}
-				uint64_t count = {0};
-				uint64_t size = {0};
+				int64_t count = {0};
+				int64_t size = {0};
 			};
 
 			Collector() {
@@ -1126,11 +1146,11 @@ namespace sgcl {
 			void _mark(const void* p) noexcept {
 				if (p) {
 					auto page = Page::page_of(p);
-					auto object_index = page->index_of(p);
-					auto index = Page::flag_index_of(object_index);
-					auto mask = Page::flag_mask_of(object_index);
-					auto& flag = page->flags()[index];
-					if (flag.registered & mask && !(flag.marked & mask)) {
+					auto index = page->index_of(p);
+					auto flag_index = Page::flag_index_of(index);
+					auto mask = Page::flag_mask_of(index);
+					auto& flag = page->flags()[flag_index];
+					if (!(flag.marked & mask)) {
 						if (!page->reachable) {
 							page->reachable = true;
 							page->next_reachable = _reachable_pages;
@@ -1169,10 +1189,12 @@ namespace sgcl {
 			void _mark_childs(Page* page, unsigned index) noexcept {
 				auto data = page->data_of(index);
 				auto offsets = page->metadata->pointer_offsets.load(std::memory_order_acquire);
-				unsigned size = (unsigned)offsets[0];
-				for (unsigned i = 1; i <= size; ++i) {
-					auto p = (Pointer*)(data + offsets[i]);
-					_mark(p->load(std::memory_order_relaxed));
+				if (offsets) {
+					unsigned size = (unsigned)offsets[0];
+					for (unsigned i = 1; i <= size; ++i) {
+						auto p = (Pointer*)(data + offsets[i]);
+						_mark(p->load(std::memory_order_relaxed));
+					}
 				}
 			}
 
@@ -1216,10 +1238,9 @@ namespace sgcl {
 										flag.marked |= mask;
 										marked = true;
 										auto index = i * Page::FlagBitCount + j;
+										_mark_childs(page, index);
 										if (page->metadata->is_array) {
 											_mark_array_childs(page, index);
-										} else {
-											_mark_childs(page, index);
 										}
 									}
 								}
@@ -1290,10 +1311,12 @@ namespace sgcl {
 										auto data = page->data_of(index);
 										if (!page->metadata->is_array) {
 											auto offsets = page->metadata->pointer_offsets.load(std::memory_order_acquire);
-											unsigned size = (unsigned)offsets[0];
-											for (unsigned i = 1; i <= size; ++i) {
-												auto p = (Pointer*)(data + offsets[i]);
-												p->store(nullptr, std::memory_order_relaxed);
+											if (offsets) {
+												unsigned size = (unsigned)offsets[0];
+												for (unsigned i = 1; i <= size; ++i) {
+													auto p = (Pointer*)(data + offsets[i]);
+													p->store(nullptr, std::memory_order_relaxed);
+												}
 											}
 											destroy((void*)p);
 										} else {
@@ -1370,8 +1393,8 @@ namespace sgcl {
 			}
 
 			void _main_loop() noexcept {
-				static constexpr size_t MinLiveSize = PageSize;
-				static constexpr size_t MinLiveCount = MinLiveSize / sizeof(uintptr_t) * 2;
+				static constexpr int64_t MinLiveSize = PageSize;
+				static constexpr int64_t MinLiveCount = MinLiveSize / sizeof(uintptr_t) * 2;
 #if SGCL_LOG_PRINT_LEVEL
 				std::cout << "[sgcl] start collector id: " << std::this_thread::get_id() << std::endl;
 #endif
@@ -1395,6 +1418,7 @@ namespace sgcl {
 						Counter last_removed = _remove_garbage();
 						Counter last_allocated = _alloc_counter() - allocated;
 						Counter live = allocated + last_allocated - (removed + last_removed);
+						assert(live.count >= 0 && live.size >= 0);
 #if SGCL_LOG_PRINT_LEVEL >= 2
 						auto end = std::chrono::high_resolution_clock::now();
 						std::cout << "[sgcl] live objects: " << live.count << ", destroyed: " << last_removed.count << ", time: "
@@ -1434,7 +1458,7 @@ namespace sgcl {
 
 			Page* _reachable_pages = {nullptr};
 			Page* _registered_pages = {nullptr};
-			Counter _allocated_rest;		
+			Counter _allocated_rest;
 
 			inline static std::atomic<bool> _abort = {false};
 		};
@@ -1494,13 +1518,9 @@ namespace sgcl {
 			}
 
 			~Tracked_ptr() {
-#ifdef SGCL_DEBUG
 				if (_allocated_on_heap()) {
-					_store_no_update((void*)1);
-					return;
-				}
-#endif
-				if (_ref && !_allocated_on_heap()) {
+					_store(nullptr);
+				} else if (_ref) {
 					_store(nullptr);
 					if (!_allocated_on_stack() && !Collector::aborted()) {
 						current_thread().roots_allocator->free(_ref);
@@ -1647,130 +1667,9 @@ namespace sgcl {
 #endif
 			template<size_t> friend struct Array;
 		};
-
-		template<size_t S>
-		template<class T, class... A>
-		void Array<S>::_init(A&&... a) {
-			using Info = Page_info<std::remove_cv_t<T>>;
-			Pointer** ptrs = nullptr;
-			if (!Info::pointer_offsets.load(std::memory_order_acquire)) {
-				ptrs = (Pointer**)(::operator new(sizeof(T)));
-			}
-			auto& thread = current_thread();
-			auto& state = thread.alloc_state;
-			auto old_state = state;
-			state = {{(uintptr_t)(this->data), (uintptr_t)((T*)this->data + count)}, 0, ptrs};
-			try {
-				new(const_cast<char*>(this->data)) T(std::forward<A>(a)...);
-			}
-			catch (...) {
-				if (ptrs) {
-					::operator delete(ptrs);
-				}
-				state = old_state;
-				throw;
-			}
-			if (ptrs) {
-				auto offsets = new ptrdiff_t[state.size + 1];
-				offsets[0] = state.size;
-				for (size_t i = 0; i < state.size; ++i) {
-					offsets[i + 1] = (uintptr_t)ptrs[i] - (uintptr_t)this->data;
-				}
-				::operator delete(ptrs);
-				ptrdiff_t* old = nullptr;
-				if (!Info::pointer_offsets.compare_exchange_strong(old, offsets)) {
-					::operator delete(offsets);
-				}
-			}
-			state.ptrs = nullptr;
-			if constexpr(std::is_base_of_v<Tracked_ptr, T>) {
-				for (size_t i = 1; i < count; ++i) {
-					auto p = (Tracked_ptr*)const_cast<std::remove_cv_t<T>*>((T*)this->data + i);
-					if constexpr(sizeof...(A)) {
-						p->_ptr_value.store((a.get())..., std::memory_order_relaxed);
-					} else {
-						p->_ptr_value.store(nullptr, std::memory_order_relaxed);
-					}
-#ifndef SGCL_ARCH_X86_64
-					p->_ref = &p->_ptr_value;
-#endif
-				}
-			} else {
-				for (size_t i = 1; i < count; ++i) {
-					new(const_cast<std::remove_cv_t<T>*>((T*)this->data + i)) T(std::forward<A>(a)...);
-				}
-			}
-			state = old_state;
-		}
-
-		void collector_init() {
-			static Collector collector_instance;
-		}
-
 		template<class T, class U = T, class ...A>
-		static tracked_ptr<U> Make_tracked(size_t size, A&&... a) {
-			using Info = Page_info<std::remove_cv_t<T>>;
-			collector_init();
-
-			Pointer** ptrs = nullptr;
-			if (!Info::pointer_offsets.load(std::memory_order_acquire)) {
-				ptrs = (Pointer**)(::operator new(sizeof(T)));
-			}
-
-			auto& thread = current_thread();
-			auto& allocator = thread.alocator<std::remove_cv_t<T>>();
-			auto mem = (T*)allocator.alloc(size);
-			bool first_recursive_pointer = thread.set_recursive_alloc_pointer(mem);
-
-			auto& state = thread.alloc_state;
-			auto old_state = state;
-			state = {{(uintptr_t)(mem), (uintptr_t)(mem + 1)}, 0, ptrs};
-
-			std::remove_cv_t<T>* ptr;
-			try {
-				ptr = const_cast<std::remove_cv_t<T>*>(new(mem) T(std::forward<A>(a)...));
-				thread.update_allocated(sizeof(T) + size);
-			}
-			catch (...) {
-				Page::set_state(mem, States::BadAlloc);
-				if (ptrs) {
-					::operator delete(ptrs);
-				}
-				state = old_state;
-				throw;
-			}
-
-			if (ptrs) {
-				auto offsets = new ptrdiff_t[state.size + 1];
-				offsets[0] = state.size;
-				for (size_t i = 0; i < state.size; ++i) {
-					offsets[i + 1] = (uintptr_t)ptrs[i] - (uintptr_t)ptr;
-				}
-				::operator delete(ptrs);
-				ptrdiff_t* old = nullptr;
-				if (!Info::pointer_offsets.compare_exchange_strong(old, offsets)) {
-					::operator delete(offsets);
-				}
-			}
-
-			state = old_state;
-
-			if constexpr(std::is_same_v<T, U>) {
-				return tracked_ptr<T>(ptr, [&]{
-					if (first_recursive_pointer) {
-						thread.clear_recursive_alloc_pointer();
-					}
-				});
-			} else {
-				return tracked_ptr<U>(ptr->data, [&]{
-					if (first_recursive_pointer) {
-						thread.clear_recursive_alloc_pointer();
-					}
-				});
-			}
-		}
+		static tracked_ptr<U> Make_tracked(size_t, A&&...);
 	}; // namespace Priv
-
 
 	template<class T>
 	class tracked_ptr : Priv::Tracked_ptr {
@@ -1878,8 +1777,9 @@ namespace sgcl {
 
 		template <class U = T, std::enable_if_t<std::is_array_v<U>, int> = 0>
 		size_t size() const noexcept {
-			if (get()) {
-				auto array = (Priv::Array_base*)_base_address_of(get());
+			auto p = get();
+			if (p) {
+				auto array = (Priv::Array_base*)_base_address_of(p);
 				return array->count;
 			} else {
 				return 0;
@@ -1912,8 +1812,13 @@ namespace sgcl {
 
 		template <class U = T, std::enable_if_t<!std::is_array_v<U>, int> = 0>
 		tracked_ptr<T> clone() const {
-			auto p = Priv::Page::metadata_of(get()).clone(get());
-			return tracked_ptr<T>((T*)p.get());
+			auto metadata = Priv::Page::metadata_of(get());
+			if (!metadata.is_array) {
+				auto p = metadata.clone(get());
+				return tracked_ptr<T>((T*)p.get());
+			} else {
+				return {nullptr};
+			}
 		}
 
 		template<class U, std::enable_if_t<!std::is_array_v<U>, int> = 0>
@@ -2060,17 +1965,17 @@ namespace sgcl {
 		return !(nullptr < a);
 	}
 
-	template<class T, class U>
+	template<class T, class U, std::enable_if_t<!std::is_array_v<T>, int> = 0>
 	inline tracked_ptr<T> static_pointer_cast(const tracked_ptr<U>& r) noexcept {
 		return tracked_ptr<T>(static_cast<T*>(r.get()));
 	}
 
-	template<class T, class U>
+	template<class T, class U, std::enable_if_t<!std::is_array_v<T>, int> = 0>
 	inline tracked_ptr<T> const_pointer_cast(const tracked_ptr<U>& r) noexcept {
 		return tracked_ptr<T>(const_cast<T*>(r.get()));
 	}
 
-	template<class T, class U>
+	template<class T, class U, std::enable_if_t<!std::is_array_v<T>, int> = 0>
 	inline tracked_ptr<T> dynamic_pointer_cast(const tracked_ptr<U>& r) noexcept {
 		return tracked_ptr<T>(dynamic_cast<T*>(r.get()));
 	}
@@ -2090,6 +1995,143 @@ namespace sgcl {
 				std::ignore = p;
 				assert(!"[sgcl] clone(): no copy constructor");
 				return nullptr;
+			}
+		}
+
+		template<size_t S>
+		template<class T, class... A>
+		void Array<S>::_init(A&&... a) {
+			using Info = Page_info<std::remove_cv_t<T>>;
+			if constexpr(!std::is_trivial_v<T>) {
+				auto offsets = Info::pointer_offsets.load(std::memory_order_acquire);
+				if (!offsets || offsets[0]) {
+					Pointer** ptrs = nullptr;
+					if (!offsets) {
+						ptrs = (Pointer**)(::operator new(sizeof(T)));
+					}
+					auto& thread = current_thread();
+					bool first_recursive_pointer = thread.set_recursive_alloc_pointer(this->data);
+					auto& state = thread.alloc_state;
+					auto old_state = state;
+					state = {{(uintptr_t)(this->data), (uintptr_t)((T*)this->data + count)}, 0, ptrs};
+					try {
+						new(const_cast<char*>(this->data)) T(std::forward<A>(a)...);
+					}
+					catch (...) {
+						if (ptrs) {
+							::operator delete(ptrs);
+						}
+						state = old_state;
+						throw;
+					}
+					if (ptrs) {
+						auto offsets = new ptrdiff_t[state.size + 1];
+						offsets[0] = state.size;
+						for (size_t i = 0; i < state.size; ++i) {
+							offsets[i + 1] = (uintptr_t)ptrs[i] - (uintptr_t)this->data;
+						}
+						::operator delete(ptrs);
+						ptrdiff_t* old = nullptr;
+						if (!Info::pointer_offsets.compare_exchange_strong(old, offsets)) {
+							::operator delete(offsets);
+						}
+					}
+					state.ptrs = nullptr;
+					if constexpr(std::is_base_of_v<Tracked_ptr, T>) {
+						for (size_t i = 1; i < count; ++i) {
+							auto p = (Tracked_ptr*)const_cast<std::remove_cv_t<T>*>((T*)this->data + i);
+							if constexpr(sizeof...(A)) {
+								p->_ptr_value.store((a.get())..., std::memory_order_relaxed);
+							} else {
+								p->_ptr_value.store(nullptr, std::memory_order_relaxed);
+							}
+		#ifndef SGCL_ARCH_X86_64
+							p->_ref = &p->_ptr_value;
+		#endif
+						}
+					} else {
+						for (size_t i = 1; i < count; ++i) {
+							new(const_cast<std::remove_cv_t<T>*>((T*)this->data + i)) T(std::forward<A>(a)...);
+						}
+					}
+					state = old_state;
+					if (first_recursive_pointer) {
+						thread.clear_recursive_alloc_pointer();
+					}
+				} else {
+					for (size_t i = 0; i < count; ++i) {
+						new(const_cast<std::remove_cv_t<T>*>((T*)this->data + i)) T(std::forward<A>(a)...);
+					}
+				}
+			} else {
+				for (size_t i = 0; i < count; ++i) {
+					new(const_cast<std::remove_cv_t<T>*>((T*)this->data + i)) T(std::forward<A>(a)...);
+				}
+			}
+		}
+
+		void collector_init() {
+			static Collector collector_instance;
+		}
+
+		template<class T, class U, class ...A>
+		static tracked_ptr<U> Make_tracked(size_t size, A&&... a) {
+			using Info = Page_info<std::remove_cv_t<T>>;
+			collector_init();
+			Pointer** ptrs = nullptr;
+			if (!Info::pointer_offsets.load(std::memory_order_relaxed)) {
+				ptrs = (Pointer**)(::operator new(sizeof(T)));
+			}
+			auto& thread = current_thread();
+			auto& allocator = thread.alocator<std::remove_cv_t<T>>();
+			auto mem = (T*)allocator.alloc(size);
+			bool first_recursive_pointer = thread.set_recursive_alloc_pointer(mem);
+			auto& state = thread.alloc_state;
+			auto old_state = state;
+			state = {{(uintptr_t)(mem), (uintptr_t)(mem + 1)}, 0, ptrs};
+			std::remove_cv_t<T>* ptr;
+			try {
+				ptr = const_cast<std::remove_cv_t<T>*>(new(mem) T(std::forward<A>(a)...));
+				if constexpr(std::is_base_of_v<Array_base, T>) {
+					static_assert(sizeof(decltype(ptr->next())) == sizeof(tracked_ptr<void>));
+					new (&ptr->next()) tracked_ptr<void>();
+					new (&ptr->prev()) tracked_ptr<void>();
+				}
+				thread.update_allocated(sizeof(T) + size);
+			}
+			catch (...) {
+				Page::set_state(mem, States::BadAlloc);
+				if (ptrs) {
+					::operator delete(ptrs);
+				}
+				state = old_state;
+				throw;
+			}
+			if (ptrs) {
+				auto offsets = new ptrdiff_t[state.size + 1];
+				offsets[0] = state.size;
+				for (size_t i = 0; i < state.size; ++i) {
+					offsets[i + 1] = (uintptr_t)ptrs[i] - (uintptr_t)ptr;
+				}
+				::operator delete(ptrs);
+				ptrdiff_t* old = nullptr;
+				if (!Info::pointer_offsets.compare_exchange_strong(old, offsets)) {
+					::operator delete(offsets);
+				}
+			}
+			state = old_state;
+			if constexpr(!std::is_base_of_v<Array_base, T>) {
+				return tracked_ptr<T>(ptr, [&]{
+					if (first_recursive_pointer) {
+						thread.clear_recursive_alloc_pointer();
+					}
+				});
+			} else {
+				return tracked_ptr<U>(ptr->data, [&]{
+					if (first_recursive_pointer) {
+						thread.clear_recursive_alloc_pointer();
+					}
+				});
 			}
 		}
 
@@ -2134,8 +2176,7 @@ namespace sgcl {
 			static void _make_tracked(size_t count, tracked_ptr<T[]>& p, const std::remove_extent_t<T>* v = nullptr) {
 				if (count) {
 					_make<1>(count, p);
-					auto offset = (size_t)(&((Array<>*)0)->data);
-					auto array = (Array<>*)((char*)p.get() - offset);
+					auto array = (Array<>*)((Array_base*)p.get() - 1);
 					if (v) {
 						array->template init<T>(*v);
 					} else {
@@ -2150,7 +2191,7 @@ namespace sgcl {
 	auto make_tracked(A&&... a) {
 		return Priv::Maker<T>::make_tracked(std::forward<A>(a)...);
 	}
-}
+} // namespace sgcl
 
 template<class T>
 struct std::atomic<sgcl::tracked_ptr<T>> {
@@ -2274,5 +2315,268 @@ private:
 
 	sgcl::tracked_ptr<T> _ptr;
 };
+
+//------------------------------------------------------------------------------
+// Tracked containers
+//------------------------------------------------------------------------------
+
+#include <deque>
+#include <forward_list>
+#include <list>
+#include <map>
+#include <queue>
+#include <set>
+#include <stack>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+
+namespace sgcl {
+	namespace Priv {
+		template <class T>
+		class Tracked_allocator {
+			using Info = Page_info<std::remove_cv_t<T>>;
+
+		public:
+			using value_type         = T;
+			using pointer            = value_type*;
+			using const_pointer      = const value_type*;
+			using void_pointer       = void*;
+			using const_void_pointer = const void*;
+			using difference_type    = ptrdiff_t;
+			using size_type          = std::size_t;
+
+			template <class U>
+			struct rebind  {
+				using other = Tracked_allocator<U>;
+			};
+
+			Tracked_allocator(tracked_ptr<void>& p) noexcept
+			: _list(p) {
+			}
+
+			Tracked_allocator(const Tracked_allocator& a) noexcept
+			: _list(a._list) {
+			}
+
+			template <class U>
+			Tracked_allocator(const Tracked_allocator<U>& a) noexcept
+			: _list(a._list) {
+			}
+
+			Tracked_allocator& operator=(const Tracked_allocator&) noexcept {
+				return *this;
+			}
+
+			Tracked_allocator& operator=(Tracked_allocator&& a) noexcept {
+				_list = std::move(a._list);
+				return *this;
+			}
+
+			pointer allocate(size_type n)  {
+				struct Data {
+					char data[sizeof(T)];
+				};
+				auto p = make_tracked<Data[]>(n);
+				auto data = p.get();
+				std::memset(data, 0, sizeof(T) * n);
+				auto array = (Array_base*)data - 1;
+				array->metadata.store(&Info::array_metadata(), std::memory_order_release);
+				if (_list) {
+					array->next() = _list;
+					array = (Array_base*)_list.get() - 1;
+					array->prev() = p;
+				}
+				_list = p;
+				return (pointer)data;
+			}
+
+			void deallocate(pointer p, size_type) noexcept {
+				auto array = (Array_base*)p - 1;
+				if (array->next()) {
+					auto next = (Array_base*)array->next().get() - 1;
+					next->prev() = array->prev();
+				}
+				if (array->prev()) {
+					auto prev = (Array_base*)array->prev().get() - 1;
+					prev->next() = array->next();
+				} else {
+					_list = array->next();
+				}
+			}
+
+			pointer allocate(size_type n, const_void_pointer) {
+				return allocate(n);
+			}
+
+			template <class ...A>
+			void construct(T* p, A&& ...a)  {
+				if constexpr(!std::is_trivial_v<T>) {
+					auto offsets = Info::pointer_offsets.load(std::memory_order_acquire);
+					if (!offsets || offsets[0]) {
+						Pointer** ptrs = nullptr;
+						if (!offsets) {
+							ptrs = (Pointer**)(::operator new(sizeof(T)));
+						}
+						auto& thread = current_thread();
+						bool first_recursive_pointer = thread.set_recursive_alloc_pointer(p);
+						auto& state = thread.alloc_state;
+						auto old_state = state;
+						state = {{(uintptr_t)p, (uintptr_t)((T*)p + 1)}, 0, ptrs};
+						try {
+							new(const_cast<std::remove_cv_t<T>*>(p)) T(std::forward<A>(a)...);
+						}
+						catch (...) {
+							if (ptrs) {
+								::operator delete(ptrs);
+							}
+							state = old_state;
+							throw;
+						}
+						if (ptrs) {
+							auto offsets = new ptrdiff_t[state.size + 1];
+							offsets[0] = state.size;
+							for (size_t i = 0; i < state.size; ++i) {
+								offsets[i + 1] = (uintptr_t)ptrs[i] - (uintptr_t)p;
+							}
+							::operator delete(ptrs);
+							ptrdiff_t* old = nullptr;
+							if (!Info::pointer_offsets.compare_exchange_strong(old, offsets)) {
+								::operator delete(offsets);
+							}
+						}
+						state = old_state;
+
+						if (first_recursive_pointer) {
+							thread.clear_recursive_alloc_pointer();
+						}
+					} else {
+						new(const_cast<std::remove_cv_t<T>*>(p)) T(std::forward<A>(a)...);
+					}
+				} else {
+					new(const_cast<std::remove_cv_t<T>*>(p)) T(std::forward<A>(a)...);
+				}
+			}
+
+			void destroy(T* p) noexcept {
+				std::destroy_at(p);
+			}
+
+			size_type max_size() const noexcept {
+				return std::numeric_limits<size_type>::max();
+			}
+
+			Tracked_allocator select_on_container_copy_construction() const  {
+				return *this;
+			}
+
+			using propagate_on_container_copy_assignment = std::false_type;
+			using propagate_on_container_move_assignment = std::true_type;
+			using propagate_on_container_swap            = std::true_type;
+			using is_always_equal                        = std::true_type;
+
+		private:
+			tracked_ptr<void>& _list;
+
+			template <class> friend class Tracked_allocator;
+		};
+
+		template <class T, class U>
+		inline bool operator==(const Tracked_allocator<T>& a, const Tracked_allocator<U>& b) noexcept  {
+			return &a == &b;
+		}
+
+		template <class T, class U>
+		inline bool operator!=(const Tracked_allocator<T>& a, const Tracked_allocator<U>& b) noexcept {
+			return !(a == b);
+		}
+
+		struct Tracked_container_base {
+			Tracked_container_base() = default;
+			Tracked_container_base(const Tracked_container_base&) = delete;
+			Tracked_container_base& operator=(const Tracked_container_base&) = delete;
+
+		protected:
+			tracked_ptr<void> _list;
+		};
+
+		template<class Container>
+		class Tracked_container : Tracked_container_base, public Container {
+			using Type = typename Container::value_type;
+
+		public:
+			template<class ...A>
+			Tracked_container(A&&... a)
+			: Container(std::forward<A>(a)..., Tracked_allocator<Type>(_list)) {
+			}
+
+			Tracked_container(Tracked_container&& c)
+				: Container(Tracked_allocator<Type>(_list)) {
+				*this = std::move(c);
+			}
+
+			Tracked_container& operator=(const Tracked_container& c) {
+				(Container&)*this = c;
+				return *this;
+			}
+
+			Tracked_container& operator=(Tracked_container&& c) {
+				(Container&)*this = std::move(c);
+				return *this;
+			}
+		};
+	} // namespace Priv;
+
+	template <class T>
+	using tracked_allocator = Priv::Tracked_allocator<T>;
+
+	template<class Container>
+	using tracked_container = Priv::Tracked_container<Container>;
+
+	template<class T>
+	using tracked_vector = tracked_container<std::vector<T, tracked_allocator<T>>>;
+
+	template<class T>
+	using tracked_list = tracked_container<std::list<T, tracked_allocator<T>>>;
+
+	template<class T>
+	using tracked_forward_list = tracked_container<std::forward_list<T, tracked_allocator<T>>>;
+
+	template<class K, class C = std::less<K>>
+	using tracked_set = tracked_container<std::set<K, C, tracked_allocator<K>>>;
+
+	template<class K, class C = std::less<K>>
+	using tracked_multiset = tracked_container<std::multiset<K, C, tracked_allocator<K>>>;
+
+	template<class K, class T, class C = std::less<K>>
+	using tracked_map = tracked_container<std::map<K, T, C, tracked_allocator<std::pair<const K, T>>>>;
+
+	template<class K, class T, class C = std::less<K>>
+	using tracked_multimap = tracked_container<std::multimap<K, T, C, tracked_allocator<std::pair<const K, T>>>>;
+
+	template<class K, class H = std::hash<K>, class E = std::equal_to<K>>
+	using tracked_unordered_set = tracked_container<std::unordered_set<K, H, E, tracked_allocator<K>>>;
+
+	template<class K, class H = std::hash<K>, class E = std::equal_to<K>>
+	using tracked_unordered_multiset = tracked_container<std::unordered_multiset<K, H, E, tracked_allocator<K>>>;
+
+	template<class K, class T, class H = std::hash<K>, class E = std::equal_to<K>>
+	using tracked_unordered_map = tracked_container<std::unordered_map<K, T, H, E, tracked_allocator<std::pair<const K, T>>>>;
+
+	template<class K, class T, class H = std::hash<K>, class E = std::equal_to<K>>
+	using tracked_unordered_multimap = tracked_container<std::unordered_multimap<K, T, H, E, tracked_allocator<std::pair<const K, T>>>>;
+
+	template<class T>
+	using tracked_deque = tracked_container<std::deque<T, tracked_allocator<T>>>;
+
+	template<class T, class Container = tracked_deque<T>>
+	using tracked_queue = std::queue<T, Container>;
+
+	template<class T, class Container = tracked_vector<T>, class Compare = std::less<typename Container::value_type>>
+	using tracked_priority_queue = std::priority_queue<T, Container, Compare>;
+
+	template<class T, class Container = tracked_deque<T>>
+	using tracked_stack = std::stack<T, Container>;
+} // namespace sgcl
 
 #endif // SGCL_H
