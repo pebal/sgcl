@@ -16,7 +16,7 @@ SGCL is a real-time garbage collector for C++. Provides fully tracked smart poin
 - Only one header file
 
 ## Compiling
-C++17 compiler required. Tested on Windows with VC++, Clang and MinGW compilers. MinGW is not recommended because it TLS emulation.
+C++17 compiler required. Tested on Windows with VC++, Clang and MinGW compilers. MinGW is not recommended because it TLS emulated.
 ## Example
 ```
 #include "sgcl.h"
@@ -63,7 +63,7 @@ auto shared_node = std::make_shared<node>();
 // create node on stack
 node stack_node;
 
-// create object based on raw pointer
+// create tracked pointer based on raw pointer
 tracked_ptr<node> tracked_node_ref(tracked_node.get());
 // undefined behavior
 // tracked_ptr<node> unique_node_ref(unique_node.get());
@@ -77,11 +77,6 @@ tracked_ptr<float> alias(&tracked_node->data);
 // atomic pointer
 std::atomic<tracked_ptr<int>> atomic = value;
 
-// metadata using
-metadata<int>::set(3.14);
-std::cout << any.metadata<double>() << std::endl;  // ok, any is int and metadata is double
-std::cout << std::any_cast<double>(any.metadata()) << std::endl;  // also ok
-
 // create tracked containers to detect potential cycles
 tracked_vector<node> vec;
 tracked_list<tracked_ptr<node>> lst;
@@ -89,4 +84,9 @@ tracked_list<tracked_ptr<node>> lst;
 
 // create tracked container based on other container
 tracked_container<std::deque<node, tracked_allocator<node>>> deq;
+
+// metadata using
+metadata<int>::set(3.14);
+std::cout << any.metadata<double>() << std::endl;  // ok, any is int and metadata is double
+std::cout << std::any_cast<double>(any.metadata()) << std::endl;  // also ok
 ```
