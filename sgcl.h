@@ -1111,27 +1111,23 @@ namespace sgcl {
 						auto count = page->metadata->object_count;
 						for (unsigned i = 0; i < count; ++i) {
 							auto state = states[i].load(std::memory_order_relaxed);
-							if (state != States::Unused) {
-								if (state == States::BadAlloc) {
-									// to implement
-									continue;
-								}
-								if (state >= States::Reachable) {
-									auto index = Page::flag_index_of(i);
-									auto mask = Page::flag_mask_of(i);
-									auto& flag = flags[index];
-									if (!(flag.registered & mask)) {
-										if (!page->registered) {
-											page->registered = true;
-											page->next_registered = _registered_pages;
-											_registered_pages = page;
-										}
+							if (state >= States::Reachable && state <= States::BadAlloc) {
+								auto index = Page::flag_index_of(i);
+								auto mask = Page::flag_mask_of(i);
+								auto& flag = flags[index];
+								if (!(flag.registered & mask)) {
+									if (!page->registered) {
+										page->registered = true;
+										page->next_registered = _registered_pages;
+										_registered_pages = page;
+									}
+									flag.registered |= mask;
+									if (state != States::BadAlloc) {
 										if (!page->reachable) {
 											page->reachable = true;
 											page->next_reachable = _reachable_pages;
 											_reachable_pages = page;
 										}
-										flag.registered |= mask;
 										flag.reachable |= mask;
 									}
 								}
@@ -1300,54 +1296,57 @@ namespace sgcl {
 					bool on_free_list = false;
 					for (unsigned i = 0; i < count; ++i) {
 						auto& flag = flags[i];
-						auto f = flag.registered & ~flag.marked;
-						if (f) {
+						auto unreachable = flag.registered & ~flag.marked;
+						if (unreachable) {
 							for (unsigned j = 0; j < Page::FlagBitCount; ++j) {
 								auto mask = Page::Flag(1) << j;
-								if (f & mask) {
+								if (unreachable & mask) {
 									auto index = i * Page::FlagBitCount + j;
-									if (destroy) {
-										auto p = data + index * object_size;
-										auto data = page->data_of(index);
-										if (!page->metadata->is_array) {
-											auto offsets = page->metadata->pointer_offsets.load(std::memory_order_acquire);
-											if (offsets) {
-												unsigned size = (unsigned)offsets[0];
-												for (unsigned i = 1; i <= size; ++i) {
-													auto p = (Pointer*)(data + offsets[i]);
-													p->store(nullptr, std::memory_order_relaxed);
-												}
-											}
-											destroy((void*)p);
-										} else {
-											auto array = (Array_base*)data;
-											auto metadata = array->metadata.load(std::memory_order_acquire);
-											if (!metadata->tracked_ptrs_only) {
-												auto offsets = metadata->pointer_offsets.load(std::memory_order_acquire);
+									auto state = states[index].load(std::memory_order_relaxed);
+									if (state != States::BadAlloc) {
+										if (destroy) {
+											auto p = data + index * object_size;
+											auto data = page->data_of(index);
+											if (!page->metadata->is_array) {
+												auto offsets = page->metadata->pointer_offsets.load(std::memory_order_acquire);
 												if (offsets) {
 													unsigned size = (unsigned)offsets[0];
-													if (size) {
-														auto data = (uintptr_t)array + sizeof(Array_base);
-														auto object_size = metadata->object_size;
-														for (size_t c = 0; c < array->count; ++c, data += object_size) {
-															for (unsigned i = 1; i <= size; ++i) {
-																auto p = (Pointer*)(data + offsets[i]);
-																p->store(nullptr, std::memory_order_relaxed);
-															}
-														}
+													for (unsigned i = 1; i <= size; ++i) {
+														auto p = (Pointer*)(data + offsets[i]);
+														p->store(nullptr, std::memory_order_relaxed);
 													}
 												}
 												destroy((void*)p);
+											} else {
+												auto array = (Array_base*)data;
+												auto metadata = array->metadata.load(std::memory_order_acquire);
+												if (!metadata->tracked_ptrs_only) {
+													auto offsets = metadata->pointer_offsets.load(std::memory_order_acquire);
+													if (offsets) {
+														unsigned size = (unsigned)offsets[0];
+														if (size) {
+															auto data = (uintptr_t)array + sizeof(Array_base);
+															auto object_size = metadata->object_size;
+															for (size_t c = 0; c < array->count; ++c, data += object_size) {
+																for (unsigned i = 1; i <= size; ++i) {
+																	auto p = (Pointer*)(data + offsets[i]);
+																	p->store(nullptr, std::memory_order_relaxed);
+																}
+															}
+														}
+													}
+													destroy((void*)p);
+												}
 											}
 										}
-									}
-									released.count++;
-									if (!page->metadata->is_array || object_size != sizeof(Array<PageDataSize>)) {
-										released.size += object_size;
-									} else {
-										auto array = (Array_base*)data;
-										auto metadata = array->metadata.load(std::memory_order_acquire);
-										released.size += sizeof(Array<>) + metadata->object_size * array->count;
+										released.count++;
+										if (!page->metadata->is_array || object_size != sizeof(Array<PageDataSize>)) {
+											released.size += object_size;
+										} else {
+											auto array = (Array_base*)data;
+											auto metadata = array->metadata.load(std::memory_order_acquire);
+											released.size += sizeof(Array<>) + metadata->object_size * array->count;
+										}
 									}
 									flag.registered &= ~mask;
 									if (!deregistered) {
@@ -2022,6 +2021,9 @@ namespace sgcl {
 							::operator delete(ptrs);
 						}
 						state = old_state;
+						if (first_recursive_pointer) {
+							thread.clear_recursive_alloc_pointer();
+						}
 						throw;
 					}
 					if (ptrs) {
@@ -2105,6 +2107,9 @@ namespace sgcl {
 					::operator delete(ptrs);
 				}
 				state = old_state;
+				if (first_recursive_pointer) {
+					thread.clear_recursive_alloc_pointer();
+				}
 				throw;
 			}
 			if (ptrs) {
@@ -2431,6 +2436,9 @@ namespace sgcl {
 								::operator delete(ptrs);
 							}
 							state = old_state;
+							if (first_recursive_pointer) {
+								thread.clear_recursive_alloc_pointer();
+							}
 							throw;
 						}
 						if (ptrs) {
@@ -2446,7 +2454,6 @@ namespace sgcl {
 							}
 						}
 						state = old_state;
-
 						if (first_recursive_pointer) {
 							thread.clear_recursive_alloc_pointer();
 						}
