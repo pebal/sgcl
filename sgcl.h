@@ -22,7 +22,7 @@
 // the percentage amount of allocations that will wake up the GC thread
 #define SGCL_TRIGER_PERCENTAGE 25
 
-//#define SGCL_DEBUG
+#define SGCL_DEBUG
 
 #ifdef SGCL_DEBUG
 	#define SGCL_LOG_PRINT_LEVEL 3
@@ -52,8 +52,7 @@ namespace sgcl {
 	template<class T, class ...A>
 	auto make_tracked(A&&...);
 
-	template<class T>
-	tracked_ptr<void> Priv_clone(const void* p);
+	void terminate_collector();
 
 	struct metadata_base {
 		const std::type_info& type;
@@ -945,7 +944,7 @@ namespace sgcl {
 		};
 		static Main_thread_detector main_thread_detector;
 
-		static Thread& current_thread() {
+		static Thread& Current_thread() {
 			static thread_local Thread instance;
 			return instance;
 		}
@@ -971,7 +970,10 @@ namespace sgcl {
 			};
 
 			Collector() {
-				std::thread([this]{_main_loop();}).detach();
+				if (!aborted()) {
+					_terminated.store(false, std::memory_order_relaxed);
+					std::thread([this]{_main_loop();}).detach();
+				}
 			}
 
 			~Collector() {
@@ -979,11 +981,15 @@ namespace sgcl {
 			}
 
 			inline static void abort() noexcept {
-				_abort.store(true, std::memory_order_relaxed);
+				_aborted.store(true, std::memory_order_relaxed);
 			}
 
 			inline static bool aborted() noexcept {
-				return _abort.load(std::memory_order_relaxed);
+				return _aborted.load(std::memory_order_relaxed);
+			}
+
+			inline static bool terminated() noexcept {
+				return _terminated.load(std::memory_order_relaxed);
 			}
 
 		private:
@@ -1449,7 +1455,7 @@ namespace sgcl {
 						std::this_thread::yield();
 					}
 				} while(finalization_counter);
-
+				_terminated.store(true, std::memory_order_relaxed);
 #if SGCL_LOG_PRINT_LEVEL
 				std::cout << "[sgcl] stop collector id: " << std::this_thread::get_id() << std::endl;
 #endif
@@ -1459,11 +1465,11 @@ namespace sgcl {
 			Page* _registered_pages = {nullptr};
 			Counter _allocated_rest;
 
-			inline static std::atomic<bool> _abort = {false};
+			inline static std::atomic<bool> _aborted = {false};
+			inline static std::atomic<bool> _terminated = {true};
 		};
 
 		Thread::~Thread() {
-			using namespace std::chrono_literals;
 			_data->is_used.store(false, std::memory_order_release);
 			if (std::this_thread::get_id() == main_thread_id) {
 				Collector::abort();
@@ -1490,7 +1496,7 @@ namespace sgcl {
 				ptrdiff_t offset = this_addr - stack_addr;
 				bool stack = -MaxStackOffset <= offset && offset <= MaxStackOffset;
 				if (!stack) {
-					auto& thread = current_thread();
+					auto& thread = Current_thread();
 					auto& state = thread.alloc_state;
 					bool root = !(state.range.first <= this_addr && this_addr < state.range.second);
 					if (!root) {
@@ -1511,7 +1517,7 @@ namespace sgcl {
 						}
 					}
 				} else {
-					auto ref = current_thread().stack_allocator->alloc(this);
+					auto ref = Current_thread().stack_allocator->alloc(this);
 					_ref = _set_flag(ref, StackFlag);
 				}
 			}
@@ -1522,7 +1528,7 @@ namespace sgcl {
 				} else if (_ref) {
 					_store(nullptr);
 					if (!_allocated_on_stack() && !Collector::aborted()) {
-						current_thread().roots_allocator->free(_ref);
+						Current_thread().roots_allocator->free(_ref);
 					}
 				}
 			}
@@ -2008,7 +2014,7 @@ namespace sgcl {
 					if (!offsets) {
 						ptrs = (Pointer**)(::operator new(sizeof(T)));
 					}
-					auto& thread = current_thread();
+					auto& thread = Current_thread();
 					bool first_recursive_pointer = thread.set_recursive_alloc_pointer(this->data);
 					auto& state = thread.alloc_state;
 					auto old_state = state;
@@ -2072,19 +2078,19 @@ namespace sgcl {
 			}
 		}
 
-		void collector_init() {
+		void Collector_init() {
 			static Collector collector_instance;
 		}
 
 		template<class T, class U, class ...A>
 		static tracked_ptr<U> Make_tracked(size_t size, A&&... a) {
 			using Info = Page_info<std::remove_cv_t<T>>;
-			collector_init();
+			Collector_init();
 			Pointer** ptrs = nullptr;
 			if (!Info::pointer_offsets.load(std::memory_order_relaxed)) {
 				ptrs = (Pointer**)(::operator new(sizeof(T)));
 			}
-			auto& thread = current_thread();
+			auto& thread = Current_thread();
 			auto& allocator = thread.alocator<std::remove_cv_t<T>>();
 			auto mem = (T*)allocator.alloc(size);
 			bool first_recursive_pointer = thread.set_recursive_alloc_pointer(mem);
@@ -2190,11 +2196,19 @@ namespace sgcl {
 				}
 			}
 		};
-	}
+	} // namespace Priv
 
 	template<class T, class ...A>
 	auto make_tracked(A&&... a) {
 		return Priv::Maker<T>::make_tracked(std::forward<A>(a)...);
+	}
+
+	void terminate_collector() {
+		using namespace std::chrono_literals;
+		Priv::Collector::abort();
+		while (!Priv::Collector::terminated()) {
+			std::this_thread::sleep_for(1ms);
+		}
 	}
 } // namespace sgcl
 
@@ -2423,7 +2437,7 @@ namespace sgcl {
 						if (!offsets) {
 							ptrs = (Pointer**)(::operator new(sizeof(T)));
 						}
-						auto& thread = current_thread();
+						auto& thread = Current_thread();
 						bool first_recursive_pointer = thread.set_recursive_alloc_pointer(p);
 						auto& state = thread.alloc_state;
 						auto old_state = state;

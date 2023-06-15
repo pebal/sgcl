@@ -89,4 +89,11 @@ tracked_container<std::deque<node, tracked_allocator<node>>> deq;
 metadata<int>::set(3.14);
 std::cout << any.metadata<double>() << std::endl;  // ok, any is int and metadata is double
 std::cout << std::any_cast<double>(any.metadata()) << std::endl;  // also ok
+
+// terminate collector (optional, not required)
+int main() {
+    ...
+    terminate_collector();
+    return 0;
+}
 ```
