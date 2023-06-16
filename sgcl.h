@@ -22,7 +22,7 @@
 // the percentage amount of allocations that will wake up the GC thread
 #define SGCL_TRIGER_PERCENTAGE 25
 
-#define SGCL_DEBUG
+//#define SGCL_DEBUG
 
 #ifdef SGCL_DEBUG
 	#define SGCL_LOG_PRINT_LEVEL 3
@@ -52,7 +52,7 @@ namespace sgcl {
 	template<class T, class ...A>
 	auto make_tracked(A&&...);
 
-	void terminate_collector();
+	void terminate_collector() noexcept;
 
 	struct metadata_base {
 		const std::type_info& type;
@@ -988,6 +988,14 @@ namespace sgcl {
 				return _aborted.load(std::memory_order_relaxed);
 			}
 
+			inline static void terminate() noexcept {
+				using namespace std::chrono_literals;
+				abort();
+				while (!terminated()) {
+					std::this_thread::sleep_for(1ms);
+				}
+			}
+
 			inline static bool terminated() noexcept {
 				return _terminated.load(std::memory_order_relaxed);
 			}
@@ -1455,10 +1463,10 @@ namespace sgcl {
 						std::this_thread::yield();
 					}
 				} while(finalization_counter);
-				_terminated.store(true, std::memory_order_relaxed);
 #if SGCL_LOG_PRINT_LEVEL
 				std::cout << "[sgcl] stop collector id: " << std::this_thread::get_id() << std::endl;
 #endif
+				_terminated.store(true, std::memory_order_relaxed);
 			}
 
 			Page* _reachable_pages = {nullptr};
@@ -2203,12 +2211,8 @@ namespace sgcl {
 		return Priv::Maker<T>::make_tracked(std::forward<A>(a)...);
 	}
 
-	void terminate_collector() {
-		using namespace std::chrono_literals;
-		Priv::Collector::abort();
-		while (!Priv::Collector::terminated()) {
-			std::this_thread::sleep_for(1ms);
-		}
+	void terminate_collector() noexcept {
+		Priv::Collector::terminate();
 	}
 } // namespace sgcl
 
