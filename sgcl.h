@@ -1,7 +1,7 @@
 //------------------------------------------------------------------------------
 // SGCL - a real-time Garbage Collector for C++
-// Copyright (c) Sebastian Nibisz
-// SPDX-License-Identifier: LGPL-3.0-only
+// Copyright (c) 2022, 2023 Sebastian Nibisz
+// SPDX-License-Identifier: Zlib
 //------------------------------------------------------------------------------
 #ifndef SGCL_H
 #define SGCL_H
