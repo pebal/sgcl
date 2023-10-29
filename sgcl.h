@@ -193,7 +193,7 @@ namespace sgcl {
 			const bool tracked_ptrs_only;
 		};
 
-		Array_base::~Array_base() noexcept {
+		inline Array_base::~Array_base() noexcept {
 			auto metadata = this->metadata.load(std::memory_order_acquire);
 			if (metadata && metadata->destroy) {
 				metadata->destroy(this + 1, count);
@@ -1477,7 +1477,7 @@ namespace sgcl {
 			inline static std::atomic<bool> _terminated = {true};
 		};
 
-		Thread::~Thread() {
+		inline Thread::~Thread() {
 			_data->is_used.store(false, std::memory_order_release);
 			if (std::this_thread::get_id() == main_thread_id) {
 				Collector::abort();
@@ -2086,7 +2086,7 @@ namespace sgcl {
 			}
 		}
 
-		void Collector_init() {
+		inline void Collector_init() {
 			static Collector collector_instance;
 		}
 
@@ -2211,7 +2211,7 @@ namespace sgcl {
 		return Priv::Maker<T>::make_tracked(std::forward<A>(a)...);
 	}
 
-	void terminate_collector() noexcept {
+	inline void terminate_collector() noexcept {
 		Priv::Collector::terminate();
 	}
 } // namespace sgcl
