@@ -1405,6 +1405,34 @@ namespace sgcl {
 				return released;
 			}
 
+			Counter _remove_all() noexcept {
+				Counter released;
+				auto page = _registered_pages;
+				Metadata* metadata = nullptr;
+				while(page) {
+					bool deregistered = false;
+					auto destroy = page->metadata->destroy;
+					auto states = page->states();
+					auto data = page->data;
+					auto object_size = page->metadata->object_size;
+					auto flags = page->flags();
+					auto count = page->flags_count();
+					bool on_free_list = false;
+					for (unsigned i = 0; i < count; ++i) {
+						auto& flag = flags[i];
+						// flag.reachable = 1;
+						flag.marked = 0;
+					}
+					
+					page = page->next_registered;
+				}
+
+				_aborted.store(false, std::memory_order_relaxed);
+				Counter last_removed = _remove_garbage();
+				abort();
+				return last_removed;
+			}
+
 			void _main_loop() noexcept {
 				static constexpr int64_t MinLiveSize = PageSize;
 				static constexpr int64_t MinLiveCount = MinLiveSize / sizeof(uintptr_t) * 2;
@@ -1463,6 +1491,20 @@ namespace sgcl {
 						std::this_thread::yield();
 					}
 				} while(finalization_counter);
+
+#if SGCL_LOG_PRINT_LEVEL >= 2
+				auto start = std::chrono::high_resolution_clock::now();
+#endif
+				Counter last_removed = _remove_all();
+				Counter last_allocated = _alloc_counter() - allocated;
+				Counter live = allocated + last_allocated - (removed + last_removed);
+#if SGCL_LOG_PRINT_LEVEL >= 2
+				auto end = std::chrono::high_resolution_clock::now();
+				std::cout << "[sgcl] live objects: " << live.count << ", destroyed: " << last_removed.count << ", time: "
+								<< std::chrono::duration<double, std::milli>(end - start).count() << "ms"
+								<< std::endl;
+#endif
+
 #if SGCL_LOG_PRINT_LEVEL
 				std::cout << "[sgcl] stop collector id: " << std::this_thread::get_id() << std::endl;
 #endif
