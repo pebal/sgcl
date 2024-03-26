@@ -1,21 +1,9 @@
-# SGCL
-## About the SGCL
-SGCL is a real-time garbage collector for C++. Provides fully tracked smart pointers, similar in use to shared_ptr.
-## Features
-- Thread safe
-- Does not use reference counters
-- Easy to use like shared_ptr
-- Less memory overhead than shared_ptr
-- Faster than shared_ptr
-- Never stop the world
-- Cyclic data structures friendly
-- CoW friendly
-- Atomic pointers always lock-free
+//------------------------------------------------------------------------------
+// SGCL - a real-time Garbage Collector for C++
+// Copyright (c) 2022-2024 Sebastian Nibisz
+// SPDX-License-Identifier: Zlib
+//------------------------------------------------------------------------------
 
-## Compiling
-C++17 compiler required. Tested on Windows with VC++, Clang and MinGW compilers.
-## Example
-```cpp
 #include "sgcl/sgcl.h"
 #include <iostream>
 
@@ -108,4 +96,3 @@ int main() {
     // terminate collector (optional, not required)
     collector::terminate();
 }
-```
