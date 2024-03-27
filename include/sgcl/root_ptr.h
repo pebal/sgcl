@@ -70,7 +70,7 @@ namespace sgcl {
         ~root_ptr() {
             if (_ref) {
                 _ptr().store(nullptr);
-                if (_is_heap_root() && !Priv::Collector::aborted()) {
+                if (_is_heap_root() && !Priv::Collector::terminated()) {
                     Priv::Current_thread().heap_roots_allocator->free(_ref);
                 }
             }

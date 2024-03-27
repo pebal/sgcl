@@ -6,7 +6,6 @@
 #pragma once
 
 #include "child_pointers.h"
-#include "collector_state.h"
 #include "heap_roots_allocator.h"
 #include "large_object_allocator.h"
 #include "small_object_allocator.h"
@@ -20,6 +19,7 @@
 
 namespace sgcl {
     namespace Priv {
+        void Terminate_collector();
         struct Thread {
             struct Data {
                 Data(Block_allocator* b, Stack_roots_allocator* s) noexcept
@@ -58,7 +58,7 @@ namespace sgcl {
             ~Thread() {
                 _data->is_used.store(false, std::memory_order_release);
                 if (std::this_thread::get_id() == main_thread_id) {
-                    Collector_state::aborted.store(true, std::memory_order_release);
+                    Terminate_collector();
                 }
 #if SGCL_LOG_PRINT_LEVEL >= 3
                 std::cout << "[sgcl] stop thread id: " << std::this_thread::get_id() << std::endl;

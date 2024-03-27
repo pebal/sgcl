@@ -93,6 +93,16 @@ int main() {
 
     any.metadata()->test();
 
+    // force cellect
+    collector::force_collect();
+
+    // force collect and wait for the cycle to complete
+    collector::force_collect(true);
+
+    // get number of living objects
+    auto live_objects = collector::live_object_count();
+    std::cout << "live objects: " << live_objects << std::endl;
+
     // terminate collector (optional, not required)
     collector::terminate();
 }

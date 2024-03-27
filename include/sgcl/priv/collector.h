@@ -7,11 +7,11 @@
 
 #include "../configuration.h"
 #include "array.h"
-#include "collector_state.h"
 #include "counter.h"
 #include "timer.h"
 #include "thread.h"
 
+#include <condition_variable>
 #include <thread>
 
 #if SGCL_LOG_PRINT_LEVEL
@@ -20,36 +20,51 @@
 
 namespace sgcl {
     namespace Priv {
+        inline Collector& Collector_instance();
+
         struct Collector {
             Collector() {
-                if (!aborted()) {
-                    Collector_state::terminated.store(false, std::memory_order_release);
+                if (!created()) {
+                    _created = true;
                     std::thread([this]{_main_loop();}).detach();
                 }
             }
 
             ~Collector() {
-                abort();
+                _terminate();
             }
 
-            inline static void abort() noexcept {
-                Collector_state::aborted.store(true, std::memory_order_release);
+            void force_collect(bool wait) noexcept {
+#if SGCL_LOG_PRINT_LEVEL
+                std::cout << "[sgcl] force collect " << (wait ? "and wait " : "") << "from id: " << std::this_thread::get_id() << std::endl;
+#endif
+                _forced_collect_count.store(3, std::memory_order_release);
+                if (wait) {
+                    std::unique_lock<std::mutex> lock(_mutex);
+                    if (!_terminating.load(std::memory_order_relaxed)) {
+                        _forced_collect_cv.wait(lock, [this]{
+                            return _forced_collect_count.load(std::memory_order_relaxed) == 0;
+                        });
+                    }
+                }
             }
 
-            inline static bool aborted() noexcept {
-                return Collector_state::aborted.load(std::memory_order_acquire);
+            int64_t live_object_count() const noexcept {
+                return _live_object_count.load(std::memory_order_acquire);
             }
 
-            inline static void terminate() noexcept {
-                using namespace std::chrono_literals;
-                abort();
-                while (!terminated()) {
-                    std::this_thread::sleep_for(1ms);
+            void static terminate() noexcept {
+                if (created()) {
+                    Collector_instance()._terminate();
                 }
             }
 
             inline static bool terminated() noexcept {
-                return Collector_state::terminated.load(std::memory_order_acquire);
+                return _terminating.load(std::memory_order_acquire);
+            }
+
+            inline static bool created() {
+                return _created.load(std::memory_order_acquire);
             }
 
         private:
@@ -112,7 +127,7 @@ namespace sgcl {
 
             void _update_states() {
                 static Timer timer;
-                bool atomic = aborted();
+                bool atomic = _terminating;
                 if (timer.duration() >= DeletionDelayMsec / (State::ReachableAtomic - 2)) {
                     atomic = true;
                     timer.reset();
@@ -551,6 +566,7 @@ namespace sgcl {
                     _release_unused_pages();
                     Counter last_allocated = _alloc_counter() - allocated;
                     Counter live = allocated + last_allocated - (removed + last_removed);
+                    _live_object_count.store(live.count, std::memory_order_release);
                     assert(live.count >= 0 && live.size >= 0);
 #if SGCL_LOG_PRINT_LEVEL >= 2
                     auto end = std::chrono::high_resolution_clock::now();
@@ -560,9 +576,23 @@ namespace sgcl {
 #endif
                     Timer timer;
                     do {
+                        if (_terminating) {
+                            break;
+                        }
+                        auto forceed_count = _forced_collect_count.load(std::memory_order_relaxed);
+                        if (forceed_count) {
+                            forceed_count--;
+                            _forced_collect_count.store(forceed_count, std::memory_order_relaxed);
+                            if (!forceed_count) {
+                                std::lock_guard<std::mutex> lock(_mutex);
+                                _forced_collect_cv.notify_all();
+                            }
+                            else {
+                                break;
+                            }
+                        }
                         if ((std::max(last_allocated.count, last_removed.count) * 100 / SGCL_TRIGER_PERCENTAGE >= live.count + MinLiveCount)
-                            || (std::max(last_allocated.size, last_removed.size) * 100 / SGCL_TRIGER_PERCENTAGE >= live.size + MinLiveSize)
-                            || aborted()) {
+                            || (std::max(last_allocated.size, last_removed.size) * 100 / SGCL_TRIGER_PERCENTAGE >= live.size + MinLiveSize)) {
                             break;
                         }
                         if (max_removed.count > last_allocated.count * 2 && max_removed.count > MinLiveCount
@@ -572,10 +602,10 @@ namespace sgcl {
                         std::this_thread::sleep_for(1ms);
                         last_allocated = _alloc_counter() - allocated;
                         live = allocated + last_allocated - (removed + last_removed);
-                    } while(!live.count || (timer.duration() < SGCL_MAX_SLEEP_TIME_SEC * 1000 && !aborted()));
+                    } while(!live.count || (timer.duration() < SGCL_MAX_SLEEP_TIME_SEC * 1000));
                     allocated += last_allocated;
                     removed += last_removed;
-                    if (!last_removed.count && aborted()) {
+                    if (!last_removed.count && _terminating) {
                         if (live.count) {
                             --finalization_counter;
                         } else {
@@ -586,16 +616,50 @@ namespace sgcl {
 #if SGCL_LOG_PRINT_LEVEL
                 std::cout << "[sgcl] stop collector id: " << std::this_thread::get_id() << std::endl;
 #endif
-                Collector_state::terminated.store(true, std::memory_order_release);
+                if (_terminating) {
+                    std::lock_guard<std::mutex> lock(_mutex);
+                    _terminated = true;
+                    _terminate_cv.notify_all();
+                }
+            }
+
+            void _terminate() noexcept {
+                std::unique_lock<std::mutex> lock(_mutex);
+                if (!_terminating.load(std::memory_order_relaxed)) {
+#if SGCL_LOG_PRINT_LEVEL
+                    std::cout << "[sgcl] terminate collector from id: " << std::this_thread::get_id() << std::endl;
+#endif
+                    _terminating.store(true, std::memory_order_release);
+                    _terminate_cv.wait(lock, [this]{
+                        return _terminated;
+                    });
+                }
             }
 
             Page* _reachable_pages = {nullptr};
             Page* _registered_pages = {nullptr};
             Counter _allocated_rest;
+            std::atomic<int> _forced_collect_count = {0};
+            std::condition_variable _forced_collect_cv;
+            std::condition_variable _terminate_cv;
+            bool _terminated = {false};
+            std::mutex _mutex;
+            std::atomic<int64_t> _live_object_count = {0};
+            inline static std::atomic<bool> _terminating = {false};
+            inline static std::atomic<bool> _created = {false};
         };
 
-        inline void Collector_init() {
+        inline Collector& Collector_instance() {
             static Collector collector_instance;
+            return collector_instance;
+        }
+
+        inline void Collector_init() {
+            Collector_instance();
+        }
+
+        inline void Terminate_collector() {
+            Collector::terminate();
         }
 
         inline void Delete_unique(const void* p) {

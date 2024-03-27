@@ -21,7 +21,6 @@ namespace sgcl {
         struct Block_allocator;
         struct Child_pointers;
         struct Collector;
-        struct Collector_state;
         struct Counter;
         struct DataPage;
         struct Heap_roots_allocator;
