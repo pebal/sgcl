@@ -101,24 +101,26 @@ int main() {
     metadata::set<int>(&mdata);
     any.metadata()->to_string(any.get());
 
-    // force cellect
-    collector::force_collect();
-
-    // force collect and wait for the cycle to complete
-    collector::force_collect(true);
-
-    // get number of living objects
-    auto live_object_number = collector::live_object_count();
-    std::cout << "live object number: " << live_object_number << std::endl;
-
-    // get live objects
-    auto live_objects = collector::live_objects();
-    for (auto& v: live_objects) {
-        std::cout << v.get() << ", ";
+    // Methods useful for state analysis and supporting testing processes.
+    {
+        // force cellect
+        collector::force_collect();
+    
+        // force collect and wait for the cycle to complete
+        collector::force_collect(true);
+    
+        // get number of living objects
+        auto live_object_number = collector::live_object_count();
+        std::cout << "live object number: " << live_object_number << std::endl;
+    
+        // get live objects
+        auto live_objects = collector::live_objects();
+        for (auto& v: live_objects) {
+            std::cout << v.get() << " " << v.type().name() << std::endl;
+        }
+    
+        // terminate collector
+        collector::terminate();
     }
-    std::cout << std::endl;
-
-    // terminate collector (optional, not required)
-    collector::terminate();
 }
 ```
