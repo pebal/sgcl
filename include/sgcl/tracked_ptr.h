@@ -39,7 +39,7 @@ namespace sgcl {
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
-        tracked_ptr(std::unique_ptr<U, unique_deleter>&& u) {
+        tracked_ptr(unique_ptr<U>&& u) {
             auto p = u.release();
             _ptr().force_store(static_cast<element_type*>(p));
         }
@@ -71,7 +71,7 @@ namespace sgcl {
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
-        tracked_ptr& operator=(std::unique_ptr<U, unique_deleter>&& u) noexcept {
+        tracked_ptr& operator=(unique_ptr<U>&& u) noexcept {
             auto p = u.release();
             _ptr().force_store(static_cast<element_type*>(p));
             return *this;
@@ -129,15 +129,8 @@ namespace sgcl {
             p = l;
         }
 
-        static constexpr bool is_always_lock_free = Priv::Pointer::is_always_lock_free;
-
-        bool is_lock_free() const noexcept {
-            return _ptr()->is_lock_free();
-        }
-
-        template <class U = T, std::enable_if_t<!std::is_array_v<U>, int> = 0>
         unique_ptr<T> clone() const {
-            return _ptr().template clone<T>();
+            return (element_type*)_ptr().clone();
         }
 
         template<class U, std::enable_if_t<!std::is_array_v<U>, int> = 0>

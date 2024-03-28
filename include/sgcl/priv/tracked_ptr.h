@@ -128,9 +128,13 @@ namespace sgcl {
                 return res;
             }
 
+            inline static void* base_address_of(void* p) noexcept {
+                return p ? Page::base_address_of(p) : nullptr;
+            }
+
             void* base_address() const noexcept {
                 auto p = load();
-                return p ? Page::base_address_of(p) : nullptr;
+                return p ? base_address_of(p) : nullptr;
             }
 
             bool is_lock_free() const noexcept {
@@ -138,8 +142,7 @@ namespace sgcl {
             }
 
             template<class T>
-            sgcl::metadata*& metadata() const noexcept {
-                auto p = load();
+            inline static sgcl::metadata*& metadata(void* p) noexcept {
                 if (p) {
                     auto metadata = Page::metadata_of(p);
                     if (metadata.is_array) {
@@ -155,12 +158,17 @@ namespace sgcl {
             }
 
             template<class T>
-            const std::type_info& type_info() const noexcept {
+            sgcl::metadata*& metadata() const noexcept {
                 auto p = load();
+                return metadata<T>(p);
+            }
+
+            template<class T>
+            inline static const std::type_info& type_info(void* p) noexcept {
                 if (p) {
                     auto metadata = Page::metadata_of(p);
                     if (metadata.is_array) {
-                        auto array = (Array_base*)Page::base_address_of(load());
+                        auto array = (Array_base*)Page::base_address_of(p);
                         auto metadata = array->metadata.load(std::memory_order_relaxed);
                         return metadata->type_info;
                     } else {
@@ -171,30 +179,37 @@ namespace sgcl {
                 }
             }
 
-            template <class T>
-            Unique_ptr<T> clone() const {
-                using element_type = std::remove_extent_t<T>;
+            template<class T>
+            const std::type_info& type_info() const noexcept {
                 auto p = load();
+                return type_info<T>(p);
+            }
+
+            inline static void* clone(void* p) {
                 if (p) {
                     auto metadata = Page::metadata_of(p);
                     if (metadata.is_array) {
-                        auto array = (Array_base*)Page::base_address_of(load());
+                        auto array = (Array_base*)Page::base_address_of(p);
                         auto metadata = array->metadata.load(std::memory_order_relaxed);
                         auto c = metadata->clone(p);
-                        return Unique_ptr<T>((element_type*)(c.release()));
+                        return (void*)c;
                     } else {
                         auto c = metadata.clone(p);
-                        return Unique_ptr<T>((element_type*)(c.release()));
+                        return (void*)c;
                     }
                 } else {
                     return nullptr;
                 }
             }
 
+            void* clone() const {
+                auto p = load();
+                return clone(p);
+            }
+
             template<class T>
-            constexpr bool is_array() const noexcept {
+            inline static constexpr bool is_array(void* p) noexcept {
                 if constexpr(std::is_same_v<std::remove_cv_t<T>, void>) {
-                    auto p = load();
                     if (p) {
                         return Page::metadata_of(p).is_array;
                     } else {
@@ -203,6 +218,12 @@ namespace sgcl {
                 } else {
                     return std::is_array_v<T>;
                 }
+            }
+
+            template<class T>
+            constexpr bool is_array() const noexcept {
+                auto p = load();
+                return is_array<T>(p);
             }
 
         private:
@@ -231,7 +252,7 @@ namespace sgcl {
         };
 
         template<class T>
-        Unique_ptr<void> Clone(const void* p) {
+        void* Clone(const void* p) {
             using element_type = std::remove_extent_t<T>;
             if constexpr (std::is_copy_constructible_v<element_type>) {
                 if (p) {
@@ -243,13 +264,14 @@ namespace sgcl {
                             for (size_t i = 0; i < array->count; ++i) {
                                 dst[i] = src[i];
                             }
-                            return Unique_ptr<void>(dst.release());
+                            return dst.release();
                         } else {
                             assert(!"[sgcl] clone(): no copy assignable");
                             return nullptr;
                         }
                     } else {
-                        return Maker<T>::make_tracked(*((const T*)p));
+                        auto c = Maker<T>::make_tracked(*((const T*)p));
+                        return c.release();
                     }
                 }
                 else {

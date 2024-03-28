@@ -8,12 +8,11 @@
 #include "../configuration.h"
 #include "array_base.h"
 #include "child_pointers.h"
-#include "unique_ptr.h"
 
 namespace sgcl {
     namespace Priv {
         template<class T>
-        Unique_ptr<void> Clone(const void*);
+        void* Clone(const void*);
 
         struct Metadata {
             template<class T>
@@ -32,7 +31,7 @@ namespace sgcl {
             Child_pointers& child_pointers;
             void (*const destroy)(void*) noexcept;
             void (*const free)(Page*);
-            Unique_ptr<void> (*const clone)(const void*);
+            void* (*const clone)(const void*);
             const size_t object_size;
             const unsigned object_count;
             bool is_array;

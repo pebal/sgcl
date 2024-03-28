@@ -21,7 +21,7 @@
 
 namespace sgcl {
     struct metadata : metadata_base {
-        virtual void test() {}
+        virtual void to_string(void*) {}
     };
 
     namespace Priv {

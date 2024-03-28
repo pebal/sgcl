@@ -9,12 +9,11 @@
 #include "array_base.h"
 #include "child_pointers.h"
 #include "tracked.h"
-#include "unique_ptr.h"
 
 namespace sgcl {
     namespace Priv {
         template<class T>
-        Unique_ptr<void> Clone(const void*);
+        void* Clone(const void*);
 
         struct Array_metadata {
             template<class T>
@@ -30,7 +29,7 @@ namespace sgcl {
 
             Child_pointers& child_pointers;
             void (*const destroy)(void*, size_t) noexcept;
-            Unique_ptr<void> (*const clone)(const void*);
+            void* (*const clone)(const void*);
             const std::type_info& type_info;
             const size_t object_size;
             metadata*& user_metadata;

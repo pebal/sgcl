@@ -5,12 +5,15 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "collector.h"
+#include "array.h"
+#include "unique_ptr.h"
 
 #include <cstring>
 
 namespace sgcl {
     namespace Priv {
+        void Collector_init();
+
         template<class T>
         struct Maker {
             template<class ...A>

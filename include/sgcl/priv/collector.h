@@ -10,12 +10,14 @@
 #include "counter.h"
 #include "timer.h"
 #include "thread.h"
+#include "unique_ptr.h"
+#include "maker.h"
 
 #include <condition_variable>
 #include <thread>
 
-#if SGCL_LOG_PRINT_LEVEL
 #include <iostream>
+#if SGCL_LOG_PRINT_LEVEL
 #endif
 
 namespace sgcl {
@@ -38,19 +40,33 @@ namespace sgcl {
 #if SGCL_LOG_PRINT_LEVEL
                 std::cout << "[sgcl] force collect " << (wait ? "and wait " : "") << "from id: " << std::this_thread::get_id() << std::endl;
 #endif
-                _forced_collect_count.store(3, std::memory_order_release);
                 if (wait) {
                     std::unique_lock<std::mutex> lock(_mutex);
                     if (!_terminating.load(std::memory_order_relaxed)) {
+                        _forced_collect_count.store(3, std::memory_order_release);
                         _forced_collect_cv.wait(lock, [this]{
                             return _forced_collect_count.load(std::memory_order_relaxed) == 0;
                         });
                     }
+                } else {
+                    _forced_collect_count.store(3, std::memory_order_release);
                 }
             }
 
             int64_t live_object_count() const noexcept {
                 return _live_object_count.load(std::memory_order_acquire);
+            }
+
+            void live_objects(Unique_ptr<Tracked_ptr[]>& array) noexcept {
+                std::unique_lock<std::mutex> lock(_mutex);
+                if (!_terminating.load(std::memory_order_relaxed)) {
+                    _live_objects_ref.store(&array, std::memory_order_relaxed);
+                    _forced_collect_count.store(3, std::memory_order_release);
+                    _forced_collect_cv.wait(lock, [this]{
+                        return _forced_collect_count.load(std::memory_order_relaxed) == 0;
+                    });
+                    _live_objects_ref.store(nullptr, std::memory_order_release);
+                }
             }
 
             void static terminate() noexcept {
@@ -214,7 +230,8 @@ namespace sgcl {
                     auto mask = Page::flag_mask_of(index);
                     auto& flag = page->flags()[flag_index];
                     //if (!(flag.marked & mask)) {
-                    if ((flag.registered & mask) && !(flag.marked & mask)) {
+                    //if ((flag.registered & mask) && !(flag.marked & mask) && !(flag.reachable & mask)) {
+                    if ((flag.registered & ~flag.marked & ~flag.reachable & mask)) {
                         flag.reachable |= mask;
                         if (!page->reachable) {
                             page->reachable = true;
@@ -332,6 +349,10 @@ namespace sgcl {
                                             _mark_array_childs(page->data_of(index));
                                         }
                                         marked = true;
+                                        if (_live_objects_request) {
+                                            auto p = (void*)page->data_of(index);
+                                            _live_objects.emplace_back(p);
+                                        }
                                     }
                                 }
                                 flag.reachable &= ~flag.marked;
@@ -585,9 +606,25 @@ namespace sgcl {
                             _forced_collect_count.store(forceed_count, std::memory_order_relaxed);
                             if (!forceed_count) {
                                 std::lock_guard<std::mutex> lock(_mutex);
+                                if (_live_objects_request) {
+                                    if (_live_objects.size()) {
+                                        auto array = Maker<Tracked_ptr[]>::make_tracked(_live_objects.size());
+                                        for (size_t i = 0; i < _live_objects.size(); ++i) {
+                                            array[i].store(_live_objects[i]);
+                                        }
+                                        auto ref = _live_objects_ref.load();
+                                        *ref = std::move(array);
+                                    }
+                                    std::vector<void*>().swap(_live_objects);
+                                    _live_objects_request = false;
+                                }
                                 _forced_collect_cv.notify_all();
                             }
                             else {
+                                if (forceed_count == 1 && _live_objects_ref) {
+                                    std::vector<void*>().swap(_live_objects);
+                                    _live_objects_request = true;
+                                }
                                 break;
                             }
                         }
@@ -647,6 +684,9 @@ namespace sgcl {
             std::atomic<int64_t> _live_object_count = {0};
             inline static std::atomic<bool> _terminating = {false};
             inline static std::atomic<bool> _created = {false};
+            std::vector<void*> _live_objects;
+            std::atomic<Unique_ptr<Tracked_ptr[]>*> _live_objects_ref = {nullptr};
+            bool _live_objects_request = {false};
         };
 
         inline Collector& Collector_instance() {

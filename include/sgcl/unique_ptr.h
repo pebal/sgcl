@@ -5,11 +5,9 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "unique_deleter.h"
-
-#include <memory>
+#include "priv/unique_ptr.h"
 
 namespace sgcl {
     template<class T>
-    using unique_ptr = std::unique_ptr<T, unique_deleter>;
+    using unique_ptr = typename Priv::Unique_ptr<T>;
 }

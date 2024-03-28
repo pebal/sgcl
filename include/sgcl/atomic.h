@@ -36,7 +36,7 @@ namespace sgcl {
         static constexpr bool is_always_lock_free = Priv::Pointer::is_always_lock_free;
 
         bool is_lock_free() const noexcept {
-            return _val._is_lock_free();
+            return _ptr()._is_lock_free();
         }
 
         root_ptr<Type> load(const std::memory_order m = std::memory_order_seq_cst) const {

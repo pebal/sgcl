@@ -55,6 +55,9 @@ namespace sgcl {
         class Tracked_ptr;
         struct Unique_deleter;
 
+        template<class T>
+        class Unique_ptr;
+
         enum State : uint8_t {
             Used = 0,
             Reachable,
