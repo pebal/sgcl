@@ -16,6 +16,9 @@ SGCL is a real-time garbage collector for C++. Provides fully tracked smart poin
 C++17 compiler required. Tested on Windows with VC++, Clang and MinGW compilers.
 ## Example
 ```cpp
+#include "sgcl/sgcl.h"
+#include <iostream>
+
 int main() {
     using namespace sgcl;
 

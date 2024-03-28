@@ -39,7 +39,7 @@ namespace sgcl {
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
-        tracked_ptr(unique_ptr<U>&& u) {
+        explicit tracked_ptr(unique_ptr<U>&& u) {
             auto p = u.release();
             _ptr().force_store(static_cast<element_type*>(p));
         }
