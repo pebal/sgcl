@@ -9,6 +9,7 @@
 #include "metadata.h"
 
 #include <cassert>
+#include <cstring>
 
 namespace sgcl {
     namespace Priv {
@@ -30,15 +31,8 @@ namespace sgcl {
                 , multiplier((1ull << 32 | 0x10000) / metadata->object_size) {
                 assert(metadata != nullptr);
                 assert(data != nullptr);
-                auto states = this->states();
-                for (unsigned i = 0; i < metadata->object_count; ++i) {
-                    new(states + i) std::atomic<State>(State::Reserved);
-                }
-                auto flags = this->flags();
-                auto count = this->flags_count();
-                for (unsigned i = 0; i < count; ++i) {
-                    new (flags + i) Flags;
-                }
+                std::memset(this->states(), State::Reserved, metadata->object_count);
+                std::memset(this->flags(), 0, sizeof(Flags) * this->flags_count());
             }
 
             ~Page() {

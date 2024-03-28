@@ -229,8 +229,6 @@ namespace sgcl {
                     auto flag_index = Page::flag_index_of(index);
                     auto mask = Page::flag_mask_of(index);
                     auto& flag = page->flags()[flag_index];
-                    //if (!(flag.marked & mask)) {
-                    //if ((flag.registered & mask) && !(flag.marked & mask) && !(flag.reachable & mask)) {
                     if ((flag.registered & ~flag.marked & ~flag.reachable & mask)) {
                         flag.reachable |= mask;
                         if (!page->reachable) {
@@ -381,7 +379,7 @@ namespace sgcl {
                             auto index = Page::flag_index_of(i);
                             auto mask = Page::flag_mask_of(i);
                             auto& flag = flags[index];
-                            if ((flag.registered & mask) && !(flag.marked & mask)) {
+                            if (flag.registered & ~flag.marked & mask) {
                                 flag.reachable |= mask;
                                 reachable = true;
                             }
