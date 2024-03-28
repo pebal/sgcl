@@ -65,18 +65,18 @@ private:
     }
 
     std::array<Root, 3> _split(int value) const {
-        auto split = [](auto&& self, const Ptr& orig, Ptr& lower, Ptr& greaterOrEqual, int value) -> void {
+        auto split = [](auto&& self, const Ptr& orig, Ptr& lower, Ptr& greater, int value) -> void {
             if (!orig) {
                 lower = nullptr;
-                greaterOrEqual = nullptr;
+                greater = nullptr;
             }
             else if (orig->value < value) {
                 lower = orig;
-                self(self, lower->right, lower->right, greaterOrEqual, value);
+                self(self, lower->right, lower->right, greater, value);
             }
             else {
-                greaterOrEqual = orig;
-                self(self, greaterOrEqual->left, lower, greaterOrEqual->left, value);
+                greater = orig;
+                self(self, greater->left, lower, greater->left, value);
             }
         };
         Root lower, equal, equal_or_greater, greater;
