@@ -22,8 +22,16 @@ namespace sgcl {
             : _val(nullptr) {
         }
 
-        atomic(const value_type& p)
+        atomic(const root_ptr<Type>& p)
             : _val(p) {
+        }
+
+        atomic(const tracked_ptr<Type>& p)
+            : _val(p) {
+        }
+
+        atomic(unique_ptr<Type>&& p)
+            : _val(std::move(p)) {
         }
 
         atomic(const atomic&) = delete;
@@ -49,6 +57,11 @@ namespace sgcl {
         void store(const tracked_ptr<Type>& p, const std::memory_order m = std::memory_order_seq_cst) noexcept {
             _ptr().update_atomic();
             _ptr().store(p.get(), m);
+        }
+
+        void store(unique_ptr<Type>&& p, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+            _ptr().update_atomic();
+            _ptr().store(p.release(), m);
         }
 
         void exchange(tracked_ptr<Type>& p, const std::memory_order m = std::memory_order_seq_cst) {
