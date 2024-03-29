@@ -6,12 +6,12 @@
 using namespace sgcl;
 
 class treap {
-    struct node;
-    using Root = root_ptr<node>;
-    using Ptr = tracked_ptr<node>;
+    struct Node;
+    using Root = root_ptr<Node>;
+    using Ptr = tracked_ptr<Node>;
 
-    struct node {
-        node(int v): value(v) {}
+    struct Node {
+        Node(int v): value(v) {}
         const int value;
         const int priority = rand();
         Ptr left;
@@ -19,7 +19,7 @@ class treap {
     };
 
     inline static auto _make = [](int value) {
-        return make_tracked<node>(value);
+        return make_tracked<Node>(value);
     };
 
 public:
