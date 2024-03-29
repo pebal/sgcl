@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL - a real-time Garbage Collector for C++
+// SGCL: Smart Garbage Collection Library
 // Copyright (c) 2022-2024 Sebastian Nibisz
 // SPDX-License-Identifier: Zlib
 //------------------------------------------------------------------------------
@@ -58,6 +58,12 @@ namespace sgcl {
         template<class U, std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
         root_ptr(root_ptr<U>&& p)
         : root_ptr(std::move(p), static_cast<element_type*>(p.get())) {
+        }
+
+        root_ptr(unique_ptr<T>&& u)
+            : root_ptr() {
+            auto p = u.release();
+            _ptr().force_store(static_cast<element_type*>(p));
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>

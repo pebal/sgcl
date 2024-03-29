@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL - a real-time Garbage Collector for C++
+// SGCL: Smart Garbage Collection Library
 // Copyright (c) 2022-2024 Sebastian Nibisz
 // SPDX-License-Identifier: Zlib
 //------------------------------------------------------------------------------
