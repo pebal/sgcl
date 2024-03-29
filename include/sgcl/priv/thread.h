@@ -67,7 +67,9 @@ namespace sgcl {
 
             template<class T>
             auto& alocator() {
-                if constexpr(std::is_same_v<typename Page_info<T>::Object_allocator, Small_object_allocator<T>>) {
+                using Info = Type_info<T>;
+                using Type = typename Info::type;
+                if constexpr(std::is_same_v<typename Info::Object_allocator, Small_object_allocator<Type>>) {
                     static unsigned index = _type_index++;
                     assert(index < MaxTypeNumber);
                     auto& allocators = _allocators[index / TypePageSize];
@@ -76,12 +78,12 @@ namespace sgcl {
                     }
                     auto& alocator = (*allocators)[index % TypePageSize];
                     if (!alocator) {
-                        alocator.reset(new Small_object_allocator<T>(*_block_allocator));
+                        alocator.reset(new Small_object_allocator<Type>(*_block_allocator));
                     }
-                    return static_cast<Small_object_allocator<T>&>(*alocator);
+                    return static_cast<Small_object_allocator<Type>&>(*alocator);
                 }
                 else {
-                    static Large_object_allocator<T> allocator;
+                    static Large_object_allocator<Type> allocator;
                     return allocator;
                 }
             }

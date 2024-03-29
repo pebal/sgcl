@@ -18,12 +18,12 @@ namespace sgcl {
         struct Array_metadata {
             template<class T>
             Array_metadata(T*)
-                : child_pointers(Page_info<T>::child_pointers)
+                : child_pointers(Type_info<T>::child_pointers)
                 , destroy(!std::is_trivially_destructible_v<T> ? Array_base::destroy<T> : nullptr)
                 , clone(Clone<T[]>)
                 , type_info(typeid(T[]))
-                , object_size(Page_info<T>::ObjectSize)
-                , user_metadata(Page_info<T[]>::user_metadata())
+                , object_size(Type_info<T>::ObjectSize)
+                , user_metadata(Type_info<T[]>::user_metadata())
                 , tracked_ptrs_only(std::is_base_of_v<Tracked, T>) {
             }
 

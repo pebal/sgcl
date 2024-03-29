@@ -13,14 +13,14 @@ namespace sgcl {
             static constexpr size_t PageCount = 15;
 
             Block() noexcept {
-                DataPage* data = (DataPage*)(this + 1);
+                Data_page* data = (Data_page*)(this + 1);
                 for (size_t i = 0; i < PageCount; ++i) {
                     data[i].block = this;
                 }
             }
 
             static void* operator new(size_t) {
-                auto size = sizeof(void*) + sizeof(Block) + sizeof(DataPage) * (PageCount + 1);
+                auto size = sizeof(void*) + sizeof(Block) + sizeof(Data_page) * (PageCount + 1);
                 void* mem = ::operator new(size);
                 uintptr_t addres = (uintptr_t)mem + sizeof(void*) + sizeof(Block) + PageSize;
                 addres = addres & ~(PageSize - 1);

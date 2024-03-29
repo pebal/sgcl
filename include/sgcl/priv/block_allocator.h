@@ -14,9 +14,9 @@ namespace sgcl {
             using Pointer_pool = Pointer_pool<Block::PageCount, PageSize>;
 
             ~Block_allocator() noexcept {
-                DataPage* page = nullptr;
+                Data_page* page = nullptr;
                 while (!_pointer_pool.is_empty()) {
-                    auto data = (DataPage*)_pointer_pool.alloc();
+                    auto data = (Data_page*)_pointer_pool.alloc();
                     data->next = page;
                     page = data;
                 }
@@ -24,8 +24,8 @@ namespace sgcl {
                     free(page);
                 }
             }
-
-            DataPage* alloc() {
+            
+            Data_page* alloc() {
                 if (_pointer_pool.is_empty()) {
                     while (_lock.test_and_set(std::memory_order_acquire));
                     auto page = _empty_pages;
@@ -40,10 +40,10 @@ namespace sgcl {
                         _pointer_pool.fill(block + 1);
                     }
                 }
-                return (DataPage*)_pointer_pool.alloc();
+                return (Data_page*)_pointer_pool.alloc();
             }
-
-            static void free(DataPage* page) {
+            
+            static void free(Data_page* page) {
                 auto last = page;
                 while(last->next) {
                     last = last->next;
@@ -63,7 +63,7 @@ namespace sgcl {
                     ++b->page_count;
                     p = p->next;
                 }
-                DataPage* prev = nullptr;
+                Data_page* prev = nullptr;
                 p = page;
                 while(p) {
                     auto next = p->next;
@@ -95,7 +95,7 @@ namespace sgcl {
 
         private:
             inline static std::atomic_flag _lock = ATOMIC_FLAG_INIT;
-            inline static DataPage* _empty_pages = {nullptr};
+            inline static Data_page* _empty_pages = {nullptr};
             Pointer_pool _pointer_pool;
         };
     }

@@ -5,14 +5,13 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "priv/types.h"
-#include "types.h"
+#include "page_info.h"
 
 namespace sgcl {
-    struct metadata_base {
+    namespace Priv {
         template<class T>
-        inline static void set(metadata* mdata) {
-            Priv::Type_info<T>::set_user_metadata(mdata);
-        }
-    };
+        struct Type_info : Page_info<std::remove_cv_t<T>> {
+            using type = std::remove_cv_t<T>;
+        };
+    }
 }

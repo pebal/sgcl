@@ -16,15 +16,18 @@ namespace sgcl {
 
         struct Metadata {
             template<class T>
+            using Info = Type_info<T>;
+
+            template<class T>
             Metadata(T*)
-                : child_pointers(Page_info<T>::child_pointers)
-                , destroy(!std::is_trivially_destructible_v<T> || std::is_base_of_v<Array_base, T> ? Page_info<T>::destroy : nullptr)
-                , free(Page_info<T>::Object_allocator::free)
+                : child_pointers(Info<T>::child_pointers)
+                , destroy(!std::is_trivially_destructible_v<T> || std::is_base_of_v<Array_base, T> ? Info<T>::destroy : nullptr)
+                , free(Info<T>::Object_allocator::free)
                 , clone(Clone<T>)
-                , object_size(Page_info<T>::ObjectSize)
-                , object_count(Page_info<T>::ObjectCount)
+                , object_size(Info<T>::ObjectSize)
+                , object_count(Info<T>::ObjectCount)
                 , is_array(std::is_base_of_v<Array_base, T>)
-                , user_metadata(Page_info<T>::user_metadata())
+                , user_metadata(Info<T>::user_metadata())
                 , type_info(typeid(T)) {
             }
 

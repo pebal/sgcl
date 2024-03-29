@@ -7,16 +7,18 @@
 
 #include "data_page.h"
 #include "object_allocator.h"
-#include "page.h"
+#include "type_info.h"
 
 namespace sgcl {
     namespace Priv {
         template<class T>
         struct Large_object_allocator : Object_allocator {
-            T* alloc(size_t size) const {
-                auto mem = ::operator new(size + sizeof(T) + sizeof(uintptr_t), std::align_val_t(PageSize));
-                auto data = (T*)((uintptr_t)mem + sizeof(uintptr_t));
-                auto hmem = ::operator new(Page_info<T>::HeaderSize);
+            using Type = typename Type_info<T>::type;
+
+            Type* alloc(size_t size) const {
+                auto mem = ::operator new(size + sizeof(Type) + sizeof(uintptr_t), std::align_val_t(PageSize));
+                auto data = (Type*)((uintptr_t)mem + sizeof(uintptr_t));
+                auto hmem = ::operator new(Type_info<T>::HeaderSize);
                 auto page = new(hmem) Page(nullptr, data);
                 *((Page**)mem) = page;
                 page->next = pages.load(std::memory_order_relaxed);

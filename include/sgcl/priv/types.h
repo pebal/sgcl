@@ -9,7 +9,6 @@
 
 namespace sgcl {    
     namespace Priv {
-        using Const_pointer = std::atomic<const void*>;
         using Pointer = std::atomic<void*>;
 
         template<size_t>
@@ -22,7 +21,7 @@ namespace sgcl {
         struct Child_pointers;
         struct Collector;
         struct Counter;
-        struct DataPage;
+        struct Data_page;
         struct Heap_roots_allocator;
 
         template<class>
@@ -43,7 +42,7 @@ namespace sgcl {
 
         struct Pointer_pool_base;
 
-        template<class T>
+        template<class>
         struct Small_object_allocator;
 
         struct Small_object_allocator_base;
@@ -53,6 +52,10 @@ namespace sgcl {
         struct Timer;
         class Tracked;
         class Tracked_ptr;
+
+        template<class>
+        struct Type_info;
+
         struct Unique_deleter;
 
         template<class T>

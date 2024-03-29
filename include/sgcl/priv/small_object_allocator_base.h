@@ -57,7 +57,7 @@ namespace sgcl {
             std::atomic_flag& _lock;
             Page* _current_page = {nullptr};
 
-            virtual Page* _create_page_parameters(DataPage*) = 0;
+            virtual Page* _create_page_parameters(Data_page*) = 0;
 
             Page* _alloc_page() {
                 auto data = _block_allocator.alloc();
@@ -99,9 +99,9 @@ namespace sgcl {
 
             static void _free(Page* pages) noexcept {
                 Page* page = pages;
-                DataPage* empty = nullptr;
+                Data_page* empty = nullptr;
                 while(page) {
-                    DataPage* data = (DataPage*)(page->data - sizeof(void*));
+                    Data_page* data = (Data_page*)(page->data - sizeof(void*));
                     data->block = page->block;
                     page->is_used = false;
                     data->next = empty;

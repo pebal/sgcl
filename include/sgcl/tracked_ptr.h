@@ -153,7 +153,7 @@ namespace sgcl {
         }
 
         metadata*& metadata() const noexcept {
-            return _ptr().template metadata<std::remove_cv_t<T>>();
+            return _ptr().template metadata<T>();
         }
 
         constexpr bool is_array() const noexcept {

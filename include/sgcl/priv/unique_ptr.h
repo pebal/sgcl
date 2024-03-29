@@ -78,7 +78,7 @@ namespace sgcl {
 
             metadata*& metadata() const noexcept {
                 auto p = this->get();
-                return Tracked_ptr::metadata<std::remove_cv_t<T>>(p);
+                return Tracked_ptr::metadata<T>(p);
             }
 
             constexpr bool is_array() const noexcept {

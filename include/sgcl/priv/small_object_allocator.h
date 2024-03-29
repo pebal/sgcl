@@ -11,7 +11,9 @@ namespace sgcl {
     namespace Priv {
         template<class T>
         struct Small_object_allocator : Small_object_allocator_base {
-            using Pointer_pool = Priv::Pointer_pool<Page_info<T>::ObjectCount, sizeof(std::conditional_t<std::is_same_v<std::remove_cv_t<T>, void>, char, T>)>;
+            using Info = Type_info<T>;
+            using Type = typename Info::type;
+            using Pointer_pool = Priv::Pointer_pool<Info::ObjectCount, sizeof(std::conditional_t<std::is_same_v<Type, void>, char, Type>)>;
 
             constexpr Small_object_allocator(Block_allocator& a) noexcept
                 : Small_object_allocator_base(a, _pointer_pool, _pages_buffer, _lock) {
@@ -26,9 +28,9 @@ namespace sgcl {
             inline static std::atomic_flag _lock = ATOMIC_FLAG_INIT;
             Pointer_pool _pointer_pool;
 
-            Page* _create_page_parameters(DataPage* data) override {
-                auto mem = ::operator new(Page_info<T>::HeaderSize);
-                auto page = new(mem) Page(data->block, (T*)data->data);
+            Page* _create_page_parameters(Data_page* data) override {
+                auto mem = ::operator new(Info::HeaderSize);
+                auto page = new(mem) Page(data->block, (Type*)data->data);
                 return page;
             }
         };

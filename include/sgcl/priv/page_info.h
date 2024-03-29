@@ -17,13 +17,14 @@ namespace sgcl {
 
         template<class T>
         struct Page_info {
-            static constexpr size_t ObjectSize = sizeof(std::remove_extent_t<std::conditional_t<std::is_same_v<std::remove_cv_t<T>, void>, char, T>>);
+            using Type = std::remove_cv_t<T>;
+            static constexpr size_t ObjectSize = sizeof(std::remove_extent_t<std::conditional_t<std::is_same_v<Type, void>, char, Type>>);
             static constexpr size_t ObjectCount = std::max(size_t(1), PageDataSize / ObjectSize);
             static constexpr size_t StatesSize = (sizeof(std::atomic<State>) * ObjectCount + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1);
             static constexpr size_t FlagsCount = (ObjectCount + Page::FlagBitCount - 1) / Page::FlagBitCount;
             static constexpr size_t FlagsSize = sizeof(Page::Flags) * FlagsCount;
             static constexpr size_t HeaderSize = sizeof(Page) + StatesSize + FlagsSize;
-            using Object_allocator = std::conditional_t<ObjectSize <= PageDataSize, Small_object_allocator<T>, Large_object_allocator<T>>;
+            using Object_allocator = std::conditional_t<ObjectSize <= PageDataSize, Small_object_allocator<Type>, Large_object_allocator<Type>>;
 
             static void destroy(void* p) noexcept {
                 std::destroy_at((T*)p);
@@ -40,12 +41,12 @@ namespace sgcl {
             }
 
             inline static auto& private_metadata() {
-                static auto metadata = new Metadata((std::remove_extent_t<T>*)0);
+                static auto metadata = new Metadata((std::remove_extent_t<Type>*)0);
                 return *metadata;
             }
 
             inline static auto& array_metadata() {
-                static auto metadata = new Array_metadata((std::remove_extent_t<std::conditional_t<std::is_same_v<std::remove_cv_t<T>, void>, char, T>>*)0);
+                static auto metadata = new Array_metadata((std::remove_extent_t<std::conditional_t<std::is_same_v<Type, void>, char, Type>>*)0);
                 return *metadata;
             }
 

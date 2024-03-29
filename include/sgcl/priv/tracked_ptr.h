@@ -143,6 +143,7 @@ namespace sgcl {
 
             template<class T>
             inline static sgcl::metadata*& metadata(void* p) noexcept {
+                using Info = Type_info<T>;
                 if (p) {
                     auto metadata = Page::metadata_of(p);
                     if (metadata.is_array) {
@@ -153,7 +154,7 @@ namespace sgcl {
                         return metadata.user_metadata;
                     }
                 } else {
-                    return Page_info<T>::user_metadata();
+                    return Info::user_metadata();
                 }
             }
 
@@ -209,7 +210,8 @@ namespace sgcl {
 
             template<class T>
             inline static constexpr bool is_array(void* p) noexcept {
-                if constexpr(std::is_same_v<std::remove_cv_t<T>, void>) {
+                using Type = std::remove_cv_t<T>;
+                if constexpr(std::is_same_v<Type, void>) {
                     if (p) {
                         return Page::metadata_of(p).is_array;
                     } else {

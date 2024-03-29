@@ -12,13 +12,13 @@ namespace sgcl {
         static constexpr size_t PageSize = 4096;
         static constexpr size_t PageDataSize = PageSize - sizeof(uintptr_t);
 
-        struct DataPage {
+        struct Data_page {
             union{
                 Block* block;
                 Page* page;
             };
             union {
-                DataPage* next;
+                Data_page* next;
                 char data[PageSize - sizeof(Block*)];
             };
         };

@@ -14,6 +14,9 @@
 namespace sgcl {
     namespace Priv {
         struct Page {
+            template<class T>
+            using Info = Type_info<T>;
+
             using Flag = uint64_t;
             static constexpr unsigned FlagBitCount = sizeof(Flag) * 8;
 
@@ -25,7 +28,7 @@ namespace sgcl {
 
             template<class T>
             Page(Block* block, T* data) noexcept
-                : metadata(&Page_info<T>::private_metadata())
+                : metadata(&Info<T>::private_metadata())
                 , block(block)
                 , data((uintptr_t)data)
                 , multiplier((1ull << 32 | 0x10000) / metadata->object_size) {
