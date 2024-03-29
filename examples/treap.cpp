@@ -91,8 +91,8 @@ private:
 int main() {
     using std::chrono::high_resolution_clock;
     using std::chrono::duration;
-
     auto t = high_resolution_clock::now();
+
     treap treap;
     int value = 5;
     int result = 0;
