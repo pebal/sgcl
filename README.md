@@ -1,8 +1,17 @@
 # SGCL
 ## About the SGCL
 SGCL (Smart Garbage Collection Library) is an advanced memory management library for C++, designed with performance and ease of use in mind. SGCL introduces fully tracked smart pointers, providing an experience similar to shared_ptr but with added mechanisms for automatic garbage collection and optimization. Tailored for the modern C++ standards (C++17 and later), SGCL aims to facilitate safer and more efficient memory management without the overhead typically associated with garbage collection techniques.
+## Why SGCL?
 
-This library is particularly suited for developers looking to implement or improve garbage collection mechanisms in their C++ projects, offering a smart blend of manual control and automatic memory management to achieve high-performance, real-time applications.
+SGCL was created to address specific scenarios where `unique_ptr` and `shared_ptr` fall short. These standard smart pointers are versatile, but there are cases in complex applications where they might not be the optimal choice. Here’s why SGCL can be a game-changer:
+
+- **Handling Local Ownership Cycles:** In complex object graphs, objects may refer to each other in cycles, creating ownership loops that `shared_ptr` cannot resolve without additional intervention. SGCL offers a solution for managing local cycles of ownership efficiently, without the risk of memory leaks.
+
+- **Performance Overheads with `shared_ptr`:** While `shared_ptr` is incredibly useful for shared ownership scenarios, its performance can be impacted by the overhead of reference counting, especially in multi-threaded environments. SGCL introduces mechanisms that optimize memory management and reduce overhead, making it more suitable for high-performance applications.
+
+- **Real-time Requirements:** In systems with stringent real-time requirements, the non-deterministic timing of destructors (as objects go out of scope or are explicitly deleted) can pose a problem. SGCL allows for delayed execution of destructors, enabling better control over when resource cleanup occurs and ensuring that real-time performance criteria are met.
+
+SGCL is designed for developers who need more control over memory management than what is offered by standard C++ smart pointers. By providing advanced features for cycle detection, efficient resource management, and deterministic destructor execution, SGCL opens new possibilities for designing complex, high-performance applications.
 ## Features
 - **Thread-Safe Operations** 
 
@@ -14,15 +23,15 @@ This library is particularly suited for developers looking to implement or impro
 
 - **Simplicity and Familiarity** 
     
-    Utilizes an intuitive API, making the transition for developers accustomed to shared_ptr seamless and straightforward.
+    Utilizes an intuitive API, making the transition for developers accustomed to `shared_ptr` seamless and straightforward.
 
 - **Reduced Memory Overhead** 
 
-    Optimized to consume less memory than shared_ptr, facilitating more efficient resource usage in your applications.
+    Optimized to consume less memory than `shared_ptr`, facilitating more efficient resource usage in your applications.
 
 - **Performance Optimized** 
 
-    Benchmarks demonstrate that SGCL outperforms shared_ptr in various scenarios, ensuring faster execution times for your projects.
+    Benchmarks demonstrate that SGCL outperforms `shared_ptr` in various scenarios, ensuring faster execution times for your projects.
 
 - **Pauseless Garbage Collection** 
 
