@@ -138,6 +138,8 @@ int main() {
 }
 ```
 ## Dependencies
-The SGCL library requires a compiler with support for C++17. 
+This library is written in C++17 and a compliant compiler is necessary. 
+
+No external library is necessary and there are no other requirements.
 ## Usage
-This is a header only library. You can just copy the sgcl subfolder somewhere in your include path.
+This is a header only library. You can just copy the `sgcl` subfolder somewhere in your include path.
