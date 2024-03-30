@@ -123,7 +123,7 @@ collector::force_collect();
 // Forcing garbage collection and waiting for the cycle to complete
 collector::force_collect(true);
 
-// Get the number of living objects
+// Get the number of live objects
 auto live_object_number = collector::live_object_count();
 std::cout << "live object number: " << live_object_number << std::endl;
 
