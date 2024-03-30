@@ -41,8 +41,6 @@ This library is particularly suited for developers looking to implement or impro
     Guarantees that atomic pointer operations are always lock-free, enhancing performance in concurrent usage scenarios.
 
 These features make SGCL a robust and versatile choice for developers seeking to optimize their C++ applications with advanced garbage collection and memory management techniques, all while maintaining high performance and ease of use.
-## Compiling
-The SGCL library requires a compiler with support for C++17.
 ## SGCL pointers
 SGCL introduces three types of smart pointers.
 
@@ -139,3 +137,7 @@ int main() {
     }
 }
 ```
+## Dependencies
+The SGCL library requires a compiler with support for C++17. 
+## Usage
+This is a header only library. You can just copy the sgcl subfolder somewhere in your include path.
