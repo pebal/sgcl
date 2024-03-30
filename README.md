@@ -113,29 +113,28 @@ int main() {
     } static mdata;
     metadata::set<int>(&mdata);
     any.metadata()->to_string(any.get()); // Currently any pointed a value of type int.
-
-    // Methods useful for state analysis and supporting testing processes.
-    {
-        // Forced collection
-        collector::force_collect();
-
-        // Force collection and wait for the cycle to complete
-        collector::force_collect(true);
-
-        // Get number of living objects
-        auto live_object_number = collector::live_object_count();
-        std::cout << "live object number: " << live_object_number << std::endl;
-
-        // Get live objects
-        auto live_objects = collector::live_objects();
-        for (auto& v: live_objects) {
-            std::cout << v.get() << " " << v.type().name() << std::endl;
-        }
-
-        // Terminate collector
-        collector::terminate();
-    }
 }
+```
+## Methods useful for state analysis
+```cpp
+// Forcing garbage collection
+collector::force_collect();
+
+// Forcing garbage collection and waiting for the cycle to complete
+collector::force_collect(true);
+
+// Get the number of living objects
+auto live_object_number = collector::live_object_count();
+std::cout << "live object number: " << live_object_number << std::endl;
+
+// Get an array of live objects
+auto live_objects = collector::live_objects();
+for (auto& v: live_objects) {
+    std::cout << v.get() << " " << v.type().name() << std::endl;
+}
+
+// Terminate collector
+collector::terminate();
 ```
 ## Dependencies
 This library is written in C++17 and a compliant compiler is necessary. 
