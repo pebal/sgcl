@@ -7,12 +7,25 @@
 
 #include "priv/maker.h"
 
-namespace sgcl {   
-    template<class T, class ...A>
+namespace sgcl {
+    template<class T, class ...A, std::enable_if_t<!std::is_array_v<T>, int> = 0>
     auto make_tracked(A&&... a) {
-        if constexpr(!std::is_array_v<T>) {
-            static_assert(sizeof(T) <= Priv::PageDataSize, "Object is too large");
-        }
+        static_assert(sizeof(T) <= Priv::PageDataSize, "Object is too large");
         return Priv::Maker<T>::make_tracked(std::forward<A>(a)...);
+    }
+
+    template<class T, std::enable_if_t<std::is_array_v<T>, int> = 0>
+    auto make_tracked(size_t size) {
+        return Priv::Maker<T>::make_tracked(size);
+    }
+
+    template<class T, std::enable_if_t<std::is_array_v<T>, int> = 0>
+    auto make_tracked(size_t size, const std::remove_extent_t<T>& v) {
+        return Priv::Maker<T>::make_tracked(size, v);
+    }
+
+    template<class T, std::enable_if_t<std::is_array_v<T>, int> = 0>
+    auto make_tracked(std::initializer_list<std::remove_extent_t<T>> init) {
+        return Priv::Maker<T>::make_tracked(init);
     }
 }

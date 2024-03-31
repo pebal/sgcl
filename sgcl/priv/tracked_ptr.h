@@ -128,7 +128,7 @@ namespace sgcl {
                 return res;
             }
 
-            inline static void* base_address_of(void* p) noexcept {
+            inline static void* base_address_of(const void* p) noexcept {
                 return p ? Page::base_address_of(p) : nullptr;
             }
 
@@ -142,7 +142,7 @@ namespace sgcl {
             }
 
             template<class T>
-            inline static sgcl::metadata*& metadata(void* p) noexcept {
+            inline static sgcl::metadata*& metadata(const void* p) noexcept {
                 using Info = Type_info<T>;
                 if (p) {
                     auto metadata = Page::metadata_of(p);
@@ -165,7 +165,7 @@ namespace sgcl {
             }
 
             template<class T>
-            inline static const std::type_info& type_info(void* p) noexcept {
+            inline static const std::type_info& type_info(const void* p) noexcept {
                 if (p) {
                     auto metadata = Page::metadata_of(p);
                     if (metadata.is_array) {
@@ -186,7 +186,7 @@ namespace sgcl {
                 return type_info<T>(p);
             }
 
-            inline static void* clone(void* p) {
+            inline static void* clone(const void* p) {
                 if (p) {
                     auto metadata = Page::metadata_of(p);
                     if (metadata.is_array) {
@@ -209,7 +209,7 @@ namespace sgcl {
             }
 
             template<class T>
-            inline static constexpr bool is_array(void* p) noexcept {
+            inline static constexpr bool is_array(const void* p) noexcept {
                 using Type = std::remove_cv_t<T>;
                 if constexpr(std::is_same_v<Type, void>) {
                     if (p) {

@@ -122,11 +122,42 @@ namespace sgcl {
                 return nullptr;
             }
 
+            static Unique_ptr<T[]> make_tracked(std::initializer_list<T> l) {
+                if (l.size()) {
+                    auto p = _make_array<>(l.size(), sizeof(T));
+                    auto array = (Array<>*)((Array_base*)p.get() - 1);
+                    _init_data(*array, l);
+                    return Unique_ptr<T[]>((T*)p.release());
+                }
+                return nullptr;
+            }
+
         private:
+            using Info = Type_info<T>;
+            using Type = typename Info::type;
+
+            static void _init(void* data, size_t i, size_t size) {
+                for (; i < size; ++i) {
+                    new((Type*)data + i) Type;
+                }
+            }
+
+            static void _init(void* data, size_t i, size_t size, const T& v) {
+                for (; i < size; ++i) {
+                    new((Type*)data + i) Type(v);
+                }
+            }
+
+            static void _init(void* data, size_t i, size_t size, std::initializer_list<T> list) {
+                auto item = list.begin() + i;
+                for (; i < size; ++i) {
+                    new((Type*)data + i) Type(*item);
+                    ++item;
+                }
+            }
+
             template<class... A>
             static void _init_data(Array<>& array, A&&... a) {
-                using Info = Type_info<T>;
-                using Type = typename Info::type;
                 if constexpr(!std::is_trivial_v<Type>) {
                     auto& thread = Current_thread();
                     if (!Info::child_pointers.final.load(std::memory_order_acquire)) {
@@ -139,11 +170,7 @@ namespace sgcl {
                     auto old_pointers = thread.child_pointers;
                     thread.child_pointers = {(uintptr_t)array.data, &Info::child_pointers.map};
                     try {
-                        if constexpr(sizeof...(A)) {
-                            new(array.data) Type(std::forward<A>(a)...);
-                        } else {
-                            new(array.data) Type;
-                        }
+                        _init(array.data, 0, 1, a...);
                         Info::child_pointers.final.store(true, std::memory_order_release);
                     }
                     catch (...) {
@@ -153,26 +180,16 @@ namespace sgcl {
                     thread.child_pointers = old_pointers;
                     if constexpr(std::is_base_of_v<Tracked, Type>) {
                         if constexpr(sizeof...(A)) {
-                            for (size_t i = 1; i < array.count; ++i) {
-                                new((Type*)array.data + i) Type(std::forward<A>(a)...);
-                            }
+                            _init(array.data, 1, array.count, a...);
                         }
                     } else {
-                        for (size_t i = 1; i < array.count; ++i) {
-                            if constexpr(sizeof...(A)) {
-                                new(((Type*)array.data + i)) Type(std::forward<A>(a)...);
-                            } else {
-                                new(((Type*)array.data + i)) Type;
-                            }
-                        }
+                        _init(array.data, 1, array.count, a...);
                     }
                 } else {
                     Info::child_pointers.final.store(true, std::memory_order_relaxed);
                     array.metadata.store(&Info::array_metadata(), std::memory_order_release);
                     if constexpr(sizeof...(A)) {
-                        for (size_t i = 0; i < array.count; ++i) {
-                            new((Type*)array.data + i) Type(std::forward<A>(a)...);
-                        }
+                        _init(array.data, 0, array.count, a...);
                     }
                 }
             }

@@ -93,7 +93,7 @@ int main() {
     shared = make_tracked<int>(2048); // Assigning a new value to shared_ptr
 
     // Demonstrating array handling
-    auto array = make_tracked<int[]>(5, 7); // Creating an array and initialization
+    auto array = make_tracked<const int[]>({ 1, 2, 3 }); // Creating an array and initialization
     for (auto& elem: array) {
         std::cout << elem << " "; // Iteration and printing
     }
