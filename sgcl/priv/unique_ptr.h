@@ -23,6 +23,7 @@ namespace sgcl {
 
             Unique_ptr(element_type* p, Priv::Tracked)
             : Base(p) {
+                assert(!p || Priv::Page::is_unique(p) == true);
             }
 
             template<class U, std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>

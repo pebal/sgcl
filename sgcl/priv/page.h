@@ -115,6 +115,13 @@ namespace sgcl {
                 }
             }
 
+            static bool is_unique(const void* p) noexcept {
+                auto page = Page::page_of(p);
+                auto index = page->index_of(p);
+                auto &state = page->states()[index];
+                return state.load(std::memory_order_acquire) == State::UniqueLock;
+            }
+
             Metadata* const metadata;
             Block* const block;
             const uintptr_t data;

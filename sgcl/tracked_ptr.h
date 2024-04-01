@@ -20,8 +20,9 @@ namespace sgcl {
         constexpr tracked_ptr(std::nullptr_t) {}
 
         template<class U, std::enable_if_t<!std::is_array_v<T> && std::is_convertible_v<U*, element_type*>, int> = 0>
-        explicit tracked_ptr(U* p)
-        : _val(static_cast<element_type*>(p)) {
+        explicit tracked_ptr(U* p) {
+            assert(!p || Priv::Page::is_unique(p) == false);
+            _ptr().store(static_cast<element_type*>(p));
         }
 
         tracked_ptr(const tracked_ptr& p)

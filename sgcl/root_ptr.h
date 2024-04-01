@@ -34,6 +34,7 @@ namespace sgcl {
         template<class U, std::enable_if_t<!std::is_array_v<T> && std::is_convertible_v<U*, element_type*>, int> = 0>
         explicit root_ptr(U* p)
         : root_ptr() {
+            assert(!p || Priv::Page::is_unique(p) == false);
             _ptr().store(static_cast<element_type*>(p));
         }
 
