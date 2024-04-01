@@ -21,6 +21,15 @@ namespace sgcl {
         public:
             using element_type = typename Base::element_type;
 
+            Unique_ptr(element_type* p, Priv::Tracked)
+            : Base(p) {
+            }
+
+            template<class U, std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
+            Unique_ptr(Unique_ptr<U>&& p)
+            : Base(p.release()) {
+            }
+
             template <class U = T, class E = element_type, std::enable_if_t<std::is_array_v<U>, int> = 0>
             E& operator[](size_t i) const noexcept {
                 assert(get() != nullptr);
