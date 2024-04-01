@@ -76,6 +76,7 @@ namespace sgcl {
             }
 
             unsigned index_of(const void* p) noexcept {
+                assert(p != nullptr);
                 return ((uintptr_t)p - data) * multiplier >> 32;
             }
 
@@ -84,22 +85,26 @@ namespace sgcl {
             }
 
             static Page* page_of(const void* p) noexcept {
+                assert(p != nullptr);
                 auto page = ((uintptr_t)p & ~(uintptr_t)(PageSize - 1));
                 return *((Page**)page);
             }
 
             static Metadata& metadata_of(const void* p) noexcept {
+                assert(p != nullptr);
                 auto page = Page::page_of(p);
                 return *page->metadata;
             }
 
             static void* base_address_of(const void* p) noexcept {
+                assert(p != nullptr);
                 auto page = page_of(p);
                 auto index = page->index_of(p);
                 return (void*)page->data_of(index);
             }
 
             static void set_state(const void* p, State s) noexcept {
+                assert(p != nullptr);
                 auto page = Page::page_of(p);
                 auto index = page->index_of(p);
                 auto &state = page->states()[index];
@@ -107,6 +112,7 @@ namespace sgcl {
             }
 
             static void update_state(const void* p, State s) noexcept {
+                assert(p != nullptr);
                 auto page = Page::page_of(p);
                 auto index = page->index_of(p);
                 auto &state = page->states()[index];
@@ -116,6 +122,7 @@ namespace sgcl {
             }
 
             static bool is_unique(const void* p) noexcept {
+                assert(p != nullptr);
                 auto page = Page::page_of(p);
                 auto index = page->index_of(p);
                 auto &state = page->states()[index];
