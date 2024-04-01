@@ -16,8 +16,8 @@
 #include <condition_variable>
 #include <thread>
 
-#include <iostream>
 #if SGCL_LOG_PRINT_LEVEL
+#include <iostream>
 #endif
 
 namespace sgcl {
@@ -367,21 +367,29 @@ namespace sgcl {
             }
 
             void _mark_updated() noexcept {
+                std::atomic_thread_fence(std::memory_order_acquire);
                 auto page = _registered_pages;
                 while(page) {
                     bool reachable = false;
                     auto states = page->states();
                     auto flags = page->flags();
-                    auto count = page->metadata->object_count;
+                    auto count = page->flags_count();
                     for (unsigned i = 0; i < count; ++i) {
-                        auto state = states[i].load(std::memory_order_relaxed);
-                        if (state >= State::Reachable && state <= State::UniqueLock) {
-                            auto index = Page::flag_index_of(i);
-                            auto mask = Page::flag_mask_of(i);
-                            auto& flag = flags[index];
-                            if (flag.registered & ~flag.marked & mask) {
-                                flag.reachable |= mask;
-                                reachable = true;
+                        auto& flag = flags[i];
+                        auto unreachable = flag.registered & ~flag.marked;
+                        if (unreachable) {
+                            for (unsigned j = 0; j < Page::FlagBitCount; ++j) {
+                                auto mask = Page::Flag(1) << j;
+                                if (unreachable & mask) {
+                                    auto index = i * Page::FlagBitCount + j;
+                                    auto state = states[index].load(std::memory_order_relaxed);
+                                    if (state >= State::Reachable && state <= State::UniqueLock) {
+                                        if (unreachable & mask) {
+                                            flag.reachable |= mask;
+                                            reachable = true;
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
