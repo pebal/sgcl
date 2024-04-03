@@ -192,11 +192,12 @@ namespace sgcl {
                     if (metadata.is_array) {
                         auto array = (Array_base*)Page::base_address_of(p);
                         auto metadata = array->metadata.load(std::memory_order_relaxed);
-                        auto c = metadata->clone(p);
-                        return (void*)c;
+                        return metadata->clone(p);
                     } else {
-                        auto c = metadata.clone(p);
-                        return (void*)c;
+                        auto base = Page::base_address_of(p);
+                        auto offset = (char*)p - (char*)base;
+                        auto c = metadata.clone(base);
+                        return (char*)c + offset;
                     }
                 } else {
                     return nullptr;
