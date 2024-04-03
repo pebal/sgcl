@@ -18,6 +18,8 @@ class concurrent_stack {
         Ptr next;
     };
 
+    atomic<Root> _head;
+
     inline static auto _make = [](const T& data) {
         return make_tracked<Node>(data);
     };
@@ -38,9 +40,6 @@ public:
         }
         return nullptr;
     }
-
-private:
-    atomic<Root> _head;
 };
 
 int main() {

@@ -19,6 +19,8 @@ class treap {
         Ptr right;
     };
 
+    Root _root;
+
     inline static auto _make = [](int value) {
         return make_tracked<Node>(value);
     };
@@ -85,8 +87,6 @@ private:
         split(split, equal_or_greater, equal, greater, value + 1);
         return {lower, equal, greater};
     }
-
-    Root _root;
 };
 
 int main() {
