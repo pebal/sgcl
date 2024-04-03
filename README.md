@@ -107,14 +107,14 @@ int main() {
     // Note: only pointers to memory allocated on the managed heap, excluding arrays
     root_ptr<int> value(&node->value);
     
-    // Using unsafe_ptr to compare and return the pointer to the minimum value.
+    // Using unsafe_ptr to compare and return the pointer to the minimum value
     auto min = [](unsafe_ptr<int> l, unsafe_ptr<int> r) -> unsafe_ptr<int> {
         return *l < *r ? l : r;
     };
     root_ptr<int> pmin = min(value, root);
     std::cout << "min: " << *pmin << std::endl;
     
-    // Using unsafe_ptr for comparison and passing the result via reference to tracked_ptr.
+    // Using unsafe_ptr for comparison and passing the result via reference to tracked_ptr
     auto max = [](unsafe_ptr<int> l, unsafe_ptr<int> r, tracked_ptr<int>& out) {
         out = *l > *r ? l : r;
     };
@@ -140,7 +140,7 @@ int main() {
         }
     } static mdata;
     metadata::set<int>(&mdata);
-    any.metadata()->to_string(any.get()); // Currently any pointed a value of type int.
+    any.metadata()->to_string(any.get()); // Currently any pointed a value of type int
 }
 ```
 ## Methods useful for state analysis
