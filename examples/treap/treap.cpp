@@ -9,6 +9,7 @@ class treap {
     struct Node;
     using Root = root_ptr<Node>;
     using Ptr = tracked_ptr<Node>;
+    using Ref = unsafe_ptr<Node>;
 
     struct Node {
         Node(int v): value(v) {}
@@ -43,7 +44,7 @@ public:
     }
 
 private:
-    static const Ptr& _merge(const Ptr& lower, const Ptr& greater) {
+    static Ref _merge(Ref lower, Ref greater) {
         if (!lower) {
             return greater;
         }
@@ -60,12 +61,12 @@ private:
         }
     }
 
-    static const Ptr& _merge(const Ptr& lower, const Ptr& equal, const Ptr& greater) {
+    static Ref _merge(Ref lower, Ref equal, Ref greater) {
         return _merge(_merge(lower, equal), greater);
     }
 
     std::array<Root, 3> _split(int value) const {
-        auto split = [](auto&& self, const Ptr& orig, Ptr& lower, Ptr& greater, int value) -> void {
+        auto split = [](auto&& self, Ref orig, Ptr& lower, Ptr& greater, int value) -> void {
             if (!orig) {
                 lower = nullptr;
                 greater = nullptr;

@@ -51,7 +51,7 @@ SGCL is designed for developers who need more control over memory management tha
 
 These features make SGCL a robust and versatile choice for developers seeking to optimize their C++ applications with advanced garbage collection and memory management techniques, all while maintaining high performance and ease of use.
 ## SGCL pointers
-SGCL introduces three types of smart pointers.
+SGCL introduces four types of smart pointers.
 
 - `root_ptr, unique_ptr`
 
@@ -60,6 +60,10 @@ SGCL introduces three types of smart pointers.
 - `tracked_ptr` 
 
     Crafted to be a part of structures or arrays created via make_tracked. Contrary to root_ptr and unique_ptr, tracked_ptr is designed for exclusive use in the managed heap.
+    
+- `unsafe_ptr`
+
+    A pointer for accessing objects without ownership management. It is designed for performance optimization where direct access is needed and lifecycle is managed elsewhere.
 
 ## The make_tracked method
 The `make_tracked` method is dedicated method for creating objects on the managed heap. This method returns a unique_ptr.
@@ -70,16 +74,16 @@ The `make_tracked` method is dedicated method for creating objects on the manage
 
 int main() {
     using namespace sgcl;
-
+    
     // Creating unique_ptr with deterministic destruction
     auto unique = make_tracked<int>(42);
-
+    
     // Creating shared_ptr with deterministic destruction
     std::shared_ptr<int> shared = make_tracked<int>(1337);
-
+    
     // Creating root_ptr, which does not have deterministic destruction (managed by GC)
     root_ptr<int> root = make_tracked<int>(2024);
-
+    
     // Example of using root_ptr with a custom data type
     struct Node {
         tracked_ptr<Node> next;
@@ -87,32 +91,47 @@ int main() {
     };
     root_ptr<Node> node = make_tracked<Node>();
     node->value = 10; // Direct field access
-
+    
     // Simple pointer operations
     root = std::move(unique); // Moving ownership from unique_ptr to root_ptr
     shared = make_tracked<int>(2048); // Assigning a new value to shared_ptr
-
+    
     // Demonstrating array handling
     auto array = make_tracked<const int[]>({ 1, 2, 3 }); // Creating an array and initialization
     for (auto& elem: array) {
         std::cout << elem << " "; // Iteration and printing
     }
     std::cout << std::endl;
-
-    // Using an atomic pointer
-    atomic<root_ptr<int>> atomicRoot = make_tracked<int>(1234);
-
+    
     // Creating a pointer alias
     // Note: only pointers to memory allocated on the managed heap, excluding arrays
     root_ptr<int> value(&node->value);
-
+    
+    // Using unsafe_ptr to compare and return the pointer to the minimum value.
+    auto min = [](unsafe_ptr<int> l, unsafe_ptr<int> r) -> unsafe_ptr<int> {
+        return *l < *r ? l : r;
+    };
+    root_ptr<int> pmin = min(value, root);
+    std::cout << "min: " << *pmin << std::endl;
+    
+    // Using unsafe_ptr for comparison and passing the result via reference to tracked_ptr.
+    auto max = [](unsafe_ptr<int> l, unsafe_ptr<int> r, tracked_ptr<int>& out) {
+        out = *l > *r ? l : r;
+    };
+    root_ptr<int> pmax;
+    max(value, root, pmax);
+    std::cout << "max: " << *pmax << std::endl;
+    
+    // Using an atomic pointer
+    atomic<root_ptr<int>> atomicRoot = make_tracked<int>(1234);
+    
     // Using pointer casting
     root_ptr<void> any = root;
     root = static_pointer_cast<int>(any);
     if (any.is<int>() || any.type() == typeid(int)) {
         root = any.as<int>();
     }
-
+    
     // Metadata usage
     // The metadata structure is defined in the configuration.h file
     struct: metadata {

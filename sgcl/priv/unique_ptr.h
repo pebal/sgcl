@@ -107,6 +107,7 @@ namespace sgcl {
             friend struct Maker_base;
             template<class> friend class sgcl::tracked_ptr;
             template<class> friend class sgcl::root_ptr;
+            template<class> friend struct sgcl::unsafe_ptr;
             friend struct sgcl::collector;
         };
     }

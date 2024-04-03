@@ -10,7 +10,7 @@
 #include "unique_ptr.h"
 #include "types.h"
 
-namespace sgcl {    
+namespace sgcl {
     template<class T>
     class tracked_ptr : Priv::Tracked {
     public:
@@ -25,17 +25,17 @@ namespace sgcl {
             _ptr().store(static_cast<element_type*>(p));
         }
 
-        tracked_ptr(const tracked_ptr& p)
+        explicit tracked_ptr(const tracked_ptr& p)
         : tracked_ptr(p.get()) {
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
-        tracked_ptr(const root_ptr<U>& p)
+        explicit tracked_ptr(const root_ptr<U>& p)
         : tracked_ptr(p.get()) {
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
-        tracked_ptr(const tracked_ptr<U>& p)
+        explicit tracked_ptr(const tracked_ptr<U>& p)
         : tracked_ptr(p.get()) {
         }
 
@@ -43,6 +43,11 @@ namespace sgcl {
         explicit tracked_ptr(unique_ptr<U>&& u) {
             auto p = u.release();
             _ptr().force_store(static_cast<element_type*>(p));
+        }
+
+        template<class U, std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
+        explicit tracked_ptr(unsafe_ptr<U>&& p)
+        : tracked_ptr(p.get()) {
         }
 
         ~tracked_ptr() {
@@ -75,6 +80,12 @@ namespace sgcl {
         tracked_ptr& operator=(unique_ptr<U>&& u) noexcept {
             auto p = u.release();
             _ptr().force_store(static_cast<element_type*>(p));
+            return *this;
+        }
+
+        template<class U, std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
+        tracked_ptr& operator=(const unsafe_ptr<U>& p) noexcept {
+            _ptr().store(static_cast<element_type*>(p.get()));
             return *this;
         }
 
@@ -181,7 +192,6 @@ namespace sgcl {
 
         template<class> friend class atomic;
         template<class> friend class root_ptr;
-        template<class> friend class tracked_container;
     };
 
     template<class T, class U>

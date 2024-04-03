@@ -7,6 +7,7 @@
 
 #include "priv/collector.h"
 #include "tracked_ptr.h"
+#include "types.h"
 
 namespace sgcl {   
     template<class T>
@@ -49,6 +50,11 @@ namespace sgcl {
 
         template<class U, std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
         root_ptr(const tracked_ptr<U>& p)
+        : root_ptr(p.get()) {
+        }
+
+        template<class U, std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
+        root_ptr(const unsafe_ptr<U>& p)
         : root_ptr(p.get()) {
         }
 
@@ -109,6 +115,12 @@ namespace sgcl {
         root_ptr& operator=(unique_ptr<U>&& u) noexcept {
             auto p = u.release();
             _ptr().force_store(static_cast<element_type*>(p));
+            return *this;
+        }
+
+        template<class U, std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
+        root_ptr& operator=(const unsafe_ptr<U>& p) noexcept {
+            _ptr().store(static_cast<element_type*>(p.get()));
             return *this;
         }
 

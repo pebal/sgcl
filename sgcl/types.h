@@ -26,4 +26,10 @@ namespace sgcl {
 
     template<class T, size_t N>
     class root_ptr<T[N]>;
+
+    template<class>
+    struct unsafe_ptr;
+
+    template<class T, size_t N>
+    struct unsafe_ptr<T[N]>;
 }
