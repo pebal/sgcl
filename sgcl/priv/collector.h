@@ -185,19 +185,32 @@ namespace sgcl {
                         page->clear_flags();
                         auto states = page->states();
                         auto flags = page->flags();
-                        auto count = page->metadata->object_count;
+                        auto count = page->flags_count();
                         for (unsigned i = 0; i < count; ++i) {
-                            auto state = states[i].load(std::memory_order_relaxed);
-                            if (state >= State::Reachable && state <= State::BadAlloc) {
-                                auto index = Page::flag_index_of(i);
-                                auto mask = Page::flag_mask_of(i);
-                                auto& flag = flags[index];
-                                if (!(flag.registered & mask)) {
-                                    flag.registered |= mask;
-                                    if (!page->registered) {
-                                        page->registered = true;
-                                        page->next_registered = _registered_pages;
-                                        _registered_pages = page;
+                            auto& flag = flags[i];
+                            auto unregistered = ~flag.registered;
+                            if (unregistered) {
+                                auto flagBitCount = Page::FlagBitCount;
+                                if (i == count - 1) {
+                                    auto object_count = (i + 1) * Page::FlagBitCount;
+                                    if (object_count > page->metadata->object_count) {
+                                        flagBitCount -= object_count - page->metadata->object_count;
+                                    }
+                                }
+                                for (unsigned j = 0; j < flagBitCount; ++j) {
+                                    auto mask = Page::Flag(1) << j;
+                                    if (unregistered & mask) {
+                                        auto index = i * Page::FlagBitCount + j;
+                                        assert(index < page->metadata->object_count);
+                                        auto state = states[index].load(std::memory_order_relaxed);
+                                        if (state >= State::Reachable && state <= State::BadAlloc) {
+                                            flag.registered |= mask;
+                                            if (!page->registered) {
+                                                page->registered = true;
+                                                page->next_registered = _registered_pages;
+                                                _registered_pages = page;
+                                            }
+                                        }
                                     }
                                 }
                             }
