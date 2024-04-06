@@ -134,10 +134,12 @@ namespace sgcl {
             const uintptr_t data;
             const uint64_t multiplier;
             bool reachable = {false};
+            bool unreachable = {false};
             bool registered = {false};
             bool is_used = {true};
             std::atomic_bool on_empty_list = {false};
             Page* next_reachable = {nullptr};
+            Page* next_unreachable = {nullptr};
             Page* next_registered = {nullptr};
             Page* next_empty = {nullptr};
             Page* next_unused = {nullptr};

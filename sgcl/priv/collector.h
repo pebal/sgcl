@@ -379,11 +379,13 @@ namespace sgcl {
                 }
             }
 
+            template<bool All>
             void _mark_updated() noexcept {
                 std::atomic_thread_fence(std::memory_order_acquire);
-                auto page = _registered_pages;
+                auto page = All ? _registered_pages : _unreachable_pages;
                 while(page) {
-                    bool reachable = false;
+                    bool reachable_page = false;
+                    [[maybe_unused]] bool unreachable_page = false;
                     auto states = page->states();
                     auto flags = page->flags();
                     auto count = page->flags_count();
@@ -397,21 +399,30 @@ namespace sgcl {
                                     auto index = i * Page::FlagBitCount + j;
                                     auto state = states[index].load(std::memory_order_relaxed);
                                     if (state >= State::Reachable && state <= State::UniqueLock) {
-                                        if (unreachable & mask) {
-                                            flag.reachable |= mask;
-                                            reachable = true;
-                                        }
+                                        flag.reachable |= mask;
+                                        reachable_page = true;
+                                    } else if constexpr(All) {
+                                        unreachable_page = true;
                                     }
                                 }
                             }
                         }
                     }
-                    if (reachable && !page->reachable) {
+                    if (reachable_page && !page->reachable) {
                         page->reachable = true;
                         page->next_reachable = _reachable_pages;
                         _reachable_pages = page;
                     }
-                    page = page->next_registered;
+                    if constexpr(All) {
+                        if (unreachable_page && !page->unreachable) {
+                            page->unreachable = true;
+                            page->next_unreachable = _unreachable_pages;
+                            _unreachable_pages = page;
+                        }
+                        page = page->next_registered;
+                    } else {
+                        page = page->next_unreachable;
+                    }
                 }
             }
 
@@ -470,7 +481,8 @@ namespace sgcl {
 
             Counter _remove_garbage() noexcept {
                 Counter released;
-                auto page = _registered_pages;
+                auto page = _unreachable_pages;
+                _unreachable_pages = nullptr;
                 while(page) {
                     _update_child_offsets(page->metadata->child_pointers);
                     auto destroy = page->metadata->destroy;
@@ -523,7 +535,8 @@ namespace sgcl {
                             flag.registered &= flag.marked;
                         }
                     }
-                    page = page->next_registered;
+                    page->unreachable = false;
+                    page = page->next_unreachable;
                 }
                 return released;
             }
@@ -596,7 +609,11 @@ namespace sgcl {
                     _mark_heap_roots();
                     do {
                         _mark_reachable();
-                        _mark_updated();
+                        if (_unreachable_pages) {
+                            _mark_updated<false>();
+                        } else {
+                            _mark_updated<true>();
+                        }
                     } while(_reachable_pages);
                     Counter last_removed = _remove_garbage();
                     last3_removed[0] = last3_removed[1];
@@ -693,6 +710,7 @@ namespace sgcl {
             }
 
             Page* _reachable_pages = {nullptr};
+            Page* _unreachable_pages = {nullptr};
             Page* _registered_pages = {nullptr};
             Counter _allocated_rest;
             std::atomic<int> _forced_collect_count = {0};
