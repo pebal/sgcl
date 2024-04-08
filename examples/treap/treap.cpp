@@ -56,8 +56,7 @@ private:
         if (lower->priority < greater->priority) {
             lower->right = _merge(lower->right, greater);
             return lower;
-        }
-        else {
+        } else {
             greater->left = _merge(lower, greater->left);
             return greater;
         }
@@ -68,23 +67,23 @@ private:
     }
 
     std::array<Root, 3> _split(int value) const {
-        auto split = [](auto&& self, Ref orig, Ptr& lower, Ptr& greater, int value) -> void {
-            if (!orig) {
-                lower = nullptr;
-                greater = nullptr;
-            }
-            else if (orig->value < value) {
-                lower = orig;
-                self(self, lower->right, lower->right, greater, value);
-            }
-            else {
-                greater = orig;
-                self(self, greater->left, lower, greater->left, value);
+        struct Local {
+            static void split(Ref orig, Ptr& lower, Ptr& greater, int value) {
+                if (!orig) {
+                    lower = nullptr;
+                    greater = nullptr;
+                } else if (orig->value < value) {
+                    lower = orig;
+                    split(lower->right, lower->right, greater, value);
+                } else {
+                    greater = orig;
+                    split(greater->left, lower, greater->left, value);
+                }
             }
         };
         Root lower, equal, equal_or_greater, greater;
-        split(split, _root, lower, equal_or_greater, value);
-        split(split, equal_or_greater, equal, greater, value + 1);
+        Local::split(_root, lower, equal_or_greater, value);
+        Local::split(equal_or_greater, equal, greater, value + 1);
         return {lower, equal, greater};
     }
 };
