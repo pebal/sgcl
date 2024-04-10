@@ -152,8 +152,8 @@ collector::force_collect();
 collector::force_collect(true);
 
 // Get the number of live objects
-auto live_object_number = collector::live_object_count();
-std::cout << "live object number: " << live_object_number << std::endl;
+auto live_objects_number = collector::live_objects_number();
+std::cout << "live objects number: " << live_objects_number << std::endl;
 
 // Get an array of live objects
 auto live_objects = collector::live_objects();

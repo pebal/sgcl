@@ -26,7 +26,7 @@ namespace sgcl {
 
     namespace Priv {
         static constexpr ptrdiff_t MaxStackSize = 0x100000;
-        static constexpr ptrdiff_t MaxStackOffset = 1024;
+        static constexpr ptrdiff_t StackDetectionOffset = 1024;
         static constexpr size_t MaxTypeNumber = 4096;
         static constexpr int DeletionDelayMsec = 100;
    }

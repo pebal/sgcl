@@ -12,7 +12,6 @@
 namespace sgcl {   
     template<class T>
     class root_ptr {
-        static constexpr ptrdiff_t MaxStackOffset = 1024;
         static constexpr uintptr_t HeapRootFlag = 1;
         static constexpr uintptr_t ClearMask = ~HeapRootFlag;
 
@@ -253,7 +252,7 @@ namespace sgcl {
             uintptr_t this_addr = (uintptr_t)this;
             uintptr_t stack_addr = (uintptr_t)&this_addr;
             ptrdiff_t offset = this_addr - stack_addr;
-            return -MaxStackOffset < offset && offset < MaxStackOffset;
+            return -Priv::StackDetectionOffset < offset && offset < Priv::StackDetectionOffset;
         }
 
         template<class U>

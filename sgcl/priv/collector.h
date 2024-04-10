@@ -53,8 +53,8 @@ namespace sgcl {
                 }
             }
 
-            int64_t live_object_count() const noexcept {
-                return _live_object_count.load(std::memory_order_acquire);
+            int64_t live_objects_number() const noexcept {
+                return _live_objects_number.load(std::memory_order_acquire);
             }
 
             void live_objects(Unique_ptr<Tracked_ptr[]>& array) noexcept {
@@ -623,7 +623,7 @@ namespace sgcl {
                     _release_unused_pages();
                     Counter last_allocated = _alloc_counter() - allocated;
                     Counter live = allocated + last_allocated - (removed + last_removed);
-                    _live_object_count.store(live.count, std::memory_order_release);
+                    _live_objects_number.store(live.count, std::memory_order_release);
                     assert(live.count >= 0 && live.size >= 0);
 #if SGCL_LOG_PRINT_LEVEL >= 2
                     auto end = std::chrono::high_resolution_clock::now();
@@ -718,7 +718,7 @@ namespace sgcl {
             std::condition_variable _terminate_cv;
             bool _terminated = {false};
             std::mutex _mutex;
-            std::atomic<int64_t> _live_object_count = {0};
+            std::atomic<int64_t> _live_objects_number = {0};
             inline static std::atomic<bool> _terminating = {false};
             inline static std::atomic<bool> _created = {false};
             std::vector<void*> _live_objects;

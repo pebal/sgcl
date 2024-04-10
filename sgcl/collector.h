@@ -10,8 +10,8 @@
 
 namespace sgcl {
     struct collector {
-        inline static int64_t live_object_count() {
-            return Priv::Collector_instance().live_object_count();
+        inline static int64_t live_objects_number() {
+            return Priv::Collector_instance().live_objects_number();
         }
 
         inline static unique_ptr<tracked_ptr<void>[]> live_objects() {
