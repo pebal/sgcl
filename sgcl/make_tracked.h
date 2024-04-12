@@ -19,9 +19,9 @@ namespace sgcl {
         return Priv::Maker<T>::make_tracked(size);
     }
 
-    template<class T, std::enable_if_t<std::is_array_v<T>, int> = 0>
-    auto make_tracked(size_t size, const std::remove_extent_t<T>& v) {
-        return Priv::Maker<T>::make_tracked(size, v);
+    template<class T, class ...A, std::enable_if_t<std::is_array_v<T>, int> = 0>
+    auto make_tracked(size_t size, A&&... a) {
+        return Priv::Maker<T>::make_tracked(size, std::forward<A>(a)...);
     }
 
     template<class T, std::enable_if_t<std::is_array_v<T>, int> = 0>

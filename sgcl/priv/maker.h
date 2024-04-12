@@ -112,11 +112,12 @@ namespace sgcl {
                 return nullptr;
             }
 
-            static Unique_ptr<T[]> make_tracked(size_t count, const T& v) {
+            template<class ...A>
+            static Unique_ptr<T[]> make_tracked(size_t count, A&&... a) {
                 if (count) {
                     auto p = _make_array<>(count, sizeof(T));
                     auto array = (Array<>*)((Array_base*)p.get() - 1);
-                    _init_data(*array, v);
+                    _init_data(*array, std::forward<A>(a)...);
                     return Unique_ptr<T[]>((T*)p.release());
                 }
                 return nullptr;
@@ -142,9 +143,10 @@ namespace sgcl {
                 }
             }
 
-            static void _init(void* data, size_t i, size_t size, const T& v) {
+            template<class ...A>
+            static void _init(void* data, size_t i, size_t size, A&&... a) {
                 for (; i < size; ++i) {
-                    new((Type*)data + i) Type(v);
+                    new((Type*)data + i) Type(std::forward<A>(a)...);
                 }
             }
 
@@ -170,7 +172,7 @@ namespace sgcl {
                     auto old_pointers = thread.child_pointers;
                     thread.child_pointers = {(uintptr_t)array.data, &Info::child_pointers.map};
                     try {
-                        _init(array.data, 0, 1, a...);
+                        _init(array.data, 0, 1, std::forward<A>(a)...);
                         Info::child_pointers.final.store(true, std::memory_order_release);
                     }
                     catch (...) {
@@ -180,16 +182,16 @@ namespace sgcl {
                     thread.child_pointers = old_pointers;
                     if constexpr(std::is_base_of_v<Tracked, Type>) {
                         if constexpr(sizeof...(A)) {
-                            _init(array.data, 1, array.count, a...);
+                            _init(array.data, 1, array.count, std::forward<A>(a)...);
                         }
                     } else {
-                        _init(array.data, 1, array.count, a...);
+                        _init(array.data, 1, array.count, std::forward<A>(a)...);
                     }
                 } else {
                     Info::child_pointers.final.store(true, std::memory_order_relaxed);
                     array.metadata.store(&Info::array_metadata(), std::memory_order_release);
                     if constexpr(sizeof...(A)) {
-                        _init(array.data, 0, array.count, a...);
+                        _init(array.data, 0, array.count, std::forward<A>(a)...);
                     }
                 }
             }
