@@ -513,7 +513,7 @@ namespace sgcl {
                                                 auto array = (Array_base*)data;
                                                 auto metadata = array->metadata.load(std::memory_order_acquire);
                                                 if (metadata && !metadata->tracked_ptrs_only) {
-                                                    _mark_array_childs(data);
+                                                    _clear_array_childs(data);
                                                     if (state != State::Destroyed) {
                                                         destroy((void*)data);
                                                     }
