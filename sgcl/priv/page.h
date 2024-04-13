@@ -79,9 +79,9 @@ namespace sgcl {
                 assert(p != nullptr);
                 return ((uintptr_t)p - data) * multiplier >> 32;
             }
-
-            uintptr_t data_of(unsigned index) noexcept {
-                return data + index * metadata->object_size;
+            
+            void* pointer_of(unsigned index) noexcept {
+                return (void*)(data + index * metadata->object_size);
             }
 
             static Page* page_of(const void* p) noexcept {
@@ -100,7 +100,7 @@ namespace sgcl {
                 assert(p != nullptr);
                 auto page = page_of(p);
                 auto index = page->index_of(p);
-                return (void*)page->data_of(index);
+                return page->pointer_of(index);
             }
 
             static void set_state(const void* p, State s) noexcept {

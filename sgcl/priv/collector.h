@@ -95,17 +95,17 @@ namespace sgcl {
                 return allocated + _allocated_rest;
             }
 
-            void _update_child_offsets(Child_pointers& pointers) {
-                if (!pointers.offsets && pointers.final.load(std::memory_order_acquire)) {
-                    pointers.offsets = new Child_pointers::Vector;
-                    for (unsigned index = 0; index < pointers.map.size(); ++index) {
-                        auto flags = pointers.map[index].load(std::memory_order_relaxed);
+            inline static void _update_child_offsets(Child_pointers& childs) {
+                if (!childs.offsets && childs.final.load(std::memory_order_acquire)) {
+                    childs.offsets = new Child_pointers::Vector;
+                    for (unsigned index = 0; index < childs.map.size(); ++index) {
+                        auto flags = childs.map[index].load(std::memory_order_relaxed);
                         if (flags) {
                             for (unsigned i = 0; i < 8; ++ i) {
                                 auto mask = uint8_t(1) << i;
                                 if (flags & mask) {
                                     auto offset = (index * 8 + i) * sizeof(Pointer);
-                                    pointers.offsets->emplace_back(offset);
+                                    childs.offsets->emplace_back(offset);
                                 }
                             }
                         }
@@ -235,10 +235,10 @@ namespace sgcl {
                 }
             }
 
-            void _mark(const void* p) noexcept {
-                if (p) {
-                    auto page = Page::page_of(p);
-                    auto index = page->index_of(p);
+            void _mark(const void* ptr) noexcept {
+                if (ptr) {
+                    auto page = Page::page_of(ptr);
+                    auto index = page->index_of(ptr);
                     auto flag_index = Page::flag_index_of(index);
                     auto mask = Page::flag_mask_of(index);
                     auto& flag = page->flags()[flag_index];
@@ -278,9 +278,9 @@ namespace sgcl {
                 }
             }
 
-            void _mark_childs(uintptr_t data, const Child_pointers::Vector& offsets) noexcept {
+            void _mark_childs(void* ptr, const Child_pointers::Vector& offsets) noexcept {
                 for (auto offset : offsets) {
-                    auto ap = (Pointer*)(data + offset);
+                    auto ap = (Pointer*)((uintptr_t)ptr + offset);
                     auto p = ap->load(std::memory_order_acquire);
                     if ((size_t)p != std::numeric_limits<size_t>::max()) {
                         _mark(p);
@@ -288,7 +288,7 @@ namespace sgcl {
                 }
             }
 
-            void _mark_childs(uintptr_t data, const Child_pointers::Map& map) noexcept {
+            void _mark_childs(void* ptr, const Child_pointers::Map& map) noexcept {
                 for (unsigned index = 0; index < map.size(); ++index) {
                     auto flags = map[index].load(std::memory_order_acquire);
                     if (flags) {
@@ -296,7 +296,7 @@ namespace sgcl {
                             unsigned mask = 1 << i;
                             if (flags & mask) {
                                 auto offset = (index * 8 + i) * sizeof(Pointer);
-                                auto ap = (Pointer*)(data + offset);
+                                auto ap = (Pointer*)((uintptr_t)ptr + offset);
                                 auto p = ap->load(std::memory_order_acquire);
                                 if ((size_t)p != std::numeric_limits<size_t>::max()) {
                                     _mark(p);
@@ -307,15 +307,16 @@ namespace sgcl {
                 }
             }
 
-            void _mark_childs(Child_pointers& pointers, uintptr_t data) noexcept {
+            void _mark_childs(Child_pointers& pointers, void* ptr) noexcept {
                 if (pointers.offsets) {
-                    _mark_childs(data, *pointers.offsets);
+                    _mark_childs(ptr, *pointers.offsets);
                 } else {
-                    _mark_childs(data, pointers.map);
+                    _mark_childs(ptr, pointers.map);
                 }
             }
 
-            void _mark_array_childs(uintptr_t data) noexcept {
+            void _mark_array_childs(void* ptr) noexcept {
+                auto data = (uintptr_t)ptr;
                 auto array = (Array_base*)data;
                 auto metadata = array->metadata.load(std::memory_order_acquire);
                 if (metadata) {
@@ -326,12 +327,12 @@ namespace sgcl {
                     if (pointers.offsets) {
                         if (pointers.offsets->size()) {
                             for (size_t c = 0; c < array->count; ++c, data += object_size) {
-                                _mark_childs(data, *pointers.offsets);
+                                _mark_childs((void*)data, *pointers.offsets);
                             }
                         }
                     } else {
                         for (size_t c = 0; c < array->count; ++c, data += object_size) {
-                            _mark_childs(data, pointers.map);
+                            _mark_childs((void*)data, pointers.map);
                         }
                     }
                 }
@@ -355,15 +356,16 @@ namespace sgcl {
                                     if (flag.reachable & mask) {
                                         flag.marked |= mask;
                                         auto index = i * Page::FlagBitCount + j;
-                                        _mark_childs(page->metadata->child_pointers, page->data_of(index));
+                                        auto ptr = page->pointer_of(index);
                                         if (page->metadata->is_array) {
-                                            _mark_array_childs(page->data_of(index));
+                                            _mark_array_childs(ptr);
+                                        } else {
+                                            _mark_childs(page->metadata->child_pointers, ptr);
+                                        }
+                                        if (_live_objects_request) {
+                                            _live_objects.emplace_back(ptr);
                                         }
                                         marked = true;
-                                        if (_live_objects_request) {
-                                            auto p = (void*)page->data_of(index);
-                                            _live_objects.emplace_back(p);
-                                        }
                                     }
                                 }
                                 flag.reachable &= ~flag.marked;
@@ -426,14 +428,14 @@ namespace sgcl {
                 }
             }
 
-            void _clear_childs(uintptr_t data, const Child_pointers::Vector& offsets) noexcept {
+            inline static void _clear_childs(void* ptr, const Child_pointers::Vector& offsets) noexcept {
                 for (auto offset : offsets) {
-                    auto p = (Pointer*)(data + offset);
+                    auto p = (Pointer*)((uintptr_t)ptr + offset);
                     p->store(nullptr, std::memory_order_relaxed);
                 }
             }
 
-            void _clear_childs(uintptr_t data, const Child_pointers::Map& map) noexcept {
+            inline static void _clear_childs(void* ptr, const Child_pointers::Map& map) noexcept {
                 for (unsigned index = 0; index < map.size(); ++index) {
                     auto flags = map[index].load(std::memory_order_acquire);
                     if (flags) {
@@ -441,7 +443,7 @@ namespace sgcl {
                             unsigned mask = 1 << i;
                             if (flags & mask) {
                                 auto offset = (index * 8 + i) * sizeof(Pointer);
-                                auto p = (Pointer*)(data + offset);
+                                auto p = (Pointer*)((uintptr_t)ptr + offset);
                                 p->store(nullptr, std::memory_order_relaxed);
                             }
                         }
@@ -449,15 +451,16 @@ namespace sgcl {
                 }
             }
 
-            void _clear_childs(Child_pointers& pointers, uintptr_t data) noexcept {
-                if (pointers.offsets) {
-                    _clear_childs(data, *pointers.offsets);
+            inline static void _clear_childs(Child_pointers& childs, void* ptr) noexcept {
+                if (childs.offsets) {
+                    _clear_childs(ptr, *childs.offsets);
                 } else {
-                    _clear_childs(data, pointers.map);
+                    _clear_childs(ptr, childs.map);
                 }
             }
 
-            void _clear_array_childs(uintptr_t data) noexcept {
+            inline static void _clear_array_childs(void* ptr) noexcept {
+                auto data = (uintptr_t)ptr;
                 auto array = (Array_base*)data;
                 auto metadata = array->metadata.load(std::memory_order_acquire);
                 if (metadata) {
@@ -468,12 +471,29 @@ namespace sgcl {
                     if (pointers.offsets) {
                         if (pointers.offsets->size()) {
                             for (size_t c = 0; c < array->count; ++c, data += object_size) {
-                                _clear_childs(data, *pointers.offsets);
+                                _clear_childs((void*)data, *pointers.offsets);
                             }
                         }
                     } else {
                         for (size_t c = 0; c < array->count; ++c, data += object_size) {
-                            _clear_childs(data, pointers.map);
+                            _clear_childs((void*)data, pointers.map);
+                        }
+                    }
+                }
+            }
+
+            inline static void _destroy(Page* page, void* ptr) noexcept {
+                auto destroy = page->metadata->destroy;
+                if (destroy) {
+                    if (!page->metadata->is_array) {
+                        _clear_childs(page->metadata->child_pointers, ptr);
+                        destroy(ptr);
+                    } else {
+                        auto array = (Array_base*)ptr;
+                        auto metadata = array->metadata.load(std::memory_order_acquire);
+                        if (metadata && !metadata->tracked_ptrs_only) {
+                            _clear_array_childs(ptr);
+                            destroy(ptr);
                         }
                     }
                 }
@@ -485,7 +505,6 @@ namespace sgcl {
                 _unreachable_pages = nullptr;
                 while(page) {
                     _update_child_offsets(page->metadata->child_pointers);
-                    auto destroy = page->metadata->destroy;
                     auto states = page->states();
                     auto data = page->data;
                     auto object_size = page->metadata->object_size;
@@ -502,23 +521,8 @@ namespace sgcl {
                                     auto state = states[index].load(std::memory_order_relaxed);
                                     assert(state < State::Reachable || state > State::UniqueLock);
                                     if (state != State::BadAlloc) {
-                                        if (destroy) {
-                                            auto data = page->data_of(index);
-                                            if (!page->metadata->is_array) {
-                                                _clear_childs(page->metadata->child_pointers, data);
-                                                if (state != State::Destroyed) {
-                                                    destroy((void*)data);
-                                                }
-                                            } else {
-                                                auto array = (Array_base*)data;
-                                                auto metadata = array->metadata.load(std::memory_order_acquire);
-                                                if (metadata && !metadata->tracked_ptrs_only) {
-                                                    _clear_array_childs(data);
-                                                    if (state != State::Destroyed) {
-                                                        destroy((void*)data);
-                                                    }
-                                                }
-                                            }
+                                        if (state != State::Destroyed) {
+                                            _destroy(page, page->pointer_of(index));
                                         }
                                         released.count++;
                                         if (!page->metadata->is_array || object_size != sizeof(Array<PageDataSize>)) {
@@ -724,6 +728,8 @@ namespace sgcl {
             std::vector<void*> _live_objects;
             std::atomic<Unique_ptr<Tracked_ptr[]>*> _live_objects_ref = {nullptr};
             bool _live_objects_request = {false};
+
+            friend inline void Delete_unique(const void*);
         };
 
         inline Collector& Collector_instance() {
@@ -742,11 +748,8 @@ namespace sgcl {
         inline void Delete_unique(const void* p) {
             assert(p != nullptr);
             auto page = Page::page_of(p);
-            auto data = Page::base_address_of(p);
-            auto destroy = page->metadata->destroy;
-            if (destroy) {
-                destroy(data);
-            }
+            auto ptr = Page::base_address_of(p);
+            Collector::_destroy(page, ptr);
             Page::set_state(p, State::Destroyed);
         }
     }
