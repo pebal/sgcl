@@ -50,7 +50,7 @@ namespace sgcl {
                 return *metadata;
             }
 
-            inline static Child_pointers child_pointers;
+            inline static Child_pointers child_pointers {std::is_base_of_v<Array_base, Type> || std::is_trivial_v<Type>};
         };
     }
 }

@@ -14,6 +14,22 @@ namespace sgcl {
     namespace Priv {
         void Collector_init();
 
+        template<class T, class ...A>
+        inline T* Construct(void* p, A&&... a) {
+            Page::set_state(p, State::UniqueLock);
+            try {
+                if constexpr(sizeof...(A)) {
+                    return new(p) T(std::forward<A>(a)...);
+                } else {
+                    return new(p) T;
+                }
+            }
+            catch (...) {
+                Page::set_state(p, State::BadAlloc);
+                throw;
+            }
+        }
+
         template<class T>
         struct Maker {
             template<class ...A>
@@ -31,30 +47,17 @@ namespace sgcl {
                 auto& thread = Current_thread();
                 auto& allocator = thread.alocator<Type>();
                 auto mem = allocator.alloc();
+                Type* ptr;
                 if (!Info::child_pointers.final.load(std::memory_order_acquire)) {
                     std::memset(mem, 0xFF, sizeof(T));
+                    auto range_guard = thread.use_child_pointers({(uintptr_t)mem, &Info::child_pointers.map});
+                    ptr = Construct<Type>(mem, std::forward<A>(a)...);
+                    Info::child_pointers.final.store(true, std::memory_order_release);
                 } else {
                     std::memset(mem, 0, sizeof(T));
+                    ptr = Construct<Type>(mem, std::forward<A>(a)...);
                 }
-                auto old_pointers = thread.child_pointers;
-                thread.child_pointers = {(uintptr_t)mem, &Info::child_pointers.map};
-                Type* ptr;
-                try {
-                    Page::set_state(mem, State::UniqueLock);
-                    if constexpr(sizeof...(A)) {
-                        ptr = new(mem) Type(std::forward<A>(a)...);
-                    } else {
-                        ptr = new(mem) Type;
-                    }
-                    Info::child_pointers.final.store(true, std::memory_order_release);
-                    thread.update_allocated(sizeof(T));
-                }
-                catch (...) {
-                    Page::set_state(mem, State::BadAlloc);
-                    thread.child_pointers = old_pointers;
-                    throw;
-                }
-                thread.child_pointers = old_pointers;
+                thread.update_allocated(sizeof(T));
                 return Unique_ptr<T>(ptr);
             }
         };
@@ -68,17 +71,8 @@ namespace sgcl {
                 auto& thread = Current_thread();
                 auto& allocator = thread.alocator<Type>();
                 auto mem = allocator.alloc(size);
-                Type* ptr;
-                try {
-                    Page::set_state(mem, State::UniqueLock);
-                    ptr = new(mem) Type(count);
-                    Info::child_pointers.final.store(true, std::memory_order_release);
-                    thread.update_allocated(sizeof(Type) + size);
-                }
-                catch (...) {
-                    Page::set_state(mem, State::BadAlloc);
-                    throw;
-                }
+                auto ptr = Construct<Type>(mem, count);
+                thread.update_allocated(sizeof(Type) + size);
                 return Unique_ptr<void>(ptr->data);
             }
 
@@ -161,34 +155,28 @@ namespace sgcl {
             template<class... A>
             static void _init_data(Array<>& array, A&&... a) {
                 if constexpr(!std::is_trivial_v<Type>) {
-                    auto& thread = Current_thread();
+                    int offset;
                     if (!Info::child_pointers.final.load(std::memory_order_acquire)) {
                         std::memset(array.data, 0xFF, sizeof(Type));
                         std::memset((Type*)array.data + 1, 0, sizeof(Type) * (array.count - 1));
-                    } else {
-                        std::memset(array.data, 0, sizeof(Type) * array.count);
-                    }
-                    array.metadata.store(&Info::array_metadata(), std::memory_order_release);
-                    auto old_pointers = thread.child_pointers;
-                    thread.child_pointers = {(uintptr_t)array.data, &Info::child_pointers.map};
-                    try {
+                        array.metadata.store(&Info::array_metadata(), std::memory_order_release);
+                        auto range_guard = Current_thread().use_child_pointers({(uintptr_t)array.data, &Info::child_pointers.map});
                         _init(array.data, 0, 1, std::forward<A>(a)...);
                         Info::child_pointers.final.store(true, std::memory_order_release);
+                        offset = 1;
+                    } else {
+                        std::memset(array.data, 0, sizeof(Type) * array.count);
+                        array.metadata.store(&Info::array_metadata(), std::memory_order_release);
+                        offset = 0;
                     }
-                    catch (...) {
-                        thread.child_pointers = old_pointers;
-                        throw;
-                    }
-                    thread.child_pointers = old_pointers;
                     if constexpr(std::is_base_of_v<Tracked, Type>) {
                         if constexpr(sizeof...(A)) {
-                            _init(array.data, 1, array.count, std::forward<A>(a)...);
+                            _init(array.data, offset, array.count, std::forward<A>(a)...);
                         }
                     } else {
-                        _init(array.data, 1, array.count, std::forward<A>(a)...);
+                        _init(array.data, offset, array.count, std::forward<A>(a)...);
                     }
                 } else {
-                    Info::child_pointers.final.store(true, std::memory_order_relaxed);
                     array.metadata.store(&Info::array_metadata(), std::memory_order_release);
                     if constexpr(sizeof...(A)) {
                         _init(array.data, 0, array.count, std::forward<A>(a)...);

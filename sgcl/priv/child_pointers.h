@@ -16,9 +16,14 @@ namespace sgcl {
         struct Child_pointers {
             using Map = std::array<std::atomic<uint8_t>, MaxTypeNumber / sizeof(Pointer) / 8>;
             using Vector = std::vector<ptrdiff_t>;
+
+            constexpr Child_pointers(bool f) noexcept
+            : final(f) {
+            };
+
             Vector* offsets = {nullptr};
             Map map = {};
-            std::atomic<bool> final = {false};
+            std::atomic<bool> final;
         };
     }
 }

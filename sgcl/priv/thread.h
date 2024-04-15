@@ -102,6 +102,28 @@ namespace sgcl {
             Stack_roots_allocator* const stack_roots_allocator;
             const std::unique_ptr<Heap_roots_allocator> heap_roots_allocator;
 
+            struct Range_guard {
+                Range_guard(const Range_guard&) = delete;
+                void operator=(const Range_guard&) = delete;
+
+                constexpr Range_guard(Thread& t, const Child_pointers& cp) noexcept
+                : thread(t)
+                , old_pointers(t.child_pointers) {
+                    thread.child_pointers = cp;
+                }
+
+                ~Range_guard() noexcept {
+                    thread.child_pointers = old_pointers;
+                }
+
+                Thread& thread;
+                const Child_pointers old_pointers;
+            };
+
+            Range_guard use_child_pointers(const Child_pointers& cp) noexcept {
+                return {*this, cp};
+            }
+
         private:
             Block_allocator* const _block_allocator;
             std::array<std::unique_ptr<std::array<std::unique_ptr<Object_allocator>, TypePageSize>>, TypePageCount> _allocators;
