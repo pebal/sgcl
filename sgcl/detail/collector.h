@@ -572,24 +572,22 @@ namespace sgcl::detail {
                     auto count = page->metadata->object_count;
                     for (unsigned i = 0; i < count; ++i) {
                         auto state = states[i].load(std::memory_order_relaxed);
-                        if (state == State::Unused || state == State::Reserved) {
+                        if (state == State::Unused) {
                             ++empty;
-                            if (state == State::Unused) {
-                                if (empty > count / 2) {
-                                    page->unused_occur = false;
-                                    if (!page->metadata->used) {
-                                        page->metadata->used = true;
-                                        page->metadata->on_empty_list = false;
-                                        page->metadata->next = metadata;
-                                        metadata = page->metadata;
-                                    }
-                                    if (!page->on_empty_list.load(std::memory_order_acquire)) {
-                                        page->on_empty_list.store(true, std::memory_order_relaxed);
-                                        page->next_empty = page->metadata->empty_page;
-                                        page->metadata->empty_page = page;
-                                    }
-                                    break;
+                            if (empty > count / 2) {
+                                page->unused_occur = false;
+                                if (!page->metadata->used) {
+                                    page->metadata->used = true;
+                                    page->metadata->on_empty_list = false;
+                                    page->metadata->next = metadata;
+                                    metadata = page->metadata;
                                 }
+                                if (!page->on_empty_list.load(std::memory_order_acquire)) {
+                                    page->on_empty_list.store(true, std::memory_order_relaxed);
+                                    page->next_empty = page->metadata->empty_page;
+                                    page->metadata->empty_page = page;
+                                }
+                                break;
                             }
                         }
                     }
