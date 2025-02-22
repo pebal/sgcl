@@ -2,9 +2,15 @@
 
 #include <iostream>
 
-int main() {
-    using namespace sgcl;
+using namespace sgcl;
 
+// Tracked pointer in the managed object
+struct Node {
+    TrackedPtr<Node> next;
+    int value = 5;
+};
+
+int main() {
     // Creating managed object
     // Note: 'make_tracked' returns a unique pointer
     make_tracked<int>();
@@ -30,11 +36,6 @@ int main() {
     TrackedPtr<int>& tracked_ref = stack;
     Pointer<int, PointerPolicy::Tracked>& also_tracked_ref = stack;
 
-    // Tracked pointer in the managed object
-    struct Node {
-        TrackedPtr<Node> next;
-        int value = 5;
-    };
     StackPtr<Node> node = make_tracked<Node>();
 
     // Invalid, 'Node::next' cannot be on the stack
