@@ -37,13 +37,23 @@ namespace sgcl::detail {
         RootContainerAllocator(const RootContainerAllocator<U>&) noexcept {}
 
         pointer allocate(size_type n)  {
-            auto data = Maker<Data[]>::make_tracked(n);
-            auto mem = data.get();
-            auto array = (ArrayBase*)mem - 1;
-            data.release();
-            if constexpr(may_contain_tracked<T>) {
-                std::memset(mem, 0, sizeof(Data) * n);
-                array->metadata.store(&Info::array_metadata(), std::memory_order_release);
+            void* mem;
+            if (n > 1) {
+                auto data = Maker<Data[]>::make_tracked(n);
+                mem = data.get();
+                data.release();
+                if constexpr(may_contain_tracked<T>) {
+                    std::memset(mem, 0, sizeof(Data) * n);
+                    auto array = (ArrayBase*)mem - 1;
+                    array->metadata.store(&Info::array_metadata(), std::memory_order_release);
+                }
+            } else {
+                auto data = Maker<Data>::make_tracked();
+                mem = data.get();
+                data.release();
+                if constexpr(may_contain_tracked<T>) {
+                    std::memset(mem, 0, sizeof(Data));
+                }
             }
             return (pointer)mem;
         }
