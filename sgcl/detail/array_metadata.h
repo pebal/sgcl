@@ -12,7 +12,7 @@ namespace sgcl::detail {
         template<class T>
         ArrayMetadata(T*) noexcept
         : child_pointers(TypeInfo<T>::child_pointers)
-        , destroy(!std::is_trivially_destructible_v<T> ? ArrayBase::destroy<T> : nullptr)
+        , destroy(ArrayBase::get_destroy_function<T>())
         , clone(clone_object<T[]>)
         , type_info(typeid(T[]))
         , object_size(TypeInfo<T>::ObjectSize)

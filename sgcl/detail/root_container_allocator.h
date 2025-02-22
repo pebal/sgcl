@@ -11,7 +11,7 @@
 namespace sgcl::detail {
     template <class T>
     class RootContainerAllocator {
-        using Info = PageInfo<std::remove_cv_t<T>>;
+        using Info = PageInfo<T>;
 
         struct Data {
             char data[sizeof(T)];
@@ -41,7 +41,7 @@ namespace sgcl::detail {
             auto mem = data.get();
             auto array = (ArrayBase*)mem - 1;
             data.release();
-            if constexpr(!std::is_trivial_v<T>) {
+            if constexpr(may_contain_tracked<T>) {
                 std::memset(mem, 0, sizeof(Data) * n);
                 array->metadata.store(&Info::array_metadata(), std::memory_order_release);
             }
@@ -58,7 +58,7 @@ namespace sgcl::detail {
 
         template <class U, class ...A>
         void construct(U* p, A&& ...a)  {
-            if constexpr(!std::is_trivial_v<U>) {
+            if constexpr(may_contain_tracked<U>) {
                 if (!Info::child_pointers.final.load(std::memory_order_acquire) && alignof(U) >= alignof(RawPointer)) {
                     auto count = sizeof(U) / sizeof(RawPointer);
                     auto mem = (RawPointer*)p;

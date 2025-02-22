@@ -7,6 +7,7 @@
 
 #include "array_metadata.h"
 #include "page.h"
+#include "types.h"
 
 namespace sgcl::detail {
     static constexpr size_t PageDataSize = config::PageSize - sizeof(uintptr_t);
@@ -22,8 +23,12 @@ namespace sgcl::detail {
         static constexpr size_t HeaderSize = sizeof(Page) + StatesSize + FlagsSize;
         using Object_allocator = std::conditional_t<ObjectSize <= PageDataSize, ObjectPoolAllocator<Type>, ObjectAllocator<Type>>;
 
-        static void destroy(void* p) noexcept {
-            std::destroy_at((T*)p);
+        static constexpr auto get_destroy_function() -> void(*)(void*) noexcept {
+            if constexpr (!std::is_trivially_destructible_v<Type> && std::is_destructible_v<Type>) {
+                return &_destroy;
+            } else {
+                return nullptr;
+            }
         }
 
         inline static void* user_metadata = nullptr;
@@ -38,6 +43,11 @@ namespace sgcl::detail {
             return *metadata;
         }
 
-        inline static ChildPointers child_pointers {std::is_base_of_v<ArrayBase, Type> || std::is_trivial_v<Type>};
+        inline static ChildPointers child_pointers {std::is_base_of_v<ArrayBase, Type> || !MayContainTracked<Type>::value};
+
+    private:
+        static void _destroy(void* p) noexcept {
+            std::destroy_at((T*)p);
+        }
     };
 }

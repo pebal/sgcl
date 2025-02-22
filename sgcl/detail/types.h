@@ -23,6 +23,8 @@ namespace sgcl::detail {
     template<class>
     class  Iterator;
     template<class>
+    struct MayContainTracked;
+    template<class>
     class  Maker;
     class  MemoryCounters;
     struct Metadata;

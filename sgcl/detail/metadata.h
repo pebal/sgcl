@@ -19,7 +19,7 @@ namespace sgcl::detail {
         template<class T>
         Metadata(T*) noexcept
         : child_pointers(Info<T>::child_pointers)
-        , destroy(!std::is_trivially_destructible_v<T> || std::is_base_of_v<ArrayBase, T> ? Info<T>::destroy : nullptr)
+        , destroy(Info<T>::get_destroy_function())
         , free(Info<T>::Object_allocator::free)
         , clone(clone_object<T>)
         , object_size(Info<T>::ObjectSize)

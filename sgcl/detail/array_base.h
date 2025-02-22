@@ -15,14 +15,24 @@ namespace sgcl::detail {
         : count(c) {
         }
 
-        template<class T>
-        static void destroy(void* data, size_t count) noexcept {
-            for (size_t i = count; i > 0; --i) {
-                std::destroy_at((T*)data + i - 1);
+        template<typename T>
+        static constexpr auto get_destroy_function() -> void(*)(void*, size_t) noexcept {
+            if constexpr (!std::is_trivially_destructible_v<T> && std::is_destructible_v<T>) {
+                return &_destroy<T>;
+            } else {
+                return nullptr;
             }
         }
 
         std::atomic<ArrayMetadata*> metadata = {nullptr};
         const size_t count;
+
+    private:
+        template<class T>
+        static void _destroy(void* data, size_t count) noexcept {
+            for (size_t i = count; i > 0; --i) {
+                std::destroy_at((T*)data + i - 1);
+            }
+        }
     };
 }
