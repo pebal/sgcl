@@ -5,8 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "detail/unique_deleter.h"
-
-namespace sgcl {
-    using UniqueDeleter = detail::UniqueDeleter;
+namespace sgcl::detail {
+    class Tracked {
+    };
 }

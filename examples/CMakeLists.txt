@@ -1,0 +1,9 @@
+cmake_minimum_required(VERSION 3.5)
+project(SGCL_Examples LANGUAGES CXX)
+
+file(GLOB_RECURSE EXAMPLE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
+foreach(EXAMPLE_SRC ${EXAMPLE_SOURCES})
+    get_filename_component(EXAMPLE_NAME ${EXAMPLE_SRC} NAME_WE)
+    add_executable(${EXAMPLE_NAME} ${EXAMPLE_SRC})
+    target_link_libraries(${EXAMPLE_NAME} sgcl)
+endforeach()

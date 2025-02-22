@@ -1,171 +1,265 @@
 # SGCL
-## About the SGCL
-SGCL (Smart Garbage Collection Library) is an advanced memory management library for C++, designed with performance and ease of use in mind. SGCL introduces fully tracked smart pointers, providing an experience similar to shared_ptr but with added mechanisms for automatic garbage collection and optimization. Tailored for the modern C++ standards (C++17 and later), SGCL aims to facilitate safer and more efficient memory management without the overhead typically associated with garbage collection techniques.
+## About SGCL
+SGCL (Smart Garbage Collection Library) is an advanced memory management library for C++ designed with performance and ease of use in mind. SGCL introduces fully tracked smart pointers, providing an experience similar to shared_ptr, but with additional automatic garbage collection and optimization mechanisms. Aligned with modern C++ standards (C++20 and later), SGCL aims to facilitate safer and more efficient memory management without the overhead typically associated with garbage collection techniques.
 ## Why SGCL?
 
-SGCL was created to address specific scenarios where `unique_ptr` and `shared_ptr` fall short. These standard smart pointers are versatile, but there are cases in complex applications where they might not be the optimal choice. Here’s why SGCL can be a game-changer:
+SGCL was created to address specific scenarios where `unique_ptr` and `shared_ptr` fail. These standard smart pointers are versatile, but may not be the optimal choice for complex applications. Here's why SGCL could be a game-changer:
 
-- **Handling Local Ownership Cycles:** In complex object graphs, objects may refer to each other in cycles, creating ownership loops that `shared_ptr` cannot resolve without additional intervention. SGCL offers a solution for managing local cycles of ownership efficiently, without the risk of memory leaks.
+- **Support for local ownership cycles:** In complex object graphs, objects can reference each other in cycles, creating ownership loops that `shared_ptr` cannot resolve without additional intervention. SGCL offers a solution to efficiently manage local ownership cycles, without the risk of memory leaks.
 
-- **Performance Overheads with `shared_ptr`:** While `shared_ptr` is incredibly useful for shared ownership scenarios, its performance can be impacted by the overhead of reference counting, especially in multi-threaded environments. SGCL introduces mechanisms that optimize memory management and reduce overhead, making it more suitable for high-performance applications.
+- **Performance overhead with `shared_ptr`:** While `shared_ptr` is extremely useful in shared ownership scenarios, its performance can be limited by the overhead of reference counting, especially in multithreaded environments. SGCL introduces mechanisms that optimize memory management and reduce overhead, making it more suitable for high-performance applications.
 
-- **Real-time Requirements:** In systems with stringent real-time requirements, the non-deterministic timing of destructors (as objects go out of scope or are explicitly deleted) can pose a problem. SGCL allows for delayed execution of destructors, enabling better control over when resource cleanup occurs and ensuring that real-time performance criteria are met.
-
-SGCL is designed for developers who need more control over memory management than what is offered by standard C++ smart pointers. By providing advanced features for cycle detection, efficient resource management, and deterministic destructor execution, SGCL opens new possibilities for designing complex, high-performance applications.
+- **Real-time requirements:** In systems with stringent real-time requirements, deterministic destructor calls (when objects go out of scope or are manually deleted) can be a problem. SGCL enables delayed execution of destructors, thereby offloading the main application thread and making it easier to meet real-time performance criteria.
+## GC Engine
+SGCL uses a mark-and-sweep algorithm to manage memory. The use of a cheap write barrier made it possible to make the algorithm fully concurrent, efficient, and pause-free. Managed objects are never moved around in memory.
 ## Features
-- **Thread-Safe Operations** 
+- **Zero reference counting**
 
-    SGCL is designed for safe concurrent access, making it ideal for multi-threaded applications without the risk of data races.
+    Unlike many smart pointer implementations, SGCL avoids the overhead and complexity of reference counts, leading to improved performance.
 
-- **Zero Reference Counting** 
-    
-    Unlike many smart pointer implementations, SGCL avoids the overhead and complexity of reference counters, leading to improved performance and lower memory usage.
+- **Simplicity and familiarity**
 
-- **Simplicity and Familiarity** 
-    
-    Utilizes an intuitive API, making the transition for developers accustomed to `shared_ptr` seamless and straightforward.
+    It uses an intuitive API, making the transition smooth and easy for developers accustomed to `shared_ptr`.
 
-- **Reduced Memory Overhead** 
+- **Reduced memory overhead**
 
-    Optimized to consume less memory than `shared_ptr`, facilitating more efficient resource usage in your applications.
+    Optimized to use less memory than `shared_ptr`, facilitating more efficient resource utilization in applications.
 
-- **Performance Optimized** 
+- **Optimized for performance**
 
-    Benchmarks demonstrate that SGCL outperforms `shared_ptr` in various scenarios, ensuring faster execution times for your projects.
+    Benchmarks show that SGCL outperforms `shared_ptr` in a variety of scenarios, providing faster execution times.
 
-- **Pauseless Garbage Collection** 
+- **Garbage Collection Without Pauses**
 
-    Designed to avoid "stop-the-world" pauses, SGCL ensures continuous application performance without disruptive GC interruptions.
+    SGCL is designed to run fully concurrently, ensuring continuous application performance without disruptive GC pauses.
 
-- **Support for Cyclic Data Structures** 
+- **Support for Cyclic Data Structures**
 
-    Handles cyclic references gracefully, eliminating the common pitfalls associated with manual memory management in complex structures.
-
-- **Copy-On-Write (CoW) Optimization** 
-
-    SGCL is CoW-friendly, supporting efficient memory usage patterns and optimizing scenarios where cloned data structures defer copying until mutation.
+    Supports cyclic references, eliminating the common pitfalls of manually managing memory in complex structures.
 
 - **Lock-Free Atomic Pointers**
 
-    Guarantees that atomic pointer operations are always lock-free, enhancing performance in concurrent usage scenarios.
-
-These features make SGCL a robust and versatile choice for developers seeking to optimize their C++ applications with advanced garbage collection and memory management techniques, all while maintaining high performance and ease of use.
-## SGCL pointers
+    Ensures that operations on atomic pointers are always lock-free, improving performance in concurrent scenarios.
+## SGCL Pointers
 SGCL introduces four types of smart pointers.
-
-- `root_ptr, unique_ptr`
-
-    These pointers can be utilized on the stack, heap, or managed heap. They serve as roots in the application's object graph. The unique_ptr provides a deterministic destruction mechanism.
-
-- `tracked_ptr` 
-
-    Crafted to be a part of structures or arrays created via make_tracked. Contrary to root_ptr and unique_ptr, tracked_ptr is designed for exclusive use in the managed heap.
     
-- `unsafe_ptr`
+  - `UniquePtr`
+    
+    This pointer can be used on the stack, heap or managed heap, and serves as the root of the application's object graph. It is a specialization of std::unique_ptr and, like it, provides deterministic object destruction.
+    
+  - `StackPtr`
+    
+    This pointer can be used on the stack only. Similar to UniquePtr it is serves as the root of the application's object graph. It provides non-deterministic destruction.
+    
+  - `TrackedPtr`
+    
+    Created to be part of structures or arrays created with make_tracked. TrackedPtr is intended for exclusive use on the managed heap.
+    
+  - `UnsafePtr`
+    
+    A pointer for accessing objects without managing ownership. It is intended for performance optimization where direct access is required and the lifecycle is managed elsewhere.
+    
+## make_tracked method
+The `make_tracked` method is dedicated for creating objects and arrays on the managed heap. This method returns a UniquePtr.
 
-    A pointer for accessing objects without ownership management. It is designed for performance optimization where direct access is needed and lifecycle is managed elsewhere.
-
-## The make_tracked method
-The `make_tracked` method is dedicated method for creating objects on the managed heap. This method returns a unique_ptr.
 ## Example
 ```cpp
 #include "sgcl/sgcl.h"
+
 #include <iostream>
 
 int main() {
     using namespace sgcl;
-    
-    // Creating unique_ptr with deterministic destruction
-    auto unique = make_tracked<int>(42);
-    
-    // Creating shared_ptr with deterministic destruction
-    std::shared_ptr<int> shared = make_tracked<int>(1337);
-    
-    // Creating root_ptr, which does not have deterministic destruction (managed by GC)
-    root_ptr<int> root = make_tracked<int>(2024);
-    
-    // Example of using root_ptr with a custom data type
+
+    // Creating managed object
+    // Note: 'make_tracked' returns a unique pointer
+    make_tracked<int>();
+
+    // Using unique pointer with deterministic destruction
+    UniquePtr<int> unique = make_tracked<int>(42);
+
+    // Using shared pointer with deterministic destruction
+    std::shared_ptr<int> shared = make_tracked<int>(13);
+
+    // Using stack pointer without deterministic destruction
+    // Note: destructor will be called in a GC thread
+    StackPtr<int> stack = make_tracked<int>(24);
+    Pointer<int, PointerPolicy::Stack> also_stack;
+
+    // Invalid, tracked pointer cannot be on the stack
+    // TrackedPtr<int> tracked;
+    // Pointer<int, PointerPolicy::Tracked> also_tracked;
+
+    // Reference to tracked pointer
+    // Note: stack pointer can be cast to tracked pointer reference
+    // Note: tracked pointer reference can be on the stack
+    TrackedPtr<int>& tracked_ref = stack;
+    Pointer<int, PointerPolicy::Tracked>& also_tracked_ref = stack;
+
+    // Tracked pointer in the managed object
     struct Node {
-        tracked_ptr<Node> next;
-        int value;
+        TrackedPtr<Node> next;
+        int value = 5;
     };
-    root_ptr<Node> node = make_tracked<Node>();
-    node->value = 10; // Direct field access
-    
-    // Simple pointer operations
-    root = std::move(unique); // Moving ownership from unique_ptr to root_ptr
-    shared = make_tracked<int>(2048); // Assigning a new value to shared_ptr
-    
-    // Demonstrating array handling
-    auto array = make_tracked<const int[]>({ 1, 2, 3 }); // Creating an array and initialization
-    for (auto& elem: array) {
-        std::cout << elem << " "; // Iteration and printing
+    StackPtr<Node> node = make_tracked<Node>();
+
+    // Invalid, 'Node::next' cannot be on the stack
+    // Node stack_node;
+
+    // Undefined behavior, 'Node::next' cannot be on the unmanaged heap
+    // auto node = new Node;
+
+    // If you need a universal Node class
+    // template<PointerPolicy Policy>
+    // struct Node {
+    //     Pointer<Node, Policy> next;
+    //     int value = 5;
+    // };
+
+    // Creating a pointer alias
+    // Note: 'value' must be in the managed memory
+    // Note: undefined behavior when 'node' is array
+    StackPtr<int> value(&node->value);
+
+    // Moving from unique pointer to the stack pointer
+    // Note: now destructor will be called in a GC thread
+    stack = std::move(unique);
+
+    // Creating managed arrays
+    auto arr = make_tracked<int[]>(10);
+    arr = make_tracked<int[]>(10, 0);
+    arr = make_tracked<int[]>({ 1, 2, 3 });
+
+    // Iterating over the array
+    std::cout << "arr: ";
+    for (auto v: arr) {
+        std::cout << v << " ";
+    }
+    for (auto i = arr.rbegin(); i < arr.rend(); ++i) {
+        std::cout << *i << " ";
+    }
+    for (auto i = 0; i < arr.size(); ++i) {
+        std::cout << arr[i] << " ";
     }
     std::cout << std::endl;
-    
-    // Creating a pointer alias
-    // Note: only pointers to memory allocated on the managed heap, excluding arrays
-    root_ptr<int> value(&node->value);
-    
-    // Using unsafe_ptr to compare and return the pointer to the minimum value
-    auto min = [](unsafe_ptr<int> l, unsafe_ptr<int> r) -> unsafe_ptr<int> {
+
+    // Array casting
+    struct Bar {
+        int value;
+    };
+    struct Foo : Bar {
+        void set_value(int v) {
+            value = v;
+            Bar::value = v * v;
+        }
+        int value;
+    };
+    StackPtr<Foo[]> foo = make_tracked<Foo[]>(5);
+
+    // Casting 'foo' to base class
+    // Note: this is safe in the SGCL
+    StackPtr<Bar[]> bar = foo;
+    for (int i = 0; i < foo.size(); ++i) {
+        foo[i].set_value(i + 1);
+    }
+    std::cout << "foo: ";
+    for (auto& f: foo) {
+        std::cout << f.value << " ";
+    }
+    std::cout << std::endl << "bar: ";
+    for (auto& b: bar) {
+        std::cout << b.value << " ";
+    }
+    std::cout << std::endl;
+
+    // Casting array to object
+    StackPtr<Foo> first_foo = foo;
+
+    // Casting object to array
+    StackPtr<int[]> single_value_array = make_tracked<int>(12);
+
+    // Using unsafe pointer to compare and return the pointer to the minimum value
+    // Note: unsafe pointer is not tracked by GC
+    auto fmin = [](UnsafePtr<int> l, UnsafePtr<int> r) -> UnsafePtr<int> {
         return *l < *r ? l : r;
     };
-    root_ptr<int> pmin = min(value, root);
-    std::cout << "min: " << *pmin << std::endl;
-    
-    // Using unsafe_ptr for comparison and passing the result via reference to tracked_ptr
-    auto max = [](unsafe_ptr<int> l, unsafe_ptr<int> r, tracked_ptr<int>& out) {
+    StackPtr<int> min = fmin(value, stack);
+    std::cout << "min: " << *min << std::endl;
+
+    // Using unsafe pointer for comparison and passing the result via reference to tracked pointer
+    auto fmax = [](UnsafePtr<int> l, UnsafePtr<int> r, TrackedPtr<int>& out) {
         out = *l > *r ? l : r;
     };
-    root_ptr<int> pmax;
-    max(value, root, pmax);
-    std::cout << "max: " << *pmax << std::endl;
-    
+    StackPtr<int> max;
+    fmax(value, stack, max);
+    std::cout << "max: " << *max << std::endl;
+
     // Using an atomic pointer
-    atomic<root_ptr<int>> atomicRoot = make_tracked<int>(1234);
-    
-    // Using pointer casting
-    root_ptr<void> any = root;
-    root = static_pointer_cast<int>(any);
-    if (any.is<int>() || any.type() == typeid(int)) {
-        root = any.as<int>();
-    }
-    
+    Atomic<StackPtr<int>> atomicRoot = make_tracked<int>(2);
+
+    // Check pointer type
+    StackPtr<void> any = make_tracked<char>();
+    std::cout << "any " << (any.is<int>() ? "is" : "is not") <<  " int" << std::endl;
+    std::cout << "any " << (any.type() == typeid(char) ? "is" : "is not") <<  " char" << std::endl;
+    // Casting
+    StackPtr<char> c = any.as<char>();
+    c = static_pointer_cast<char>(any);
+
+    // Cloning
+    auto clone = c.clone();
+
     // Metadata usage
-    // The metadata structure is defined in the configuration.h file
-    struct: metadata {
-        void to_string(void* p) override {
-            std::cout << "to_string<int>: " << *static_cast<int*>(p) << std::endl;
-        }
-    } static mdata;
-    metadata::set<int>(&mdata);
-    any.metadata()->to_string(any.get()); // Currently any pointed a value of type int
+    set_metadata<int>(new std::string("int metadata"));
+    set_metadata<double>(new std::string("double metadata"));
+    any = make_tracked<int>();
+    std::cout << *any.metadata<std::string>() << std::endl;
+    any = make_tracked<double>();
+    std::cout << *any.metadata<std::string>() << std::endl;
+
+    // Using containers for tracked objects (vector, list, map, etc.)
+    // Note: Currently only root containers are available
+    // Note: Root containers do not support cycle detection in data structures
+    //       when they are integrated into such structures
+    RootVector<int> vec;
+    RootList<int> list;
+    // or
+    std::vector<Node, RootAllocator<Node>> same_vec;
+    std::list<Node, RootAllocator<Node>> same_list;
+
+    // Undefined behavior, 'Node::next' cannot be on the unmanaged heap
+    //std::vector<Node> vec;
 }
 ```
 ## Methods useful for state analysis
 ```cpp
 // Forcing garbage collection
-collector::force_collect();
+Collector::force_collect();
 
 // Forcing garbage collection and waiting for the cycle to complete
-collector::force_collect(true);
+Collector::force_collect(true);
 
-// Get the number of live objects
-auto live_objects_number = collector::live_objects_number();
-std::cout << "live objects number: " << live_objects_number << std::endl;
+// Get number of living objects
+auto living_objects_number = Collector::living_objects_number();
+std::cout << "living objects number: " << living_objects_number << std::endl;
 
-// Get an array of live objects
-auto live_objects = collector::live_objects();
-for (auto& v: live_objects) {
-    std::cout << v.get() << " " << v.type().name() << std::endl;
-}
+{
+    // Get list of living objects
+    // Note: A full GC cycle is performed before returning the data
+    // Note: Pause guard and vector of raw pointers is returned
+    //       The GC engine is paused until the pause guard is destroyed
+    auto [pause_guard, living_objects] = Collector::living_objects();
+    for (auto& v: living_objects) {
+        std::cout << v << " ";
+    }
+    std::cout << std::endl;
+} // The pause guard is destroyed at this point
 
 // Terminate collector
-collector::terminate();
+// Note: This call is optional
+Collector::terminate();
 ```
 ## Dependencies
-This library is written in C++17 and a compliant compiler is necessary. 
+This library is written in C++20 and a compliant compiler is necessary. 
 
 No external library is necessary and there are no other requirements.
 ## Usage

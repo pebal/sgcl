@@ -5,8 +5,18 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "detail/unique_deleter.h"
+#include "../config.h"
+#include "types.h"
 
-namespace sgcl {
-    using UniqueDeleter = detail::UniqueDeleter;
+namespace sgcl::detail {
+    struct DataPage {
+        union{
+            Block* block;
+            Page* page;
+        };
+        union {
+            DataPage* next;
+            char data[config::PageSize - sizeof(Block*)];
+        };
+    };
 }

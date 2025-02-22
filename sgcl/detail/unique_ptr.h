@@ -5,8 +5,11 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "detail/unique_deleter.h"
+#include "unique_deleter.h"
 
-namespace sgcl {
-    using UniqueDeleter = detail::UniqueDeleter;
+#include <memory>
+
+namespace sgcl::detail {
+    template<class T>
+    using UniquePtr = std::unique_ptr<T, UniqueDeleter>;
 }

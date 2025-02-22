@@ -5,8 +5,18 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "detail/unique_deleter.h"
+#include "detail/tracked.h"
+
+#include <type_traits>
 
 namespace sgcl {
-    using UniqueDeleter = detail::UniqueDeleter;
+    template<typename T>
+    concept IsPointer = requires(T t) {
+        { t.clone() };
+        { t.get() };
+        { t.object_size() };
+    };
+
+    template <typename T>
+    concept TrackedPointer = std::is_base_of_v<detail::Tracked, T>;
 }

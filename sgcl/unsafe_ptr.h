@@ -1,36 +1,59 @@
 //------------------------------------------------------------------------------
 // SGCL: Smart Garbage Collection Library
-// Copyright (c) 2022-2024 Sebastian Nibisz
-// SPDX-License-Identifier: Zlib
+// Copyright (c) 2022-2025 Sebastian Nibisz
+// SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "root_ptr.h"
-#include "tracked_ptr.h"
+#include "pointer.h"
+#include "array_ptr.h"
 #include "unique_ptr.h"
 
 namespace sgcl {
     template<class T>
-    struct unsafe_ptr {
+    class UnsafePtr {
     public:
-        using element_type = std::remove_extent_t<T>;
+        using element_type = T;
 
-        constexpr unsafe_ptr() = delete;
-        unsafe_ptr(const unsafe_ptr& p) = default;
-
-        template<class U, std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
-        unsafe_ptr(const unsafe_ptr<U>& p)
-        : _ptr(p.get()) {
+        constexpr UnsafePtr() noexcept
+        : _raw_ptr(nullptr) {
         }
 
-        template<class U, std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
-        unsafe_ptr(const root_ptr<U>& p)
-        : _ptr(p.get()) {
+        constexpr UnsafePtr(std::nullptr_t) noexcept
+        : _raw_ptr(nullptr) {
         }
 
-        template<class U, std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
-        unsafe_ptr(const tracked_ptr<U>& p)
-        : _ptr(p.get()) {
+        UnsafePtr(const UnsafePtr&) noexcept = default;
+        UnsafePtr(UnsafePtr&&) noexcept = default;
+
+        template<class U, PointerPolicy P, std::enable_if_t<std::is_convertible_v<typename Pointer<U, P>::element_type*, T*>, int> = 0>
+        UnsafePtr(const Pointer<U, P>& p) noexcept
+        : _raw_ptr(p.get()) {
+        }
+
+        template<class U, std::enable_if_t<std::is_convertible_v<typename UnsafePtr<U>::element_type*, T*>, int> = 0>
+        UnsafePtr(const UnsafePtr<U>& p) noexcept
+        : _raw_ptr(p.get()) {
+        }
+
+        UnsafePtr& operator=(const UnsafePtr&) = default;
+        UnsafePtr& operator=(UnsafePtr&&) noexcept = default;
+
+        UnsafePtr& operator=(std::nullptr_t) noexcept {
+            _raw_ptr = nullptr;
+            return *this;
+        }
+
+        template<class U, PointerPolicy P, std::enable_if_t<std::is_convertible_v<typename Pointer<U, P>::element_type*, T*>, int> = 0>
+        UnsafePtr& operator=(const Pointer<U, P>& p) noexcept {
+            _raw_ptr = p.get();
+            return *this;
+        }
+
+        template<class U, std::enable_if_t<std::is_convertible_v<typename UnsafePtr<U>::element_type*, T*>, int> = 0>
+        UnsafePtr& operator=(const UnsafePtr<U>& p) noexcept {
+            _raw_ptr = p.get();
+            return *this;
         }
 
         explicit operator bool() const noexcept {
@@ -49,181 +72,104 @@ namespace sgcl {
             return get();
         }
 
-        template <class U = T, class E = element_type, std::enable_if_t<std::is_array_v<U>, int> = 0>
-        E& operator[](size_t i) const noexcept {
-            assert(get() != nullptr);
-            return get()[i];
-        }
-
-        template <class U = T, std::enable_if_t<std::is_array_v<U>, int> = 0>
-        size_t size() const noexcept {
-            auto array = (Priv::Array_base*)Priv::Tracked_ptr::base_address_of(_ptr);
-            return array ? array->count : 0;
-        }
-
-        template <class U = T, std::enable_if_t<std::is_array_v<U>, int> = 0>
-        element_type* begin() const noexcept {
-            return get();
-        }
-
-        template <class U = T, std::enable_if_t<std::is_array_v<U>, int> = 0>
-        element_type* end() const noexcept {
-            return begin() + size();
-        }
-
         element_type* get() const noexcept {
-            return _ptr;
+            return _raw_ptr;
         }
 
-        unique_ptr<T> clone() const {
-            return (element_type*)Priv::Tracked_ptr::clone(_ptr);
+        void* get_base() const noexcept {
+            return detail::Pointer::data_base_address_of(this->get());
         }
 
-        template<class U, std::enable_if_t<!std::is_array_v<U>, int> = 0>
+        void reset() noexcept {
+            _raw_ptr = nullptr;
+        }
+
+        void swap(UnsafePtr& p) noexcept {
+            std::swap(_raw_ptr, p._raw_ptr);
+        }
+
+        UniquePtr<T> clone() const {
+            return (element_type*)detail::Pointer::clone(_raw_ptr);
+        }
+
+        template<class U>
         bool is() const noexcept {
             return type() == typeid(U);
         }
 
-        template<class U, std::enable_if_t<!std::is_array_v<U>, int> = 0>
-        root_ptr<U> as() const noexcept {
+        template<class U>
+        UnsafePtr<U> as() const noexcept {
             if (is<U>()) {
-                auto address = Priv::Tracked_ptr::base_address_of(_ptr);
-                return root_ptr<U>((U*)address);
+                return UnsafePtr<U>((typename UnsafePtr<U>::element_type*)get_base());
             } else {
                 return {nullptr};
             }
         }
 
         const std::type_info& type() const noexcept {
-            return Priv::Tracked_ptr::type_info<T>(_ptr);
+            return detail::Pointer::type_info<T>(_raw_ptr);
         }
 
-        metadata*& metadata() const noexcept {
-            return Priv::Tracked_ptr::metadata<T>(_ptr);
+        template<class M = void>
+        M* metadata() const noexcept {
+            return (M*)detail::Pointer::metadata<T>(_raw_ptr);
         }
 
         constexpr bool is_array() const noexcept {
-            return Priv::Tracked_ptr::is_array<T>(_ptr);
+            return detail::Pointer::is_array(_raw_ptr);
         }
 
-    private:
-        element_type* const _ptr;
+        size_t object_size() const noexcept {
+            return detail::Pointer::object_size(_raw_ptr);
+        }
+
+    protected:
+        element_type* _raw_ptr;
+
+        template<class U>
+        constexpr UnsafePtr(U* p) noexcept
+        : _raw_ptr(p) {
+        }
+
+        template<class> friend class UnsafePtr;
+    };
+
+    template<class T>
+    class UnsafePtr<T[]> : public ArrayPtr<T, UnsafePtr<T>> {
+        using Base = ArrayPtr<T, UnsafePtr<T>>;
+
+    public:
+        using Base::Base;
+        using Base::operator=;
     };
 
     template<class T, class U>
-    inline bool operator==(const unsafe_ptr<T>& a, const unsafe_ptr<U>& b) noexcept {
-        return a.get() == b.get();
-    }
-
-    template<class T>
-    inline bool operator==(const unsafe_ptr<T>& a, std::nullptr_t) noexcept {
-        return !a;
-    }
-
-    template<class T>
-    inline bool operator==(std::nullptr_t, const unsafe_ptr<T>& a) noexcept {
-        return !a;
+    inline UnsafePtr<T> static_pointer_cast(const UnsafePtr<U>& r) noexcept {
+        auto p = static_cast<typename UnsafePtr<T>::element_type*>(r.get());
+        return (UnsafePtr<T>&)p;
     }
 
     template<class T, class U>
-    inline bool operator!=(const unsafe_ptr<T>& a, const unsafe_ptr<U>& b) noexcept {
-        return !(a == b);
-    }
-
-    template<class T>
-    inline bool operator!=(const unsafe_ptr<T>& a, std::nullptr_t) noexcept {
-        return (bool)a;
-    }
-
-    template<class T>
-    inline bool operator!=(std::nullptr_t, const unsafe_ptr<T>& a) noexcept {
-        return (bool)a;
+    inline UnsafePtr<T> const_pointer_cast(const UnsafePtr<U>& r) noexcept {
+        auto p = const_cast<typename UnsafePtr<T>::element_type*>(r.get());
+        return (UnsafePtr<T>&)p;
     }
 
     template<class T, class U>
-    inline bool operator<(const unsafe_ptr<T>& a, const unsafe_ptr<U>& b) noexcept {
-        using V = typename std::common_type<T*, U*>::type;
-        return std::less<V>()(a.get(), b.get());
+    inline UnsafePtr<T> dynamic_pointer_cast(const UnsafePtr<U>& r) noexcept {
+        auto p = dynamic_cast<typename UnsafePtr<T>::element_type*>(r.get());
+        return (UnsafePtr<T>&)p;
     }
 
     template<class T>
-    inline bool operator<(const unsafe_ptr<T>& a, std::nullptr_t) noexcept {
-        return std::less<T*>()(a.get(), nullptr);
-    }
-
-    template<class T>
-    inline bool operator<(std::nullptr_t, const unsafe_ptr<T>& a) noexcept {
-        return std::less<T*>()(nullptr, a.get());
-    }
-
-    template<class T, class U>
-    inline bool operator<=(const unsafe_ptr<T>& a, const unsafe_ptr<U>& b) noexcept {
-        return !(b < a);
-    }
-
-    template<class T>
-    inline bool operator<=(const unsafe_ptr<T>& a, std::nullptr_t) noexcept {
-        return !(nullptr < a);
-    }
-
-    template<class T>
-    inline bool operator<=(std::nullptr_t, const unsafe_ptr<T>& a) noexcept {
-        return !(a < nullptr);
-    }
-
-    template<class T, class U>
-    inline bool operator>(const unsafe_ptr<T>& a, const unsafe_ptr<U>& b) noexcept {
-        return (b < a);
-    }
-
-    template<class T>
-    inline bool operator>(const unsafe_ptr<T>& a, std::nullptr_t) noexcept {
-        return nullptr < a;
-    }
-
-    template<class T>
-    inline bool operator>(std::nullptr_t, const unsafe_ptr<T>& a) noexcept {
-        return a < nullptr;
-    }
-
-    template<class T, class U>
-    inline bool operator>=(const unsafe_ptr<T>& a, const unsafe_ptr<U>& b) noexcept {
-        return !(a < b);
-    }
-
-    template<class T>
-    inline bool operator>=(const unsafe_ptr<T>& a, std::nullptr_t) noexcept {
-        return !(a < nullptr);
-    }
-
-    template<class T>
-    inline bool operator>=(std::nullptr_t, const unsafe_ptr<T>& a) noexcept {
-        return !(nullptr < a);
-    }
-
-    template<class T, class U, std::enable_if_t<!std::is_array_v<T> || std::is_same_v<std::remove_cv_t<U>, void>, int> = 0>
-    inline unsafe_ptr<T> static_pointer_cast(const unsafe_ptr<U>& r) noexcept {
-        return (unsafe_ptr<T>&)static_cast<typename unsafe_ptr<T>::element_type*>(r.get());
-    }
-
-    template<class T, class U, std::enable_if_t<!std::is_array_v<T>, int> = 0>
-    inline unsafe_ptr<T> const_pointer_cast(const unsafe_ptr<U>& r) noexcept {
-        return (unsafe_ptr<T>&)const_cast<typename unsafe_ptr<T>::element_type*>(r.get());
-    }
-
-    template<class T, class U, std::enable_if_t<!std::is_array_v<T>, int> = 0>
-    inline unsafe_ptr<T> dynamic_pointer_cast(const unsafe_ptr<U>& r) noexcept {
-        return (unsafe_ptr<T>&)dynamic_cast<typename unsafe_ptr<T>::element_type*>(r.get());
-    }
-
-    template<class T, class U, std::enable_if_t<!std::is_array_v<T>, int> = 0>
-    inline unsafe_ptr<T> reinterpret_pointer_cast(const unsafe_ptr<U>& r) noexcept {
-        return (unsafe_ptr<T>&)reinterpret_cast<typename unsafe_ptr<T>::element_type*>(r.get());
-    }
-
-    template<class T>
-    std::ostream& operator<<(std::ostream& s, const unsafe_ptr<T>& p) {
+    std::ostream& operator<<(std::ostream& s, const UnsafePtr<T>& p) {
         s << p.get();
         return s;
     }
+
+    template <class T>
+    UnsafePtr(UnsafePtr<T>) -> UnsafePtr<T>;
+
+    template <class T, PointerPolicy P>
+    UnsafePtr(Pointer<T, P>) -> UnsafePtr<T>;
 }

@@ -1,31 +1,31 @@
 //------------------------------------------------------------------------------
 // SGCL: Smart Garbage Collection Library
-// Copyright (c) 2022-2024 Sebastian Nibisz
-// SPDX-License-Identifier: Zlib
+// Copyright (c) 2022-2025 Sebastian Nibisz
+// SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "priv/collector.h"
-#include "unique_ptr.h"
+#include "detail/collector.h"
 
 namespace sgcl {
-    struct collector {
-        inline static int64_t live_objects_number() {
-            return Priv::Collector_instance().live_objects_number();
+    class Collector {
+    public:
+        using PauseGuard = detail::Collector::PauseGuard;
+
+        inline static size_t living_objects_number() {
+            return detail::collector_instance().last_living_objects_number();
         }
 
-        inline static unique_ptr<tracked_ptr<void>[]> live_objects() {
-            unique_ptr<tracked_ptr<void>[]> array;
-            Priv::Collector_instance().live_objects((Priv::Unique_ptr<Priv::Tracked_ptr[]>&)array);
-            return array;
+        inline static std::tuple<PauseGuard, std::vector<void*>> living_objects() {
+            return detail::collector_instance().living_objects();
         }
 
-        inline static void force_collect(bool wait = false) noexcept {
-            Priv::Collector_instance().force_collect(wait);
+        inline static bool force_collect(bool wait = false) noexcept {
+            return detail::collector_instance().force_collect(wait);
         }
 
         inline static void terminate() noexcept {
-            Priv::Collector::terminate();
+            detail::Collector::terminate();
         }
     };
 }

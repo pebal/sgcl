@@ -5,8 +5,11 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "detail/unique_deleter.h"
+#include "page_info.h"
 
-namespace sgcl {
-    using UniqueDeleter = detail::UniqueDeleter;
+namespace sgcl::detail {
+    template<class T>
+    struct TypeInfo : PageInfo<std::remove_cv_t<T>> {
+        using Type = std::remove_cv_t<T>;
+    };
 }

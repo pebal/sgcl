@@ -5,8 +5,13 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "detail/unique_deleter.h"
+#include "collector.h"
 
-namespace sgcl {
-    using UniqueDeleter = detail::UniqueDeleter;
+namespace sgcl::detail {
+    struct UniqueDeleter {
+        template<class T>
+        void operator()(T* p) {
+            Collector::delete_unique(p);
+        }
+    };
 }

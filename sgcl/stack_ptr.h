@@ -5,8 +5,9 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "detail/unique_deleter.h"
+#include "pointer.h"
 
 namespace sgcl {
-    using UniqueDeleter = detail::UniqueDeleter;
+    template <class T>
+    using StackPtr = Pointer<T, PointerPolicy::Stack>;
 }

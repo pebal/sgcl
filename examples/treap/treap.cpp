@@ -5,87 +5,79 @@
 
 using namespace sgcl;
 
-class treap {
-    struct Node;
-    using Root = root_ptr<Node>;
-    using Ptr = tracked_ptr<Node>;
-    using Ref = unsafe_ptr<Node>;
-
+class Treap {
     struct Node {
-        Node(int v): value(v) {}
-        const int value;
-        const int priority = rand();
-        Ptr left;
-        Ptr right;
-    };
-
-    Root _root;
-
-    inline static auto _make = [](int value) {
-        return make_tracked<Node>(value);
+        Node(int x): x(x) {}
+        const int x;
+        const int y = rand();
+        TrackedPtr<Node> left;
+        TrackedPtr<Node> right;
     };
 
 public:
-    void insert(int value) {
-        auto [lower, equal, greater] = _split(value);
+    void insert(int x) {
+        auto [lower, equal, greater] = _split(x);
         if (!equal) {
-            equal = _make(value);
+            equal = make_tracked<Node>(x);
         }
         _root = _merge(lower, equal, greater);
     }
 
-    void erase(int value) {
-        auto [lower, equal, greater] = _split(value);
+    void erase(int x) {
+        auto [lower, equal, greater] = _split(x);
         _root = _merge(lower, greater);
     }
 
-    bool has_value(int value) {
-        auto [lower, equal, greater] = _split(value);
+    bool has_value(int x) {
+        auto [lower, equal, greater] = _split(x);
         _root = _merge(lower, equal, greater);
         return equal != nullptr;
     }
 
 private:
-    static Ref _merge(Ref lower, Ref greater) {
+    static UnsafePtr<Node> _merge(UnsafePtr<Node> lower, UnsafePtr<Node> greater) {
         if (!lower) {
             return greater;
         }
         if (!greater) {
             return lower;
         }
-        if (lower->priority < greater->priority) {
+        if (lower->y < greater->y) {
             lower->right = _merge(lower->right, greater);
             return lower;
-        } else {
+        }
+        else {
             greater->left = _merge(lower, greater->left);
             return greater;
         }
     }
 
-    static Ref _merge(Ref lower, Ref equal, Ref greater) {
+    static UnsafePtr<Node> _merge(UnsafePtr<Node> lower, UnsafePtr<Node> equal, UnsafePtr<Node> greater) {
         return _merge(_merge(lower, equal), greater);
     }
 
-    std::array<Root, 3> _split(int value) const {
+    std::array<StackPtr<Node>, 3> _split(int val) const {
         struct Local {
-            static void split(Ref orig, Ptr& lower, Ptr& greater, int value) {
+            static void split(UnsafePtr<Node> orig, TrackedPtr<Node>& lower, TrackedPtr<Node>& greater, int val) {
                 if (!orig) {
                     lower = nullptr;
                     greater = nullptr;
-                } else if (orig->value < value) {
+                } else if (orig->x < val) {
                     lower = orig;
-                    split(lower->right, lower->right, greater, value);
+                    split(lower->right, lower->right, greater, val);
                 } else {
                     greater = orig;
-                    split(greater->left, lower, greater->left, value);
+                    split(greater->left, lower, greater->left, val);
                 }
             }
         };
-        Root lower, equal, equal_or_greater, greater;
-        Local::split(_root, lower, equal_or_greater, value);
-        Local::split(equal_or_greater, equal, greater, value + 1);
+        StackPtr<Node> lower, equal, equal_or_greater, greater;
+        Local::split(_root, lower, equal_or_greater, val);
+        Local::split(equal_or_greater, equal, greater, val + 1);
         return {lower, equal, greater};
     }
+
+    TrackedPtr<Node> _root;
 };
 
 int main() {
@@ -93,7 +85,7 @@ int main() {
     using std::chrono::duration;
     auto t = high_resolution_clock::now();
 
-    treap treap;
+    auto treap = make_tracked<Treap>();
     int value = 5;
     int result = 0;
 
@@ -101,13 +93,13 @@ int main() {
         value = (value * 57 + 43) % 10007;
         switch(i % 3) {
         case 0:
-            treap.insert(value);
+            treap->insert(value);
             break;
         case 1:
-            treap.erase(value);
+            treap->erase(value);
             break;
         case 2:
-            result += treap.has_value(value);
+            result += treap->has_value(value);
             break;
         }
     }

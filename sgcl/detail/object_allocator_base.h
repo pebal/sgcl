@@ -5,8 +5,16 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "detail/unique_deleter.h"
+#include "types.h"
 
-namespace sgcl {
-    using UniqueDeleter = detail::UniqueDeleter;
+namespace sgcl::detail {
+    class ObjectAllocatorBase {
+    public:
+        ObjectAllocatorBase() {
+            collector_init();
+        }
+
+        virtual ~ObjectAllocatorBase() noexcept = default;
+        inline static std::atomic<Page*> pages = {nullptr};
+    };
 }

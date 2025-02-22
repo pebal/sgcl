@@ -5,8 +5,9 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "detail/unique_deleter.h"
+#include "detail/root_container_allocator.h"
 
 namespace sgcl {
-    using UniqueDeleter = detail::UniqueDeleter;
+    template <class T>
+    using RootAllocator = detail::RootContainerAllocator<T>;
 }

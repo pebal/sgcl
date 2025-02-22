@@ -1,35 +1,35 @@
 //------------------------------------------------------------------------------
 // SGCL: Smart Garbage Collection Library
-// Copyright (c) 2022-2024 Sebastian Nibisz
-// SPDX-License-Identifier: Zlib
+// Copyright (c) 2022-2025 Sebastian Nibisz
+// SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
+
+#include "concepts.h"
 
 #include <cstddef>
 
 namespace sgcl {
+    enum class PointerPolicy {
+        Tracked,
+        Stack
+    };
+
+    template<class T, IsPointer Base>
+    class ArrayPtr;
+    template<TrackedPointer>
+    class Atomic;
+    class Collector;
+    template<class, PointerPolicy>
+    class Pointer;
+    template<class T, PointerPolicy P, size_t N>
+    class Pointer<T[N], P>;
     template<class>
-    class atomic;
-
-    struct collector;
-    struct metadata;
-    struct metadata_base;
-
-    template<class>
-    class tracked_ptr;
-
+    class UniquePtr;
     template<class T, size_t N>
-    class tracked_ptr<T[N]>;
-
+    class UniquePtr<T[N]>;
     template<class>
-    class root_ptr;
-
+    class UnsafePtr;
     template<class T, size_t N>
-    class root_ptr<T[N]>;
-
-    template<class>
-    struct unsafe_ptr;
-
-    template<class T, size_t N>
-    struct unsafe_ptr<T[N]>;
+    class UnsafePtr<T[N]>;
 }
