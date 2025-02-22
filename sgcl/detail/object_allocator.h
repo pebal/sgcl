@@ -14,7 +14,7 @@ namespace sgcl::detail {
     class ObjectAllocator : ObjectAllocatorBase {
     public:
         using ValueType = typename TypeInfo<T>::Type;
-        using is_pool_allocator = std::false_type;
+        using IsPoolAllocator = std::false_type;
 
         ValueType* alloc(size_t size) const {
             size += sizeof(ValueType) + sizeof(uintptr_t);

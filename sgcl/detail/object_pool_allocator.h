@@ -12,7 +12,7 @@ namespace sgcl::detail {
     class ObjectPoolAllocator : public ObjectPoolAllocatorBase {
     public:
         using ValueType = typename TypeInfo<T>::Type;
-        using is_pool_allocator = std::true_type;
+        using IsPoolAllocator = std::true_type;
 
         constexpr ObjectPoolAllocator(BlockAllocator& a) noexcept
             : ObjectPoolAllocatorBase(a, _pointer_pool, _pages_buffer, _lock) {

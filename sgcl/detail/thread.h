@@ -95,7 +95,7 @@ namespace sgcl::detail {
 
         template<class Allocator>
         Allocator& _allocator() {
-            if constexpr(Allocator::is_pool_allocator::value) {
+            if constexpr(Allocator::IsPoolAllocator::value) {
                 auto& alocator = _allocators[_type_index<typename Allocator::ValueType>()];
                 if (!alocator) {
                     alocator.reset(new Allocator(*_block_allocator));
