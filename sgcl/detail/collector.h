@@ -286,9 +286,10 @@ namespace sgcl::detail {
                 for (size_t i = 0; i < std::size(allocator.is_used); ++i) {
                     auto used = allocator.is_used[i].load(std::memory_order_acquire);
                     if (used) {
-                        auto first = i * (config::PageSize / sizeof(RawPointer));
-                        for (size_t index = first; index < first + (config::PageSize / sizeof(RawPointer)); ++index) {
-                            _mark(allocator.data[index].load(std::memory_order_acquire));
+                        auto first = i * (StackPointerAllocator::PageSize / sizeof(RawPointer));
+                        auto last = first + (StackPointerAllocator::PageSize / sizeof(RawPointer));
+                        for (size_t index = first; index < last; ++index) {
+                            _mark(allocator.data[index].load(std::memory_order_relaxed));
                         }
                     }
                 }

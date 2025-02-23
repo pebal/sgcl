@@ -12,15 +12,16 @@
 
 namespace sgcl::detail {
     struct StackPointerAllocator {
-        static constexpr unsigned PageCount = config::MaxStackSize / config::PageSize;
+        static constexpr unsigned PageSize = 4096;
+        static constexpr unsigned PageCount = config::MaxStackSize / PageSize;
 
         StackPointerAllocator() noexcept {}
 
         Pointer* alloc(void* p) noexcept {
-            auto index = ((uintptr_t)p / config::PageSize) % PageCount;
+            auto index = ((uintptr_t)p / PageSize) % PageCount;
             auto used = is_used[index].load(std::memory_order_relaxed);
             if (!used) {
-                std::memset((char*)data + index * config::PageSize, 0, config::PageSize);
+                std::memset((char*)data + index * PageSize, 0, PageSize);
                 is_used[index].store(true, std::memory_order_release);
             }
             auto offset = ((uintptr_t)p % config::MaxStackSize);
