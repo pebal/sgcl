@@ -110,11 +110,13 @@ int main() {
     // auto node = new Node;
 
     // If you need a universal Node class
-    // template<PointerPolicy Policy>
+    // template<PointerPolicy Policy = PointerPolicy::Tracked>
     // struct Node {
     //     Pointer<Node, Policy> next;
     //     int value = 5;
     // };
+    // Node<PointerPolicy::Stack> stack_node;
+    // auto node = make_tracked<Node>();
 
     // Creating a pointer alias
     // Note: 'value' must be in the managed memory
