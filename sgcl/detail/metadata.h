@@ -40,7 +40,6 @@ namespace sgcl::detail {
         const std::type_info& type_info;
         Page* empty_page = {nullptr};
         Metadata* next = {nullptr};
-        bool on_empty_list = {false};
         bool used = {false};
     };
 }

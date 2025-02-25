@@ -14,8 +14,8 @@ namespace sgcl::detail {
         using ValueType = typename TypeInfo<T>::Type;
         using IsPoolAllocator = std::true_type;
 
-        constexpr ObjectPoolAllocator(BlockAllocator& a) noexcept
-            : ObjectPoolAllocatorBase(a, _pointer_pool, _pages_buffer, _lock) {
+        constexpr ObjectPoolAllocator(BlockAllocator& a, std::atomic<Page*>& pages) noexcept
+            : ObjectPoolAllocatorBase(a, pages, _pointer_pool, _pages_buffer, _lock) {
         }
 
         static void free(Page* pages) noexcept {

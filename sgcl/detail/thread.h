@@ -11,7 +11,7 @@
 
 #include <thread>
 
-#if SGCL_LOG_PRINT_LEVEL > 0
+#if SGCL_LOG_PRINT_LEVEL > 3
 #include <iostream>
 #endif
 
@@ -25,9 +25,13 @@ namespace sgcl::detail {
             }
             std::unique_ptr<BlockAllocator> block_allocator;
             std::unique_ptr<StackPointerAllocator> stack_roots_allocator;
-            std::atomic<bool> is_used = {true};
+            std::atomic<bool> is_deleted = {false};
+            bool is_used = {true};
+            bool is_last_registered = {false};
             Data* next = {nullptr};
-            Data* next_unused = {nullptr};
+            Data* next_registered = {nullptr};
+            std::atomic<Page*> pages = {nullptr};
+            Page* last_page_registered = {nullptr};
         };
 
         struct ChildPointers {
@@ -65,8 +69,11 @@ namespace sgcl::detail {
         }
 
         ~Thread() noexcept {
-            _data->is_used.store(false, std::memory_order_release);
+            _data->is_deleted.store(true, std::memory_order_release);
             if (std::this_thread::get_id() == main_thread_id) {
+                for (auto& a : _allocators) {
+                    a.reset();
+                }
                 terminate_collector();
             }
 #if SGCL_LOG_PRINT_LEVEL >= 3
@@ -95,16 +102,15 @@ namespace sgcl::detail {
 
         template<class Allocator>
         Allocator& _allocator() {
-            if constexpr(Allocator::IsPoolAllocator::value) {
-                auto& alocator = _allocators[_type_index<typename Allocator::ValueType>()];
-                if (!alocator) {
-                    alocator.reset(new Allocator(*_block_allocator));
+            auto& alocator = _allocators[_type_index<typename Allocator::ValueType>()];
+            if (!alocator) {
+                if constexpr(Allocator::IsPoolAllocator::value) {
+                    alocator.reset(new Allocator(*_block_allocator, _data->pages));
+                } else {
+                    alocator.reset(new Allocator(_data->pages));
                 }
-                return static_cast<Allocator&>(*alocator);
-            } else {
-                static Allocator allocator;
-                return allocator;
             }
+            return static_cast<Allocator&>(*alocator);
         }
         template<class T>
         inline static unsigned _type_index() {

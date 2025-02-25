@@ -11,38 +11,46 @@
 namespace sgcl::detail {
     class ObjectPoolAllocatorBase : public ObjectAllocatorBase {
     public:
-        ObjectPoolAllocatorBase(BlockAllocator& ba, PointerPoolBase& pa, Page*& pb, std::atomic_flag& lock) noexcept
-        : _block_allocator(ba)
+        ObjectPoolAllocatorBase(BlockAllocator& ba, std::atomic<Page*>& pages, PointerPoolBase& pa, Page*& pb, std::atomic_flag& lock) noexcept
+        : ObjectAllocatorBase(pages)
+        , _block_allocator(ba)
         , _pointer_pool(pa)
         , _pages_buffer(pb)
         , _lock(lock) {
         }
 
         ~ObjectPoolAllocatorBase() noexcept override {
+            bool unused = false;
             while (!_pointer_pool.is_empty()) {
                 auto ptr = _pointer_pool.alloc();
                 auto index = _current_page->index_of(ptr);
                 _current_page->states()[index].store(State::Unused, std::memory_order_relaxed);
+                unused = true;
+            }
+            if (unused) {
+                _current_page->unused_occur.store(true, std::memory_order_release);
             }
             std::atomic_thread_fence(std::memory_order_release);
         }
 
         void* alloc(size_t = 0) {
             if  (_pointer_pool.is_empty()) {
-                while (_lock.test_and_set(std::memory_order_acquire));
-                auto page = _pages_buffer;
-                if (page) {
-                    _pages_buffer = page->next_empty;
+                Page* page = nullptr;
+                if (!_lock.test_and_set(std::memory_order_acquire)) {
+                    page = _pages_buffer;
+                    if (page) {
+                        _pages_buffer = page->next_empty;
+                    }
+                    _lock.clear(std::memory_order_release);
                 }
-                _lock.clear(std::memory_order_release);
                 if (page) {
                     _pointer_pool.fill(page);
                     page->on_empty_list.store(false, std::memory_order_release);
                 } else {
                     page = _alloc_page();
                     _pointer_pool.fill((void*)(page->data));
-                    page->next = pages.load(std::memory_order_acquire);
-                    while(!pages.compare_exchange_weak(page->next, page, std::memory_order_release, std::memory_order_relaxed));
+                    page->next = _pages.load(std::memory_order_relaxed);
+                    _pages.store(page, std::memory_order_release);
                 }
                 _current_page = page;
             }

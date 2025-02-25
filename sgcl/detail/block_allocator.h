@@ -27,12 +27,14 @@ namespace sgcl::detail {
 
         DataPage* alloc() {
             if (_pointer_pool.is_empty()) {
-                while (_lock.test_and_set(std::memory_order_acquire));
-                auto page = _empty_pages;
-                if (page) {
-                    _empty_pages = page->next;
+                DataPage* page = nullptr;
+                if (!_lock.test_and_set(std::memory_order_acquire)) {
+                    page = _empty_pages;
+                    if (page) {
+                        _empty_pages = page->next;
+                    }
+                    _lock.clear(std::memory_order_release);
                 }
-                _lock.clear(std::memory_order_release);
                 if (page) {
                     return page;
                 } else {

@@ -131,9 +131,9 @@ namespace sgcl::detail {
         size_t alloc_size = 0;
         bool reachable = {false};
         bool unreachable = {false};
-        bool registered = {false};
         bool is_used = {true};
-        bool unused_occur = {true};
+        bool is_last_registered = {false};
+        std::atomic_bool unused_occur = {true};
         std::atomic_bool object_created = {false};
         std::atomic_bool state_updated = {false};
         std::atomic_bool on_empty_list = {false};

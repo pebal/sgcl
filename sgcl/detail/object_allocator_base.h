@@ -10,11 +10,14 @@
 namespace sgcl::detail {
     class ObjectAllocatorBase {
     public:
-        ObjectAllocatorBase() {
+        ObjectAllocatorBase(std::atomic<Page*>& pages)
+        : _pages(pages) {
             collector_init();
         }
 
         virtual ~ObjectAllocatorBase() noexcept = default;
-        inline static std::atomic<Page*> pages = {nullptr};
+
+    protected:
+        std::atomic<Page*>& _pages;
     };
 }

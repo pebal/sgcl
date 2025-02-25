@@ -11,10 +11,14 @@
 
 namespace sgcl::detail {
     template<class T>
-    class ObjectAllocator : ObjectAllocatorBase {
+    class ObjectAllocator : public ObjectAllocatorBase {
     public:
         using ValueType = typename TypeInfo<T>::Type;
         using IsPoolAllocator = std::false_type;
+
+        ObjectAllocator(std::atomic<Page*>& pages)
+        : ObjectAllocatorBase(pages) {
+        }
 
         ValueType* alloc(size_t size) const {
             size += sizeof(ValueType) + sizeof(uintptr_t);
@@ -24,8 +28,8 @@ namespace sgcl::detail {
             auto page = new(hmem) Page(nullptr, data);
             page->alloc_size = size;
             *((Page**)mem) = page;
-            page->next = pages.load(std::memory_order_relaxed);
-            while(!pages.compare_exchange_weak(page->next, page, std::memory_order_release, std::memory_order_relaxed));
+            page->next = _pages.load(std::memory_order_relaxed);
+            _pages.store(page, std::memory_order_release);
             MemoryCounters::update_alloc(size);
             return data;
         }
