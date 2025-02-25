@@ -28,7 +28,7 @@ namespace sgcl::detail {
                 unused = true;
             }
             if (unused) {
-                _current_page->unused_occur.store(true, std::memory_order_release);
+                _current_page->unused_occur.store(true, std::memory_order_relaxed);
             }
             std::atomic_thread_fence(std::memory_order_release);
         }
@@ -103,7 +103,6 @@ namespace sgcl::detail {
                 }
                 page = next;
             }
-            std::atomic_thread_fence(std::memory_order_release);
         }
 
         static void _free(Page* pages) noexcept {

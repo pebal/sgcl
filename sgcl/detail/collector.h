@@ -587,7 +587,7 @@ namespace sgcl::detail {
                                     }
                                 }
                                 ++removed;
-                                states[index].store(State::Unused, std::memory_order_release);
+                                states[index].store(State::Unused, std::memory_order_relaxed);
                                 page->unused_occur.store(true, std::memory_order_relaxed);
                             }
                         }
@@ -597,14 +597,17 @@ namespace sgcl::detail {
                 page->unreachable = false;
                 page = page->next_unreachable;
             }
+            std::atomic_thread_fence(std::memory_order_release);
+
             return removed;
         }
 
         void _release_unused_pages() {
+            std::atomic_thread_fence(std::memory_order_acquire);
             Metadata* metadata = nullptr;
             auto page = _registered_pages;
             while(page) {
-                if (page->unused_occur.load(std::memory_order_acquire)) {
+                if (page->unused_occur.load(std::memory_order_relaxed)) {
                     auto empty = 0u;
                     auto states = page->states();
                     auto count = page->metadata->object_count;
@@ -619,7 +622,7 @@ namespace sgcl::detail {
                                     page->metadata->next = metadata;
                                     metadata = page->metadata;
                                 }
-                                if (!page->on_empty_list.load(std::memory_order_acquire)) {
+                                if (!page->on_empty_list.load(std::memory_order_relaxed)) {
                                     page->on_empty_list.store(true, std::memory_order_relaxed);
                                     page->next_empty = page->metadata->empty_page;
                                     page->metadata->empty_page = page;
