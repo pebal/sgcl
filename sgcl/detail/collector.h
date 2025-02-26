@@ -134,6 +134,7 @@ namespace sgcl::detail {
             std::atomic_thread_fence(std::memory_order_acquire);
             auto page = _registered_pages;
             while(page) {
+                page->clear_flags();
                 if (page->state_updated.load(std::memory_order_relaxed)) {
                     page->state_updated.store(false, std::memory_order_relaxed);
                     bool updated = false;
@@ -260,7 +261,6 @@ namespace sgcl::detail {
             while(page) {
                 auto next = page->next_registered;
                 if (page->is_used) {
-                    page->clear_flags();
                     if (page->object_created.load(std::memory_order_relaxed)) {
                         page->object_created.store(false, std::memory_order_relaxed);
                         auto states = page->states();
@@ -445,7 +445,7 @@ namespace sgcl::detail {
             while(page) {
                 bool reachable_page = false;
                 [[maybe_unused]] bool unreachable_page = false;
-                if (All || page->state_updated) {
+                if (All || page->state_updated.load(std::memory_order_relaxed)) {
                     auto states = page->states();
                     auto flags = page->flags();
                     auto count = page->flags_count();
