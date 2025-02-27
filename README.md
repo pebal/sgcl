@@ -79,7 +79,7 @@ int main() {
     UniquePtr unique = make_tracked<int>(42);
 
     // Using shared pointer with deterministic destruction
-    std::shared_ptr<int> shared = make_tracked<int>(13);
+    std::shared_ptr shared = make_tracked<int>(13);
 
     // Using stack pointer without deterministic destruction
     // Note: destructor will be called in a GC thread
