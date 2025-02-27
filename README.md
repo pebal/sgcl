@@ -76,14 +76,14 @@ int main() {
     make_tracked<int>();
 
     // Using unique pointer with deterministic destruction
-    UniquePtr<int> unique = make_tracked<int>(42);
+    UniquePtr unique = make_tracked<int>(42);
 
     // Using shared pointer with deterministic destruction
     std::shared_ptr<int> shared = make_tracked<int>(13);
 
     // Using stack pointer without deterministic destruction
     // Note: destructor will be called in a GC thread
-    StackPtr<int> stack = make_tracked<int>(24);
+    StackPtr stack = make_tracked<int>(24);
     Pointer<int, PointerPolicy::Stack> also_stack;
 
     // Invalid, tracked pointer cannot be on the stack
@@ -101,7 +101,7 @@ int main() {
         TrackedPtr<Node> next;
         int value = 5;
     };
-    StackPtr<Node> node = make_tracked<Node>();
+    StackPtr node = make_tracked<Node>();
 
     // Invalid, 'Node::next' cannot be on the stack
     // Node stack_node;
@@ -121,7 +121,7 @@ int main() {
     // Creating a pointer alias
     // Note: 'value' must be in the managed memory
     // Note: undefined behavior when 'node' is array
-    StackPtr<int> value(&node->value);
+    StackPtr value(&node->value);
 
     // Moving from unique pointer to the stack pointer
     // Note: now destructor will be called in a GC thread
@@ -156,7 +156,7 @@ int main() {
         }
         int value;
     };
-    StackPtr<Foo[]> foo = make_tracked<Foo[]>(5);
+    StackPtr foo = make_tracked<Foo[]>(5);
 
     // Casting 'foo' to base class
     // Note: this is safe in the SGCL
@@ -185,7 +185,7 @@ int main() {
     auto fmin = [](UnsafePtr<int> l, UnsafePtr<int> r) -> UnsafePtr<int> {
         return *l < *r ? l : r;
     };
-    StackPtr<int> min = fmin(value, stack);
+    StackPtr min = fmin(value, stack);
     std::cout << "min: " << *min << std::endl;
 
     // Using unsafe pointer for comparison and passing the result via reference to tracked pointer
@@ -204,7 +204,7 @@ int main() {
     std::cout << "any " << (any.is<int>() ? "is" : "is not") <<  " int" << std::endl;
     std::cout << "any " << (any.type() == typeid(char) ? "is" : "is not") <<  " char" << std::endl;
     // Casting
-    StackPtr<char> c = any.as<char>();
+    StackPtr c = any.as<char>();
     c = static_pointer_cast<char>(any);
 
     // Cloning

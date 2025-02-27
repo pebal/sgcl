@@ -17,7 +17,7 @@ class ConcurrentStack {
 
 public:
     void push(const T& data) {
-        StackPtr<Node> node = make_tracked<Node>(data);
+        StackPtr node = make_tracked<Node>(data);
         node->next = _head.load();
         while (!_head.compare_exchange_weak(node->next, node));
     }
@@ -27,7 +27,7 @@ public:
         while(node && !_head.compare_exchange_weak(node, node->next));
         if (node) {
             node->next = nullptr;
-            return StackPtr<T>(&node->data);
+            return StackPtr(&node->data);
         }
         return nullptr;
     }

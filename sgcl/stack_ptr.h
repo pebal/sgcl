@@ -8,6 +8,25 @@
 #include "pointer.h"
 
 namespace sgcl {
-    template <class T>
-    using StackPtr = Pointer<T, PointerPolicy::Stack>;
+    template <typename T>
+    struct StackPtr : public Pointer<T, PointerPolicy::Stack> {
+        using Base = Pointer<T, PointerPolicy::Stack>;
+        using Base::Base;
+
+        StackPtr(const Base& base)
+        : Base(base) {
+        }
+    };
+
+    template <typename T>
+    StackPtr(T*) -> StackPtr<T>;
+
+    template <typename T>
+    StackPtr(Pointer<T, PointerPolicy::Tracked>) -> StackPtr<T>;
+
+    template <typename T>
+    StackPtr(UniquePtr<T>&&) -> StackPtr<T>;
+
+    template <typename T>
+    StackPtr(const UnsafePtr<T>&&) -> StackPtr<T>;
 }

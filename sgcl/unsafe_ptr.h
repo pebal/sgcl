@@ -167,9 +167,6 @@ namespace sgcl {
         return s;
     }
 
-    template <class T>
-    UnsafePtr(UnsafePtr<T>) -> UnsafePtr<T>;
-
     template <class T, PointerPolicy P>
     UnsafePtr(Pointer<T, P>) -> UnsafePtr<T>;
 }
