@@ -9,7 +9,8 @@
 
 namespace sgcl {
     template <typename T>
-    struct StackPtr : public Pointer<T, PointerPolicy::Stack> {
+    class StackPtr : public Pointer<T, PointerPolicy::Stack> {
+    public:
         using Base = Pointer<T, PointerPolicy::Stack>;
         using Base::Base;
 

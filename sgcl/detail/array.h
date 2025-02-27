@@ -27,7 +27,7 @@ namespace sgcl::detail {
 
     template<>
     struct PageInfo<Array<>> : public PageInfo<Array<PageDataSize>> {
-        using ObjectAllocator = ObjectAllocator<Array<>>;
+        using ObjectAllocator = detail::ObjectAllocator<Array<>>;
 
         static void destroy(void* p) noexcept {
             std::destroy_at((Array<>*)p);

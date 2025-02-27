@@ -83,7 +83,7 @@ namespace sgcl::detail {
 
         template<class T>
         auto& alocator() noexcept {
-            return _allocator<typename TypeInfo<T>::Object_allocator>();
+            return _allocator<typename TypeInfo<T>::ObjectAllocator>();
         }
 
         RangeGuard use_child_pointers(const ChildPointers& cp) noexcept {
