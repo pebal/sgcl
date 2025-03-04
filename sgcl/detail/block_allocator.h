@@ -20,9 +20,7 @@ namespace sgcl::detail {
                 data->next = page;
                 page = data;
             }
-            if (page) {
-                free(page);
-            }
+            free(page, false);
         }
 
         DataPage* alloc() {
@@ -37,38 +35,48 @@ namespace sgcl::detail {
             return (DataPage*)_pointer_pool.alloc();
         }
 
-        static void free(DataPage* page) noexcept {
-            auto last = page;
-            while(last->next) {
-                last = last->next;
+        static void remove_empty() {
+            free(nullptr);
+        }
+
+        static void free(DataPage* page, bool remove_empty = true) noexcept {
+            if (page) {
+                auto last = page;
+                while(last->next) {
+                    last = last->next;
+                }
+                last->next = _empty_pages.exchange(nullptr, std::memory_order_relaxed);
+            } else {
+                page = _empty_pages.exchange(nullptr, std::memory_order_relaxed);
             }
-            last->next = _empty_pages.exchange(nullptr, std::memory_order_relaxed);
             Block* block = nullptr;
-            auto p = page;
-            while(p) {
-                Block* b = p->block;
-                if (!b->page_count) {
-                    b->next = block;
-                    block = b;
-                }
-                ++b->page_count;
-                p = p->next;
-            }
-            DataPage* prev = nullptr;
-            p = page;
-            while(p) {
-                auto next = p->next;
-                Block* b = p->block;
-                if (b->page_count == Block::PageCount) {
-                    if (!prev) {
-                        page = next;
-                    } else {
-                        prev->next = next;
+            if (remove_empty) {
+                auto p = page;
+                while(p) {
+                    Block* b = p->block;
+                    if (!b->page_count) {
+                        b->next = block;
+                        block = b;
                     }
-                } else {
-                    prev = p;
+                    ++b->page_count;
+                    p = p->next;
                 }
-                p = next;
+                DataPage* prev = nullptr;
+                p = page;
+                while(p) {
+                    auto next = p->next;
+                    Block* b = p->block;
+                    if (b->page_count == Block::PageCount) {
+                        if (!prev) {
+                            page = next;
+                        } else {
+                            prev->next = next;
+                        }
+                    } else {
+                        prev = p;
+                    }
+                    p = next;
+                }
             }
             _empty_pages.store(page, std::memory_order_release);
             while(block) {

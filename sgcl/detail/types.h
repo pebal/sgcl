@@ -60,7 +60,8 @@ namespace sgcl::detail {
         Destroyed,
         BadAlloc,
         Reserved,
-        Unused
+        Unused,
+        Unreachable = Used
     };
 
     void collector_init();

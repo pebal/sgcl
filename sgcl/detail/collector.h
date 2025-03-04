@@ -39,9 +39,9 @@ namespace sgcl::detail {
             std::cout << "[sgcl] force collect " << (wait ? "and wait " : "") << "from id: " << std::this_thread::get_id() << std::endl;
 #endif
             if (wait) {
-                if (!_paused.load(std::memory_order_acquire)) {
-                    std::unique_lock<std::mutex> lock(_mutex);
-                    if (!_terminating.load(std::memory_order_relaxed)) {
+                std::unique_lock<std::mutex> lock(_mutex);
+                if (!_paused) {
+                    if (!_terminating.load()) {
                         _forced_collect_count.store(3, std::memory_order_release);
                         _forced_collect_cv.wait(lock, [this]{
                             return _forced_collect_count.load(std::memory_order_relaxed) == 0;
@@ -65,7 +65,8 @@ namespace sgcl::detail {
             std::cout << "[sgcl] get live objects from id: " << std::this_thread::get_id() << std::endl;
 #endif
             std::unique_lock<std::mutex> lock(_mutex);
-            if (!_terminating.load(std::memory_order_relaxed)) {
+            if (!_terminating.load()) {
+                _paused = true;
                 _living_objects_request = true;
                 _forced_collect_count.store(3, std::memory_order_release);
                 _forced_collect_cv.wait(lock, [this]{
@@ -75,7 +76,7 @@ namespace sgcl::detail {
             return {
                 PauseGuard(&_mutex, [&](std::mutex* m) {
                     std::unique_lock<std::mutex> lock(*m);
-                    _paused.store(false, std::memory_order_relaxed);
+                    _paused = false;
                     _forced_collect_cv.notify_all();
                 })
               , std::move(_living_objects)
@@ -89,7 +90,7 @@ namespace sgcl::detail {
         }
 
         inline static bool terminated() noexcept {
-            return _terminating.load(std::memory_order_acquire);
+            return _terminating.load();
         }
 
         inline static bool created() {
@@ -135,18 +136,15 @@ namespace sgcl::detail {
                         auto flags = page->flags();
                         auto count = page->flags_count();
                         for (unsigned i = 0; i < count; ++i) {
-                            auto& flag = flags[i];
-                            if (flag.registered) {
-                                for (unsigned j = 0; j < Page::FlagBitCount; ++j) {
-                                    auto mask = Page::Flag(1) << j;
-                                    if (flag.registered & mask) {
-                                        auto index = i * Page::FlagBitCount + j;
-                                        auto state = states[index].load(std::memory_order_relaxed);
-                                        if (state == State::Reachable) {
-                                            states[index].store(State::Used, std::memory_order_relaxed);
-                                        }
-                                    }
+                            auto registered = flags[i].registered;
+                            auto offset = i * Page::FlagBitCount;
+                            while(registered) {
+                                auto index = offset + std::countr_zero(registered);
+                                auto state = states[index].load(std::memory_order_relaxed);
+                                if (state == State::Reachable) {
+                                    states[index].store(State::Used, std::memory_order_relaxed);
                                 }
+                                registered &= registered - 1;
                             }
                         }
                     }
@@ -170,22 +168,19 @@ namespace sgcl::detail {
                     auto flags = page->flags();
                     auto count = page->flags_count();
                     for (unsigned i = 0; i < count; ++i) {
-                        auto& flag = flags[i];
-                        if (flag.registered) {
-                            for (unsigned j = 0; j < Page::FlagBitCount; ++j) {
-                                auto mask = Page::Flag(1) << j;
-                                if (flag.registered & mask) {
-                                    auto index = i * Page::FlagBitCount + j;
-                                    auto state = states[index].load(std::memory_order_relaxed);
-                                    if (state >= State::Reachable && state <= State::ReachableAtomic) {
-                                        state = (State)(state - 1);
-                                        states[index].store(state, std::memory_order_relaxed);
-                                    }
-                                    if (state < State::Reachable) {
-                                        ++unreachable;
-                                    }
-                                }
+                        auto registered = flags[i].registered;
+                        auto offset = i * Page::FlagBitCount;
+                        while(registered) {
+                            auto index = offset + std::countr_zero(registered);
+                            auto state = states[index].load(std::memory_order_relaxed);
+                            if (state >= State::Reachable && state <= State::ReachableAtomic) {
+                                state = (State)(state - 1);
+                                states[index].store(state, std::memory_order_relaxed);
                             }
+                            if (state < State::Reachable) {
+                                ++unreachable;
+                            }
+                            registered &= registered - 1;
                         }
                     }
                     page = page->next_atomic;
@@ -197,7 +192,7 @@ namespace sgcl::detail {
         void _register_threads() {
             auto first_thread = Thread::threads_data.load(std::memory_order_acquire);
             auto thread = first_thread;
-            while(thread && thread != _last_thread_registered) {
+            while(thread != _last_thread_registered) {
                 thread->next_registered = _registered_threads;
                 _registered_threads = thread;
                 thread = thread->next;
@@ -208,6 +203,7 @@ namespace sgcl::detail {
                     _last_thread_registered->is_last_registered = false;
                     if (!_last_thread_registered->is_used) {
                         delete _last_thread_registered;
+                        BlockAllocator::remove_empty();
                     }
                 }
                 _last_thread_registered = first_thread;
@@ -224,6 +220,7 @@ namespace sgcl::detail {
         }
 
         void _register_pages() {
+            bool delete_thread = false;
             Thread::Data* prev = nullptr;
             auto thread = _registered_threads;
             while(thread) {
@@ -239,6 +236,7 @@ namespace sgcl::detail {
                     // To avoid ABA
                     if (!thread->is_last_registered) {
                         delete thread;
+                        delete_thread = true;
                     } else {
                         thread->is_used = false;
                     }
@@ -247,12 +245,15 @@ namespace sgcl::detail {
                 }
                 thread = next;
             }
+            if (delete_thread) {
+                BlockAllocator::remove_empty();
+            }
         }
 
         void _register_pages(std::atomic<Page*>& pages, Page*& last_page_registered, bool thread_deleted) {
             auto first_page = pages.load(std::memory_order_relaxed);
             auto page = first_page;
-            while(page && page != last_page_registered) {
+            while(page != last_page_registered) {
                 page->next_registered = _registered_pages;
                 _registered_pages = page;
                 page = page->next;
@@ -292,29 +293,24 @@ namespace sgcl::detail {
                         for (unsigned i = 0; i < count; ++i) {
                             auto& flag = flags[i];
                             auto unregistered = ~flag.registered;
-                            if (unregistered) {
-                                auto flagBitCount = Page::FlagBitCount;
-                                if (i == count - 1) {
-                                    auto object_count = (i + 1) * Page::FlagBitCount;
-                                    if (object_count > page->metadata->object_count) {
-                                        flagBitCount -= object_count - page->metadata->object_count;
-                                    }
-                                }
-                                for (unsigned j = 0; j < flagBitCount; ++j) {
-                                    auto mask = Page::Flag(1) << j;
-                                    if (unregistered & mask) {
-                                        auto index = i * Page::FlagBitCount + j;
-                                        assert(index < page->metadata->object_count);
-                                        auto state = states[index].load(std::memory_order_relaxed);
-                                        if (state >= State::Reachable && state <= State::BadAlloc) {
-                                            flag.registered |= mask;
-                                            if (state == State::Reachable) {
-                                                page->state_updated.store(true, std::memory_order_relaxed);
-                                            }
-                                            ++objects_created;
+                            auto offset = i * Page::FlagBitCount;
+                            auto object_count = page->metadata->object_count;
+                            bool last = (i == count - 1);
+                            while(unregistered) {
+                                auto countr_zero = std::countr_zero(unregistered);
+                                auto index = offset + countr_zero;
+                                if (!last || index < object_count) {
+                                    auto state = states[index].load(std::memory_order_relaxed);
+                                    if (state >= State::Reachable && state <= State::BadAlloc) {
+                                        auto mask = Page::Flag(1) << countr_zero;
+                                        flag.registered |= mask;
+                                        if (state == State::Reachable) {
+                                            page->state_updated.store(true, std::memory_order_relaxed);
                                         }
+                                        ++objects_created;
                                     }
                                 }
+                                unregistered &= unregistered - 1;
                             }
                         }
                     }
@@ -433,25 +429,27 @@ namespace sgcl::detail {
                     for (unsigned i = 0; i < count; ++i) {
                         auto& flag = flags[i];
                         while (flag.reachable) {
-                            for (unsigned j = 0; j < Page::FlagBitCount; ++j) {
-                                auto mask = Page::Flag(1) << j;
-                                if (flag.reachable & mask) {
-                                    flag.marked |= mask;
-                                    auto index = i * Page::FlagBitCount + j;
-                                    auto ptr = page->pointer_of(index);
-                                    if (page->metadata->is_array) {
-                                        _mark_array_childs(ptr);
-                                    } else {
-                                        _mark_childs(page->metadata->child_pointers, ptr);
-                                    }
-                                    ++_living_objects_number;
-                                    if (_share_living_objects) {
-                                        _living_objects.emplace_back(ptr);
-                                    }
-                                    marked = true;
+                            auto reachable = flag.reachable;
+                            auto offset = i * Page::FlagBitCount;
+                            while(reachable) {
+                                auto countr_zero = std::countr_zero(reachable);
+                                auto mask = Page::Flag(1) << countr_zero;
+                                flag.marked |= mask;
+                                auto index = offset + countr_zero;
+                                auto ptr = page->pointer_of(index);
+                                if (page->metadata->is_array) {
+                                    _mark_array_childs(ptr);
+                                } else {
+                                    _mark_childs(page->metadata->child_pointers, ptr);
                                 }
+                                ++_living_objects_number;
+                                if (_share_living_objects) {
+                                    _living_objects.emplace_back(ptr);
+                                }
+                                reachable &= reachable - 1;
                             }
                             flag.reachable &= ~flag.marked;
+                            marked = true;
                         }
                     }
                 } while(marked);
@@ -478,20 +476,19 @@ namespace sgcl::detail {
                     for (unsigned i = 0; i < count; ++i) {
                         auto& flag = flags[i];
                         auto unreachable = flag.registered & ~flag.marked;
-                        if (unreachable) {
-                            for (unsigned j = 0; j < Page::FlagBitCount; ++j) {
-                                auto mask = Page::Flag(1) << j;
-                                if (unreachable & mask) {
-                                    auto index = i * Page::FlagBitCount + j;
-                                    auto state = states[index].load(std::memory_order_relaxed);
-                                    if (state >= State::Reachable && state <= State::UniqueLock) {
-                                        flag.reachable |= mask;
-                                        reachable_page = true;
-                                    } else if constexpr(All) {
-                                        unreachable_page = true;
-                                    }
-                                }
+                        auto offset = i * Page::FlagBitCount;
+                        while(unreachable) {
+                            auto countr_zero = std::countr_zero(unreachable);
+                            auto index = offset + countr_zero;
+                            auto state = states[index].load(std::memory_order_relaxed);
+                            if (state >= State::Reachable && state <= State::UniqueLock) {
+                                auto mask = Page::Flag(1) << countr_zero;
+                                flag.reachable |= mask;
+                                reachable_page = true;
+                            } else if constexpr(All) {
+                                unreachable_page = true;
                             }
+                            unreachable &= unreachable - 1;
                         }
                     }
                 }
@@ -601,25 +598,23 @@ namespace sgcl::detail {
                 for (unsigned i = 0; i < count; ++i) {
                     auto& flag = flags[i];
                     auto unreachable = flag.registered & ~flag.marked;
+                    auto offset = i * Page::FlagBitCount;
                     if (unreachable) {
-                        for (unsigned j = 0; j < Page::FlagBitCount; ++j) {
-                            auto mask = Page::Flag(1) << j;
-                            if (unreachable & mask) {
-                                auto index = i * Page::FlagBitCount + j;
-                                auto state = states[index].load(std::memory_order_relaxed);
-                                assert(state < State::Reachable || state > State::UniqueLock);
-                                if (state != State::BadAlloc) {
-                                    if (state != State::Destroyed) {
-                                        _destroy(page, page->pointer_of(index), true);
-                                    }
-                                }
-                                ++removed;
-                                states[index].store(State::Unused, std::memory_order_relaxed);
-                                page->unused_occur.store(true, std::memory_order_relaxed);
+                        page->unused_occur.store(true, std::memory_order_relaxed);
+                        do {
+                            auto countr_zero = std::countr_zero(unreachable);
+                            auto index = offset + countr_zero;
+                            auto state = states[index].load(std::memory_order_relaxed);
+                            assert(state < State::Reachable || state > State::UniqueLock);
+                            if (state == State::Unreachable) {
+                                _destroy(page, page->pointer_of(index), true);
                             }
-                        }
-                        flag.registered &= flag.marked;
+                            ++removed;
+                            states[index].store(State::Unused, std::memory_order_relaxed);
+                            unreachable &= unreachable - 1;
+                        } while(unreachable);
                     }
+                    flag.registered &= flag.marked;
                 }
                 page->unreachable = false;
                 page = page->next_unreachable;
@@ -835,10 +830,9 @@ namespace sgcl::detail {
 #if SGCL_LOG_PRINT_LEVEL > 0
                                 std::cout << "[sgcl] suspended collector id: " << std::this_thread::get_id() << std::endl;
 #endif
-                                _paused.store(true, std::memory_order_relaxed);
                                 std::unique_lock<std::mutex> lock(_mutex);
                                 _forced_collect_cv.wait(lock, [this]{
-                                    return !_paused.load(std::memory_order_relaxed);
+                                    return !_paused;
                                 });
                                 _share_living_objects = false;
 #if SGCL_LOG_PRINT_LEVEL > 0
@@ -878,7 +872,7 @@ namespace sgcl::detail {
                 last_mem_allocated = MemoryCounters::alloc_counter();
                 MemoryCounters::reset_all();
                 if (!last_objects_removed && _terminating) {
-                    if (_living_objects_number) {
+                    if (_living_objects_number || MemoryCounters::live_counter().count) {
                         --finalization_counter;
                     } else {
                         finalization_counter = 0;
@@ -900,12 +894,12 @@ namespace sgcl::detail {
         }
 
         void _terminate() noexcept {
-            std::unique_lock<std::mutex> lock(_mutex);
-            if (!_terminating.load(std::memory_order_relaxed)) {
+            if (!_terminating.load()) {
 #if SGCL_LOG_PRINT_LEVEL > 0
                 std::cout << "[sgcl] terminate collector from id: " << std::this_thread::get_id() << std::endl;
 #endif
-                _terminating.store(true, std::memory_order_release);
+                std::unique_lock<std::mutex> lock(_mutex);
+                _terminating.store(true);
                 _terminate_cv.wait(lock, [this]{
                     return _terminated;
                 });
@@ -921,16 +915,16 @@ namespace sgcl::detail {
         std::atomic<int> _forced_collect_count = {0};
         std::condition_variable _forced_collect_cv;
         std::condition_variable _terminate_cv;
-        bool _terminated = {false};
         std::mutex _mutex;
         std::vector<void*> _living_objects;
         size_t _living_objects_number;
         std::atomic<size_t> _last_living_objects_number = {0};
         std::atomic<bool> _living_objects_request = {false};
-        std::atomic<bool> _paused = {false};
+        bool _paused = {false};
         bool _share_living_objects = {false};
-        inline static std::atomic<bool> _terminating = {false};
         inline static std::atomic<bool> _created = {false};
+        inline static std::atomic<bool> _terminating = {false};
+        bool _terminated = {false};
 
         friend inline void delete_unique(const void*) noexcept;
     };
