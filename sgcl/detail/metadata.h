@@ -25,6 +25,7 @@ namespace sgcl::detail {
         , object_size(Info<T>::ObjectSize)
         , object_count(Info<T>::ObjectCount)
         , is_array(std::is_base_of_v<ArrayBase, T>)
+        , is_atomic(std::is_same_v<T, AtomicProtector>)
         , user_metadata(Info<T>::user_metadata)
         , type_info(typeid(T)) {
         }
@@ -35,7 +36,8 @@ namespace sgcl::detail {
         void* (*const clone)(const void*);
         const size_t object_size;
         const unsigned object_count;
-        bool is_array;
+        const bool is_array;
+        const bool is_atomic;
         void*& user_metadata;
         const std::type_info& type_info;
         Page* empty_page = {nullptr};

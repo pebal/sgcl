@@ -14,6 +14,7 @@ namespace sgcl::detail {
     struct Array;
     struct ArrayBase;
     struct ArrayMetadata;
+    class  AtomicProtector;
     struct Block;
     class  BlockAllocator;
     struct ChildPointers;

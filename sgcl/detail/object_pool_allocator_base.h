@@ -11,12 +11,11 @@
 namespace sgcl::detail {
     class ObjectPoolAllocatorBase : public ObjectAllocatorBase {
     public:
-        ObjectPoolAllocatorBase(BlockAllocator& ba, std::atomic<Page*>& pages, PointerPoolBase& pa, Page*& pb, std::atomic_flag& lock) noexcept
+        ObjectPoolAllocatorBase(BlockAllocator& ba, std::atomic<Page*>& pages, PointerPoolBase& pa, std::atomic<Page*>& pb) noexcept
         : ObjectAllocatorBase(pages)
         , _block_allocator(ba)
         , _pointer_pool(pa)
-        , _pages_buffer(pb)
-        , _lock(lock) {
+        , _pages_buffer(pb) {
         }
 
         ~ObjectPoolAllocatorBase() noexcept override {
@@ -35,15 +34,8 @@ namespace sgcl::detail {
 
         void* alloc(size_t = 0) {
             if  (_pointer_pool.is_empty()) {
-                Page* page = nullptr;
-                if (!_lock.test_and_set(std::memory_order_acquire)) {
-                    page = _pages_buffer;
-                    if (page) {
-                        _pages_buffer = page->next_empty;
-                    }
-                    _lock.clear(std::memory_order_release);
-                }
-                if (page) {
+                Page* page = _pages_buffer.load(std::memory_order_acquire);
+                if (page && _pages_buffer.compare_exchange_strong(page, page->next_empty, std::memory_order_relaxed)) {
                     _pointer_pool.fill(page);
                     page->on_empty_list.store(false, std::memory_order_release);
                 } else {
@@ -61,8 +53,7 @@ namespace sgcl::detail {
     private:
         BlockAllocator& _block_allocator;
         PointerPoolBase& _pointer_pool;
-        Page*& _pages_buffer;
-        std::atomic_flag& _lock;
+        std::atomic<Page*>& _pages_buffer;
         Page* _current_page = {nullptr};
 
         virtual Page* _create_page_parameters(DataPage*) = 0;
@@ -119,23 +110,19 @@ namespace sgcl::detail {
             BlockAllocator::free(empty);
         }
 
-        static void _free(Page* pages, Page*& pages_buffer, std::atomic_flag& lock) noexcept {
+        static void _free(Page* pages, std::atomic<Page*>& pages_buffer) noexcept {
             Page* empty_pages = nullptr;
             for (int i = 0; i < 2 ; ++i) {
                 _remove_empty(pages, empty_pages);
-                while (lock.test_and_set(std::memory_order_acquire));
-                std::swap(pages, pages_buffer);
-                lock.clear(std::memory_order_release);
+                pages = pages_buffer.exchange(pages, std::memory_order_relaxed);
             }
             if (pages) {
                 auto last = pages;
                 while(last->next_empty) {
                     last = last->next_empty;
                 }
-                while (lock.test_and_set(std::memory_order_acquire));
-                last->next_empty = pages_buffer;
-                pages_buffer = pages;
-                lock.clear(std::memory_order_release);
+                last->next_empty = pages_buffer.load(std::memory_order_relaxed);
+                while(!pages_buffer.compare_exchange_weak(last->next_empty, pages, std::memory_order_relaxed));
             }
             if (empty_pages) {
                 _free(empty_pages);

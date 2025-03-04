@@ -11,7 +11,7 @@
 
 #include <thread>
 
-#if SGCL_LOG_PRINT_LEVEL > 3
+#if SGCL_LOG_PRINT_LEVEL >= 3
 #include <iostream>
 #endif
 

@@ -107,12 +107,14 @@ namespace sgcl::detail {
             auto page = Page::page_of(p);
             auto index = page->index_of(p);
             auto &state = page->states()[index];
-            state.store(S, std::memory_order_release);
-            if constexpr(S == State::UniqueLock) {
+            if constexpr(S == State::UniqueLock || S == State::ReachableAtomic) {
+                state.store(S, std::memory_order_relaxed);
                 page->object_created.store(true, std::memory_order_release);
-            }
-            if constexpr(S == State::Reachable || S == State::ReachableAtomic) {
+            } else if constexpr(S == State::Reachable) {
+                state.store(S, std::memory_order_relaxed);
                 page->state_updated.store(true, std::memory_order_release);
+            } else {
+                state.store(S, std::memory_order_release);
             }
         }
 
@@ -142,6 +144,7 @@ namespace sgcl::detail {
         Page* next_registered = {nullptr};
         Page* next_empty = {nullptr};
         Page* next_unused = {nullptr};
+        Page* next_atomic = {nullptr};
         Page* next = {nullptr};
     };
 }

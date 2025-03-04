@@ -27,20 +27,12 @@ namespace sgcl::detail {
 
         DataPage* alloc() {
             if (_pointer_pool.is_empty()) {
-                DataPage* page = nullptr;
-                if (!_lock.test_and_set(std::memory_order_acquire)) {
-                    page = _empty_pages;
-                    if (page) {
-                        _empty_pages = page->next;
-                    }
-                    _lock.clear(std::memory_order_release);
-                }
-                if (page) {
+                DataPage* page = _empty_pages.load(std::memory_order_acquire);
+                if (page && _empty_pages.compare_exchange_strong(page, page->next, std::memory_order_relaxed)) {
                     return page;
-                } else {
-                    auto block = new Block;
-                    _pointer_pool.fill(block + 1);
                 }
+                auto block = new Block;
+                _pointer_pool.fill(block + 1);
             }
             return (DataPage*)_pointer_pool.alloc();
         }
@@ -50,10 +42,7 @@ namespace sgcl::detail {
             while(last->next) {
                 last = last->next;
             }
-            while (_lock.test_and_set(std::memory_order_acquire));
-            last->next = _empty_pages;
-            _empty_pages = nullptr;
-            _lock.clear(std::memory_order_release);
+            last->next = _empty_pages.exchange(nullptr, std::memory_order_relaxed);
             Block* block = nullptr;
             auto p = page;
             while(p) {
@@ -81,9 +70,7 @@ namespace sgcl::detail {
                 }
                 p = next;
             }
-            while (_lock.test_and_set(std::memory_order_acquire));
-            _empty_pages = page;
-            _lock.clear(std::memory_order_release);
+            _empty_pages.store(page, std::memory_order_release);
             while(block) {
                 auto next = block->next;
                 if (block->page_count == Block::PageCount) {
@@ -96,8 +83,7 @@ namespace sgcl::detail {
         }
 
     private:
-        inline static std::atomic_flag _lock = ATOMIC_FLAG_INIT;
-        inline static DataPage* _empty_pages = {nullptr};
+        inline static std::atomic<DataPage*> _empty_pages = {nullptr};
         PointerPool _pointer_pool;
     };
 }

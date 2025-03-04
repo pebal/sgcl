@@ -5,18 +5,11 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "detail/atomic_protector.h"
 #include "stack_ptr.h"
 #include "tracked_ptr.h"
-#include "make_tracked.h"
 
 namespace sgcl {
-    namespace detail {
-        inline auto& global_tmp_ptr() {
-            static thread_local auto p = make_tracked<TrackedPtr<void>>();
-            return *p;
-        }
-    }
-
     template<TrackedPointer T>
     class Atomic {
         using Type = typename T::element_type;
@@ -74,54 +67,46 @@ namespace sgcl {
         }
 
         bool compare_exchange_strong(TrackedPtr<Type>& e, const TrackedPtr<Type>& n, const std::memory_order m = std::memory_order_seq_cst) noexcept {
-            detail::global_tmp_ptr() = _val;
+            StackPtr val = load(std::memory_order_acquire);
             void* l = e.get();
             if (!_ptr().compare_exchange_strong(l, n.get(), m)) {
                 e._ptr().store(l);
-                detail::global_tmp_ptr() = nullptr;
                 return false;
             }
-            _protect_value(detail::global_tmp_ptr());
-            detail::global_tmp_ptr() = nullptr;
+            _protect_value(val);
             return true;
         }
 
         bool compare_exchange_strong(TrackedPtr<Type>& e, const TrackedPtr<Type>& n, const std::memory_order s, const std::memory_order f) noexcept {
-            detail::global_tmp_ptr() = _val;
+            StackPtr val = load(std::memory_order_acquire);
             void* l = e.get();
             if (!_ptr().compare_exchange_strong(l, n.get(), s, f)) {
                 e._ptr().store(l);
-                detail::global_tmp_ptr() = nullptr;
                 return false;
             }
-            _protect_value(detail::global_tmp_ptr());
-            detail::global_tmp_ptr() = nullptr;
+            _protect_value(val);
             return true;
         }
 
         bool compare_exchange_weak(TrackedPtr<Type>& e, const TrackedPtr<Type>& n, const std::memory_order m = std::memory_order_seq_cst) {
-            detail::global_tmp_ptr() = _val;
+            StackPtr val = load(std::memory_order_acquire);
             void* l = e.get();
             if (!_ptr().compare_exchange_weak(l, n.get(), m)) {
                 e._ptr().store(l);
-                detail::global_tmp_ptr() = nullptr;
                 return false;
             }
-            _protect_value(detail::global_tmp_ptr());
-            detail::global_tmp_ptr() = nullptr;
+            _protect_value(val);
             return true;
         }
 
         bool compare_exchange_weak(TrackedPtr<Type>& e, const TrackedPtr<Type>& n, const std::memory_order s, const std::memory_order f) noexcept {
-            detail::global_tmp_ptr() = _val;
+            StackPtr val = load(std::memory_order_acquire);
             void* l = e.get();
             if (!_ptr().compare_exchange_weak(l, n.get(), s, f)) {
                 e._ptr().store(l);
-                detail::global_tmp_ptr() = nullptr;
                 return false;
             }
-            _protect_value(detail::global_tmp_ptr());
-            detail::global_tmp_ptr() = nullptr;
+            _protect_value(val);
             return true;
         }
 
@@ -138,12 +123,8 @@ namespace sgcl {
             return _val._ptr();
         }
 
-        template<class Ptr>
-        inline static void _protect_value(const Ptr& v) {
-            if (v) {
-                auto p = make_tracked<TrackedPtr<Type>>((Type*)v.get());
-                detail::Page::set_state<detail::State::ReachableAtomic>(p.release());
-            }
+        inline static void _protect_value(const value_type& v) {
+            detail::AtomicProtector::protect(v.get());
         }
 
         value_type _val;

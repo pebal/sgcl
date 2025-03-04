@@ -15,19 +15,18 @@ namespace sgcl::detail {
         using IsPoolAllocator = std::true_type;
 
         constexpr ObjectPoolAllocator(BlockAllocator& a, std::atomic<Page*>& pages) noexcept
-            : ObjectPoolAllocatorBase(a, pages, _pointer_pool, _pages_buffer, _lock) {
+            : ObjectPoolAllocatorBase(a, pages, _pointer_pool, _pages_buffer) {
         }
 
         static void free(Page* pages) noexcept {
-            _free(pages, _pages_buffer, _lock);
+            _free(pages, _pages_buffer);
         }
 
     private:
         using PointerPool = detail::PointerPool<TypeInfo<T>::ObjectCount, sizeof(std::conditional_t<std::is_void_v<ValueType>, char, ValueType>)>;
 
         PointerPool _pointer_pool;
-        inline static Page* _pages_buffer = {nullptr};
-        inline static std::atomic_flag _lock = ATOMIC_FLAG_INIT;
+        inline static std::atomic<Page*> _pages_buffer = {nullptr};
 
         Page* _create_page_parameters(DataPage* data) override {
             auto mem = ::operator new(TypeInfo<T>::HeaderSize);
