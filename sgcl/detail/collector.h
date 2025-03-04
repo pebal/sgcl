@@ -339,20 +339,22 @@ namespace sgcl::detail {
         }
 
         void _mark_stack_roots() noexcept {
-            auto data = _registered_threads;
-            while(data) {
-                auto& allocator = *data->stack_roots_allocator;
-                for (size_t i = 0; i < std::size(allocator.is_used); ++i) {
-                    auto used = allocator.is_used[i].load(std::memory_order_relaxed);
-                    if (used) {
-                        auto first = i * (StackPointerAllocator::PageSize / sizeof(RawPointer));
-                        auto last = first + (StackPointerAllocator::PageSize / sizeof(RawPointer));
-                        for (size_t index = first; index < last; ++index) {
-                            _mark(allocator.data[index].load(std::memory_order_relaxed));
+            auto thread = _registered_threads;
+            while(thread) {
+                if (!thread->is_deleted.load(std::memory_order_acquire)) {
+                    auto& allocator = *thread->stack_roots_allocator;
+                    for (size_t i = 0; i < std::size(allocator.is_used); ++i) {
+                        auto used = allocator.is_used[i].load(std::memory_order_relaxed);
+                        if (used) {
+                            auto first = i * (StackPointerAllocator::PageSize / sizeof(RawPointer));
+                            auto last = first + (StackPointerAllocator::PageSize / sizeof(RawPointer));
+                            for (size_t index = first; index < last; ++index) {
+                                _mark(allocator.data[index].load(std::memory_order_relaxed));
+                            }
                         }
                     }
                 }
-                data = data->next_registered;
+                thread = thread->next_registered;
             }
         }
 
