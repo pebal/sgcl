@@ -131,27 +131,23 @@ namespace sgcl::detail {
                 if (!page->metadata->is_atomic) {
                     if (page->state_updated.load(std::memory_order_relaxed)) {
                         page->state_updated.store(false, std::memory_order_relaxed);
-                        bool updated = false;
                         auto states = page->states();
                         auto flags = page->flags();
                         auto count = page->flags_count();
                         for (unsigned i = 0; i < count; ++i) {
                             auto& flag = flags[i];
-                            for (unsigned j = 0; j < Page::FlagBitCount; ++j) {
-                                auto index = i * Page::FlagBitCount + j;
-                                auto state = states[index].load(std::memory_order_relaxed);
-                                if (state == State::Reachable) {
+                            if (flag.registered) {
+                                for (unsigned j = 0; j < Page::FlagBitCount; ++j) {
                                     auto mask = Page::Flag(1) << j;
                                     if (flag.registered & mask) {
-                                        states[index].store(State::Used, std::memory_order_relaxed);
-                                    } else {
-                                        updated = true;
+                                        auto index = i * Page::FlagBitCount + j;
+                                        auto state = states[index].load(std::memory_order_relaxed);
+                                        if (state == State::Reachable) {
+                                            states[index].store(State::Used, std::memory_order_relaxed);
+                                        }
                                     }
                                 }
                             }
-                        }
-                        if (updated) {
-                            page->state_updated.store(true, std::memory_order_relaxed);
                         }
                     }
                 }
@@ -177,17 +173,17 @@ namespace sgcl::detail {
                         auto& flag = flags[i];
                         if (flag.registered) {
                             for (unsigned j = 0; j < Page::FlagBitCount; ++j) {
-                                auto index = i * Page::FlagBitCount + j;
-                                auto state = states[index].load(std::memory_order_relaxed);
-                                if (state >= State::Reachable && state <= State::ReachableAtomic) {
-                                    auto mask = Page::Flag(1) << j;
-                                    if (flag.registered & mask) {
+                                auto mask = Page::Flag(1) << j;
+                                if (flag.registered & mask) {
+                                    auto index = i * Page::FlagBitCount + j;
+                                    auto state = states[index].load(std::memory_order_relaxed);
+                                    if (state >= State::Reachable && state <= State::ReachableAtomic) {
                                         state = (State)(state - 1);
                                         states[index].store(state, std::memory_order_relaxed);
                                     }
-                                }
-                                if (state < State::Reachable) {
-                                    ++unreachable;
+                                    if (state < State::Reachable) {
+                                        ++unreachable;
+                                    }
                                 }
                             }
                         }
@@ -312,6 +308,9 @@ namespace sgcl::detail {
                                         auto state = states[index].load(std::memory_order_relaxed);
                                         if (state >= State::Reachable && state <= State::BadAlloc) {
                                             flag.registered |= mask;
+                                            if (state == State::Reachable) {
+                                                page->state_updated.store(true, std::memory_order_relaxed);
+                                            }
                                             ++objects_created;
                                         }
                                     }
@@ -882,7 +881,7 @@ namespace sgcl::detail {
                     if (_living_objects_number) {
                         --finalization_counter;
                     } else {
-                        finalization_counter = finalization_counter > 1 ? 1 : 0;
+                        finalization_counter = 0;
                     }
                 }
             } while(finalization_counter);
