@@ -773,7 +773,7 @@ namespace sgcl::detail {
         void _main_loop() noexcept {
             static constexpr int64_t MinMemSize = config::PageSize * Block::PageCount * 4;
             static constexpr int64_t MinMemCount = 4;
-            static constexpr int64_t MinObjectsCount = config::PageSize / sizeof(uintptr_t) / 2;
+            static constexpr int64_t MinObjectsCount = config::PageSize / sizeof(uintptr_t) * 2;
 #if SGCL_LOG_PRINT_LEVEL > 0
             std::cout << "[sgcl] start collector id: " << std::this_thread::get_id() << std::endl;
 #endif
@@ -785,11 +785,11 @@ namespace sgcl::detail {
 #if SGCL_LOG_PRINT_LEVEL >= 2
                 auto start = std::chrono::high_resolution_clock::now();
 #endif
-                _update_states();
-                _update_atomic_states();
                 _register_threads();
                 _register_pages();
                 size_t last_objects_created = _register_objects();
+                _update_states();
+                _update_atomic_states();
                 _mark_stack_roots();
                 _living_objects_number = 0;
                 do {
@@ -797,6 +797,9 @@ namespace sgcl::detail {
                     if (_unreachable_pages) {
                         _mark_updated<false>();
                     } else {
+                        _register_threads();
+                        _register_pages();
+                        last_objects_created += _register_objects();
                         _mark_updated<true>();
                     }
                 } while(_reachable_pages);
