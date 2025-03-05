@@ -280,7 +280,6 @@ namespace sgcl::detail {
 
         size_t _register_objects() noexcept {
             size_t objects_created = 0;
-            Page* prev = nullptr;
             auto page = _registered_pages;
             while(page) {
                 auto next = page->next_registered;

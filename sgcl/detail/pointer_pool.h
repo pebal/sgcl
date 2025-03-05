@@ -9,7 +9,7 @@
 
 namespace sgcl::detail {
     template<unsigned Size, unsigned Offset>
-    struct PointerPool : public PointerPoolBase {
+    class PointerPool : public PointerPoolBase {
     public:
         constexpr PointerPool() noexcept
         : PointerPoolBase(_indexes, Size, Offset) {

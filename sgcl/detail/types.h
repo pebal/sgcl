@@ -40,7 +40,7 @@ namespace sgcl::detail {
     struct PageInfo;
     class  Pointer;
     template<unsigned, unsigned>
-    struct PointerPool;
+    class  PointerPool;
     class  PointerPoolBase;
     template <class>
     class  RootContainerAllocator;
