@@ -20,7 +20,7 @@ namespace sgcl::detail {
         Metadata(T*) noexcept
         : child_pointers(Info<T>::child_pointers)
         , destroy(Info<T>::get_destroy_function())
-        , free(Info<T>::ObjectAllocator::free)
+        , free(Info<T>::Allocator::free)
         , clone(clone_object<T>)
         , object_size(Info<T>::ObjectSize)
         , object_count(Info<T>::ObjectCount)

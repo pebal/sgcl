@@ -22,7 +22,7 @@ namespace sgcl::detail {
         static constexpr size_t FlagsCount = (ObjectCount + Page::FlagBitCount - 1) / Page::FlagBitCount;
         static constexpr size_t FlagsSize = sizeof(Page::Flags) * FlagsCount;
         static constexpr size_t HeaderSize = sizeof(Page) + StatesSize + FlagsSize;
-        using ObjectAllocator = std::conditional_t<ObjectSize <= PageDataSize, ObjectPoolAllocator<Type>, detail::ObjectAllocator<Type>>;
+        using Allocator = std::conditional_t<ObjectSize <= PageDataSize, ObjectPoolAllocator<Type>, ObjectAllocator<Type>>;
 
         static constexpr auto get_destroy_function() -> void(*)(void*) noexcept {
             if constexpr (!std::is_trivially_destructible_v<Type> && std::is_destructible_v<Type>) {

@@ -11,8 +11,6 @@
 namespace sgcl::detail {
     class BlockAllocator {
     public:
-        using PointerPool = PointerPool<Block::PageCount, config::PageSize>;
-
         ~BlockAllocator() noexcept {
             DataPage* page = nullptr;
             while (!_pointer_pool.is_empty()) {
@@ -92,6 +90,6 @@ namespace sgcl::detail {
 
     private:
         inline static std::atomic<DataPage*> _empty_pages = {nullptr};
-        PointerPool _pointer_pool;
+        PointerPool<Block::PageCount, config::PageSize> _pointer_pool;
     };
 }
