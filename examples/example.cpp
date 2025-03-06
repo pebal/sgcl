@@ -36,6 +36,7 @@ int main() {
     TrackedPtr<int>& tracked_ref = stack;
     Pointer<int, PointerPolicy::Tracked>& also_tracked_ref = stack;
 
+    // Creating managed object included tracked pointer
     StackPtr node = make_tracked<Node>();
 
     // Invalid, 'Node::next' cannot be on the stack
