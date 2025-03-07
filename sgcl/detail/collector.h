@@ -34,6 +34,11 @@ namespace sgcl::detail {
             _terminate();
         }
 
+        void waking_up() {
+            sleep_flag.store(false, std::memory_order_release);
+            sleep_cv.notify_one();
+        }
+
         bool force_collect(bool wait) noexcept {
 #if SGCL_LOG_PRINT_LEVEL > 0
             std::cout << "[sgcl] force collect " << (wait ? "and wait " : "") << "from id: " << std::this_thread::get_id() << std::endl;
@@ -42,7 +47,7 @@ namespace sgcl::detail {
                 std::unique_lock<std::mutex> lock(_mutex);
                 if (!_paused) {
                     if (!_terminating.load()) {
-                        _forced_collect_count.store(3, std::memory_order_release);
+                        _force_collect();
                         _forced_collect_cv.wait(lock, [this]{
                             return _forced_collect_count.load(std::memory_order_relaxed) == 0;
                         });
@@ -51,7 +56,7 @@ namespace sgcl::detail {
                     return false;
                 }
             } else {
-                _forced_collect_count.store(3, std::memory_order_release);
+                _force_collect();
             }
             return true;
         }
@@ -68,7 +73,7 @@ namespace sgcl::detail {
             if (!_terminating.load()) {
                 _paused = true;
                 _living_objects_request = true;
-                _forced_collect_count.store(3, std::memory_order_release);
+                _force_collect();
                 _forced_collect_cv.wait(lock, [this]{
                     return _forced_collect_count.load(std::memory_order_relaxed) == 0;
                 });
@@ -156,7 +161,7 @@ namespace sgcl::detail {
         size_t _update_atomic_states() {
             static Timer timer;
             bool atomic = _terminating;
-            if (timer.duration() >= config::AtomicDeletionDelayMsec / (State::ReachableAtomic - 2)) {
+            if (timer.duration() >= config::AtomicDeletionDelayMsec / (State::ReachableAtomic + 1)) {
                 atomic = true;
                 timer.reset();
             }
@@ -612,6 +617,7 @@ namespace sgcl::detail {
                             }
                             ++removed;
                             states[index].store(State::Unused, std::memory_order_relaxed);
+                            ++page->unused_counter_gc;
                             unreachable &= unreachable - 1;
                         } while(unreachable);
                     }
@@ -631,39 +637,36 @@ namespace sgcl::detail {
             auto page = _registered_pages;
             while(page) {
                 if (page->unused_occur.load(std::memory_order_relaxed)) {
-                    auto empty = 0u;
-                    auto states = page->states();
-                    auto count = page->metadata->object_count;
-                    for (unsigned i = 0; i < count; ++i) {
-                        auto state = states[i].load(std::memory_order_relaxed);
-                        if (state == State::Unused) {
-                            ++empty;
-                            if (empty > count / 2) {
-                                page->unused_occur.store(false, std::memory_order_relaxed);
-                                if (!page->metadata->used) {
-                                    page->metadata->used = true;
-                                    page->metadata->next = metadata;
-                                    metadata = page->metadata;
-                                }
-                                if (!page->on_empty_list.load(std::memory_order_relaxed)) {
-                                    page->on_empty_list.store(true, std::memory_order_relaxed);
-                                    page->next_empty = page->metadata->empty_page;
-                                    page->metadata->empty_page = page;
-                                }
-                                break;
+                    if (!page->on_empty_list.load(std::memory_order_relaxed)) {
+                        auto count = page->metadata->object_count;
+                        auto unused = page->unused_counter_gc;
+                        unused += page->unused_atomic.load(std::memory_order_relaxed);
+                        unused -= page->unused_counter_mutators;
+                        if (unused > count / 2) {
+                            page->unused_occur.store(false, std::memory_order_relaxed);
+                            if (!page->metadata->used) {
+                                page->metadata->used = true;
+                                page->metadata->next = metadata;
+                                metadata = page->metadata;
                             }
+                            page->on_empty_list.store(true, std::memory_order_relaxed);
+                            page->next_empty = page->metadata->empty_page;
+                            page->metadata->empty_page = page;
                         }
                     }
                 }
                 page = page->next_registered;
             }
+            bool remove_empty = metadata != nullptr;
             while(metadata) {
                 metadata->free(metadata->empty_page);
                 metadata->used = false;
                 metadata->empty_page = nullptr;
                 metadata = metadata->next;
             }
-
+            if (remove_empty) {
+                BlockAllocator::remove_empty();
+            }
             _atomic_pages = nullptr;
             Page* prev = nullptr;
             page = _registered_pages;
@@ -770,9 +773,7 @@ namespace sgcl::detail {
         double total_time = 0;
 #endif
         void _main_loop() noexcept {
-            static constexpr int64_t MinMemSize = config::PageSize * Block::PageCount * 4;
-            static constexpr int64_t MinMemCount = 4;
-            static constexpr int64_t MinObjectsCount = config::PageSize / sizeof(uintptr_t) * 2;
+            static constexpr int64_t MinObjectsCount = config::PageSize / 4;
 #if SGCL_LOG_PRINT_LEVEL > 0
             std::cout << "[sgcl] start collector id: " << std::this_thread::get_id() << std::endl;
 #endif
@@ -802,19 +803,18 @@ namespace sgcl::detail {
                         _mark_updated<true>();
                     }
                 } while(_reachable_pages);
-                size_t last_living_objects = _last_living_objects_number.load(std::memory_order_relaxed);
                 _last_living_objects_number.store(_living_objects_number, std::memory_order_relaxed);
                 size_t last_objects_removed = _remove_garbage();
                 _release_unused_pages();
-                Counter last_mem_removed = MemoryCounters::free_counter();
                 Counter last_mem_lived = MemoryCounters::live_counter();
+                Counter last_mem_removed = MemoryCounters::free_counter();
 #if SGCL_LOG_PRINT_LEVEL >= 2
                 auto end = std::chrono::high_resolution_clock::now();
                 double duration = std::chrono::duration<double, std::milli>(end - start).count();
                 total_time += duration;
-                std::cout << "[sgcl] mem allocs:" << std::setw(6) << MemoryCounters::alloc_counter().count + last_mem_allocated.count
-                          << ",    mem removed:" << std::setw(6) << last_mem_removed.count
-                          << ",    total mem:" << std::setw(6) << last_mem_lived.count
+                std::cout << "[sgcl] mem allocs:" << std::setw(7) << MemoryCounters::alloc_counter().count + last_mem_allocated.count
+                          << ",    mem removed:" << std::setw(7) << last_mem_removed.count
+                          << ",    total mem:" << std::setw(7) << last_mem_lived.count
                           << ",    objects created:" << std::setw(9) << last_objects_created
                           << ",    objects removed:" << std::setw(9) << last_objects_removed
                           << ",    living objects:" << std::setw(9) << _living_objects_number
@@ -826,10 +826,7 @@ namespace sgcl::detail {
                 do {
                     if (_forced_collect_count.load(std::memory_order_acquire)) {
                         if (_forced_collect_count.fetch_sub(1, std::memory_order_relaxed) == 1) {
-                            {
-                                std::unique_lock<std::mutex> lock(_mutex);
-                                _forced_collect_cv.notify_all();
-                            }
+                            _forced_collect_cv.notify_all();
                             if (_share_living_objects) {
 #if SGCL_LOG_PRINT_LEVEL > 0
                                 std::cout << "[sgcl] suspended collector id: " << std::this_thread::get_id() << std::endl;
@@ -858,25 +855,29 @@ namespace sgcl::detail {
                     if (_terminating) {
                         break;
                     }
-                    last_mem_allocated = MemoryCounters::alloc_counter();
-                    if ((std::max(last_mem_allocated.count, last_mem_removed.count) * 100 / SGCL_TRIGER_PERCENTAGE >= last_mem_lived.count + MinMemCount)
-                     || (std::max(last_mem_allocated.size, last_mem_removed.size) * 100 / SGCL_TRIGER_PERCENTAGE >= last_mem_lived.size + MinMemSize)
-                     || (std::max(last_objects_created, last_objects_removed) * 100 / SGCL_TRIGER_PERCENTAGE >= last_living_objects + MinObjectsCount)) {
-                        break;
-                    }
-                    if (atomic_timer.duration() >= config::AtomicDeletionDelayMsec / (State::ReachableAtomic - 2)) {
+                    if (atomic_timer.duration() >= config::AtomicDeletionDelayMsec / (State::ReachableAtomic + 1)) {
                         atomic_timer.reset();
                         auto atomic = _update_atomic_states();
-                        if (atomic * 2 > last_objects_created + MinObjectsCount) {
+                        if (atomic * 4 > last_objects_created + MinObjectsCount) {
                             break;
                         }
                     }
-                    std::this_thread::sleep_for(1ms);
+                    {
+                        sleep_flag.store(true, std::memory_order_relaxed);
+                        std::unique_lock<std::mutex> lock(sleep_mutex);
+                        if (sleep_cv.wait_for(lock, 5000ms, [this]{
+                            return !sleep_flag.load(std::memory_order_acquire)
+                                || _forced_collect_count.load(std::memory_order_relaxed)
+                                || _terminating.load(std::memory_order_relaxed);
+                        })) {
+                            break;
+                        }
+                    }
                 } while(timer.duration() < SGCL_MAX_SLEEP_TIME_SEC * 1000);
                 last_mem_allocated = MemoryCounters::alloc_counter();
                 MemoryCounters::reset_all();
                 if (!last_objects_removed && _terminating) {
-                    if (_living_objects_number || MemoryCounters::live_counter().count) {
+                    if (_living_objects_number) {
                         --finalization_counter;
                     } else {
                         finalization_counter = 0;
@@ -897,13 +898,19 @@ namespace sgcl::detail {
             }
         }
 
+        void _force_collect() noexcept {
+            _forced_collect_count.store(2, std::memory_order_release);
+            waking_up();
+        }
+
         void _terminate() noexcept {
             if (!_terminating.load()) {
 #if SGCL_LOG_PRINT_LEVEL > 0
                 std::cout << "[sgcl] terminate collector from id: " << std::this_thread::get_id() << std::endl;
 #endif
-                std::unique_lock<std::mutex> lock(_mutex);
                 _terminating.store(true);
+                waking_up();
+                std::unique_lock<std::mutex> lock(_mutex);
                 _terminate_cv.wait(lock, [this]{
                     return _terminated;
                 });
@@ -929,6 +936,9 @@ namespace sgcl::detail {
         inline static std::atomic<bool> _created = {false};
         inline static std::atomic<bool> _terminating = {false};
         bool _terminated = {false};
+        std::mutex sleep_mutex;
+        std::condition_variable sleep_cv;
+        std::atomic<bool> sleep_flag = {true};
 
         friend inline void delete_unique(const void*) noexcept;
     };
@@ -944,5 +954,9 @@ namespace sgcl::detail {
 
     inline void terminate_collector() noexcept {
         Collector::terminate();
+    }
+
+    inline void waking_up_collector() noexcept {
+        collector_instance().waking_up();
     }
 }

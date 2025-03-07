@@ -25,7 +25,6 @@ namespace sgcl::detail {
         }
 
         void fill(Page* page) noexcept {
-            std::atomic_thread_fence(std::memory_order_acquire);
             auto data = page->data;
             auto object_size = page->metadata->object_size;
             auto states = page->states();
@@ -35,6 +34,7 @@ namespace sgcl::detail {
                 if (states[i].load(std::memory_order_relaxed) == State::Unused) {
                     _indexes[--_position] = (void*)(data + i * object_size);
                     states[i].store(State::Reserved, std::memory_order_relaxed);
+                    ++page->unused_counter_mutators;
                     assert(unused_occur = true);
                 }
             }

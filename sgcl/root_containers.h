@@ -31,7 +31,7 @@ namespace sgcl {
     template<class K, class C = std::less<K>>
     using RootSet = std::set<K, C, RootAllocator<K>>;
 
-    template<class K, class T, class C = std::less<K>>
+    template<class K, class C = std::less<K>>
     using RootMultiset = std::multiset<K, C, RootAllocator<K>>;
 
     template<class K, class T, class C = std::less<K>>

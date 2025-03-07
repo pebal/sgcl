@@ -19,15 +19,16 @@ namespace sgcl::detail {
         }
 
         ~ObjectPoolAllocatorBase() noexcept override {
-            bool unused = false;
+            unsigned unused_counter = 0;
             while (!_pointer_pool.is_empty()) {
                 auto ptr = _pointer_pool.alloc();
                 auto index = _current_page->index_of(ptr);
                 _current_page->states()[index].store(State::Unused, std::memory_order_relaxed);
-                unused = true;
+                ++unused_counter;
             }
-            if (unused) {
+            if (unused_counter) {
                 _current_page->unused_occur.store(true, std::memory_order_relaxed);
+                _current_page->unused_atomic.fetch_add(unused_counter, std::memory_order_relaxed);
             }
             std::atomic_thread_fence(std::memory_order_release);
         }
@@ -71,17 +72,14 @@ namespace sgcl::detail {
             Page* prev = nullptr;
             while(page) {
                 auto next = page->next_empty;
-                auto states = page->states();
-                auto object_count = page->metadata->object_count;
-                bool empty = true;
-                for (unsigned i = 0; i < object_count; ++i) {
-                    auto state = states[i].load(std::memory_order_relaxed);
-                    if (state != State::Unused) {
-                        empty = false;
-                        break;
-                    }
-                }
-                if (empty) {
+                auto unused_atomic = page->unused_atomic.load(std::memory_order_acquire);
+                page->unused_atomic.fetch_sub(unused_atomic, std::memory_order_relaxed);
+                page->unused_counter_gc += unused_atomic;
+                assert(page->unused_counter_gc >= page->unused_counter_mutators);
+                page->unused_counter_gc -= page->unused_counter_mutators;
+                page->unused_counter_mutators = 0;
+                assert(page->unused_counter_gc <= page->metadata->object_count);
+                if (page->unused_counter_gc == page->metadata->object_count) {
                     page->next_empty = empty_pages;
                     empty_pages = page;
                     if (!prev) {
@@ -122,7 +120,7 @@ namespace sgcl::detail {
                     last = last->next_empty;
                 }
                 last->next_empty = pages_buffer.load(std::memory_order_relaxed);
-                while(!pages_buffer.compare_exchange_weak(last->next_empty, pages, std::memory_order_relaxed));
+                while(!pages_buffer.compare_exchange_weak(last->next_empty, pages, std::memory_order_release, std::memory_order_relaxed));
             }
             if (empty_pages) {
                 _free(empty_pages);

@@ -20,6 +20,9 @@ namespace sgcl::detail {
         Counter operator-(const Counter& c) const noexcept {
             return {count - c.count, size - c.size};
         }
+        Counter operator*(size_t v) const noexcept {
+            return {count * v, size * v};
+        }
         void operator+=(const Counter& c) noexcept {
             count += c.count;
             size += c.size;
@@ -27,6 +30,13 @@ namespace sgcl::detail {
         void operator-=(const Counter& c) noexcept {
             count += c.count;
             size += c.size;
+        }
+        void operator*=(size_t v) noexcept {
+            count *= v;
+            size *= v;
+        }
+        bool operator>(const Counter& c) noexcept {
+            return count > c.count || size > c.size;
         }
         size_t count = {0};
         size_t size = {0};

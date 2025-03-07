@@ -137,10 +137,13 @@ namespace sgcl::detail {
         bool unreachable = {false};
         bool is_used = {true};
         bool is_last_registered = {false};
-        std::atomic_bool unused_occur = {true};
         std::atomic_bool object_created = {false};
         std::atomic_bool state_updated = {false};
         std::atomic_bool on_empty_list = {false};
+        std::atomic_bool unused_occur = {true};
+        unsigned int unused_counter_mutators = {0};
+        unsigned int unused_counter_gc = {0};
+        std::atomic_uint unused_atomic = {0};
         Page* next_reachable = {nullptr};
         Page* next_unreachable = {nullptr};
         Page* next_registered = {nullptr};

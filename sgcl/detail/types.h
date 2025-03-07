@@ -55,7 +55,7 @@ namespace sgcl::detail {
     enum State : uint8_t {
         Used = 0,
         Reachable,
-        ReachableAtomic = 4,
+        ReachableAtomic = 3,
         UniqueLock,
         Destroyed,
         BadAlloc,
@@ -70,4 +70,5 @@ namespace sgcl::detail {
     inline Thread& current_thread() noexcept;
     template<class T>
     void* clone_object(const void*);
+    void waking_up_collector() noexcept;
 }
