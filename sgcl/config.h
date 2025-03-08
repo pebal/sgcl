@@ -9,8 +9,6 @@
 #define SGCL_LOG_PRINT_LEVEL 0
 // maximum sleep time of the GC thread in seconds
 #define SGCL_MAX_SLEEP_TIME_SEC 30
-// percentage amount of allocations that will wake up the GC thread
-#define SGCL_TRIGER_PERCENTAGE 25
 
 #include <cstddef>
 

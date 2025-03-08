@@ -109,19 +109,19 @@ namespace sgcl::detail {
         }
 
         static void _free(Page* pages, std::atomic<Page*>& pages_buffer) noexcept {
-            Page* empty_pages = nullptr;
-            for (int i = 0; i < 2 ; ++i) {
-                _remove_empty(pages, empty_pages);
-                pages = pages_buffer.exchange(pages, std::memory_order_relaxed);
-            }
             if (pages) {
                 auto last = pages;
                 while(last->next_empty) {
                     last = last->next_empty;
                 }
-                last->next_empty = pages_buffer.load(std::memory_order_relaxed);
-                while(!pages_buffer.compare_exchange_weak(last->next_empty, pages, std::memory_order_release, std::memory_order_relaxed));
+                last->next_empty = pages_buffer.exchange(nullptr, std::memory_order_relaxed);
+            } else {
+                pages = pages_buffer.exchange(nullptr, std::memory_order_relaxed);
             }
+            Page* empty_pages = nullptr;
+            _remove_empty(pages, empty_pages);
+            pages = merge_sort<&Page::next_empty>(pages);
+            pages_buffer.store(pages, std::memory_order_release);
             if (empty_pages) {
                 _free(empty_pages);
             }

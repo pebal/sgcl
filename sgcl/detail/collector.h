@@ -208,7 +208,7 @@ namespace sgcl::detail {
                     _last_thread_registered->is_last_registered = false;
                     if (!_last_thread_registered->is_used) {
                         delete _last_thread_registered;
-                        BlockAllocator::remove_empty();
+                        BlockAllocator::release_empty();
                     }
                 }
                 _last_thread_registered = first_thread;
@@ -251,7 +251,7 @@ namespace sgcl::detail {
                 thread = next;
             }
             if (delete_thread) {
-                BlockAllocator::remove_empty();
+                BlockAllocator::release_empty();
             }
         }
 
@@ -657,15 +657,15 @@ namespace sgcl::detail {
                 }
                 page = page->next_registered;
             }
-            bool remove_empty = metadata != nullptr;
+            bool possible_empty_blocks = metadata != nullptr;
             while(metadata) {
                 metadata->free(metadata->empty_page);
                 metadata->used = false;
                 metadata->empty_page = nullptr;
                 metadata = metadata->next;
             }
-            if (remove_empty) {
-                BlockAllocator::remove_empty();
+            if (possible_empty_blocks) {
+                BlockAllocator::release_empty();
             }
             _atomic_pages = nullptr;
             Page* prev = nullptr;
@@ -806,15 +806,13 @@ namespace sgcl::detail {
                 _last_living_objects_number.store(_living_objects_number, std::memory_order_relaxed);
                 size_t last_objects_removed = _remove_garbage();
                 _release_unused_pages();
-                Counter last_mem_lived = MemoryCounters::live_counter();
-                Counter last_mem_removed = MemoryCounters::free_counter();
 #if SGCL_LOG_PRINT_LEVEL >= 2
                 auto end = std::chrono::high_resolution_clock::now();
                 double duration = std::chrono::duration<double, std::milli>(end - start).count();
                 total_time += duration;
                 std::cout << "[sgcl] mem allocs:" << std::setw(7) << MemoryCounters::alloc_counter().count + last_mem_allocated.count
-                          << ",    mem removed:" << std::setw(7) << last_mem_removed.count
-                          << ",    total mem:" << std::setw(7) << last_mem_lived.count
+                          << ",    mem removed:" << std::setw(7) << MemoryCounters::free_counter().count
+                          << ",    total mem:" << std::setw(7) << MemoryCounters::live_counter().count
                           << ",    objects created:" << std::setw(9) << last_objects_created
                           << ",    objects removed:" << std::setw(9) << last_objects_removed
                           << ",    living objects:" << std::setw(9) << _living_objects_number
@@ -865,7 +863,7 @@ namespace sgcl::detail {
                     {
                         sleep_flag.store(true, std::memory_order_relaxed);
                         std::unique_lock<std::mutex> lock(sleep_mutex);
-                        if (sleep_cv.wait_for(lock, 5000ms, [this]{
+                        if (sleep_cv.wait_for(lock, 5ms, [this]{
                             return !sleep_flag.load(std::memory_order_acquire)
                                 || _forced_collect_count.load(std::memory_order_relaxed)
                                 || _terminating.load(std::memory_order_relaxed);
