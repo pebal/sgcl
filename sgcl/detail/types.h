@@ -14,7 +14,6 @@ namespace sgcl::detail {
     struct Array;
     struct ArrayBase;
     struct ArrayMetadata;
-    class  AtomicProtector;
     struct Block;
     class  BlockAllocator;
     struct ChildPointers;
@@ -55,7 +54,6 @@ namespace sgcl::detail {
     enum State : uint8_t {
         Used = 0,
         Reachable,
-        ReachableAtomic = 3,
         UniqueLock,
         Destroyed,
         BadAlloc,

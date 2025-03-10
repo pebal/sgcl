@@ -5,7 +5,6 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "detail/atomic_protector.h"
 #include "stack_ptr.h"
 #include "tracked_ptr.h"
 
@@ -46,67 +45,61 @@ namespace sgcl {
         }
 
         StackPtr<Type> load(const std::memory_order m = std::memory_order_seq_cst) const {
-            auto l = (Type*)_ptr().load(m);
-            return StackPtr<Type>(l);
+            auto& thread = detail::current_thread();
+            std::memory_order order = m > std::memory_order::acquire ? m : std::memory_order::acquire;
+            auto l = (Type*)_ptr().load(order);
+            Type* t;
+            do {
+                t = l;
+                thread.set_hazard_pointer(l);
+                l = (Type*)_ptr().load(order);
+            } while(l != t);
+            StackPtr<Type> p(l);
+            thread.clear_hazard_pointer();
+            return p;
         }
 
         void store(const TrackedPtr<Type>& p, const std::memory_order m = std::memory_order_seq_cst) noexcept {
-            _protect_value(_val);
             _ptr().store(p.get(), m);
         }
 
         void store(UniquePtr<Type>&& p, const std::memory_order m = std::memory_order_seq_cst) noexcept {
-            _protect_value(_val);
             _ptr().store(p.release(), m);
         }
 
-        void exchange(TrackedPtr<Type>& p, const std::memory_order m = std::memory_order_seq_cst) {
-            _protect_value(_val);
-            auto l = _ptr().exchange(p.get(), m);
-            p._ptr().store(l);
-        }
-
         bool compare_exchange_strong(TrackedPtr<Type>& e, const TrackedPtr<Type>& n, const std::memory_order m = std::memory_order_seq_cst) noexcept {
-            StackPtr val = load(std::memory_order_acquire);
             void* l = e.get();
             if (!_ptr().compare_exchange_strong(l, n.get(), m)) {
-                e._ptr().store(l);
+                e = load(std::memory_order_acquire);
                 return false;
             }
-            _protect_value(val);
             return true;
         }
 
         bool compare_exchange_strong(TrackedPtr<Type>& e, const TrackedPtr<Type>& n, const std::memory_order s, const std::memory_order f) noexcept {
-            StackPtr val = load(std::memory_order_acquire);
             void* l = e.get();
             if (!_ptr().compare_exchange_strong(l, n.get(), s, f)) {
-                e._ptr().store(l);
+                e = load(std::memory_order_acquire);
                 return false;
             }
-            _protect_value(val);
             return true;
         }
 
         bool compare_exchange_weak(TrackedPtr<Type>& e, const TrackedPtr<Type>& n, const std::memory_order m = std::memory_order_seq_cst) {
-            StackPtr val = load(std::memory_order_acquire);
             void* l = e.get();
             if (!_ptr().compare_exchange_weak(l, n.get(), m)) {
-                e._ptr().store(l);
+                e = load(std::memory_order_acquire);
                 return false;
             }
-            _protect_value(val);
             return true;
         }
 
         bool compare_exchange_weak(TrackedPtr<Type>& e, const TrackedPtr<Type>& n, const std::memory_order s, const std::memory_order f) noexcept {
-            StackPtr val = load(std::memory_order_acquire);
             void* l = e.get();
             if (!_ptr().compare_exchange_weak(l, n.get(), s, f)) {
-                e._ptr().store(l);
+                e = load(std::memory_order_acquire);
                 return false;
             }
-            _protect_value(val);
             return true;
         }
 
@@ -121,10 +114,6 @@ namespace sgcl {
 
         const detail::Pointer& _ptr() const noexcept {
             return _val._ptr();
-        }
-
-        inline static void _protect_value(const value_type& v) {
-            detail::AtomicProtector::protect(v.get());
         }
 
         value_type _val;

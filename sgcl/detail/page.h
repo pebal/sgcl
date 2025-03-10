@@ -108,7 +108,6 @@ namespace sgcl::detail {
             auto index = page->index_of(p);
             auto &state = page->states()[index];
             if constexpr(S == State::UniqueLock
-                      || S == State::ReachableAtomic
                       || S == State::BadAlloc) {
                 state.store(S, std::memory_order_relaxed);
                 page->object_created.store(true, std::memory_order_release);

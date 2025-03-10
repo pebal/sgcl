@@ -76,33 +76,35 @@ namespace sgcl::detail {
             _ptr.store(const_cast<void*>(p), std::memory_order_release);
         }
 
-        void* exchange(const void* p, const std::memory_order m) noexcept {
-            auto l = _ptr.exchange(const_cast<void*>(p), m);
-            _update(p);
-            return l;
-        }
-
         bool compare_exchange_strong(void*& o, const void* n, const std::memory_order m) noexcept {
             auto res = _ptr.compare_exchange_strong(o, const_cast<void*>(n), m);
-            _update(n);
+            if (res) {
+                _update(n);
+            }
             return res;
         }
 
         bool compare_exchange_strong(void*& o, const void* n, const std::memory_order s, const std::memory_order f) noexcept {
             auto res = _ptr.compare_exchange_strong(o, const_cast<void*>(n), s, f);
-            _update(n);
+            if (res) {
+                _update(n);
+            }
             return res;
         }
 
         bool compare_exchange_weak(void*& o, const void* n, const std::memory_order m) noexcept {
             auto res = _ptr.compare_exchange_weak(o, const_cast<void*>(n), m);
-            _update(n);
+            if (res) {
+                _update(n);
+            }
             return res;
         }
 
         bool compare_exchange_weak(void*& o, const void* n, const std::memory_order s, const std::memory_order f) noexcept {
             auto res = _ptr.compare_exchange_weak(o, const_cast<void*>(n), s, f);
-            _update(n);
+            if (res) {
+                _update(n);
+            }
             return res;
         }
 

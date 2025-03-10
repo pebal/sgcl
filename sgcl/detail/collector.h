@@ -6,7 +6,6 @@
 #pragma once
 
 #include "child_pointers.h"
-#include "timer.h"
 #include "thread.h"
 #include "types.h"
 
@@ -127,71 +126,6 @@ namespace sgcl::detail {
                     }
                 }
             }
-        }
-
-        void _update_states() {
-            std::atomic_thread_fence(std::memory_order_acquire);
-            auto page = _registered_pages;
-            while(page) {
-                page->clear_flags();
-                if (!page->metadata->is_atomic) {
-                    if (page->state_updated.load(std::memory_order_relaxed)) {
-                        page->state_updated.store(false, std::memory_order_relaxed);
-                        auto states = page->states();
-                        auto flags = page->flags();
-                        auto count = page->flags_count();
-                        for (unsigned i = 0; i < count; ++i) {
-                            auto registered = flags[i].registered;
-                            auto offset = i * Page::FlagBitCount;
-                            while(registered) {
-                                auto index = offset + std::countr_zero(registered);
-                                auto state = states[index].load(std::memory_order_relaxed);
-                                if (state == State::Reachable) {
-                                    states[index].store(State::Used, std::memory_order_relaxed);
-                                }
-                                registered &= registered - 1;
-                            }
-                        }
-                    }
-                }
-                page = page->next_registered;
-            }
-        }
-
-        size_t _update_atomic_states() {
-            static Timer timer;
-            bool atomic = _terminating;
-            if (timer.duration() >= config::AtomicDeletionDelayMsec / (State::ReachableAtomic + 1)) {
-                atomic = true;
-                timer.reset();
-            }
-            size_t unreachable = 0;
-            if (atomic) {
-                auto page = _atomic_pages;
-                while(page) {
-                    auto states = page->states();
-                    auto flags = page->flags();
-                    auto count = page->flags_count();
-                    for (unsigned i = 0; i < count; ++i) {
-                        auto registered = flags[i].registered;
-                        auto offset = i * Page::FlagBitCount;
-                        while(registered) {
-                            auto index = offset + std::countr_zero(registered);
-                            auto state = states[index].load(std::memory_order_relaxed);
-                            if (state >= State::Reachable && state <= State::ReachableAtomic) {
-                                state = (State)(state - 1);
-                                states[index].store(state, std::memory_order_relaxed);
-                            }
-                            if (state < State::Reachable) {
-                                ++unreachable;
-                            }
-                            registered &= registered - 1;
-                        }
-                    }
-                    page = page->next_atomic;
-                }
-            }
-            return unreachable;
         }
 
         void _register_threads() {
@@ -322,6 +256,46 @@ namespace sgcl::detail {
                 page = next;
             }
             return objects_created;
+        }
+
+        void _update_states() {
+            std::atomic_thread_fence(std::memory_order_acquire);
+            auto page = _registered_pages;
+            while(page) {
+                page->clear_flags();
+                if (page->state_updated.load(std::memory_order_relaxed)) {
+                    page->state_updated.store(false, std::memory_order_relaxed);
+                    auto states = page->states();
+                    auto flags = page->flags();
+                    auto count = page->flags_count();
+                    for (unsigned i = 0; i < count; ++i) {
+                        auto registered = flags[i].registered;
+                        auto offset = i * Page::FlagBitCount;
+                        while(registered) {
+                            auto index = offset + std::countr_zero(registered);
+                            auto state = states[index].load(std::memory_order_relaxed);
+                            if (state == State::Reachable) {
+                                states[index].store(State::Used, std::memory_order_relaxed);
+                            }
+                            registered &= registered - 1;
+                        }
+                    }
+                }
+                page = page->next_registered;
+            }
+        }
+
+        void _update_hazard_pointers() {
+            decltype(_hazard_pointers)().swap(_hazard_pointers);
+            auto thread = _registered_threads;
+            while(thread) {
+                auto pointer = thread->hazard_pointer.load(std::memory_order_relaxed);
+                if (pointer) {
+                    _hazard_pointers.emplace_back((uintptr_t)pointer);
+                }
+                thread = thread->next_registered;
+            }
+            std::sort(_hazard_pointers.begin(), _hazard_pointers.end());
         }
 
         void _mark(const void* ptr) noexcept {
@@ -498,6 +472,20 @@ namespace sgcl::detail {
                         }
                     }
                 }
+                if constexpr(All) {
+                    if (_hazard_pointers.size()) {
+                        auto lower = std::lower_bound(_hazard_pointers.begin(), _hazard_pointers.end(), page->data);
+                        auto upper = std::lower_bound(lower, _hazard_pointers.end(), page->data + PageDataSize);
+                        for (auto i = lower; i != upper; ++i) {
+                            auto index = page->index_of((void*)*i);
+                            auto flag_index = Page::flag_index_of(index);
+                            auto mask = Page::flag_mask_of(index);
+                            auto& flag = page->flags()[flag_index];
+                            flag.reachable |= mask;
+                            reachable_page = true;
+                        }
+                    }
+                }
                 if (reachable_page && !page->reachable) {
                     page->reachable = true;
                     page->next_reachable = _reachable_pages;
@@ -667,7 +655,6 @@ namespace sgcl::detail {
             if (possible_empty_blocks) {
                 BlockAllocator::release_empty();
             }
-            _atomic_pages = nullptr;
             Page* prev = nullptr;
             page = _registered_pages;
             while(page) {
@@ -683,104 +670,22 @@ namespace sgcl::detail {
                         delete page;
                     }
                 } else {
-                    if (page->metadata->is_atomic) {
-                        page->next_atomic = _atomic_pages;
-                        _atomic_pages = page;
-                    }
                     prev = page;
                 }
                 page = next;
             }
         }
 
-#if SGCL_LOG_PRINT_LEVEL >= 4
-        void _check_mem() noexcept {
-            size_t used_counter = 0;
-            size_t reachable_counter = 0;
-            size_t reachable_atomic_counter = 0;
-            size_t unique_lock_counter = 0;
-            size_t destroyed_counter = 0;
-            size_t bad_alloc_counter = 0;
-            size_t reserved_counter = 0;
-            size_t unused_counter = 0;
-            size_t on_empty_list = 0;
-            size_t is_used = 0;
-            size_t registered = 0;
-            size_t counter = 0;
-            auto page = _registered_pages;
-            while(page) {
-                ++counter;
-                auto next = page->next_registered;
-                if (page->on_empty_list.load(std::memory_order_acquire)) {
-                    ++on_empty_list;
-                }
-                if (page->is_used) {
-                    ++is_used;
-                }
-                auto states = page->states();
-                auto flags = page->flags();
-                auto count = page->flags_count();
-                for (unsigned i = 0; i < count; ++i) {
-                    auto& flag = flags[i];
-                    auto flagBitCount = Page::FlagBitCount;
-                    if (i == count - 1) {
-                        auto object_count = (i + 1) * Page::FlagBitCount;
-                        if (object_count > page->metadata->object_count) {
-                            flagBitCount -= object_count - page->metadata->object_count;
-                        }
-                    }
-                    for (unsigned j = 0; j < flagBitCount; ++j) {
-                        auto mask = Page::Flag(1) << j;
-                        auto index = i * Page::FlagBitCount + j;
-                        assert(index < page->metadata->object_count);
-                        auto state = states[index].load(std::memory_order_relaxed);
-                        switch(state) {
-                        case Used: ++used_counter; break;
-                        case Reachable: ++reachable_counter; break;
-                        case ReachableAtomic: ++reachable_atomic_counter; break;
-                        case UniqueLock: ++unique_lock_counter; break;
-                        case Destroyed: ++destroyed_counter; break;
-                        case BadAlloc: ++bad_alloc_counter; break;
-                        case Reserved: ++reserved_counter; break;
-                        case Unused: ++unused_counter; break;
-                        default:
-                            break;
-                        }
-                        if (flag.registered & mask) {
-                            ++registered;
-                        }
-                    }
-                }
-                page = next;
-            }
-            std::cout << "[sgcl] _check_mem() -------------------" << std::endl;
-            std::cout <<  "            used_counter: " << used_counter << std::endl;
-            std::cout <<  "       reachable_counter: " << reachable_counter << std::endl;
-            std::cout <<  "reachable_atomic_counter: " << reachable_atomic_counter << std::endl;
-            std::cout <<  "     unique_lock_counter: " << unique_lock_counter << std::endl;
-            std::cout <<  "       destroyed_counter: " << destroyed_counter << std::endl;
-            std::cout <<  "       bad_alloc_counter: " << bad_alloc_counter << std::endl;
-            std::cout <<  "        reserved_counter: " << reserved_counter << std::endl;
-            std::cout <<  "          unused_counter: " << unused_counter << std::endl;
-            std::cout <<  "           on_empty_list: " << on_empty_list << std::endl;
-            std::cout <<  "                 is_used: " << is_used << std::endl;
-            std::cout <<  "              registered: " << registered << std::endl;
-            std::cout <<  "                 counter: " << counter << std::endl;
-            std::cout << "[sgcl] _check_mem() -------------------" << std::endl;
-        }
-#endif
 #if SGCL_LOG_PRINT_LEVEL >= 2
         double total_time = 0;
 #endif
         void _main_loop() noexcept {
-            static constexpr int64_t MinObjectsCount = config::PageSize / 4;
 #if SGCL_LOG_PRINT_LEVEL > 0
             std::cout << "[sgcl] start collector id: " << std::this_thread::get_id() << std::endl;
 #endif
             using namespace std::chrono_literals;
             int finalization_counter = 5;
             Counter last_mem_allocated;
-            Timer atomic_timer;
             do {
 #if SGCL_LOG_PRINT_LEVEL >= 2
                 auto start = std::chrono::high_resolution_clock::now();
@@ -789,18 +694,18 @@ namespace sgcl::detail {
                 _register_pages();
                 size_t last_objects_created = _register_objects();
                 _update_states();
-                _update_atomic_states();
                 _mark_stack_roots();
                 _living_objects_number = 0;
                 do {
                     _mark_reachable();
-                    if (_unreachable_pages) {
-                        _mark_updated<false>();
-                    } else {
+                    if (!_unreachable_pages) {
                         _register_threads();
                         _register_pages();
                         last_objects_created += _register_objects();
+                        _update_hazard_pointers();
                         _mark_updated<true>();
+                    } else {
+                        _mark_updated<false>();
                     }
                 } while(_reachable_pages);
                 _last_living_objects_number.store(_living_objects_number, std::memory_order_relaxed);
@@ -820,58 +725,44 @@ namespace sgcl::detail {
                           << ",    total time:" << std::setw(10) << std::fixed << std::setprecision(3) << total_time << "ms"
                           << std::endl;
 #endif
-                Timer timer;
-                do {
-                    if (_forced_collect_count.load(std::memory_order_acquire)) {
-                        if (_forced_collect_count.fetch_sub(1, std::memory_order_relaxed) == 1) {
-                            _forced_collect_cv.notify_all();
-                            if (_share_living_objects) {
+                bool can_sleep = true;
+                if (_forced_collect_count.load(std::memory_order_acquire)) {
+                    if (_forced_collect_count.fetch_sub(1, std::memory_order_relaxed) == 1) {
+                        _forced_collect_cv.notify_all();
+                        if (_share_living_objects) {
 #if SGCL_LOG_PRINT_LEVEL > 0
-                                std::cout << "[sgcl] suspended collector id: " << std::this_thread::get_id() << std::endl;
+                            std::cout << "[sgcl] suspended collector id: " << std::this_thread::get_id() << std::endl;
 #endif
-                                std::unique_lock<std::mutex> lock(_mutex);
-                                _forced_collect_cv.wait(lock, [this]{
-                                    return !_paused;
-                                });
-                                _share_living_objects = false;
+                            std::unique_lock<std::mutex> lock(_mutex);
+                            _forced_collect_cv.wait(lock, [this]{
+                                return !_paused;
+                            });
+                            _share_living_objects = false;
 #if SGCL_LOG_PRINT_LEVEL > 0
-                                std::cout << "[sgcl] resumed collector id: " << std::this_thread::get_id() << std::endl;
+                            std::cout << "[sgcl] resumed collector id: " << std::this_thread::get_id() << std::endl;
 #endif
+                        }
+                    }
+                    else {
+                        if (_forced_collect_count.load(std::memory_order_relaxed) == 1) {
+                            assert(_living_objects.size() == 0);
+                            if (_living_objects_request) {
+                                _living_objects_request = false;
+                                _share_living_objects = true;
                             }
                         }
-                        else {
-                            if (_forced_collect_count.load(std::memory_order_relaxed) == 1) {
-                                assert(_living_objects.size() == 0);
-                                if (_living_objects_request) {
-                                    _living_objects_request = false;
-                                    _share_living_objects = true;
-                                }
-                            }
-                            break;
-                        }
+                        can_sleep = false;
                     }
-                    if (_terminating) {
-                        break;
-                    }
-                    if (atomic_timer.duration() >= config::AtomicDeletionDelayMsec / (State::ReachableAtomic + 1)) {
-                        atomic_timer.reset();
-                        auto atomic = _update_atomic_states();
-                        if (atomic * 4 > last_objects_created + MinObjectsCount) {
-                            break;
-                        }
-                    }
-                    {
-                        sleep_flag.store(true, std::memory_order_relaxed);
-                        std::unique_lock<std::mutex> lock(sleep_mutex);
-                        if (sleep_cv.wait_for(lock, 5ms, [this]{
-                            return !sleep_flag.load(std::memory_order_acquire)
-                                || _forced_collect_count.load(std::memory_order_relaxed)
-                                || _terminating.load(std::memory_order_relaxed);
-                        })) {
-                            break;
-                        }
-                    }
-                } while(timer.duration() < SGCL_MAX_SLEEP_TIME_SEC * 1000);
+                }
+                if (!_terminating && can_sleep) {
+                    sleep_flag.store(true, std::memory_order_relaxed);
+                    std::unique_lock<std::mutex> lock(sleep_mutex);
+                    sleep_cv.wait_for(lock, config::MaxSleepTime, [this]{
+                        return !sleep_flag.load(std::memory_order_acquire)
+                            || _forced_collect_count.load(std::memory_order_relaxed)
+                            || _terminating.load(std::memory_order_relaxed);
+                    });
+                }
                 last_mem_allocated = MemoryCounters::alloc_counter();
                 MemoryCounters::reset_all();
                 if (!last_objects_removed && _terminating) {
@@ -885,10 +776,6 @@ namespace sgcl::detail {
 #if SGCL_LOG_PRINT_LEVEL > 0
             std::cout << "[sgcl] stop collector id: " << std::this_thread::get_id() << std::endl;
 #endif
-#if SGCL_LOG_PRINT_LEVEL >= 4
-        _check_mem();
-#endif
-
             if (_terminating) {
                 std::lock_guard<std::mutex> lock(_mutex);
                 _terminated = true;
@@ -920,7 +807,6 @@ namespace sgcl::detail {
         Page* _reachable_pages = {nullptr};
         Page* _unreachable_pages = {nullptr};
         Page* _registered_pages = {nullptr};
-        Page* _atomic_pages = {nullptr};
         std::atomic<int> _forced_collect_count = {0};
         std::condition_variable _forced_collect_cv;
         std::condition_variable _terminate_cv;
@@ -937,6 +823,7 @@ namespace sgcl::detail {
         std::mutex sleep_mutex;
         std::condition_variable sleep_cv;
         std::atomic<bool> sleep_flag = {true};
+        std::vector<uintptr_t> _hazard_pointers;
 
         friend inline void delete_unique(const void*) noexcept;
     };

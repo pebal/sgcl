@@ -32,6 +32,7 @@ namespace sgcl::detail {
             Data* next_registered = {nullptr};
             std::atomic<Page*> pages = {nullptr};
             Page* last_page_registered = {nullptr};
+            RawPointer hazard_pointer = {nullptr};
         };
 
         struct ChildPointers {
@@ -88,6 +89,14 @@ namespace sgcl::detail {
 
         RangeGuard use_child_pointers(const ChildPointers& cp) noexcept {
             return {*this, cp};
+        }
+
+        void set_hazard_pointer(void* p) {
+            _data->hazard_pointer.store(p, std::memory_order_release);
+        }
+
+        void clear_hazard_pointer() {
+            _data->hazard_pointer.store(nullptr, std::memory_order_release);
         }
 
         ChildPointers child_pointers = {0, nullptr};

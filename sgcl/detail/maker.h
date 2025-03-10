@@ -13,23 +13,17 @@
 namespace sgcl::detail {
     template<class T, class ...A>
     inline T* construct(void* p, A&&... a) {
-        if constexpr(std::is_same_v<T, AtomicProtector>) {
-            Page::set_state<State::ReachableAtomic>(p);
-            new(p) T(std::forward<A>(a)...);
-            return nullptr;
-        } else {
-            Page::set_state<State::UniqueLock>(p);
-            try {
-                if constexpr(sizeof...(A)) {
-                    return new(p) T(std::forward<A>(a)...);
-                } else {
-                    return new(p) T;
-                }
+        Page::set_state<State::UniqueLock>(p);
+        try {
+            if constexpr(sizeof...(A)) {
+                return new(p) T(std::forward<A>(a)...);
+            } else {
+                return new(p) T;
             }
-            catch (...) {
-                Page::set_state<State::BadAlloc>(p);
-                throw;
-            }
+        }
+        catch (...) {
+            Page::set_state<State::BadAlloc>(p);
+            throw;
         }
     }
 
