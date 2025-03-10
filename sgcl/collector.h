@@ -12,7 +12,7 @@ namespace sgcl {
     public:
         using PauseGuard = detail::Collector::PauseGuard;
 
-        inline static size_t living_objects_number() {
+        inline static size_t last_living_objects_number() {
             return detail::collector_instance().last_living_objects_number();
         }
 

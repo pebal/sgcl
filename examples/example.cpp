@@ -174,8 +174,9 @@ int main() {
     Collector::force_collect(true);
 
     // Get number of living objects
-    auto living_objects_number = Collector::living_objects_number();
-    std::cout << "living objects number: " << living_objects_number << std::endl;
+    // Note: This is the number calculated in the last GC cycle
+    auto last_living_objects_number = Collector::last_living_objects_number();
+    std::cout << "last living objects number: " << last_living_objects_number << std::endl;
 
     {
         // Get list of living objects
