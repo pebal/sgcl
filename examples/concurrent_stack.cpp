@@ -8,11 +8,9 @@ using namespace sgcl;
 template<typename T>
 class ConcurrentStack {
     struct Node {
-        Node(const T& d): data(d) {}
         T data;
         TrackedPtr<Node> next;
     };
-
     Atomic<TrackedPtr<Node>> _head;
 
 public:

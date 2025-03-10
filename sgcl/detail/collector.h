@@ -239,7 +239,7 @@ namespace sgcl::detail {
                                 auto index = offset + countr_zero;
                                 if (!last || index < object_count) {
                                     auto state = states[index].load(std::memory_order_relaxed);
-                                    if (state >= State::Reachable && state <= State::BadAlloc) {
+                                    if (state & State::CreatedMask) {
                                         auto mask = Page::Flag(1) << countr_zero;
                                         flag.registered |= mask;
                                         if (state == State::Reachable) {
@@ -461,7 +461,7 @@ namespace sgcl::detail {
                             auto countr_zero = std::countr_zero(unreachable);
                             auto index = offset + countr_zero;
                             auto state = states[index].load(std::memory_order_relaxed);
-                            if (state >= State::Reachable && state <= State::UniqueLock) {
+                            if (state & State::ReachableMask) {
                                 auto mask = Page::Flag(1) << countr_zero;
                                 flag.reachable |= mask;
                                 reachable_page = true;
@@ -692,7 +692,7 @@ namespace sgcl::detail {
 #endif
                 _register_threads();
                 _register_pages();
-                size_t last_objects_created = _register_objects();
+                [[maybe_unused]] size_t last_objects_created = _register_objects();
                 _update_states();
                 _mark_stack_roots();
                 _living_objects_number = 0;

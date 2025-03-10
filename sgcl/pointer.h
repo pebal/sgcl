@@ -51,7 +51,6 @@ namespace sgcl {
         explicit Pointer(U* p) noexcept
         : Pointer() {
             assert(!p || !detail::Page::is_unique(p));
-            assert(!p || !detail::Pointer::is_array(p));
             _ptr().store(static_cast<T*>(p));
         }
 

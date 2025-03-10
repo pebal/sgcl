@@ -53,13 +53,15 @@ namespace sgcl::detail {
 
     enum State : uint8_t {
         Used = 0,
-        Reachable,
-        UniqueLock,
-        Destroyed,
-        BadAlloc,
-        Reserved,
-        Unused,
-        Unreachable = Used
+        Reachable = 1,
+        UniqueLock = 2,
+        Destroyed = 4,
+        BadAlloc = 8,
+        Reserved = 16,
+        Unused = 32,
+        Unreachable = Used,
+        ReachableMask = 3,
+        CreatedMask = 15
     };
 
     void collector_init();

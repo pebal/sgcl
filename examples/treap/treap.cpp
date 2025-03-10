@@ -7,7 +7,6 @@ using namespace sgcl;
 
 class Treap {
     struct Node {
-        Node(int x): x(x) {}
         const int x;
         const int y = rand();
         TrackedPtr<Node> left;
