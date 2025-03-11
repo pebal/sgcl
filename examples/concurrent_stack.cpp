@@ -1,33 +1,49 @@
 #include "sgcl/sgcl.h"
 
 #include <chrono>
+#include <future>
 #include <iostream>
 
 using namespace sgcl;
 
-template<typename T>
+template<typename T, PointerPolicy P = PointerPolicy::Tracked>
 class ConcurrentStack {
     struct Node {
+        Node(const T& d) : data(d) {}
         T data;
         TrackedPtr<Node> next;
     };
-    Atomic<TrackedPtr<Node>> _head;
+    Pointer<Node, P> _head;
 
 public:
+    ConcurrentStack() = default;
+    ConcurrentStack(const ConcurrentStack&) = delete;
+    ConcurrentStack& operator= (const ConcurrentStack&) = delete;
+
     void push(const T& data) {
         StackPtr node = make_tracked<Node>(data);
-        node->next = _head.load();
-        while (!_head.compare_exchange_weak(node->next, node));
+        node->next = AtomicRef(_head).load();
+        while(!AtomicRef(_head).compare_exchange_weak(node->next, node));
+        AtomicRef(_head).notify_one();
     }
 
-    StackPtr<T> pop() {
-        auto node = _head.load();
-        while(node && !_head.compare_exchange_weak(node, node->next));
+    std::optional<StackType<T>> try_pop() {
+        StackPtr node = AtomicRef(_head).load();
+        while(node && !AtomicRef(_head).compare_exchange_weak(node, node->next));
         if (node) {
-            node->next = nullptr;
-            return StackPtr(&node->data);
+            return node->data;
         }
-        return nullptr;
+        return {};
+    }
+
+    StackType<T> pop() {
+        for(;;) {
+            auto o = try_pop();
+            if (o.has_value()) {
+                return o.value();
+            }
+            AtomicRef(_head).wait(nullptr);
+        }
     }
 };
 
@@ -36,27 +52,25 @@ int main() {
     using std::chrono::duration;
     auto t = high_resolution_clock::now();
 
-    std::thread threads[2];
+    ConcurrentStack<int, PointerPolicy::Stack> stack;
 
-    auto stack = make_tracked<ConcurrentStack<int>>();
-    std::atomic<int64_t> result = 0;
-    auto test = [&]{
+    auto fpush = std::async([&stack]{
         int64_t sum = 0;
         for(int i = 0; i < 1000000; ++i) {
-            stack->push(i);
+            stack.push(i);
             sum += i;
-            sum -= *stack->pop();
         }
-        result += sum;
-    };
+        return sum;
+    });
 
-    for (auto& thread: threads) {
-        std::thread(test).swap(thread);
-    }
-    for (auto& thread: threads) {
-        thread.join();
-    }
+    auto fpop = std::async([&stack]{
+        int64_t sum = 0;
+        for(int i = 0; i < 1000000; ++i) {
+            sum += stack.pop();
+        }
+        return sum;
+    });
 
-    std::cout << result << std::endl;
+    std::cout << fpush.get() - fpop.get() << std::endl;
     std::cout << duration<double, std::milli>(high_resolution_clock::now() - t).count() << "ms\n";
 }
