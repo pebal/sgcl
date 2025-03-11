@@ -6,6 +6,7 @@
 #pragma once
 
 #include "atomic.h"
+#include "atomic_ref.h"
 #include "collector.h"
 #include "config.h"
 #include "make_tracked.h"

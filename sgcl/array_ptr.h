@@ -17,7 +17,9 @@ namespace sgcl {
     template<class T, IsPointer Base>
     class ArrayPtr : public Base {
     public:
-        using element_type = typename Base::element_type;
+        using ElementType = typename Base::ElementType;
+        using ValueType = T[];
+
         using iterator = detail::Iterator<T>;
         using const_iterator = detail::Iterator<const T>;
         using reverse_iterator = typename iterator::reverse_iterator;
@@ -28,13 +30,13 @@ namespace sgcl {
         T& operator*() const = delete;
         T* operator->() const = delete;
 
-        element_type& operator[](size_t i) const noexcept {
+        ElementType& operator[](size_t i) const noexcept {
             assert(*this != nullptr);
             assert(i < size());
             return begin()[i];
         }
 
-        element_type& at(size_t i) const {
+        ElementType& at(size_t i) const {
             if (!*this || i >= size()) {
                 throw std::out_of_range("sgcl::ArrayPtr");
             }
@@ -77,8 +79,8 @@ namespace sgcl {
             return cbegin().make_reverse_iterator();
         }
 
-        UniquePtr<T[]> clone() const {
-            return UniquePtr<T[]>(Base::clone());
+        UniquePtr<ValueType> clone() const {
+            return UniquePtr<ValueType>(Base::clone());
         }
     };
 }

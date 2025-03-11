@@ -42,7 +42,7 @@ namespace sgcl::detail {
                 auto data = Maker<Data[]>::make_tracked(n);
                 mem = data.get();
                 data.release();
-                if constexpr(may_contain_tracked<T>) {
+                if constexpr(TypeInfo<T>::MayContainTracked) {
                     std::memset(mem, 0, sizeof(Data) * n);
                     auto array = (ArrayBase*)mem - 1;
                     array->metadata.store(&Info::array_metadata(), std::memory_order_release);
@@ -51,7 +51,7 @@ namespace sgcl::detail {
                 auto data = Maker<Data>::make_tracked();
                 mem = data.get();
                 data.release();
-                if constexpr(may_contain_tracked<T>) {
+                if constexpr(TypeInfo<T>::MayContainTracked) {
                     std::memset(mem, 0, sizeof(Data));
                 }
             }
@@ -68,7 +68,7 @@ namespace sgcl::detail {
 
         template <class U, class ...A>
         void construct(U* p, A&& ...a)  {
-            if constexpr(may_contain_tracked<U>) {
+            if constexpr(TypeInfo<U>::MayContainTracked) {
                 if (!Info::child_pointers.final.load(std::memory_order_acquire) && alignof(U) >= alignof(RawPointer)) {
                     auto count = sizeof(U) / sizeof(RawPointer);
                     auto mem = (RawPointer*)p;

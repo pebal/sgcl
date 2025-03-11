@@ -29,5 +29,5 @@ namespace sgcl {
     StackPtr(UniquePtr<T>&&) -> StackPtr<T>;
 
     template <typename T>
-    StackPtr(const UnsafePtr<T>&&) -> StackPtr<T>;
+    StackPtr(UnsafePtr<T>) -> StackPtr<T>;
 }

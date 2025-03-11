@@ -159,7 +159,7 @@ namespace sgcl::detail {
 
         template<class... A>
         static void _init_data(Array<>& array, A&&... a) {
-            if constexpr(may_contain_tracked<Type>) {
+            if constexpr(Info::MayContainTracked) {
                 int offset;
                 if (array.count && !Info::child_pointers.final.load(std::memory_order_acquire)) {
                     std::memset(array.data, 0xFF, sizeof(Type));
@@ -174,7 +174,7 @@ namespace sgcl::detail {
                     array.metadata.store(&Info::array_metadata(), std::memory_order_release);
                     offset = 0;
                 }
-                if constexpr(std::is_base_of_v<Tracked, Type>) {
+                if constexpr(Info::IsTracked) {
                     if constexpr(sizeof...(A)) {
                         _init(array.data, offset, array.count, std::forward<A>(a)...);
                     }

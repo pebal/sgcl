@@ -5,11 +5,12 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "detail/tracked.h"
-
-#include <type_traits>
+#include "detail/type_info.h"
 
 namespace sgcl {
+    template<class T>
+    static constexpr bool IsTracked = detail::TypeInfo<T>::IsTracked;
+
     template<typename T>
     concept IsPointer = requires(T t) {
         { t.clone() };
@@ -18,5 +19,5 @@ namespace sgcl {
     };
 
     template <typename T>
-    concept TrackedPointer = std::is_base_of_v<detail::Tracked, T>;
+    concept TrackedPointer = IsTracked<T>;
 }

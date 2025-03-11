@@ -67,6 +67,10 @@ namespace sgcl::detail {
             _update(p);
         }
 
+        void store(std::nullptr_t, const std::memory_order m) noexcept {
+            _ptr.store(nullptr, m);
+        }
+
         void store(const void* p, const std::memory_order m) noexcept {
             _ptr.store(const_cast<void*>(p), m);
             _update(p);
@@ -74,6 +78,10 @@ namespace sgcl::detail {
 
         void store_no_update(const void* p) noexcept {
             _ptr.store(const_cast<void*>(p), std::memory_order_release);
+        }
+
+        bool compare_exchange_strong(void*& o, std::nullptr_t, const std::memory_order m) noexcept {
+            return _ptr.compare_exchange_strong(o, nullptr, m);
         }
 
         bool compare_exchange_strong(void*& o, const void* n, const std::memory_order m) noexcept {
@@ -84,12 +92,20 @@ namespace sgcl::detail {
             return res;
         }
 
+        bool compare_exchange_strong(void*& o, std::nullptr_t, const std::memory_order s, const std::memory_order f) noexcept {
+            return _ptr.compare_exchange_strong(o, nullptr, s, f);
+        }
+
         bool compare_exchange_strong(void*& o, const void* n, const std::memory_order s, const std::memory_order f) noexcept {
             auto res = _ptr.compare_exchange_strong(o, const_cast<void*>(n), s, f);
             if (res) {
                 _update(n);
             }
             return res;
+        }
+
+        bool compare_exchange_weak(void*& o, std::nullptr_t, const std::memory_order m) noexcept {
+            return _ptr.compare_exchange_weak(o, nullptr, m);
         }
 
         bool compare_exchange_weak(void*& o, const void* n, const std::memory_order m) noexcept {
@@ -100,12 +116,32 @@ namespace sgcl::detail {
             return res;
         }
 
+        bool compare_exchange_weak(void*& o, std::nullptr_t, const std::memory_order s, const std::memory_order f) noexcept {
+            return _ptr.compare_exchange_weak(o, nullptr, s, f);
+        }
+
         bool compare_exchange_weak(void*& o, const void* n, const std::memory_order s, const std::memory_order f) noexcept {
             auto res = _ptr.compare_exchange_weak(o, const_cast<void*>(n), s, f);
             if (res) {
                 _update(n);
             }
             return res;
+        }
+
+        bool is_lock_free() const noexcept {
+            return _ptr.is_lock_free();
+        }
+
+        void notify_one() noexcept {
+            _ptr.notify_one();
+        }
+
+        void notify_all() noexcept {
+            _ptr.notify_all();
+        }
+
+        void wait(const void* p, std::memory_order m) const noexcept {
+            _ptr.wait(const_cast<void*>(p), m);
         }
 
         inline static void* base_address_of(const void* p) noexcept {
@@ -125,10 +161,6 @@ namespace sgcl::detail {
         void* data_base_address() const noexcept {
             auto p = load();
             return p ? data_base_address_of(p) : nullptr;
-        }
-
-        bool is_lock_free() const noexcept {
-            return _ptr.is_lock_free();
         }
 
         template<class T>
@@ -260,11 +292,11 @@ namespace sgcl::detail {
 
     template<class T>
     void* clone_object(const void* p) {
-        using element_type = std::remove_extent_t<T>;
-        if constexpr (std::is_copy_constructible_v<element_type>) {
+        using ElementType = std::remove_extent_t<T>;
+        if constexpr (std::is_copy_constructible_v<ElementType>) {
             if (p) {
                 if constexpr(std::is_array_v<T>) {
-                    if constexpr(std::is_copy_assignable_v<element_type>) {
+                    if constexpr(std::is_copy_assignable_v<ElementType>) {
                         auto array = (ArrayBase*)Page::base_address_of(p);
                         auto dst = Maker<T>::make_tracked(array);
                         return dst.release();

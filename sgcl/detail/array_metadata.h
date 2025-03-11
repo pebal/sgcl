@@ -17,7 +17,7 @@ namespace sgcl::detail {
         , type_info(typeid(T[]))
         , object_size(TypeInfo<T>::ObjectSize)
         , user_metadata(TypeInfo<T[]>::user_metadata)
-        , tracked_ptrs_only(std::is_base_of_v<Tracked, T>) {
+        , tracked_ptrs_only(TypeInfo<T>::IsTracked) {
         }
 
         ChildPointers& child_pointers;

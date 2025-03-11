@@ -15,10 +15,15 @@ namespace sgcl {
         Stack
     };
 
+    template<class T>
+    using StackType = detail::StackType<T>::Type;
+
     template<class T, IsPointer Base>
     class ArrayPtr;
     template<TrackedPointer>
     class Atomic;
+    template<TrackedPointer>
+    class AtomicRef;
     class Collector;
     template<class, PointerPolicy>
     class Pointer;

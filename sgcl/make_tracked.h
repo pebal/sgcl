@@ -30,7 +30,7 @@ namespace sgcl {
         return UniquePtr<T>(std::move(ptr));
     }
 
-    template<class T, std::enable_if_t<std::is_array_v<T> && !detail::may_contain_tracked<T>, int> = 0>
+    template<class T, std::enable_if_t<std::is_array_v<T> && !detail::TypeInfo<T>::MayContainTracked, int> = 0>
     auto make_tracked(std::initializer_list<std::remove_extent_t<T>> init) {
         static_assert(sizeof(detail::Array<sizeof(std::remove_extent_t<T>)>) <= detail::PageDataSize, "Object is too large");
         auto ptr = detail::Maker<T>::make_tracked(init);

@@ -35,7 +35,9 @@ namespace sgcl {
     template<class T, PointerPolicy Policy>
     class Pointer : public VoidPointer<T, Policy> {
     public:
-        using element_type = T;
+        using ElementType = T;
+        using ValueType = T;
+        using StackType = Pointer<T, PointerPolicy::Stack>;
 
         constexpr Pointer() noexcept {
             if constexpr(Policy == PointerPolicy::Stack) {
@@ -51,7 +53,7 @@ namespace sgcl {
         explicit Pointer(U* p) noexcept
         : Pointer() {
             assert(!p || !detail::Page::is_unique(p));
-            _ptr().store(static_cast<T*>(p));
+            _ptr().store(static_cast<ElementType*>(p));
         }
 
         explicit(Policy == PointerPolicy::Tracked) Pointer(const Pointer& p) noexcept
@@ -59,23 +61,23 @@ namespace sgcl {
             _ptr().store(p.get());
         }
 
-        template<class U, PointerPolicy P, std::enable_if_t<std::is_convertible_v<typename Pointer<U, P>::element_type*, T*>, int> = 0>
+        template<class U, PointerPolicy P, std::enable_if_t<std::is_convertible_v<typename Pointer<U, P>::ElementType*, T*>, int> = 0>
         explicit(Policy == PointerPolicy::Tracked) Pointer(const Pointer<U, P>& p) noexcept
         : Pointer() {
-            _ptr().store(static_cast<T*>(p.get()));
+            _ptr().store(static_cast<ElementType*>(p.get()));
         }
 
-        template<class U, std::enable_if_t<std::is_convertible_v<typename UniquePtr<U>::element_type*, T*>, int> = 0>
+        template<class U, std::enable_if_t<std::is_convertible_v<typename UniquePtr<U>::ElementType*, T*>, int> = 0>
         explicit(Policy == PointerPolicy::Tracked) Pointer(UniquePtr<U>&& u) noexcept
         : Pointer() {
-            _ptr().store(static_cast<T*>(u.release()));
+            _ptr().store(static_cast<ElementType*>(u.release()));
         }
 
-        template<class U, std::enable_if_t<std::is_convertible_v<typename UnsafePtr<U>::element_type*, T*>, int> = 0>
-        explicit(Policy == PointerPolicy::Tracked) Pointer(const UnsafePtr<U>& p) noexcept
+        template<class U, std::enable_if_t<std::is_convertible_v<typename UnsafePtr<U>::ElementType*, T*>, int> = 0>
+        explicit(Policy == PointerPolicy::Tracked) Pointer(UnsafePtr<U> p) noexcept
         : Pointer() {
             assert(!detail::Page::is_unique(p.get()));
-            _ptr().store(static_cast<T*>(p.get()));
+            _ptr().store(static_cast<ElementType*>(p.get()));
         }
 
         ~Pointer() noexcept {
@@ -92,51 +94,51 @@ namespace sgcl {
             return *this;
         }
 
-        template<class U, PointerPolicy P, std::enable_if_t<std::is_convertible_v<typename Pointer<U, P>::element_type*, T*>, int> = 0>
+        template<class U, PointerPolicy P, std::enable_if_t<std::is_convertible_v<typename Pointer<U, P>::ElementType*, T*>, int> = 0>
         Pointer& operator=(const Pointer<U, P>& p) noexcept {
-            _ptr().store(static_cast<T*>(p.get()));
+            _ptr().store(static_cast<ElementType*>(p.get()));
             return *this;
         }
 
-        template<class U, std::enable_if_t<std::is_convertible_v<typename UniquePtr<U>::element_type*, T*>, int> = 0>
+        template<class U, std::enable_if_t<std::is_convertible_v<typename UniquePtr<U>::ElementType*, T*>, int> = 0>
         Pointer& operator=(UniquePtr<U>&& u) noexcept {
             auto p = u.release();
-            _ptr().store(static_cast<T*>(p));
+            _ptr().store(static_cast<ElementType*>(p));
             return *this;
         }
 
-        template<class U, std::enable_if_t<std::is_convertible_v<typename UnsafePtr<U>::element_type*, T*>, int> = 0>
-        Pointer& operator=(const UnsafePtr<U>& p) noexcept {
-            _ptr().store(static_cast<T*>(p.get()));
+        template<class U, std::enable_if_t<std::is_convertible_v<typename UnsafePtr<U>::ElementType*, T*>, int> = 0>
+        Pointer& operator=(UnsafePtr<U> p) noexcept {
+            _ptr().store(static_cast<ElementType*>(p.get()));
             return *this;
         }
 
-        operator Pointer<T, PointerPolicy::Tracked>&() noexcept {
-            return reinterpret_cast<Pointer<T, PointerPolicy::Tracked>&>(_ptr());
+        operator Pointer<ValueType, PointerPolicy::Tracked>&() noexcept {
+            return reinterpret_cast<Pointer<ValueType, PointerPolicy::Tracked>&>(_ptr());
         }
 
-        operator const Pointer<T, PointerPolicy::Tracked>&() const noexcept {
-            return reinterpret_cast<const Pointer<T, PointerPolicy::Tracked>&>(_ptr());
+        operator const Pointer<ValueType, PointerPolicy::Tracked>&() const noexcept {
+            return reinterpret_cast<const Pointer<ValueType, PointerPolicy::Tracked>&>(_ptr());
         }
 
         explicit operator bool() const noexcept {
             return (get() != nullptr);
         }
 
-        template <class U = T, std::enable_if_t<!std::is_void_v<U>, int> = 0>
+        template <class U = ElementType, std::enable_if_t<!std::is_void_v<U>, int> = 0>
         U& operator*() const noexcept {
             assert(get() != nullptr);
             return *get();
         }
 
-        template <class U = T, std::enable_if_t<!std::is_void_v<U>, int> = 0>
+        template <class U = ElementType, std::enable_if_t<!std::is_void_v<U>, int> = 0>
         U* operator->() const noexcept {
             assert(get() != nullptr);
             return get();
         }
 
-        T* get() const noexcept {
-            return (T*)_ptr().load();
+        ElementType* get() const noexcept {
+            return (ElementType*)_ptr().load();
         }
 
         void* get_base() const noexcept {
@@ -148,14 +150,14 @@ namespace sgcl {
         }
 
         template<PointerPolicy P>
-        void swap(Pointer<T, P>& p) noexcept {
-            Pointer<T, PointerPolicy::Stack> t = *this;
+        void swap(Pointer<ValueType, P>& p) noexcept {
+            Pointer<ValueType, PointerPolicy::Stack> t = *this;
             *this = p;
             p = t;
         }
 
-        UniquePtr<T> clone() const {
-            return (T*)_ptr().clone();
+        UniquePtr<ValueType> clone() const {
+            return (ElementType*)_ptr().clone();
         }
 
         template<class U>
@@ -166,19 +168,19 @@ namespace sgcl {
         template<class U>
         Pointer<U, PointerPolicy::Stack> as() const noexcept {
             if (is<U>()) {
-                return Pointer<U, PointerPolicy::Stack>((typename Pointer<U, PointerPolicy::Stack>::element_type*)get_base());
+                return Pointer<U, PointerPolicy::Stack>((typename Pointer<U, PointerPolicy::Stack>::ElementType*)get_base());
             } else {
                 return {nullptr};
             }
         }
 
         const std::type_info& type() const noexcept {
-            return _ptr().template type_info<T>();
+            return _ptr().template type_info<ValueType>();
         }
 
         template<class M = void>
         M* metadata() const noexcept {
-            return (M*)_ptr().template metadata<T>();
+            return (M*)_ptr().template metadata<ValueType>();
         }
 
         constexpr bool is_array() const noexcept {
@@ -209,8 +211,8 @@ namespace sgcl {
         std::conditional_t<Policy == PointerPolicy::Tracked, detail::Pointer, detail::Pointer*> _raw_ptr;
 
         template<TrackedPointer> friend class Atomic;
+        template<TrackedPointer> friend class AtomicRef;
         template<class, PointerPolicy> friend class VoidPointer;
-        //template<class, RootPolicy> friend class root_ptr;
     };
 
     template<class T, PointerPolicy Policy>
@@ -218,15 +220,18 @@ namespace sgcl {
         using Base = ArrayPtr<T, Pointer<T, Policy>>;
 
     public:
+        using ValueType = T[];
+        using StackType = Pointer<ValueType, PointerPolicy::Stack>;
+
         using Base::Base;
         using Base::operator=;
 
-        operator Pointer<T[], PointerPolicy::Tracked>&() noexcept {
-            return reinterpret_cast<Pointer<T[], PointerPolicy::Tracked>&>(this->_ptr());
+        operator Pointer<ValueType, PointerPolicy::Tracked>&() noexcept {
+            return reinterpret_cast<Pointer<ValueType, PointerPolicy::Tracked>&>(this->_ptr());
         }
 
-        operator const Pointer<T[], PointerPolicy::Tracked>&() const noexcept {
-            return reinterpret_cast<const Pointer<T[], PointerPolicy::Tracked>&>(this->_ptr());
+        operator const Pointer<ValueType, PointerPolicy::Tracked>&() const noexcept {
+            return reinterpret_cast<const Pointer<ValueType, PointerPolicy::Tracked>&>(this->_ptr());
         }
     };
 
@@ -320,17 +325,17 @@ namespace sgcl {
 
     template<class T, class U, PointerPolicy P>
     inline Pointer<T, PointerPolicy::Stack> static_pointer_cast(const Pointer<U, P>& p) noexcept {
-        return Pointer<T, PointerPolicy::Stack>(static_cast<typename Pointer<T, P>::element_type*>(p.get()));
+        return Pointer<T, PointerPolicy::Stack>(static_cast<typename Pointer<T, P>::ElementType*>(p.get()));
     }
 
     template<class T, class U, PointerPolicy P>
     inline Pointer<T, PointerPolicy::Stack> const_pointer_cast(const Pointer<U, P>& p) noexcept {
-        return Pointer<T, PointerPolicy::Stack>(const_cast<typename Pointer<T, P>::element_type*>(p.get()));
+        return Pointer<T, PointerPolicy::Stack>(const_cast<typename Pointer<T, P>::ElementType*>(p.get()));
     }
 
     template<class T, class U, PointerPolicy P>
     inline Pointer<T, PointerPolicy::Stack> dynamic_pointer_cast(const Pointer<U, P>& p) noexcept {
-        return Pointer<T, PointerPolicy::Stack>(dynamic_cast<typename Pointer<T, P>::element_type*>(p.get()));
+        return Pointer<T, PointerPolicy::Stack>(dynamic_cast<typename Pointer<T, P>::ElementType*>(p.get()));
     }
 
     template<class T, PointerPolicy P>

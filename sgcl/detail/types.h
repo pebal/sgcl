@@ -67,7 +67,7 @@ namespace sgcl::detail {
     void collector_init();
     Collector& collector_instance();
     void terminate_collector() noexcept;
-    inline Thread& current_thread() noexcept;
+    Thread& current_thread() noexcept;
     template<class T>
     void* clone_object(const void*);
     void waking_up_collector() noexcept;

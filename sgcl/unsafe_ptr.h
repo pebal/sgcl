@@ -13,7 +13,8 @@ namespace sgcl {
     template<class T>
     class UnsafePtr {
     public:
-        using element_type = T;
+        using ElementType = T;
+        using ValueType = T;
 
         constexpr UnsafePtr() noexcept
         : _raw_ptr(nullptr) {
@@ -26,13 +27,13 @@ namespace sgcl {
         UnsafePtr(const UnsafePtr&) noexcept = default;
         UnsafePtr(UnsafePtr&&) noexcept = default;
 
-        template<class U, PointerPolicy P, std::enable_if_t<std::is_convertible_v<typename Pointer<U, P>::element_type*, T*>, int> = 0>
+        template<class U, PointerPolicy P, std::enable_if_t<std::is_convertible_v<typename Pointer<U, P>::ElementType*, T*>, int> = 0>
         UnsafePtr(const Pointer<U, P>& p) noexcept
         : _raw_ptr(p.get()) {
         }
 
-        template<class U, std::enable_if_t<std::is_convertible_v<typename UnsafePtr<U>::element_type*, T*>, int> = 0>
-        UnsafePtr(const UnsafePtr<U>& p) noexcept
+        template<class U, std::enable_if_t<std::is_convertible_v<typename UnsafePtr<U>::ElementType*, T*>, int> = 0>
+        UnsafePtr(UnsafePtr<U> p) noexcept
         : _raw_ptr(p.get()) {
         }
 
@@ -44,14 +45,14 @@ namespace sgcl {
             return *this;
         }
 
-        template<class U, PointerPolicy P, std::enable_if_t<std::is_convertible_v<typename Pointer<U, P>::element_type*, T*>, int> = 0>
+        template<class U, PointerPolicy P, std::enable_if_t<std::is_convertible_v<typename Pointer<U, P>::ElementType*, T*>, int> = 0>
         UnsafePtr& operator=(const Pointer<U, P>& p) noexcept {
             _raw_ptr = p.get();
             return *this;
         }
 
-        template<class U, std::enable_if_t<std::is_convertible_v<typename UnsafePtr<U>::element_type*, T*>, int> = 0>
-        UnsafePtr& operator=(const UnsafePtr<U>& p) noexcept {
+        template<class U, std::enable_if_t<std::is_convertible_v<typename UnsafePtr<U>::ElementType*, T*>, int> = 0>
+        UnsafePtr& operator=(UnsafePtr<U> p) noexcept {
             _raw_ptr = p.get();
             return *this;
         }
@@ -72,7 +73,7 @@ namespace sgcl {
             return get();
         }
 
-        element_type* get() const noexcept {
+        ElementType* get() const noexcept {
             return _raw_ptr;
         }
 
@@ -88,8 +89,8 @@ namespace sgcl {
             std::swap(_raw_ptr, p._raw_ptr);
         }
 
-        UniquePtr<T> clone() const {
-            return (element_type*)detail::Pointer::clone(_raw_ptr);
+        UniquePtr<ValueType> clone() const {
+            return (ElementType*)detail::Pointer::clone(_raw_ptr);
         }
 
         template<class U>
@@ -100,19 +101,19 @@ namespace sgcl {
         template<class U>
         UnsafePtr<U> as() const noexcept {
             if (is<U>()) {
-                return UnsafePtr<U>((typename UnsafePtr<U>::element_type*)get_base());
+                return UnsafePtr<U>((typename UnsafePtr<U>::ElementType*)get_base());
             } else {
                 return {nullptr};
             }
         }
 
         const std::type_info& type() const noexcept {
-            return detail::Pointer::type_info<T>(_raw_ptr);
+            return detail::Pointer::type_info<ValueType>(_raw_ptr);
         }
 
         template<class M = void>
         M* metadata() const noexcept {
-            return (M*)detail::Pointer::metadata<T>(_raw_ptr);
+            return (M*)detail::Pointer::metadata<ValueType>(_raw_ptr);
         }
 
         constexpr bool is_array() const noexcept {
@@ -124,7 +125,7 @@ namespace sgcl {
         }
 
     protected:
-        element_type* _raw_ptr;
+        ElementType* _raw_ptr;
 
         template<class U>
         constexpr UnsafePtr(U* p) noexcept
@@ -139,30 +140,32 @@ namespace sgcl {
         using Base = ArrayPtr<T, UnsafePtr<T>>;
 
     public:
+        using ValueType = T[];
         using Base::Base;
+
         using Base::operator=;
     };
 
     template<class T, class U>
-    inline UnsafePtr<T> static_pointer_cast(const UnsafePtr<U>& r) noexcept {
-        auto p = static_cast<typename UnsafePtr<T>::element_type*>(r.get());
+    inline UnsafePtr<T> static_pointer_cast(UnsafePtr<U> r) noexcept {
+        auto p = static_cast<typename UnsafePtr<T>::ElementType*>(r.get());
         return (UnsafePtr<T>&)p;
     }
 
     template<class T, class U>
-    inline UnsafePtr<T> const_pointer_cast(const UnsafePtr<U>& r) noexcept {
-        auto p = const_cast<typename UnsafePtr<T>::element_type*>(r.get());
+    inline UnsafePtr<T> const_pointer_cast(UnsafePtr<U> r) noexcept {
+        auto p = const_cast<typename UnsafePtr<T>::ElementType*>(r.get());
         return (UnsafePtr<T>&)p;
     }
 
     template<class T, class U>
-    inline UnsafePtr<T> dynamic_pointer_cast(const UnsafePtr<U>& r) noexcept {
-        auto p = dynamic_cast<typename UnsafePtr<T>::element_type*>(r.get());
+    inline UnsafePtr<T> dynamic_pointer_cast(UnsafePtr<U> r) noexcept {
+        auto p = dynamic_cast<typename UnsafePtr<T>::ElementType*>(r.get());
         return (UnsafePtr<T>&)p;
     }
 
     template<class T>
-    std::ostream& operator<<(std::ostream& s, const UnsafePtr<T>& p) {
+    std::ostream& operator<<(std::ostream& s, UnsafePtr<T> p) {
         s << p.get();
         return s;
     }
