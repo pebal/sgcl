@@ -13,7 +13,7 @@ class ConcurrentStack {
         T data;
         TrackedPtr<Node> next;
     };
-    Pointer<Node, P> _head;
+    Atomic<Pointer<Node, P>> _head;
 
 public:
     ConcurrentStack() = default;
@@ -22,14 +22,14 @@ public:
 
     void push(const T& data) {
         StackPtr node = make_tracked<Node>(data);
-        node->next = AtomicRef(_head).load();
-        while(!AtomicRef(_head).compare_exchange_weak(node->next, node));
-        AtomicRef(_head).notify_one();
+        node->next = _head.load();
+        while(!_head.compare_exchange_weak(node->next, node));
+        _head.notify_one();
     }
 
     std::optional<StackType<T>> try_pop() {
-        StackPtr node = AtomicRef(_head).load();
-        while(node && !AtomicRef(_head).compare_exchange_weak(node, node->next));
+        StackPtr node = _head.load();
+        while(node && !_head.compare_exchange_weak(node, node->next));
         if (node) {
             return node->data;
         }
@@ -42,7 +42,7 @@ public:
             if (o.has_value()) {
                 return o.value();
             }
-            AtomicRef(_head).wait(nullptr);
+            _head.wait(nullptr);
         }
     }
 };
