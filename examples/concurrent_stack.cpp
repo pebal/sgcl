@@ -6,14 +6,14 @@
 
 using namespace sgcl;
 
-template<typename T, PointerPolicy P = PointerPolicy::Tracked>
+template<typename T>
 class ConcurrentStack {
     struct Node {
         Node(const T& d) : data(d) {}
         T data;
         TrackedPtr<Node> next;
-    };
-    Atomic<Pointer<Node, P>> _head;
+    };    
+    Atomic<TrackedPtr<Node>> _head;
 
 public:
     ConcurrentStack() = default;
@@ -52,12 +52,12 @@ int main() {
     using std::chrono::duration;
     auto t = high_resolution_clock::now();
 
-    ConcurrentStack<int, PointerPolicy::Stack> stack;
+    auto stack = make_tracked<ConcurrentStack<int>>();
 
     auto fpush = std::async([&stack]{
         int64_t sum = 0;
         for(int i = 0; i < 1000000; ++i) {
-            stack.push(i);
+            stack->push(i);
             sum += i;
         }
         return sum;
@@ -66,7 +66,7 @@ int main() {
     auto fpop = std::async([&stack]{
         int64_t sum = 0;
         for(int i = 0; i < 1000000; ++i) {
-            sum += stack.pop();
+            sum += stack->pop();
         }
         return sum;
     });
