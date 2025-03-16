@@ -12,10 +12,11 @@
 #include <cstddef>
 
 namespace sgcl::config {
-    static constexpr auto MaxSleepTime = std::chrono::seconds(30);
-    static constexpr size_t PageSize = 0x10000;
-    static constexpr ptrdiff_t MaxStackSize = 0x400000;
-    static constexpr size_t MaxTypesNumber = 4096;
+    [[maybe_unused]] static constexpr auto MaxSleepTime = std::chrono::seconds(30);
+                     static constexpr size_t PageSize = 0x10000;
+                     static constexpr size_t MaxStackSize = 0x400000;
+    [[maybe_unused]] static constexpr size_t MaxOffsetForStackDetection = 0x1000;
+    [[maybe_unused]] static constexpr size_t MaxTypesNumber = 4096;
 
     static_assert(PageSize <= 0x10000, "PageSize is too large");
     static_assert((PageSize & (PageSize - 1)) == 0, "PageSize is not a power of 2");

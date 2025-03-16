@@ -40,22 +40,40 @@ namespace sgcl::detail {
             detail::ChildPointers::Map* map;
         };
 
-        struct RangeGuard {
-            RangeGuard(const RangeGuard&) = delete;
-            void operator=(const RangeGuard&) = delete;
+        struct ChildGuard {
+            ChildGuard(const ChildGuard&) = delete;
+            void operator=(const ChildGuard&) = delete;
 
-            constexpr RangeGuard(Thread& t, const ChildPointers& cp) noexcept
+            constexpr ChildGuard(Thread& t, const ChildPointers& cp) noexcept
             : thread(t)
             , old_pointers(t.child_pointers) {
                 thread.child_pointers = cp;
             }
 
-            ~RangeGuard() noexcept {
+            ~ChildGuard() noexcept {
                 thread.child_pointers = old_pointers;
             }
 
             Thread& thread;
             const ChildPointers old_pointers;
+        };
+
+        struct RangeGuard {
+            RangeGuard(const RangeGuard&) = delete;
+            void operator=(const RangeGuard&) = delete;
+
+            constexpr RangeGuard(Thread& t, const std::pair<uintptr_t, uintptr_t>& ar) noexcept
+            : thread(t)
+            , old_alloc_range(t.alloc_range) {
+                thread.alloc_range = ar;
+            }
+
+            ~RangeGuard() noexcept {
+                thread.alloc_range = old_alloc_range;
+            }
+
+            Thread& thread;
+            const std::pair<uintptr_t, uintptr_t> old_alloc_range;
         };
 
         Thread()
@@ -87,8 +105,12 @@ namespace sgcl::detail {
             return _allocator<typename TypeInfo<T>::Allocator>();
         }
 
-        RangeGuard use_child_pointers(const ChildPointers& cp) noexcept {
+        ChildGuard use_child_pointers(const ChildPointers& cp) noexcept {
             return {*this, cp};
+        }
+
+        RangeGuard use_alloc_range(const std::pair<uintptr_t, uintptr_t>& ar) noexcept {
+            return {*this, ar};
         }
 
         void set_hazard_pointer(void* p) {
@@ -103,6 +125,7 @@ namespace sgcl::detail {
         StackPointerAllocator* const stack_allocator;
         inline static std::atomic<Data*> threads_data = {nullptr};
         inline static std::thread::id main_thread_id = {};
+        std::pair<uintptr_t, uintptr_t> alloc_range = {0, 0};
 
     private:
         BlockAllocator* const _block_allocator;

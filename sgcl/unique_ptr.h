@@ -5,53 +5,46 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "detail/array_ptr.h"
 #include "detail/pointer.h"
 #include "detail/unique_ptr.h"
-#include "array_ptr.h"
 #include "types.h"
 
 namespace sgcl {
     template<class T>
-    class UniquePtr : public std::unique_ptr<T, detail::UniqueDeleter> {
-        using Base = std::unique_ptr<T, detail::UniqueDeleter>;
+    class unique_ptr : public detail::UniquePtr<T> {
+        using Base = detail::UniquePtr<T>;
 
     public:
-        using ElementType = typename Base::element_type;
-        using ValueType = T;
-
+        using element_type = T;
         using Base::operator=;
 
-        UniquePtr() = default;
+        unique_ptr() = default;
 
-        constexpr UniquePtr(std::nullptr_t) noexcept
+        constexpr unique_ptr(std::nullptr_t) noexcept
         :Base(nullptr) {
         };
 
-        template<class U, std::enable_if_t<std::is_convertible_v<typename UniquePtr<U>::ElementType*, T*>, int> = 0>
-        UniquePtr(detail::UniquePtr<U>&& p) noexcept
+        template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, T*>, int> = 0>
+        unique_ptr(detail::UniquePtr<U>&& p) noexcept
         : Base(p.release()) {
         }
 
-        template<class U, std::enable_if_t<std::is_convertible_v<typename UniquePtr<U>::ElementType*, T*>, int> = 0>
-        UniquePtr(UniquePtr<U>&& p) noexcept
-        : Base(p.release()) {
+        operator unique_ptr<void>&() noexcept {
+            return reinterpret_cast<unique_ptr<void>&>(*this);
         }
 
-        operator UniquePtr<void>&() noexcept {
-            return reinterpret_cast<UniquePtr<void>&>(*this);
-        }
-
-        operator const UniquePtr<void>&() const noexcept {
-            return reinterpret_cast<const UniquePtr<void>&>(*this);
+        operator const unique_ptr<void>&() const noexcept {
+            return reinterpret_cast<const unique_ptr<void>&>(*this);
         }
 
         void* get_base() const noexcept {
             return detail::Pointer::data_base_address_of(this->get());
         }
 
-        UniquePtr clone() const {
+        unique_ptr clone() const {
             auto p = this->get();
-            return (ElementType*)detail::Pointer::clone(p);
+            return (element_type*)detail::Pointer::clone(p);
         }
 
         template<class U>
@@ -60,22 +53,22 @@ namespace sgcl {
         }
 
         template<class U>
-        UniquePtr<U> as() noexcept {
+        unique_ptr<U> as() noexcept {
             if (is<U>()) {
                 auto base =  detail::Pointer::data_base_address_of(this->release());
-                return UniquePtr<U>((typename UniquePtr<U>::ElementType*)base);
+                return unique_ptr<U>((typename unique_ptr<U>::element_type*)base);
             } else {
                 return {nullptr};
             }
         }
 
         const std::type_info& type() const noexcept {
-            return detail::Pointer::type_info<ValueType>(this->get());
+            return detail::Pointer::type_info<element_type>(this->get());
         }
 
         template<class M = void>
         M* metadata() const noexcept {
-            return (M*)detail::Pointer::metadata<ValueType>(this->get());
+            return (M*)detail::Pointer::metadata<element_type>(this->get());
         }
 
         constexpr bool is_array() const noexcept {
@@ -87,41 +80,42 @@ namespace sgcl {
         }
 
     private:
-        UniquePtr(ElementType* p) noexcept
+        unique_ptr(element_type* p) noexcept
         : Base(p) {
         }
 
-        template<class, PointerPolicy> friend class Pointer;
-        template<class> friend class UniquePtr;
-        template<class> friend class UnsafePtr;
-        template<class U, class V> friend UniquePtr<U> static_pointer_cast(UniquePtr<V>&&) noexcept;
-        template<class U, class V> friend UniquePtr<U> dynamic_pointer_cast(UniquePtr<V>&&) noexcept;
-        template<class U, class V> friend UniquePtr<U> const_pointer_cast(UniquePtr<V>&&) noexcept;
+        template<class> friend class tracked_ptr;
+        template<class> friend class unique_ptr;
+        template<class U, class V> friend unique_ptr<U> static_pointer_cast(unique_ptr<V>&&) noexcept;
+        template<class U, class V> friend unique_ptr<U> dynamic_pointer_cast(unique_ptr<V>&&) noexcept;
+        template<class U, class V> friend unique_ptr<U> const_pointer_cast(unique_ptr<V>&&) noexcept;
     };
 
     template<class T>
-    class UniquePtr<T[]> : public ArrayPtr<T, UniquePtr<T>> {
-        using Base = ArrayPtr<T, UniquePtr<T>>;
+    class unique_ptr<T[]> : public detail::ArrayPtr<T, unique_ptr<T>> {
+        using Base = detail::ArrayPtr<T, unique_ptr<T>>;
 
     public:
-        using ValueType = T[];
         using Base::Base;
-
         using Base::operator=;
+
+        unique_ptr<T[]> clone() const {
+            return unique_ptr<T[]>(unique_ptr<T>::clone());
+        }
     };
 
     template<class T, class U>
-    inline UniquePtr<T> static_pointer_cast(UniquePtr<U>&& r) noexcept {
-        return UniquePtr<T>(static_cast<typename UniquePtr<T>::ElementType*>(r.release()));
+    inline unique_ptr<T> static_pointer_cast(unique_ptr<U>&& r) noexcept {
+        return unique_ptr<T>(static_cast<typename unique_ptr<T>::element_type*>(r.release()));
     }
 
     template<class T, class U>
-    inline UniquePtr<T> const_pointer_cast(UniquePtr<U>&& r) noexcept {
-        return UniquePtr<T>(const_cast<typename UniquePtr<T>::ElementType*>(r.release()));
+    inline unique_ptr<T> const_pointer_cast(unique_ptr<U>&& r) noexcept {
+        return unique_ptr<T>(const_cast<typename unique_ptr<T>::element_type*>(r.release()));
     }
 
     template<class T, class U>
-    inline UniquePtr<T> dynamic_pointer_cast(UniquePtr<U>&& r) noexcept {
-        return UniquePtr<T>(dynamic_cast<typename UniquePtr<T>::ElementType*>(r.release()));
+    inline unique_ptr<T> dynamic_pointer_cast(unique_ptr<U>&& r) noexcept {
+        return unique_ptr<T>(dynamic_cast<typename unique_ptr<T>::element_type*>(r.release()));
     }
 }

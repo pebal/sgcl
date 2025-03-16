@@ -46,9 +46,10 @@ namespace sgcl::detail {
             auto mem = allocator.alloc();
             Type* ptr;
             if constexpr(!std::is_trivially_default_constructible_v<T>) {
+                auto range_guard = thread.use_alloc_range({(uintptr_t)(mem), (uintptr_t)(mem) + sizeof(T)});
                 if (!Info::child_pointers.final.load(std::memory_order_acquire)) {
                     std::memset(mem, 0xFF, sizeof(T));
-                    auto range_guard = thread.use_child_pointers({(uintptr_t)mem, &Info::child_pointers.map});
+                    auto child_guard = thread.use_child_pointers({(uintptr_t)mem, &Info::child_pointers.map});
                     ptr = construct<Type>(mem, std::forward<A>(a)...);
                     Info::child_pointers.final.store(true, std::memory_order_release);
                 } else {
@@ -161,11 +162,13 @@ namespace sgcl::detail {
         static void _init_data(Array<>& array, A&&... a) {
             if constexpr(Info::MayContainTracked) {
                 int offset;
+                auto& thread = current_thread();
+                auto range_guard = thread.use_alloc_range({(uintptr_t)(array.data), (uintptr_t)(array.data) + (uintptr_t)(sizeof(Type) * array.count)});
                 if (array.count && !Info::child_pointers.final.load(std::memory_order_acquire)) {
                     std::memset(array.data, 0xFF, sizeof(Type));
                     std::memset((void*)((Type*)array.data + 1), 0, sizeof(Type) * (array.count - 1));
                     array.metadata.store(&Info::array_metadata(), std::memory_order_release);
-                    auto range_guard = current_thread().use_child_pointers({(uintptr_t)array.data, &Info::child_pointers.map});
+                    auto child_guard = thread.use_child_pointers({(uintptr_t)array.data, &Info::child_pointers.map});
                     _init(array.data, 0, 1, std::forward<A>(a)...);
                     Info::child_pointers.final.store(true, std::memory_order_release);
                     offset = 1;

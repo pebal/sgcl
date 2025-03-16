@@ -4,31 +4,32 @@
 #include <future>
 #include <iostream>
 
-using namespace sgcl;
-
 template<typename T>
-class ConcurrentStack {
+class LockFreeStack {
+    struct Node;
+    using NodePtr = sgcl::tracked_ptr<Node>;
+
     struct Node {
         Node(const T& d) : data(d) {}
         T data;
-        TrackedPtr<Node> next;
+        NodePtr next;
     };    
-    Atomic<TrackedPtr<Node>> _head;
+    sgcl::atomic<NodePtr> _head;
 
 public:
-    ConcurrentStack() = default;
-    ConcurrentStack(const ConcurrentStack&) = delete;
-    ConcurrentStack& operator= (const ConcurrentStack&) = delete;
+    LockFreeStack() = default;
+    LockFreeStack(const LockFreeStack&) = delete;
+    LockFreeStack& operator= (const LockFreeStack&) = delete;
 
     void push(const T& data) {
-        StackPtr node = make_tracked<Node>(data);
+        NodePtr node = sgcl::make_tracked<Node>(data);
         node->next = _head.load();
         while(!_head.compare_exchange_weak(node->next, node));
         _head.notify_one();
     }
 
-    std::optional<StackType<T>> try_pop() {
-        StackPtr node = _head.load();
+    std::optional<T> try_pop() {
+        auto node = _head.load();
         while(node && !_head.compare_exchange_weak(node, node->next));
         if (node) {
             return node->data;
@@ -36,7 +37,7 @@ public:
         return {};
     }
 
-    StackType<T> pop() {
+    T pop() {
         for(;;) {
             auto o = try_pop();
             if (o.has_value()) {
@@ -52,12 +53,12 @@ int main() {
     using std::chrono::duration;
     auto t = high_resolution_clock::now();
 
-    auto stack = make_tracked<ConcurrentStack<int>>();
+    LockFreeStack<int> stack;
 
     auto fpush = std::async([&stack]{
         int64_t sum = 0;
         for(int i = 0; i < 1000000; ++i) {
-            stack->push(i);
+            stack.push(i);
             sum += i;
         }
         return sum;
@@ -66,7 +67,7 @@ int main() {
     auto fpop = std::async([&stack]{
         int64_t sum = 0;
         for(int i = 0; i < 1000000; ++i) {
-            sum += stack->pop();
+            sum += stack.pop();
         }
         return sum;
     });

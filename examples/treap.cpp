@@ -3,21 +3,23 @@
 #include <chrono>
 #include <iostream>
 
-using namespace sgcl;
-
 class Treap {
+    struct Node;
+    using NodePtr = sgcl::tracked_ptr<Node>;
+
     struct Node {
+        Node(int x): x(x) {}
         const int x;
         const int y = rand();
-        TrackedPtr<Node> left;
-        TrackedPtr<Node> right;
+        NodePtr left;
+        NodePtr right;
     };
 
 public:
     void insert(int x) {
         auto [lower, equal, greater] = _split(x);
         if (!equal) {
-            equal = make_tracked<Node>(x);
+            equal = sgcl::make_tracked<Node>(x);
         }
         _root = _merge(lower, equal, greater);
     }
@@ -34,7 +36,7 @@ public:
     }
 
 private:
-    static UnsafePtr<Node> _merge(UnsafePtr<Node> lower, UnsafePtr<Node> greater) {
+    static NodePtr& _merge(NodePtr& lower, NodePtr& greater) {
         if (!lower) {
             return greater;
         }
@@ -51,32 +53,31 @@ private:
         }
     }
 
-    static UnsafePtr<Node> _merge(UnsafePtr<Node> lower, UnsafePtr<Node> equal, UnsafePtr<Node> greater) {
+    static NodePtr& _merge(NodePtr& lower, NodePtr& equal, NodePtr& greater) {
         return _merge(_merge(lower, equal), greater);
     }
 
-    std::array<StackPtr<Node>, 3> _split(int val) const {
-        struct Local {
-            static void split(UnsafePtr<Node> orig, TrackedPtr<Node>& lower, TrackedPtr<Node>& greater, int val) {
-                if (!orig) {
-                    lower = nullptr;
-                    greater = nullptr;
-                } else if (orig->x < val) {
-                    lower = orig;
-                    split(lower->right, lower->right, greater, val);
-                } else {
-                    greater = orig;
-                    split(greater->left, lower, greater->left, val);
-                }
-            }
-        };
-        StackPtr<Node> lower, equal, equal_or_greater, greater;
-        Local::split(_root, lower, equal_or_greater, val);
-        Local::split(equal_or_greater, equal, greater, val + 1);
-        return {lower, equal, greater};
+    std::array<NodePtr, 2> _split(NodePtr orig, int value) const {
+        if (!orig)
+            return {nullptr, nullptr};
+        if (orig->x < value) {
+            auto [less, greater] = _split(orig->right, value);
+            orig->right = less;
+            return {orig, greater};
+        } else {
+            auto [less, greater] = _split(orig->left, value);
+            orig->left = greater;
+            return {less, orig};
+        }
     }
 
-    TrackedPtr<Node> _root;
+    std::array<NodePtr, 3> _split(int value) const {
+        auto [less, greater_or_equal] = _split(_root, value);
+        auto [equal, greater] = _split(greater_or_equal, value + 1);
+        return {less, equal, greater};
+    }
+
+    NodePtr _root;
 };
 
 int main() {
@@ -84,7 +85,7 @@ int main() {
     using std::chrono::duration;
     auto t = high_resolution_clock::now();
 
-    auto treap = make_tracked<Treap>();
+    Treap treap;
     int value = 5;
     int result = 0;
 
@@ -92,13 +93,13 @@ int main() {
         value = (value * 57 + 43) % 10007;
         switch(i % 3) {
         case 0:
-            treap->insert(value);
+            treap.insert(value);
             break;
         case 1:
-            treap->erase(value);
+            treap.erase(value);
             break;
         case 2:
-            result += treap->has_value(value);
+            result += treap.has_value(value);
             break;
         }
     }

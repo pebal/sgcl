@@ -2,71 +2,38 @@
 
 #include <iostream>
 
-using namespace sgcl;
-
-// Tracked pointer in the managed object
-struct Node {
-    TrackedPtr<Node> next;
-    int value = 5;
-};
-
 int main() {
-    // Creating managed object
+    // Creating object on the managed heap
     // Note: 'make_tracked' returns a unique pointer
-    make_tracked<int>();
+    sgcl::make_tracked<int>();
 
     // Using unique pointer with deterministic destruction
-    UniquePtr unique = make_tracked<int>(42);
+    sgcl::unique_ptr unique = sgcl::make_tracked<int>(42);
+    auto also_unique = sgcl::make_tracked<int>(2);
 
-    // Using shared pointer with deterministic destruction
-    std::shared_ptr shared = make_tracked<int>(13);
+    // Using standard shared pointer with deterministic destruction
+    std::shared_ptr shared = sgcl::make_tracked<int>(13);
 
-    // Using stack pointer without deterministic destruction
-    // Note: destructor will be called in a GC thread
-    StackPtr stack = make_tracked<int>(24);
-    Pointer<int, PointerPolicy::Stack> also_stack;
+    // Using tracked pointer without deterministic destruction
+    sgcl::tracked_ptr tracked = sgcl::make_tracked<int>(24);
 
-    // Invalid, tracked pointer cannot be on the stack
-    // TrackedPtr<int> tracked;
-    // Pointer<int, PointerPolicy::Tracked> also_tracked;
-
-    // Reference to tracked pointer
-    // Note: stack pointer can be cast to tracked pointer reference
-    // Note: tracked pointer reference can be on the stack
-    TrackedPtr<int>& tracked_ref = stack;
-    Pointer<int, PointerPolicy::Tracked>& also_tracked_ref = stack;
-
-    // Creating managed object included tracked pointer
-    StackPtr node = make_tracked<Node>();
-
-    // Invalid, 'Node::next' cannot be on the stack
-    // Node stack_node;
-
-    // Undefined behavior, 'Node::next' cannot be on the unmanaged heap
-    // auto node = new Node;
-
-    // If you need a universal Node class
-    // template<PointerPolicy Policy = PointerPolicy::Tracked>
-    // struct Node {
-    //     Pointer<Node, Policy> next;
-    //     int value = 5;
-    // };
-    // Node<PointerPolicy::Stack> stack_node;
-    // auto node = make_tracked<Node>();
+    // Moving from unique pointer to the tracked pointer
+    // Note: now destructor will be called in a GC thread
+    tracked = std::move(unique);
 
     // Creating a pointer alias
-    // Note: 'value' must be in the managed memory
-    // Note: undefined behavior when 'node' is array
-    StackPtr value(&node->value);
+    // Note: 'value' must be located in the managed memory
+    struct Faz {
+        int value;
+    };
+    sgcl::tracked_ptr faz = sgcl::make_tracked<Faz>(12);
+    sgcl::tracked_ptr faz_value(&faz->value);
+    std::cout << "Faz::value: " << *faz_value << std::endl;
 
-    // Moving from unique pointer to the stack pointer
-    // Note: now destructor will be called in a GC thread
-    stack = std::move(unique);
-
-    // Creating managed arrays
-    auto arr = make_tracked<int[]>(10);
-    arr = make_tracked<int[]>(10, 0);
-    arr = make_tracked<int[]>({ 1, 2, 3 });
+    // Creating managed array
+    sgcl::tracked_ptr arr = sgcl::make_tracked<int[]>(10);
+    arr = sgcl::make_tracked<int[]>(10, 0);
+    arr = sgcl::make_tracked<int[]>({ 7, 8, 9 });
 
     // Iterating over the array
     std::cout << "arr: ";
@@ -74,7 +41,7 @@ int main() {
         std::cout << v << " ";
     }
     for (auto i = arr.rbegin(); i < arr.rend(); ++i) {
-        std::cout << *i << " ";
+        *i = 12;
     }
     for (auto i = 0; i < arr.size(); ++i) {
         std::cout << arr[i] << " ";
@@ -86,24 +53,17 @@ int main() {
         int value;
     };
     struct Foo : Bar {
-        void set_value(int v) {
-            value = v;
-            Bar::value = v * v;
-        }
+        Foo(int v) : Bar{v * v}, value{v} {}
         int value;
     };
-    StackPtr foo = make_tracked<Foo[]>(5);
-
-    // Casting 'foo' to base class
-    // Note: this is safe in the SGCL
-    StackPtr<Bar[]> bar = foo;
-    for (int i = 0; i < foo.size(); ++i) {
-        foo[i].set_value(i + 1);
-    }
+    sgcl::tracked_ptr foo = sgcl::make_tracked<Foo[]>({1, 2, 3, 4, 5});
     std::cout << "foo: ";
     for (auto& f: foo) {
         std::cout << f.value << " ";
     }
+    // Casting 'foo' to base class
+    // Note: this is safe in the SGCL
+    sgcl::tracked_ptr<Bar[]> bar = foo;
     std::cout << std::endl << "bar: ";
     for (auto& b: bar) {
         std::cout << b.value << " ";
@@ -111,80 +71,60 @@ int main() {
     std::cout << std::endl;
 
     // Casting array to object
-    StackPtr<Foo> first_foo = foo;
+    sgcl::tracked_ptr<Foo> first_foo = foo;
 
     // Casting object to array
-    StackPtr<int[]> single_value_array = make_tracked<int>(12);
-
-    // Using unsafe pointer to compare and return the pointer to the minimum value
-    // Note: unsafe pointer is not tracked by GC
-    auto fmin = [](UnsafePtr<int> l, UnsafePtr<int> r) -> UnsafePtr<int> {
-        return *l < *r ? l : r;
-    };
-    StackPtr min = fmin(value, stack);
-    std::cout << "min: " << *min << std::endl;
-
-    // Using unsafe pointer for comparison and passing the result via reference to tracked pointer
-    auto fmax = [](UnsafePtr<int> l, UnsafePtr<int> r, TrackedPtr<int>& out) {
-        out = *l > *r ? l : r;
-    };
-    StackPtr<int> max;
-    fmax(value, stack, max);
-    std::cout << "max: " << *max << std::endl;
+    sgcl::tracked_ptr<int[]> single_value_array = sgcl::make_tracked<int>(12);
 
     // Using an atomic pointer
-    Atomic<StackPtr<int>> atomicRoot = make_tracked<int>(2);
+    sgcl::atomic<sgcl::tracked_ptr<int>> atomic = sgcl::make_tracked<int>(2);
+
+    // Using an atomic reference
+    sgcl::tracked_ptr<int> value;
+    sgcl::atomic_ref atomic_ref(value);
 
     // Check pointer type
-    StackPtr<void> any = make_tracked<char>();
+    sgcl::tracked_ptr<void> any = sgcl::make_tracked<char>();
     std::cout << "any " << (any.is<int>() ? "is" : "is not") <<  " int" << std::endl;
     std::cout << "any " << (any.type() == typeid(char) ? "is" : "is not") <<  " char" << std::endl;
+
     // Casting
-    StackPtr c = any.as<char>();
+    // Note: 'as' method only allows to cast to the lowest level class.
+    auto c = any.as<char>();
+    // or
     c = static_pointer_cast<char>(any);
 
     // Cloning
-    auto clone = c.clone();
+    auto message = sgcl::make_tracked<std::string>("message");
+    auto clone = message.clone();
+    std::cout << "clone: " << *clone << std::endl;
 
     // Metadata usage
-    set_metadata<int>(new std::string("int metadata"));
-    set_metadata<double>(new std::string("double metadata"));
-    any = make_tracked<int>();
+    sgcl::set_metadata<int>(new std::string("int metadata"));
+    sgcl::set_metadata<double>(new std::string("double metadata"));
+    any = sgcl::make_tracked<int>();
     std::cout << *any.metadata<std::string>() << std::endl;
-    any = make_tracked<double>();
+    any = sgcl::make_tracked<double>();
     std::cout << *any.metadata<std::string>() << std::endl;
-
-    // Using containers for tracked objects (vector, list, map, etc.)
-    // Note: Currently only root containers are available
-    // Note: Root containers do not support cycle detection in data structures
-    //       when they are integrated into such structures
-    RootVector<int> vec;
-    RootList<int> list;
-    // or
-    std::vector<Node, RootAllocator<Node>> same_vec;
-    std::list<Node, RootAllocator<Node>> same_list;
-
-    // Undefined behavior, 'Node::next' cannot be on the unmanaged heap
-    //std::vector<Node> vec;
 
     // Forcing garbage collection
-    Collector::force_collect();
+    sgcl::collector::force_collect();
 
     // Forcing garbage collection and waiting for the cycle to complete
-    Collector::force_collect(true);
+    sgcl::collector::force_collect(true);
 
-    // Get number of living objects
+    // Get number of live objects
     // Note: This is the number calculated in the last GC cycle
-    auto last_living_objects_number = Collector::last_living_objects_number();
-    std::cout << "last living objects number: " << last_living_objects_number << std::endl;
+    auto last_live_object_count = sgcl::collector::last_live_object_count();
+    std::cout << "last live object count: " << last_live_object_count << std::endl;
 
     {
-        // Get list of living objects
+        // Get list of live objects
         // Note: A full GC cycle is performed before returning the data
-        // Note: Pause guard and vector of raw pointers is returned
+        // Note: pause_guard and std::vector with raw pointers is returned
         //       The GC engine is paused until the pause guard is destroyed
-        auto [pause_guard, living_objects] = Collector::living_objects();
-        for (auto& v: living_objects) {
+        auto [pause_guard, live_objects] = sgcl::collector::get_live_objects();
+        for (auto& v: live_objects) {
             std::cout << v << " ";
         }
         std::cout << std::endl;
@@ -192,5 +132,5 @@ int main() {
 
     // Terminate collector
     // Note: This call is optional
-    Collector::terminate();
+    sgcl::collector::terminate();
 }

@@ -65,7 +65,7 @@ struct Far {
 
 struct Foo : Far, Bar, Faz {
     int value;
-    TrackedPtr<Baz> ptr;
+    tracked_ptr<Baz> ptr;
 
     Foo() {
     }

@@ -8,12 +8,12 @@
 struct UniquePtr_Tests : ::testing::Test {};
 
 TEST_F(UniquePtr_Tests, DefaultConstructor) {
-    UniquePtr<int> ptr;
+    unique_ptr<int> ptr;
     EXPECT_EQ(ptr, nullptr);
 }
 
 TEST_F(UniquePtr_Tests, NullConstructor) {
-    UniquePtr<int> ptr(nullptr);
+    unique_ptr<int> ptr(nullptr);
     EXPECT_EQ(ptr, nullptr);
 }
 
@@ -25,7 +25,7 @@ TEST_F(UniquePtr_Tests, PrivUniqueConstructor) {
 
 TEST_F(UniquePtr_Tests, MoveConstructor) {
     auto foo = make_tracked<Foo>(3);
-    UniquePtr<Foo> foo2(std::move(foo));
+    unique_ptr<Foo> foo2(std::move(foo));
     EXPECT_EQ(foo, nullptr);
     ASSERT_NE(foo2, nullptr);
     EXPECT_EQ(foo2->get_value(), 3);
@@ -33,7 +33,7 @@ TEST_F(UniquePtr_Tests, MoveConstructor) {
 
 TEST_F(UniquePtr_Tests, MoveCastConstructor) {
     auto foo = make_tracked<Foo>(4);
-    UniquePtr<Bar> bar(std::move(foo));
+    unique_ptr<Bar> bar(std::move(foo));
     EXPECT_EQ(foo, nullptr);
     ASSERT_NE(bar, nullptr);
     EXPECT_EQ(bar->get_value(), 4);
@@ -41,7 +41,7 @@ TEST_F(UniquePtr_Tests, MoveCastConstructor) {
 
 TEST_F(UniquePtr_Tests, MoveAssignmentOperator) {
     auto ptr = make_tracked<int>(5);
-    UniquePtr<int> ptr2;
+    unique_ptr<int> ptr2;
     ptr2 = std::move(ptr);
     ASSERT_NE(ptr2, nullptr);
     EXPECT_EQ(*ptr2, 5);
@@ -49,7 +49,7 @@ TEST_F(UniquePtr_Tests, MoveAssignmentOperator) {
 
 TEST_F(UniquePtr_Tests, MoveCastAssignmentOperator) {
     auto foo = make_tracked<Foo>(6);
-    UniquePtr<Bar> bar;
+    unique_ptr<Bar> bar;
     bar = std::move(foo);
     ASSERT_NE(bar, nullptr);
     EXPECT_EQ(bar->get_value(), 6);
@@ -65,7 +65,7 @@ TEST_F(UniquePtr_Tests, NullAssignmentOperator) {
 
 TEST_F(UniquePtr_Tests, VoidRefOperator) {
     auto foo = make_tracked<Foo>(8);
-    UniquePtr<void>& bar = foo;
+    unique_ptr<void>& bar = foo;
     ASSERT_NE(bar, nullptr);
 }
 
@@ -114,13 +114,13 @@ TEST_F(UniquePtr_Tests, clone) {
 }
 
 TEST_F(UniquePtr_Tests, is) {
-    UniquePtr<Bar> bar = make_tracked<Foo>(6);
+    unique_ptr<Bar> bar = make_tracked<Foo>(6);
     EXPECT_TRUE(bar.is<Foo>());
     EXPECT_FALSE(bar.is<Bar>());
 }
 
 TEST_F(UniquePtr_Tests, as) {
-    UniquePtr<Bar> bar = make_tracked<Foo>(8);
+    unique_ptr<Bar> bar = make_tracked<Foo>(8);
     auto foo = bar.as<Foo>();
     EXPECT_EQ(bar, nullptr);
     ASSERT_NE(foo, nullptr);
@@ -147,7 +147,7 @@ TEST_F(UniquePtr_Tests, metadata) {
 }
 
 TEST_F(UniquePtr_Tests, is_array) {
-    UniquePtr<Bar> bar(make_tracked<Foo>(14));
+    unique_ptr<Bar> bar(make_tracked<Foo>(14));
     EXPECT_FALSE(bar.is_array());
 }
 
@@ -193,17 +193,17 @@ TEST_F(UniquePtr_Tests, Comparisons) {
 }
 
 TEST_F(UniquePtr_Tests, Casts) {
-    UniquePtr<Bar> bar = make_tracked<Foo>(1);
+    unique_ptr<Bar> bar = make_tracked<Foo>(1);
     auto foo = static_pointer_cast<Foo>(std::move(bar));
     EXPECT_EQ(bar, nullptr);
     EXPECT_EQ(foo->value, 1);
     auto far = dynamic_pointer_cast<Far>(std::move(foo));
     EXPECT_EQ(foo, nullptr);
     EXPECT_EQ(far->value, 2);
-    UniquePtr<Faz> faz = dynamic_pointer_cast<Faz>(std::move(far));
+    unique_ptr<Faz> faz = dynamic_pointer_cast<Faz>(std::move(far));
     EXPECT_EQ(far, nullptr);
     EXPECT_EQ(faz->value, 3);
-    UniquePtr<const Bar> cbar = make_tracked<const Foo>(5);
+    unique_ptr<const Bar> cbar = make_tracked<const Foo>(5);
     auto pbar = const_pointer_cast<Bar>(std::move(cbar));
     EXPECT_EQ(cbar, nullptr);
     EXPECT_EQ(pbar->get_value(), 5);

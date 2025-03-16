@@ -5,23 +5,22 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "detail/iterator.h"
-#include "detail/pointer.h"
-#include "concepts.h"
+#include "iterator.h"
+#include "pointer.h"
 #include "types.h"
 
 #include <cstddef>
 #include <stdexcept>
 
-namespace sgcl {
-    template<class T, IsPointer Base>
+namespace sgcl::detail {
+    template<class T, class Base>
     class ArrayPtr : public Base {
     public:
-        using ElementType = typename Base::ElementType;
+        using ElementType = typename Base::element_type;
         using ValueType = T[];
 
-        using iterator = detail::Iterator<T>;
-        using const_iterator = detail::Iterator<const T>;
+        using iterator = Iterator<T>;
+        using const_iterator = Iterator<const T>;
         using reverse_iterator = typename iterator::reverse_iterator;
         using const_reverse_iterator = typename const_iterator::reverse_iterator;
 
@@ -44,7 +43,7 @@ namespace sgcl {
         }
 
         size_t size() const noexcept {
-            return detail::Pointer::size(this->get());
+            return Pointer::size(this->get());
         }
 
         iterator begin() const noexcept {
@@ -77,10 +76,6 @@ namespace sgcl {
 
         const_reverse_iterator crend() const noexcept {
             return cbegin().make_reverse_iterator();
-        }
-
-        UniquePtr<ValueType> clone() const {
-            return UniquePtr<ValueType>(Base::clone());
         }
     };
 }

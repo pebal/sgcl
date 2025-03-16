@@ -5,42 +5,39 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "stack_ptr.h"
 #include "tracked_ptr.h"
 
 namespace sgcl {
-    template<TrackedPointer T>
-    class AtomicRef {
-        using Type = typename T::ValueType;
-
+    template<class T>
+    class atomic_ref<tracked_ptr<T>> {
     public:
-        using ValueType = TrackedPtr<Type>;
+        using value_type = tracked_ptr<T>;
 
-        explicit AtomicRef(TrackedPtr<Type>& p) noexcept
+        atomic_ref& operator=(const atomic_ref&) = delete;
+
+        explicit atomic_ref(value_type& p) noexcept
         : ref(p) {
         }
 
-        AtomicRef(const AtomicRef& a) noexcept
+        atomic_ref(const atomic_ref& a) noexcept
         : ref(a.ref) {
         }
-
-        AtomicRef& operator=(const AtomicRef&) = delete;
 
         std::nullptr_t operator=(std::nullptr_t) noexcept {
             store(nullptr);
             return nullptr;
         }
 
-        void operator=(UniquePtr<Type>&& p) noexcept {
+        void operator=(unique_ptr<T>&& p) noexcept {
             store(std::move(p));
         }
 
-        UnsafePtr<Type> operator=(UnsafePtr<Type> p) noexcept {
+        value_type operator=(value_type p) noexcept {
             store(p);
             return p;
         }
 
-        operator StackPtr<Type>() const noexcept {
+        operator value_type() const noexcept {
             return load();
         }
 
@@ -51,17 +48,17 @@ namespace sgcl {
             return _ptr()._is_lock_free();
         }
 
-        StackPtr<Type> load(const std::memory_order m = std::memory_order_seq_cst) const noexcept {
+        value_type load(const std::memory_order m = std::memory_order_seq_cst) const noexcept {
             auto& thread = detail::current_thread();
             std::memory_order order = m > std::memory_order::acquire ? m : std::memory_order::acquire;
-            auto l = (Type*)_ptr().load(order);
-            Type* t;
+            auto l = (T*)_ptr().load(order);
+            T* t;
             do {
                 t = l;
                 thread.set_hazard_pointer(l);
-                l = (Type*)_ptr().load(order);
+                l = (T*)_ptr().load(order);
             } while(l != t);
-            StackPtr<Type> p(l);
+            value_type p(l);
             thread.clear_hazard_pointer();
             return p;
         }
@@ -70,15 +67,15 @@ namespace sgcl {
             _ptr().store(nullptr, m);
         }
 
-        void store(UniquePtr<Type>&& p, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+        void store(unique_ptr<T>&& p, const std::memory_order m = std::memory_order_seq_cst) noexcept {
             _ptr().store(p.release(), m);
         }
 
-        void store(UnsafePtr<Type> p, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+        void store(value_type p, const std::memory_order m = std::memory_order_seq_cst) noexcept {
             _ptr().store(p.get(), m);
         }
 
-        bool compare_exchange_strong(TrackedPtr<Type>& e, std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+        bool compare_exchange_strong(value_type& e, std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept {
             void* l = e.get();
             if (!_ptr().compare_exchange_strong(l, nullptr, m)) {
                 e = load(std::memory_order_acquire);
@@ -87,7 +84,7 @@ namespace sgcl {
             return true;
         }
 
-        bool compare_exchange_strong(TrackedPtr<Type>& e, UnsafePtr<Type> n, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+        bool compare_exchange_strong(value_type& e, value_type n, const std::memory_order m = std::memory_order_seq_cst) noexcept {
             void* l = e.get();
             if (!_ptr().compare_exchange_strong(l, n.get(), m)) {
                 e = load(std::memory_order_acquire);
@@ -96,7 +93,7 @@ namespace sgcl {
             return true;
         }
 
-        bool compare_exchange_strong(TrackedPtr<Type>& e, std::nullptr_t, const std::memory_order s, const std::memory_order f) noexcept {
+        bool compare_exchange_strong(value_type& e, std::nullptr_t, const std::memory_order s, const std::memory_order f) noexcept {
             void* l = e.get();
             if (!_ptr().compare_exchange_strong(l, nullptr, s, f)) {
                 e = load(std::memory_order_acquire);
@@ -105,7 +102,7 @@ namespace sgcl {
             return true;
         }
 
-        bool compare_exchange_strong(TrackedPtr<Type>& e, UnsafePtr<Type> n, const std::memory_order s, const std::memory_order f) noexcept {
+        bool compare_exchange_strong(value_type& e, value_type n, const std::memory_order s, const std::memory_order f) noexcept {
             void* l = e.get();
             if (!_ptr().compare_exchange_strong(l, n.get(), s, f)) {
                 e = load(std::memory_order_acquire);
@@ -114,7 +111,7 @@ namespace sgcl {
             return true;
         }
 
-        bool compare_exchange_weak(TrackedPtr<Type>& e, std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+        bool compare_exchange_weak(value_type& e, std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept {
             void* l = e.get();
             if (!_ptr().compare_exchange_weak(l, nullptr, m)) {
                 e = load(std::memory_order_acquire);
@@ -123,7 +120,7 @@ namespace sgcl {
             return true;
         }
 
-        bool compare_exchange_weak(TrackedPtr<Type>& e, UnsafePtr<Type> n, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+        bool compare_exchange_weak(value_type& e, value_type n, const std::memory_order m = std::memory_order_seq_cst) noexcept {
             void* l = e.get();
             if (!_ptr().compare_exchange_weak(l, n.get(), m)) {
                 e = load(std::memory_order_acquire);
@@ -132,7 +129,7 @@ namespace sgcl {
             return true;
         }
 
-        bool compare_exchange_weak(TrackedPtr<Type>& e, std::nullptr_t, const std::memory_order s, const std::memory_order f) noexcept {
+        bool compare_exchange_weak(value_type& e, std::nullptr_t, const std::memory_order s, const std::memory_order f) noexcept {
             void* l = e.get();
             if (!_ptr().compare_exchange_weak(l, nullptr, s, f)) {
                 e = load(std::memory_order_acquire);
@@ -141,7 +138,7 @@ namespace sgcl {
             return true;
         }
 
-        bool compare_exchange_weak(TrackedPtr<Type>& e, UnsafePtr<Type> n, const std::memory_order s, const std::memory_order f) noexcept {
+        bool compare_exchange_weak(value_type& e, value_type n, const std::memory_order s, const std::memory_order f) noexcept {
             void* l = e.get();
             if (!_ptr().compare_exchange_weak(l, n.get(), s, f)) {
                 e = load(std::memory_order_acquire);
@@ -162,11 +159,11 @@ namespace sgcl {
             ref._ptr().wait(nullptr, m);
         }
 
-        void wait(UnsafePtr<Type> p, std::memory_order m = std::memory_order_seq_cst) const noexcept {
+        void wait(value_type p, std::memory_order m = std::memory_order_seq_cst) const noexcept {
             ref._ptr().wait(p.get(), m);
         }
 
-        ValueType& ref;
+        value_type& ref;
 
     private:
         detail::Pointer& _ptr() noexcept {
@@ -178,6 +175,6 @@ namespace sgcl {
         }
     };
 
-    template <class T, PointerPolicy P>
-    AtomicRef(Pointer<T, P>) -> AtomicRef<Pointer<T, P>>;
+    template <class T>
+    atomic_ref(tracked_ptr<T>) -> atomic_ref<tracked_ptr<T>>;
 }

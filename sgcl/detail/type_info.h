@@ -28,14 +28,4 @@ namespace sgcl::detail {
         static constexpr bool IsArray = std::is_base_of_v<ArrayBase, BaseType>;
         static constexpr bool MayContainTracked = detail::MayContainTracked<T>::value;
     };
-
-    template<class T, bool IsTrcaked = TypeInfo<T>::IsTracked>
-    struct StackType {
-        using Type = typename T::StackType;
-    };
-
-    template<class T>
-    struct StackType<T, false> {
-        using Type = T;
-    };
 }

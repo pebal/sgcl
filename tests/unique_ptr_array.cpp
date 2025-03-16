@@ -8,12 +8,12 @@
 struct UniquePtr_ArrayTests : ::testing::Test {};
 
 TEST_F(UniquePtr_ArrayTests, DefaultConstructor) {
-    UniquePtr<int[]> ptr;
+    unique_ptr<int[]> ptr;
     EXPECT_EQ(ptr, nullptr);
 }
 
 TEST_F(UniquePtr_ArrayTests, NullConstructor) {
-    UniquePtr<int[]> ptr(nullptr);
+    unique_ptr<int[]> ptr(nullptr);
     EXPECT_EQ(ptr, nullptr);
 }
 
@@ -25,7 +25,7 @@ TEST_F(UniquePtr_ArrayTests, PrivUniqueConstructor) {
 
 TEST_F(UniquePtr_ArrayTests, MoveConstructor) {
     auto foo = make_tracked<Foo[]>(2, 3);
-    UniquePtr<Foo[]> foo2(std::move(foo));
+    unique_ptr<Foo[]> foo2(std::move(foo));
     EXPECT_EQ(foo, nullptr);
     ASSERT_NE(foo2, nullptr);
     EXPECT_EQ(foo2[1].get_value(), 3);
@@ -33,7 +33,7 @@ TEST_F(UniquePtr_ArrayTests, MoveConstructor) {
 
 TEST_F(UniquePtr_ArrayTests, MoveAssignmentOperator) {
     auto ptr = make_tracked<int[]>({5, 6, 7});
-    UniquePtr<int[]> ptr2;
+    unique_ptr<int[]> ptr2;
     ptr2 = std::move(ptr);
     ASSERT_NE(ptr2, nullptr);
     EXPECT_EQ(ptr2[2], 7);
@@ -41,7 +41,7 @@ TEST_F(UniquePtr_ArrayTests, MoveAssignmentOperator) {
 
 TEST_F(UniquePtr_ArrayTests, MoveCastAssignmentOperator) {
     auto foo = make_tracked<Foo[]>(5, 6);
-    UniquePtr<Bar[]> bar;
+    unique_ptr<Bar[]> bar;
     bar = std::move(foo);
     ASSERT_NE(bar, nullptr);
     EXPECT_EQ(bar[4].get_value(), 6);
@@ -57,7 +57,7 @@ TEST_F(UniquePtr_ArrayTests, NullAssignmentOperator) {
 
 TEST_F(UniquePtr_ArrayTests, VoidRefOperator) {
     auto foo = make_tracked<Foo[]>(2, 8);
-    UniquePtr<void>& bar = foo;
+    unique_ptr<void>& bar = foo;
     ASSERT_NE(bar, nullptr);
 }
 
@@ -94,14 +94,14 @@ TEST_F(UniquePtr_ArrayTests, clone) {
 }
 
 TEST_F(UniquePtr_ArrayTests, is) {
-    UniquePtr<Bar[]> bar = make_tracked<Foo[]>(6);
+    unique_ptr<Bar[]> bar = make_tracked<Foo[]>(6);
     EXPECT_TRUE(bar.is<Foo[]>());
     EXPECT_FALSE(bar.is<Foo>());
     EXPECT_FALSE(bar.is<Bar[]>());
 }
 
 TEST_F(UniquePtr_ArrayTests, as) {
-    UniquePtr<Bar[]> bar = make_tracked<Foo[]>(1, 8);
+    unique_ptr<Bar[]> bar = make_tracked<Foo[]>(1, 8);
     auto foo = bar.as<Foo[]>();
     EXPECT_EQ(bar, nullptr);
     ASSERT_NE(foo, nullptr);
@@ -115,7 +115,7 @@ TEST_F(UniquePtr_ArrayTests, type) {
 }
 
 TEST_F(UniquePtr_ArrayTests, metadata) {
-    UniquePtr<Bar[]> bar = make_tracked<Foo[]>(5, 12);
+    unique_ptr<Bar[]> bar = make_tracked<Foo[]>(5, 12);
     struct {
         void operator()(void* p, size_t size) {
             auto begin = (Foo*)p;
@@ -132,15 +132,15 @@ TEST_F(UniquePtr_ArrayTests, metadata) {
 }
 
 TEST_F(UniquePtr_ArrayTests, is_array) {
-    UniquePtr<Bar> bar1 = make_tracked<Foo[]>(14);
-    UniquePtr<Bar[]> bar2 = make_tracked<Foo>(14);
+    unique_ptr<Bar> bar1 = make_tracked<Foo[]>(14);
+    unique_ptr<Bar[]> bar2 = make_tracked<Foo>(14);
     EXPECT_TRUE(bar1.is_array());
     EXPECT_FALSE(bar2.is_array());
 }
 
 TEST_F(UniquePtr_ArrayTests, size) {
     auto arr = make_tracked<int[]>({1, 2, 3});
-    UniquePtr<int[]> ptr = make_tracked<int>();
+    unique_ptr<int[]> ptr = make_tracked<int>();
     EXPECT_EQ(arr.size(), 3);
     EXPECT_EQ(ptr.size(), 1);
     ptr.reset();
@@ -227,17 +227,17 @@ TEST_F(UniquePtr_ArrayTests, Comparisons) {
 }
 
 TEST_F(UniquePtr_ArrayTests, Casts) {
-    UniquePtr<Bar[]> bar = make_tracked<Foo[]>(3, 3);
+    unique_ptr<Bar[]> bar = make_tracked<Foo[]>(3, 3);
     auto foo = static_pointer_cast<Foo[]>(std::move(bar));
     EXPECT_EQ(bar, nullptr);
     EXPECT_EQ(foo[2].value, 3);
     auto far = dynamic_pointer_cast<Far[]>(std::move(foo));
     EXPECT_EQ(foo, nullptr);
     EXPECT_EQ(far[1].value, 4);
-    UniquePtr<Faz[]> faz = dynamic_pointer_cast<Faz[]>(std::move(far));
+    unique_ptr<Faz[]> faz = dynamic_pointer_cast<Faz[]>(std::move(far));
     EXPECT_EQ(far, nullptr);
     EXPECT_EQ(faz[2].value, 5);
-    UniquePtr<const Bar[]> cbar = make_tracked<const Foo[]>(5, 2);
+    unique_ptr<const Bar[]> cbar = make_tracked<const Foo[]>(5, 2);
     auto pbar = const_pointer_cast<Bar[]>(std::move(cbar));
     EXPECT_EQ(cbar, nullptr);
     EXPECT_EQ(pbar[4].get_value(), 2);

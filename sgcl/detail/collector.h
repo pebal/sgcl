@@ -60,18 +60,18 @@ namespace sgcl::detail {
             return true;
         }
 
-        size_t last_living_objects_number() const noexcept {
-            return _last_living_objects_number.load(std::memory_order_acquire);
+        size_t last_live_object_count() const noexcept {
+            return _last_live_object_count.load(std::memory_order_acquire);
         }
 
-        std::tuple<PauseGuard, std::vector<void*>> living_objects() noexcept {
+        std::tuple<PauseGuard, std::vector<void*>> get_live_objects() noexcept {
 #if SGCL_LOG_PRINT_LEVEL > 0
             std::cout << "[sgcl] get live objects from id: " << std::this_thread::get_id() << std::endl;
 #endif
             std::unique_lock<std::mutex> lock(_mutex);
             if (!_terminating.load()) {
                 _paused = true;
-                _living_objects_request = true;
+                _live_objects_request = true;
                 _force_collect();
                 _forced_collect_cv.wait(lock, [this]{
                     return _forced_collect_count.load(std::memory_order_relaxed) == 0;
@@ -83,7 +83,7 @@ namespace sgcl::detail {
                     _paused = false;
                     _forced_collect_cv.notify_all();
                 })
-              , std::move(_living_objects)
+              , std::move(_live_objects)
             };
         }
 
@@ -422,9 +422,9 @@ namespace sgcl::detail {
                                 } else {
                                     _mark_childs(page->metadata->child_pointers, ptr);
                                 }
-                                ++_living_objects_number;
-                                if (_share_living_objects) {
-                                    _living_objects.emplace_back(ptr);
+                                ++_live_object_count;
+                                if (_share_live_objects) {
+                                    _live_objects.emplace_back(ptr);
                                 }
                                 reachable &= reachable - 1;
                             }
@@ -695,7 +695,7 @@ namespace sgcl::detail {
                 [[maybe_unused]] size_t last_objects_created = _register_objects();
                 _update_states();
                 _mark_stack_roots();
-                _living_objects_number = 0;
+                _live_object_count = 0;
                 do {
                     _mark_reachable();
                     if (!_unreachable_pages) {
@@ -708,7 +708,7 @@ namespace sgcl::detail {
                         _mark_updated<false>();
                     }
                 } while(_reachable_pages);
-                _last_living_objects_number.store(_living_objects_number, std::memory_order_relaxed);
+                _last_live_object_count.store(_live_object_count, std::memory_order_relaxed);
                 size_t last_objects_removed = _remove_garbage();
                 _release_unused_pages();
 #if SGCL_LOG_PRINT_LEVEL >= 2
@@ -720,7 +720,7 @@ namespace sgcl::detail {
                           << ",    total mem:" << std::setw(7) << MemoryCounters::live_counter().count
                           << ",    objects created:" << std::setw(9) << last_objects_created
                           << ",    objects removed:" << std::setw(9) << last_objects_removed
-                          << ",    living objects:" << std::setw(9) << _living_objects_number
+                          << ",    live objects:" << std::setw(9) << _live_object_count
                           << ",    time:" << std::setw(8) << std::fixed << std::setprecision(3) << duration << "ms"
                           << ",    total time:" << std::setw(10) << std::fixed << std::setprecision(3) << total_time << "ms"
                           << std::endl;
@@ -729,7 +729,7 @@ namespace sgcl::detail {
                 if (_forced_collect_count.load(std::memory_order_acquire)) {
                     if (_forced_collect_count.fetch_sub(1, std::memory_order_relaxed) == 1) {
                         _forced_collect_cv.notify_all();
-                        if (_share_living_objects) {
+                        if (_share_live_objects) {
 #if SGCL_LOG_PRINT_LEVEL > 0
                             std::cout << "[sgcl] suspended collector id: " << std::this_thread::get_id() << std::endl;
 #endif
@@ -737,7 +737,7 @@ namespace sgcl::detail {
                             _forced_collect_cv.wait(lock, [this]{
                                 return !_paused;
                             });
-                            _share_living_objects = false;
+                            _share_live_objects = false;
 #if SGCL_LOG_PRINT_LEVEL > 0
                             std::cout << "[sgcl] resumed collector id: " << std::this_thread::get_id() << std::endl;
 #endif
@@ -745,10 +745,10 @@ namespace sgcl::detail {
                     }
                     else {
                         if (_forced_collect_count.load(std::memory_order_relaxed) == 1) {
-                            assert(_living_objects.size() == 0);
-                            if (_living_objects_request) {
-                                _living_objects_request = false;
-                                _share_living_objects = true;
+                            assert(_live_objects.size() == 0);
+                            if (_live_objects_request) {
+                                _live_objects_request = false;
+                                _share_live_objects = true;
                             }
                         }
                         can_sleep = false;
@@ -766,7 +766,7 @@ namespace sgcl::detail {
                 last_mem_allocated = MemoryCounters::alloc_counter();
                 MemoryCounters::reset_all();
                 if (!last_objects_removed && _terminating) {
-                    if (_living_objects_number) {
+                    if (true){//_live_object_count) {
                         --finalization_counter;
                     } else {
                         finalization_counter = 0;
@@ -811,12 +811,12 @@ namespace sgcl::detail {
         std::condition_variable _forced_collect_cv;
         std::condition_variable _terminate_cv;
         std::mutex _mutex;
-        std::vector<void*> _living_objects;
-        size_t _living_objects_number;
-        std::atomic<size_t> _last_living_objects_number = {0};
-        std::atomic<bool> _living_objects_request = {false};
+        std::vector<void*> _live_objects;
+        size_t _live_object_count;
+        std::atomic<size_t> _last_live_object_count = {0};
+        std::atomic<bool> _live_objects_request = {false};
         bool _paused = {false};
-        bool _share_living_objects = {false};
+        bool _share_live_objects = {false};
         inline static std::atomic<bool> _created = {false};
         inline static std::atomic<bool> _terminating = {false};
         bool _terminated = {false};

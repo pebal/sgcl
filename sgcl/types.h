@@ -5,36 +5,18 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "concepts.h"
-
-#include <cstddef>
-
 namespace sgcl {
-    enum class PointerPolicy {
-        Tracked,
-        Stack
-    };
-
-    template<class T>
-    using StackType = detail::StackType<T>::Type;
-
-    template<class T, IsPointer Base>
-    class ArrayPtr;
-    template<TrackedPointer>
-    class Atomic;
-    template<TrackedPointer>
-    class AtomicRef;
-    class Collector;
-    template<class, PointerPolicy>
-    class Pointer;
-    template<class T, PointerPolicy P, size_t N>
-    class Pointer<T[N], P>;
     template<class>
-    class UniquePtr;
-    template<class T, size_t N>
-    class UniquePtr<T[N]>;
+    class atomic;
     template<class>
-    class UnsafePtr;
-    template<class T, size_t N>
-    class UnsafePtr<T[N]>;
+    class atomic_ref;
+    class collector;
+    template<class>
+    class tracked_ptr;
+    template<class T, unsigned N>
+    class tracked_ptr<T[N]>;
+    template<class>
+    class unique_ptr;
+    template<class T, unsigned N>
+    class unique_ptr<T[N]>;
 }
