@@ -21,10 +21,6 @@ SGCL uses a mark-and-sweep algorithm to manage memory. The use of a cheap write 
 
     It uses an intuitive API, making the transition smooth and easy for developers accustomed to `shared_ptr`.
 
-- **Reduced memory overhead**
-
-    Optimized to use less memory than `shared_ptr`, facilitating more efficient resource utilization in applications.
-
 - **Optimized for performance**
 
     Benchmarks show that SGCL outperforms `shared_ptr` in a variety of scenarios, providing faster execution times.
@@ -65,7 +61,6 @@ The `make_tracked` method is dedicated for creating objects and arrays on the ma
 ## Example
 ```cpp
 #include "sgcl/sgcl.h"
-
 #include <iostream>
 
 int main() {

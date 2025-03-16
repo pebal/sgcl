@@ -766,7 +766,7 @@ namespace sgcl::detail {
                 last_mem_allocated = MemoryCounters::alloc_counter();
                 MemoryCounters::reset_all();
                 if (!last_objects_removed && _terminating) {
-                    if (true){//_live_object_count) {
+                    if (_live_object_count) {
                         --finalization_counter;
                     } else {
                         finalization_counter = 0;
