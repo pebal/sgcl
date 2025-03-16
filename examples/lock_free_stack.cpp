@@ -10,7 +10,6 @@ class LockFreeStack {
     using NodePtr = sgcl::tracked_ptr<Node>;
 
     struct Node {
-        Node(const T& d) : data(d) {}
         T data;
         NodePtr next;
     };    
@@ -21,8 +20,8 @@ public:
     LockFreeStack(const LockFreeStack&) = delete;
     LockFreeStack& operator= (const LockFreeStack&) = delete;
 
-    void push(const T& data) {
-        NodePtr node = sgcl::make_tracked<Node>(data);
+    void push(T data) {
+        NodePtr node = sgcl::make_tracked<Node>(std::move(data));
         node->next = _head.load();
         while(!_head.compare_exchange_weak(node->next, node));
         _head.notify_one();
@@ -32,16 +31,16 @@ public:
         auto node = _head.load();
         while(node && !_head.compare_exchange_weak(node, node->next));
         if (node) {
-            return node->data;
+            return std::move(node->data);
         }
         return {};
     }
 
     T pop() {
         for(;;) {
-            auto o = try_pop();
-            if (o.has_value()) {
-                return o.value();
+            auto result = try_pop();
+            if (result.has_value()) {
+                return std::move(result.value());
             }
             _head.wait(nullptr);
         }
