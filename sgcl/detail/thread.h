@@ -44,7 +44,7 @@ namespace sgcl::detail {
             ChildGuard(const ChildGuard&) = delete;
             void operator=(const ChildGuard&) = delete;
 
-            constexpr ChildGuard(Thread& t, const ChildPointers& cp) noexcept
+            constexpr ChildGuard(Thread& t, ChildPointers cp) noexcept
             : thread(t)
             , old_pointers(t.child_pointers) {
                 thread.child_pointers = cp;
@@ -62,7 +62,7 @@ namespace sgcl::detail {
             RangeGuard(const RangeGuard&) = delete;
             void operator=(const RangeGuard&) = delete;
 
-            constexpr RangeGuard(Thread& t, const std::pair<uintptr_t, uintptr_t>& ar) noexcept
+            constexpr RangeGuard(Thread& t, std::pair<uintptr_t, uintptr_t> ar) noexcept
             : thread(t)
             , old_alloc_range(t.alloc_range) {
                 thread.alloc_range = ar;
@@ -105,11 +105,11 @@ namespace sgcl::detail {
             return _allocator<typename TypeInfo<T>::Allocator>();
         }
 
-        ChildGuard use_child_pointers(const ChildPointers& cp) noexcept {
+        ChildGuard use_child_pointers(ChildPointers cp) noexcept {
             return {*this, cp};
         }
 
-        RangeGuard use_alloc_range(const std::pair<uintptr_t, uintptr_t>& ar) noexcept {
+        RangeGuard use_alloc_range(std::pair<uintptr_t, uintptr_t> ar) noexcept {
             return {*this, ar};
         }
 

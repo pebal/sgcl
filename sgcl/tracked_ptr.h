@@ -34,7 +34,7 @@ namespace sgcl {
         : tracked_ptr() {
         }
 
-        template<class U, std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
+        template<class U, std::enable_if_t<std::is_convertible_v<U*, element_type*>, int> = 0>
         explicit tracked_ptr(U* p) noexcept
         : tracked_ptr() {
             assert(!p || !detail::Page::is_unique(p));
@@ -46,7 +46,7 @@ namespace sgcl {
             _ptr()->store(p.get());
         }
 
-        template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, T*>, int> = 0>
+        template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
         tracked_ptr(const tracked_ptr<U>& p) noexcept
         : tracked_ptr() {
             _ptr()->store(static_cast<element_type*>(p.get()));
@@ -69,7 +69,7 @@ namespace sgcl {
             }
         }
 
-        template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, T*>, int> = 0>
+        template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
         tracked_ptr(tracked_ptr<U>&& p) noexcept {
             if (!_set_ref_if_not_external_heap()) {
                 if (p.allocated_on_external_heap()) {
@@ -88,7 +88,7 @@ namespace sgcl {
             }
         }
 
-        template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, T*>, int> = 0>
+        template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
         tracked_ptr(unique_ptr<U>&& u) noexcept
         : tracked_ptr() {
             _ptr()->store(static_cast<element_type*>(u.release()));
@@ -112,13 +112,13 @@ namespace sgcl {
             return *this;
         }
 
-        template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, T*>, int> = 0>
+        template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
         tracked_ptr& operator=(const tracked_ptr<U>& p) noexcept {
             _ptr()->store(static_cast<element_type*>(p.get()));
             return *this;
         }
 
-        template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, T*>, int> = 0>
+        template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
         tracked_ptr& operator=(unique_ptr<U>&& u) noexcept {
             auto p = u.release();
             _ptr()->store(static_cast<element_type*>(p));
@@ -190,7 +190,7 @@ namespace sgcl {
             return (M*)_ptr()->template metadata<element_type>();
         }
 
-        constexpr bool is_array() const noexcept {
+        bool is_array() const noexcept {
             return _ptr()->is_array();
         }
 
@@ -211,29 +211,25 @@ namespace sgcl {
         }
 
     protected:
-        static auto _set_flag(auto p, uintptr_t f) noexcept {
+        static constexpr auto _set_flag(auto p, uintptr_t f) noexcept {
             auto v = (uintptr_t)p | f;
             return (decltype(p))v;
         }
 
-        static auto _remove_flags(auto p) noexcept {
+        static constexpr auto _remove_flags(auto p) noexcept {
             auto v = (uintptr_t)p & ClearMask;
             return (decltype(p))v;
-        }
-
-        void _clear_ref() noexcept {
-            _raw_ptr_ref = nullptr;
         }
 
         constexpr bool this_on_stack() const noexcept {
             uintptr_t this_addr = (uintptr_t)this;
             uintptr_t stack_addr = (uintptr_t)&this_addr;
             ptrdiff_t offset = this_addr - stack_addr;
-            return -(ptrdiff_t)config::MaxOffsetForStackDetection <= offset && offset <= config::MaxOffsetForStackDetection;
+            return abs(offset) <= config::MaxOffsetForStackDetection;
         }
 
-        constexpr bool this_on_heap(const auto& state) const noexcept {
-            return state.second > (uintptr_t)this && (uintptr_t)this >= state.first;
+        constexpr bool this_on_heap(std::pair<uintptr_t, uintptr_t> state) const noexcept {
+            return ((uintptr_t)this - state.first) < state.second;
         }
 
         detail::Pointer* _ptr() noexcept {
@@ -254,7 +250,7 @@ namespace sgcl {
         bool _set_ref_if_not_external_heap() noexcept {
             auto& thread = detail::current_thread();
             if (this_on_stack()) {
-                auto ref = (detail::Pointer*)thread.stack_allocator->alloc(this);
+                auto ref = thread.stack_allocator->alloc(this);
                 _raw_ptr_ref = _set_flag(ref, StackFlag);
             } else {
                 if (this_on_heap(thread.alloc_range)) {
