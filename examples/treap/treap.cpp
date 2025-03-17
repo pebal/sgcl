@@ -8,7 +8,6 @@ class Treap {
     using NodePtr = sgcl::tracked_ptr<Node>;
 
     struct Node {
-        Node(int x): x(x) {}
         const int x;
         const int y = rand();
         NodePtr left;
