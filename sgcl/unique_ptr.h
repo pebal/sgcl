@@ -25,9 +25,9 @@ namespace sgcl {
         :Base(nullptr) {
         };
 
-        template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, T*>, int> = 0>
+        template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
         unique_ptr(detail::UniquePtr<U>&& p) noexcept
-        : Base(p.release()) {
+        : Base(static_cast<element_type*>(p.release())) {
         }
 
         operator unique_ptr<void>&() noexcept {
