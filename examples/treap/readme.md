@@ -1,0 +1,1 @@
+This example implements a Treap with SGCL, inspired by benchmarks at [Completely Unscientific Benchmarks](https://github.com/frol/completely-unscientific-benchmarks/tree/master). You can compare its performance and readability with the C++ code provided there.

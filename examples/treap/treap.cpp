@@ -36,7 +36,7 @@ public:
     }
 
 private:
-    static NodePtr& _merge(NodePtr& lower, NodePtr& greater) {
+    static const NodePtr& _merge(const NodePtr& lower, const NodePtr& greater) {
         if (!lower) {
             return greater;
         }
@@ -53,28 +53,29 @@ private:
         }
     }
 
-    static NodePtr& _merge(NodePtr& lower, NodePtr& equal, NodePtr& greater) {
+    static const NodePtr& _merge(const NodePtr& lower, const NodePtr& equal, const NodePtr& greater) {
         return _merge(_merge(lower, equal), greater);
     }
 
-    std::array<NodePtr, 2> _split(NodePtr orig, int value) const {
-        if (!orig)
-            return {nullptr, nullptr};
-        if (orig->x < value) {
-            auto [less, greater] = _split(orig->right, value);
-            orig->right = less;
-            return {orig, greater};
-        } else {
-            auto [less, greater] = _split(orig->left, value);
-            orig->left = greater;
-            return {less, orig};
-        }
-    }
-
-    std::array<NodePtr, 3> _split(int value) const {
-        auto [less, greater_or_equal] = _split(_root, value);
-        auto [equal, greater] = _split(greater_or_equal, value + 1);
-        return {less, equal, greater};
+    std::array<NodePtr, 3> _split(int val) const {
+        struct Local {
+            static void split(const NodePtr& orig, NodePtr& lower, NodePtr& greater, int val) {
+                if (!orig) {
+                    lower = nullptr;
+                    greater = nullptr;
+                } else if (orig->x < val) {
+                    lower = orig;
+                    split(lower->right, lower->right, greater, val);
+                } else {
+                    greater = orig;
+                    split(greater->left, lower, greater->left, val);
+                }
+            }
+        };
+        NodePtr lower, equal, equal_or_greater, greater;
+        Local::split(_root, lower, equal_or_greater, val);
+        Local::split(equal_or_greater, equal, greater, val + 1);
+        return {lower, equal, greater};
     }
 
     NodePtr _root;
