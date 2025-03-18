@@ -18,13 +18,17 @@ namespace sgcl::detail {
         using reference = T&;
         using reverse_iterator = std::reverse_iterator<Iterator>;
 
-        Iterator(pointer ptr, difference_type offset) noexcept
+        Iterator(pointer ptr, size_t object_size) noexcept
         : _ptr(ptr)
-        , _offset(offset) {
+        , _object_size(object_size) {
         }
 
         Iterator(const Iterator&) = default;
         Iterator& operator=(const Iterator&) = default;
+
+        reference operator[](difference_type n) const noexcept {
+            return *_at(n);
+        }
 
         reference operator*() const noexcept {
             return *_ptr;
@@ -35,7 +39,7 @@ namespace sgcl::detail {
         }
 
         Iterator& operator++() noexcept {
-            _ptr = (pointer)((char*)_ptr + _offset);
+            _ptr = _at<1>();
             return *this;
         }
 
@@ -46,7 +50,7 @@ namespace sgcl::detail {
         }
 
         Iterator& operator--() noexcept {
-            _ptr = (pointer)((char*)_ptr - _offset);
+            _ptr = _at<-1>();
             return *this;
         }
 
@@ -57,29 +61,25 @@ namespace sgcl::detail {
         }
 
         Iterator operator+(difference_type n) const noexcept {
-            return Iterator((pointer)((char*)_ptr + _offset * n), _offset);
+            return Iterator(_at(n), _object_size);
         }
 
         Iterator operator-(difference_type n) const noexcept {
-            return Iterator((pointer)((char*)_ptr - _offset * n), _offset);
+            return Iterator(_at(-n), _object_size);
         }
 
         Iterator& operator+=(difference_type n) noexcept {
-            _ptr = (pointer)((char*)_ptr + _offset * n);
+            _ptr = _at(n);
             return *this;
         }
 
         Iterator& operator-=(difference_type n) noexcept {
-            _ptr = (pointer)((char*)_ptr - _offset * n);
+            _ptr = _at(-n);
             return *this;
         }
 
         difference_type operator-(const Iterator& other) const noexcept {
-            return (_ptr - other._ptr) / _offset;
-        }
-
-        reference operator[](difference_type n) const noexcept {
-            return *(pointer)((char*)_ptr + _offset * n);
+            return (_ptr - other._ptr) / _object_size;
         }
 
         bool operator==(const Iterator& i) const noexcept {
@@ -111,7 +111,16 @@ namespace sgcl::detail {
         }
 
     private:
+        pointer _at(difference_type offset) const {
+            return (pointer)((char*)_ptr + _object_size * offset);
+        }
+
+        template<difference_type Offset>
+        pointer _at() const {
+            return (pointer)((char*)_ptr + _object_size * Offset);
+        }
+
         pointer _ptr;
-        const difference_type _offset;
+        const size_t _object_size;
     };
 }

@@ -8,6 +8,7 @@
 #include "memory_counters.h"
 #include "object_allocator_base.h"
 #include "type_info.h"
+
 #include <functional>
 
 namespace sgcl::detail {

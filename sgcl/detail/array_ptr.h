@@ -19,8 +19,8 @@ namespace sgcl::detail {
         using ElementType = typename Base::element_type;
         using ValueType = T[];
 
-        using iterator = Iterator<T>;
-        using const_iterator = Iterator<const T>;
+        using iterator = Iterator<ElementType>;
+        using const_iterator = Iterator<const ElementType>;
         using reverse_iterator = typename iterator::reverse_iterator;
         using const_reverse_iterator = typename const_iterator::reverse_iterator;
 
@@ -37,9 +37,9 @@ namespace sgcl::detail {
 
         ElementType& at(size_t i) const {
             if (!*this || i >= size()) {
-                throw std::out_of_range("sgcl::ArrayPtr");
+                throw std::out_of_range("sgcl::detail::ArrayPtr");
             }
-            return begin()[i];
+            return (*this)[i];
         }
 
         size_t size() const noexcept {

@@ -8,7 +8,6 @@
 #include "array_metadata.h"
 #include "page.h"
 #include "types.h"
-#include "type_info.h"
 
 namespace sgcl::detail {
     static constexpr size_t PageDataSize = config::PageSize - sizeof(uintptr_t);
