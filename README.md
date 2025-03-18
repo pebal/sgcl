@@ -178,9 +178,9 @@ sgcl::collector::force_collect();
 sgcl::collector::force_collect(true);
 
 // Get number of live objects
-// Note: This is the number calculated in the last GC cycle
-auto last_live_object_count = sgcl::collector::last_live_object_count();
-std::cout << "last live object count: " << last_live_object_count << std::endl;
+// Note: A full GC cycle is performed before returning the data
+auto live_object_count = sgcl::collector::get_live_object_count();
+std::cout << "live object count: " << live_object_count << std::endl;
 
 {
     // Get list of live objects

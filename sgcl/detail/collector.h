@@ -60,10 +60,6 @@ namespace sgcl::detail {
             return true;
         }
 
-        size_t last_live_object_count() const noexcept {
-            return _last_live_object_count.load(std::memory_order_acquire);
-        }
-
         std::tuple<PauseGuard, std::vector<void*>> get_live_objects() noexcept {
 #if SGCL_LOG_PRINT_LEVEL > 0
             std::cout << "[sgcl] get live objects from id: " << std::this_thread::get_id() << std::endl;

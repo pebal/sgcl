@@ -12,8 +12,8 @@ namespace sgcl {
     public:
         using pause_guard = detail::Collector::PauseGuard;
 
-        inline static size_t last_live_object_count() {
-            return detail::collector_instance().last_live_object_count();
+        inline static size_t get_live_object_count() {
+            return std::get<1>(get_live_objects()).size();
         }
 
         inline static std::tuple<pause_guard, std::vector<void*>> get_live_objects() {
