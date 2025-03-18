@@ -11,7 +11,9 @@ namespace sgcl::detail {
     template<class T>
     struct MayContainTracked {
         using Type = std::remove_extent_t<T>;
-        static constexpr auto value = !std::is_trivial_v<Type> && sizeof(Type) >= sizeof(RawPointer);
+        static constexpr auto value = std::is_same_v<Type, Pointer>
+                                      || (!std::is_trivially_default_constructible_v<Type>
+                                          && sizeof(Type) >= sizeof(RawPointer) * 2);
     };
 
     template<>

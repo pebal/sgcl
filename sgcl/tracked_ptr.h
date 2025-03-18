@@ -95,10 +95,10 @@ namespace sgcl {
         }
 
         ~tracked_ptr() noexcept {
-            if (allocated_on_stack()) {
-                _ptr()->store(nullptr);
-            } else if (allocated_on_external_heap()) {
+            if (allocated_on_external_heap()) {
                 detail::Page::set_state<detail::State::Destroyed>(_ptr());
+            } else {
+                _ptr()->store(nullptr);
             }
         }
 

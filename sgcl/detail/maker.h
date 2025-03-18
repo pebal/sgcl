@@ -12,13 +12,13 @@
 
 namespace sgcl::detail {
     template<class T, class ...A>
-    inline T* construct(void* p, A&&... a) {
+    void construct(void* p, A&&... a) {
         Page::set_state<State::UniqueLock>(p);
         try {
             if constexpr(sizeof...(A)) {
-                return new(p) T(std::forward<A>(a)...);
+                new(p) T(std::forward<A>(a)...);
             } else {
-                return new(p) T;
+                new(p) T;
             }
         }
         catch (...) {
@@ -35,6 +35,11 @@ namespace sgcl::detail {
             return _make(std::forward<A>(a)...);
         }
 
+        template<class ...A>
+        static UniquePtr<T> make_tracked_data() {
+            return _make_data();
+        }
+
     private:
         using Info = TypeInfo<T>;
         using Type = typename Info::Type;
@@ -44,22 +49,31 @@ namespace sgcl::detail {
             auto& thread = current_thread();
             auto& allocator = thread.alocator<Type>();
             auto mem = allocator.alloc();
-            Type* ptr;
-            if constexpr(!std::is_trivially_default_constructible_v<T>) {
+            if constexpr(Info::MayContainTracked) {
                 auto range_guard = thread.use_alloc_range({(uintptr_t)(mem), sizeof(T)});
                 if (!Info::child_pointers.final.load(std::memory_order_acquire)) {
                     std::memset(mem, 0xFF, sizeof(T));
                     auto child_guard = thread.use_child_pointers({(uintptr_t)mem, &Info::child_pointers.map});
-                    ptr = construct<Type>(mem, std::forward<A>(a)...);
+                    construct<Type>(mem, std::forward<A>(a)...);
                     Info::child_pointers.final.store(true, std::memory_order_release);
                 } else {
                     std::memset(mem, 0, sizeof(T));
-                    ptr = construct<Type>(mem, std::forward<A>(a)...);
+                    construct<Type>(mem, std::forward<A>(a)...);
                 }
             } else {
-                ptr = construct<Type>(mem, std::forward<A>(a)...);
+                construct<Type>(mem, std::forward<A>(a)...);
             }
-            return UniquePtr<T>(ptr);
+            return UniquePtr<T>((Type*)mem);
+        }
+
+        static UniquePtr<T> _make_data() {
+            auto& thread = current_thread();
+            auto& allocator = thread.alocator<Type>();
+            auto mem = allocator.alloc();
+            if constexpr(Info::MayContainTracked) {
+                std::memset(mem, 0, sizeof(T));
+            }
+            return UniquePtr<T>((Type*)mem);
         }
     };
 
@@ -72,8 +86,8 @@ namespace sgcl::detail {
             auto& thread = current_thread();
             auto& allocator = thread.alocator<Type>();
             auto mem = allocator.alloc(size);
-            auto ptr = construct<Type>(mem, count);
-            return UniquePtr<void>(ptr->data);
+            construct<Type>(mem, count);
+            return UniquePtr<void>(((Type*)mem)->data);
         }
 
         template<size_t N = 1>
@@ -123,6 +137,16 @@ namespace sgcl::detail {
             auto p = _make_array<>(a->count, sizeof(T));
             auto array = (Array<>*)((ArrayBase*)p.get() - 1);
             _init_data(*array, a);
+            return UniquePtr<T[]>((T*)p.release());
+        }
+
+        static UniquePtr<T[]> make_tracked_data(size_t count) {
+            auto p = _make_array<>(count, sizeof(T));
+            auto array = (Array<>*)((ArrayBase*)p.get() - 1);
+            if constexpr(Info::MayContainTracked) {
+                std::memset(array->data, 0, sizeof(Type) * array->count);
+            }
+            array->metadata.store(&Info::array_metadata(), std::memory_order_release);
             return UniquePtr<T[]>((T*)p.release());
         }
 
