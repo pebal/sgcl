@@ -17,6 +17,7 @@ namespace sgcl::detail {
 #else
             if (_val) {
 #endif
+                static_assert(sizeof(Pointer) == sizeof(RawPointer));
                 auto& thread = current_thread();
                 auto& pointers = thread.child_pointers;
                 assert(pointers.map && "Objects that are not roots cannot be allocated on the stack or unmanaged heap");

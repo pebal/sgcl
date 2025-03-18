@@ -266,6 +266,7 @@ namespace sgcl {
         template<class> friend class atomic;
         template<class> friend class atomic_ref;
         template<class> friend class tracked_ptr;
+        template<class> friend class detail::Maker;
     };
 
     template<class T>

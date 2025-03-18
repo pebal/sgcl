@@ -8,8 +8,15 @@
 struct Maker_Tests : ::testing::Test {};
 
 TEST_F(Maker_Tests, DefaultConstructor) {
-    auto ptr = make_tracked<int>();
+    struct S {
+        char value = 2;
+    };
+    auto ptr = make_tracked<S>();
     EXPECT_NE(ptr, nullptr);
+    EXPECT_EQ(ptr->value, 2);
+    auto tr = make_tracked<tracked_ptr<int>>();
+    EXPECT_NE(tr, nullptr);
+    EXPECT_EQ(*tr, nullptr);
 }
 
 TEST_F(Maker_Tests, ParameterConstructor) {
@@ -19,8 +26,19 @@ TEST_F(Maker_Tests, ParameterConstructor) {
 }
 
 TEST_F(Maker_Tests, DefaultArrayConstructor) {
-    auto ptr = make_tracked<int[]>(3);
-    EXPECT_NE(ptr, nullptr);
+    struct S {
+        char value = 9;
+    };
+    auto t = make_tracked<S[]>(3);
+    EXPECT_NE(t, nullptr);
+    EXPECT_EQ(t[0].value, 9);
+    EXPECT_EQ(t[1].value, 9);
+    EXPECT_EQ(t[2].value, 9);
+    auto tr = make_tracked<tracked_ptr<int>[]>(3);
+    EXPECT_NE(tr, nullptr);
+    EXPECT_EQ(tr[0], nullptr);
+    EXPECT_EQ(tr[1], nullptr);
+    EXPECT_EQ(tr[2], nullptr);
 }
 
 TEST_F(Maker_Tests, ParameterArrayConstructor) {

@@ -154,31 +154,38 @@ namespace sgcl::detail {
         using Info = TypeInfo<T>;
         using Type = typename Info::Type;
 
-        static void _init(void* data, size_t i, size_t size) {
+        static void _init(Type* data, size_t i, size_t size) {
             for (; i < size; ++i) {
-                new((Type*)data + i) Type;
+                new(data + i) Type;
             }
         }
 
         template<class ...A>
-        static void _init(void* data, size_t i, size_t size, A&&... a) {
+        static void _init(Type* data, size_t i, size_t size, A&&... a) {
             for (; i < size; ++i) {
-                new((Type*)data + i) Type(std::forward<A>(a)...);
+                new(data + i) Type(std::forward<A>(a)...);
             }
         }
 
-        static void _init(void* data, size_t i, size_t size, std::initializer_list<T> list) {
+        static void _init(Type* data, size_t i, size_t size, std::initializer_list<T> list) {
             auto item = list.begin() + i;
             for (; i < size; ++i) {
-                new((Type*)data + i) Type(*item);
+                new(data + i) Type(*item);
                 ++item;
             }
         }
 
-        static void _init(void* data, size_t i, size_t size, ArrayBase* a) {
+        static void _init(Type* data, size_t i, size_t size, ArrayBase* a) {
             auto src = (const Type*)(a + 1);
             for (; i < size; ++i) {
-                new((Type*)data + i) Type(src[i]);
+                new(data + i) Type(src[i]);
+            }
+        }
+
+        static void _init_tracked(Type* data, size_t i, size_t size) {
+            for (; i < size; ++i) {
+                auto tracked = data + i;
+                tracked->_raw_ptr_ref = &tracked->_raw_ptr;
             }
         }
 
@@ -193,7 +200,7 @@ namespace sgcl::detail {
                     std::memset((void*)((Type*)array.data + 1), 0, sizeof(Type) * (array.count - 1));
                     array.metadata.store(&Info::array_metadata(), std::memory_order_release);
                     auto child_guard = thread.use_child_pointers({(uintptr_t)array.data, &Info::child_pointers.map});
-                    _init(array.data, 0, 1, std::forward<A>(a)...);
+                    _init((Type*)array.data, 0, 1, std::forward<A>(a)...);
                     Info::child_pointers.final.store(true, std::memory_order_release);
                     offset = 1;
                 } else {
@@ -203,15 +210,17 @@ namespace sgcl::detail {
                 }
                 if constexpr(Info::IsTracked) {
                     if constexpr(sizeof...(A)) {
-                        _init(array.data, offset, array.count, std::forward<A>(a)...);
+                        _init((Type*)array.data, offset, array.count, std::forward<A>(a)...);
+                    } else {
+                        _init_tracked((Type*)array.data, offset, array.count);
                     }
                 } else {
-                    _init(array.data, offset, array.count, std::forward<A>(a)...);
+                    _init((Type*)array.data, offset, array.count, std::forward<A>(a)...);
                 }
             } else {
                 array.metadata.store(&Info::array_metadata(), std::memory_order_release);
-                if constexpr(sizeof...(A)) {
-                    _init(array.data, 0, array.count, std::forward<A>(a)...);
+                if constexpr(sizeof...(A) || !std::is_trivially_constructible_v<T>) {
+                    _init((Type*)array.data, 0, array.count, std::forward<A>(a)...);
                 }
             }
         }
