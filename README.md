@@ -168,7 +168,6 @@ int main() {
     struct Node {
         int value;
         sgcl::list<sgcl::tracked_ptr<Node>> childs;
-        sgcl::list<sgcl::tracked_ptr<Node>> childs;
     };
     sgcl::list<sgcl::tracked_ptr<Node>> nodes;
     
