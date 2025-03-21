@@ -5,7 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "iterator.h"
+#include "array_iterator.h"
 #include "pointer.h"
 #include "types.h"
 
@@ -16,11 +16,11 @@ namespace sgcl::detail {
     template<class T, class Base>
     class ArrayPtr : public Base {
     public:
-        using ElementType = typename Base::element_type;
-        using ValueType = T[];
-
-        using iterator = Iterator<ElementType>;
-        using const_iterator = Iterator<const ElementType>;
+        using element_type = typename Base::element_type;
+        using value_type = T[];
+        using size_type	 = size_t;
+        using iterator = ArrayIterator<element_type>;
+        using const_iterator = ArrayIterator<const element_type>;
         using reverse_iterator = typename iterator::reverse_iterator;
         using const_reverse_iterator = typename const_iterator::reverse_iterator;
 
@@ -29,13 +29,26 @@ namespace sgcl::detail {
         T& operator*() const = delete;
         T* operator->() const = delete;
 
-        ElementType& operator[](size_t i) const noexcept {
+        element_type& operator[](size_t i) noexcept {
             assert(*this != nullptr);
             assert(i < size());
             return begin()[i];
         }
 
-        ElementType& at(size_t i) const {
+        const element_type& operator[](size_t i) const noexcept {
+            assert(*this != nullptr);
+            assert(i < size());
+            return begin()[i];
+        }
+
+        element_type& at(size_t i) {
+            if (!*this || i >= size()) {
+                throw std::out_of_range("sgcl::detail::ArrayPtr");
+            }
+            return (*this)[i];
+        }
+
+        const element_type& at(size_t i) const {
             if (!*this || i >= size()) {
                 throw std::out_of_range("sgcl::detail::ArrayPtr");
             }
@@ -46,20 +59,20 @@ namespace sgcl::detail {
             return Pointer::size(this->get());
         }
 
-        iterator begin() const noexcept {
+        iterator begin() noexcept {
             return iterator(this->get(), this->object_size());
         }
 
-        iterator end() const noexcept {
+        const_iterator begin() const noexcept {
+            return cbegin();
+        }
+
+        iterator end() noexcept {
             return begin() + size();
         }
 
-        reverse_iterator rbegin() const noexcept {
-            return end().make_reverse_iterator();
-        }
-
-        reverse_iterator rend() const noexcept {
-            return begin().make_reverse_iterator();
+        const_iterator end() const noexcept {
+            return cend();
         }
 
         const_iterator cbegin() const noexcept {
@@ -68,6 +81,22 @@ namespace sgcl::detail {
 
         const_iterator cend() const noexcept {
             return cbegin() + size();
+        }
+
+        reverse_iterator rbegin() noexcept {
+            return end().make_reverse_iterator();
+        }
+
+        const_reverse_iterator rbegin() const noexcept {
+            return crbegin();
+        }
+
+        reverse_iterator rend() noexcept {
+            return begin().make_reverse_iterator();
+        }
+
+        const_reverse_iterator rend() const noexcept {
+            return crend();
         }
 
         const_reverse_iterator crbegin() const noexcept {

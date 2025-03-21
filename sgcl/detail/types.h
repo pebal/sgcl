@@ -21,7 +21,7 @@ namespace sgcl::detail {
     struct Counter;
     struct DataPage;
     template<class>
-    class  Iterator;
+    class  ArrayIterator;
     template<class>
     struct MayContainTracked;
     template<class>

@@ -9,22 +9,24 @@
 
 namespace sgcl::detail {
     template<typename T>
-    class Iterator {
+    class ArrayIterator {
     public:
         using iterator_category = std::random_access_iterator_tag;
         using value_type = T;
-        using difference_type = std::ptrdiff_t;
+        using difference_type = ptrdiff_t;
         using pointer = T*;
+        using const_pointer = const T*;
         using reference = T&;
-        using reverse_iterator = std::reverse_iterator<Iterator>;
+        using const_reference = const T&;
+        using reverse_iterator = std::reverse_iterator<ArrayIterator>;
 
-        Iterator(pointer ptr, size_t object_size) noexcept
+        ArrayIterator(pointer ptr, size_t object_size) noexcept
         : _ptr(ptr)
         , _object_size(object_size) {
         }
 
-        Iterator(const Iterator&) = default;
-        Iterator& operator=(const Iterator&) = default;
+        ArrayIterator(const ArrayIterator&) = default;
+        ArrayIterator& operator=(const ArrayIterator&) = default;
 
         reference operator[](difference_type n) const noexcept {
             return *_at(n);
@@ -38,71 +40,71 @@ namespace sgcl::detail {
             return _ptr;
         }
 
-        Iterator& operator++() noexcept {
+        ArrayIterator& operator++() noexcept {
             _ptr = _at<1>();
             return *this;
         }
 
-        Iterator operator++(int) noexcept {
-            Iterator tmp = *this;
+        ArrayIterator operator++(int) noexcept {
+            ArrayIterator tmp = *this;
             ++(*this);
             return tmp;
         }
 
-        Iterator& operator--() noexcept {
+        ArrayIterator& operator--() noexcept {
             _ptr = _at<-1>();
             return *this;
         }
 
-        Iterator operator--(int) noexcept {
-            Iterator tmp = *this;
+        ArrayIterator operator--(int) noexcept {
+            ArrayIterator tmp = *this;
             --(*this);
             return tmp;
         }
 
-        Iterator operator+(difference_type n) const noexcept {
-            return Iterator(_at(n), _object_size);
+        ArrayIterator operator+(difference_type n) const noexcept {
+            return ArrayIterator(_at(n), _object_size);
         }
 
-        Iterator operator-(difference_type n) const noexcept {
-            return Iterator(_at(-n), _object_size);
+        ArrayIterator operator-(difference_type n) const noexcept {
+            return ArrayIterator(_at(-n), _object_size);
         }
 
-        Iterator& operator+=(difference_type n) noexcept {
+        ArrayIterator& operator+=(difference_type n) noexcept {
             _ptr = _at(n);
             return *this;
         }
 
-        Iterator& operator-=(difference_type n) noexcept {
+        ArrayIterator& operator-=(difference_type n) noexcept {
             _ptr = _at(-n);
             return *this;
         }
 
-        difference_type operator-(const Iterator& other) const noexcept {
+        difference_type operator-(const ArrayIterator& other) const noexcept {
             return (_ptr - other._ptr) / _object_size;
         }
 
-        bool operator==(const Iterator& i) const noexcept {
+        bool operator==(const ArrayIterator& i) const noexcept {
             return _ptr == i._ptr;
         }
 
-        bool operator!=(const Iterator& i) const noexcept {
+        bool operator!=(const ArrayIterator& i) const noexcept {
             return !(*this == i);
         }
 
-        bool operator<(const Iterator& i) const noexcept {
+        bool operator<(const ArrayIterator& i) const noexcept {
             return _ptr < i._ptr;
         }
 
-        bool operator>(const Iterator& i) const noexcept {
+        bool operator>(const ArrayIterator& i) const noexcept {
             return i < *this;
         }
 
-        bool operator<=(const Iterator& i) const noexcept {
+        bool operator<=(const ArrayIterator& i) const noexcept {
             return !(i < *this);
         }
 
-        bool operator>=(const Iterator& i) const noexcept {
+        bool operator>=(const ArrayIterator& i) const noexcept {
             return !(*this < i);
         }
 
