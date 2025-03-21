@@ -43,14 +43,13 @@ namespace sgcl::detail {
             std::cout << "[sgcl] force collect " << (wait ? "and wait " : "") << "from id: " << std::this_thread::get_id() << std::endl;
 #endif
             if (wait) {
-                std::unique_lock<std::mutex> lock(_mutex);
-                if (!_paused) {
-                    if (!_terminating.load()) {
-                        _force_collect();
-                        _forced_collect_cv.wait(lock, [this]{
-                            return _forced_collect_count.load(std::memory_order_relaxed) == 0;
-                        });
-                    }
+                if (!_terminating) {
+                    std::unique_lock<std::mutex> lock(_mutex);
+                    _force_collect();
+                    _cv_data_ready.wait(lock, [this] {
+                        return _dataReady;
+                    });
+                    _dataReady = false;
                 } else {
                     return false;
                 }
@@ -63,21 +62,24 @@ namespace sgcl::detail {
         std::tuple<PauseGuard, std::vector<void*>> get_live_objects() noexcept {
 #if SGCL_LOG_PRINT_LEVEL > 0
             std::cout << "[sgcl] get live objects from id: " << std::this_thread::get_id() << std::endl;
+            std::flush(std::cout);
 #endif
             std::unique_lock<std::mutex> lock(_mutex);
-            if (!_terminating.load()) {
-                _paused = true;
+            if (!_terminating) {
                 _live_objects_request = true;
                 _force_collect();
-                _forced_collect_cv.wait(lock, [this]{
-                    return _forced_collect_count.load(std::memory_order_relaxed) == 0;
+                _cv_data_ready.wait(lock, [this] {
+                    return _dataReady;
                 });
+                _dataReady = false;
             }
+            lock.release();
             return {
-                PauseGuard(&_mutex, [&](std::mutex* m) {
-                    std::unique_lock<std::mutex> lock(*m);
-                    _paused = false;
-                    _forced_collect_cv.notify_all();
+                PauseGuard(&_mutex, [this](std::mutex* mutex) {
+                    _dataProcessed = true;
+                    _cv_data_processed.notify_one();
+                    mutex->unlock();
+
                 })
               , std::move(_live_objects)
             };
@@ -724,17 +726,22 @@ namespace sgcl::detail {
                 bool can_sleep = true;
                 if (_forced_collect_count.load(std::memory_order_acquire)) {
                     if (_forced_collect_count.fetch_sub(1, std::memory_order_relaxed) == 1) {
-                        _forced_collect_cv.notify_all();
+                        {
+                            std::unique_lock<std::mutex> lock(_mutex);
+                            _dataReady = true;
+                            _cv_data_ready.notify_all();
+                        }
                         if (_share_live_objects) {
-#if SGCL_LOG_PRINT_LEVEL > 0
+                            std::unique_lock<std::mutex> lock(_mutex);
+#if SGCL_LOG_PRINT_LEVEL > 2
                             std::cout << "[sgcl] suspended collector id: " << std::this_thread::get_id() << std::endl;
 #endif
-                            std::unique_lock<std::mutex> lock(_mutex);
-                            _forced_collect_cv.wait(lock, [this]{
-                                return !_paused;
+                            _cv_data_processed.wait(lock, [this] {
+                                return _dataProcessed;
                             });
+                            _dataProcessed = false;
                             _share_live_objects = false;
-#if SGCL_LOG_PRINT_LEVEL > 0
+#if SGCL_LOG_PRINT_LEVEL > 2
                             std::cout << "[sgcl] resumed collector id: " << std::this_thread::get_id() << std::endl;
 #endif
                         }
@@ -752,7 +759,7 @@ namespace sgcl::detail {
                 }
                 if (!_terminating && can_sleep) {
                     sleep_flag.store(true, std::memory_order_relaxed);
-                    std::unique_lock<std::mutex> lock(sleep_mutex);
+                    std::unique_lock<std::mutex> lock(_mutex);
                     sleep_cv.wait_for(lock, config::MaxSleepTime, [this]{
                         return !sleep_flag.load(std::memory_order_acquire)
                             || _forced_collect_count.load(std::memory_order_relaxed)
@@ -773,9 +780,8 @@ namespace sgcl::detail {
             std::cout << "[sgcl] stop collector id: " << std::this_thread::get_id() << std::endl;
 #endif
             if (_terminating) {
-                std::lock_guard<std::mutex> lock(_mutex);
                 _terminated = true;
-                _terminate_cv.notify_all();
+                _terminated.notify_all();
             }
         }
 
@@ -785,16 +791,16 @@ namespace sgcl::detail {
         }
 
         void _terminate() noexcept {
-            if (!_terminating.load()) {
+            if (!_terminating) {
 #if SGCL_LOG_PRINT_LEVEL > 0
                 std::cout << "[sgcl] terminate collector from id: " << std::this_thread::get_id() << std::endl;
 #endif
-                _terminating.store(true);
-                waking_up();
-                std::unique_lock<std::mutex> lock(_mutex);
-                _terminate_cv.wait(lock, [this]{
-                    return _terminated;
-                });
+                {
+                    std::unique_lock<std::mutex> lock(_mutex);
+                    _terminating.store(true);
+                    waking_up();
+                }
+                _terminated.wait(false);
             }
         }
 
@@ -804,22 +810,22 @@ namespace sgcl::detail {
         Page* _unreachable_pages = {nullptr};
         Page* _registered_pages = {nullptr};
         std::atomic<int> _forced_collect_count = {0};
-        std::condition_variable _forced_collect_cv;
-        std::condition_variable _terminate_cv;
         std::mutex _mutex;
         std::vector<void*> _live_objects;
         size_t _live_object_count;
         std::atomic<size_t> _last_live_object_count = {0};
         std::atomic<bool> _live_objects_request = {false};
-        bool _paused = {false};
+        std::atomic<bool> _terminated = {false};
         bool _share_live_objects = {false};
         inline static std::atomic<bool> _created = {false};
         inline static std::atomic<bool> _terminating = {false};
-        bool _terminated = {false};
-        std::mutex sleep_mutex;
         std::condition_variable sleep_cv;
         std::atomic<bool> sleep_flag = {true};
         std::vector<uintptr_t> _hazard_pointers;
+        std::condition_variable _cv_data_ready;
+        std::condition_variable _cv_data_processed;
+        bool _dataReady = false;
+        bool _dataProcessed = false;
 
         friend inline void delete_unique(const void*) noexcept;
     };
