@@ -57,14 +57,6 @@ namespace sgcl::detail {
             }
             if (count) {
                 MemoryCounters::update_free(count, size);
-                auto free_counter = MemoryCounters::alloc_counter();
-                auto live_counter = MemoryCounters::live_counter();
-                free_counter *= 4;
-                live_counter += Counter(4, config::PageSize * 4);
-                if ((free_counter.count > live_counter.count)
-                || (free_counter.size > live_counter.size)) {
-                    waking_up_collector();
-                }
             }
         }
     };

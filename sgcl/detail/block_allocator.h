@@ -72,11 +72,6 @@ namespace sgcl::detail {
             }
             if (count && !destructor) {
                 MemoryCounters::update_free(count, config::PageSize * count);
-                auto free_count = MemoryCounters::free_count();
-                auto live_count = MemoryCounters::live_count();
-                if (free_count * 4 > live_count + 64) {
-                    waking_up_collector();
-                }
             }
         }
 
