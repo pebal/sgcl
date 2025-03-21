@@ -31,11 +31,11 @@ namespace sgcl {
         }
 
         operator unique_ptr<void>&() noexcept {
-            return reinterpret_cast<unique_ptr<void>&>(*this);
+            return *(unique_ptr<void>*)(this);
         }
 
         operator const unique_ptr<void>&() const noexcept {
-            return reinterpret_cast<const unique_ptr<void>&>(*this);
+            return *(const unique_ptr<void>*)(this);
         }
 
         void* get_base() const noexcept {
