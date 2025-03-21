@@ -36,7 +36,7 @@ SGCL uses a mark-and-sweep algorithm to manage memory. The use of a cheap write 
 - **Lock-Free Atomic Pointers**
 
     Ensures that operations on atomic pointers are always lock-free, improving performance in concurrent scenarios.
-## SGCL Pointers
+## SGCL classes
 SGCL introduces four types of smart pointers.
     
   - `unique_ptr`
@@ -54,6 +54,10 @@ SGCL introduces four types of smart pointers.
   - `atomic_ref`
   
     Provides atomic operations on tracked pointers.
+    
+  - `list`
+   
+    Equivalent of std::list with cycle support.
     
 ## make_tracked method
 The `make_tracked` method is dedicated for creating objects and arrays on the managed heap. This method returns a unique pointer.
@@ -159,6 +163,14 @@ int main() {
     auto message = sgcl::make_tracked<std::string>("message");
     auto clone = message.clone();
     std::cout << "clone: " << *clone << std::endl;
+    
+    // Using a list with cycle detection
+    struct Node {
+        int value;
+        sgcl::list<sgcl::tracked_ptr<Node>> childs;
+        sgcl::list<sgcl::tracked_ptr<Node>> childs;
+    };
+    sgcl::list<sgcl::tracked_ptr<Node>> nodes;
     
     // Metadata usage
     sgcl::set_metadata<int>(new std::string("int metadata"));

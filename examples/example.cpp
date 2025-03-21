@@ -99,6 +99,13 @@ int main() {
     auto clone = message.clone();
     std::cout << "clone: " << *clone << std::endl;
 
+    // Using a list with cycle detection
+    struct Node {
+        int value;
+        sgcl::list<sgcl::tracked_ptr<Node>> childs;
+    };
+    sgcl::list<sgcl::tracked_ptr<Node>> nodes;
+
     // Metadata usage
     sgcl::set_metadata<int>(new std::string("int metadata"));
     sgcl::set_metadata<double>(new std::string("double metadata"));
