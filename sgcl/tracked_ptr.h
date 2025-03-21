@@ -126,7 +126,11 @@ namespace sgcl {
         }
 
         operator tracked_ptr<void>&() noexcept {
-            return reinterpret_cast<tracked_ptr<void>&>(*this);
+            return *(tracked_ptr<void>*)(this);
+        }
+
+        operator const tracked_ptr<void>&() const noexcept {
+            return *(const tracked_ptr<void>*)(this);
         }
 
         explicit operator bool() const noexcept {
@@ -292,91 +296,34 @@ namespace sgcl {
     tracked_ptr(unique_ptr<T>&&) -> tracked_ptr<T>;
 
     template<class T, class U>
-    inline auto operator<=>(const tracked_ptr<T>& l, const tracked_ptr<U>& r) noexcept {
+    inline std::strong_ordering operator<=>(const tracked_ptr<T>& l, const tracked_ptr<U>& r) noexcept {
         using Y = typename std::common_type<decltype(l.get()), decltype(r.get())>::type;
         return static_cast<Y>(l.get()) <=> static_cast<Y>(r.get());
     }
+
     template<class T, class U>
-    inline auto operator==(const tracked_ptr<T>& l, const tracked_ptr<U>& r) noexcept {
+    inline bool operator==(const tracked_ptr<T>& l, const tracked_ptr<U>& r) noexcept {
         return (l <=> r) == 0;
-    }
-    template<class T, class U>
-    inline auto operator!=(const tracked_ptr<T>& l, const tracked_ptr<U>& r) noexcept {
-        return (l <=> r) != 0;
-    }
-    template<class T, class U>
-    inline auto operator<(const tracked_ptr<T>& l, const tracked_ptr<U>& r) noexcept {
-        return (l <=> r) < 0;
-    }
-    template<class T, class U>
-    inline auto operator<=(const tracked_ptr<T>& l, const tracked_ptr<U>& r) noexcept {
-        return (l <=> r) <= 0;
-    }
-    template<class T, class U>
-    inline auto operator>(const tracked_ptr<T>& l, const tracked_ptr<U>& r) noexcept {
-        return (l <=> r) > 0;
-    }
-    template<class T, class U>
-    inline auto operator>=(const tracked_ptr<T>& l, const tracked_ptr<U>& r) noexcept {
-        return (l <=> r) >= 0;
     }
 
     template<class T>
-    inline auto operator<=>(const tracked_ptr<T>& l, std::nullptr_t) noexcept {
+    inline std::strong_ordering operator<=>(const tracked_ptr<T>& l, std::nullptr_t) noexcept {
         return l.get() <=> static_cast<decltype(l.get())>(nullptr);
     }
+
     template<class T>
     inline bool operator==(const tracked_ptr<T>& l, std::nullptr_t) noexcept {
         return (l <=> nullptr) == 0;
     }
+
     template<class T>
-    inline bool operator!=(const tracked_ptr<T>& l, std::nullptr_t) noexcept {
-        return (l <=> nullptr) != 0;
-    }
-    template<class T>
-    inline bool operator<(const tracked_ptr<T>& l, std::nullptr_t) noexcept {
-        return (l <=> nullptr) < 0;
-    }
-    template<class T>
-    inline bool operator<=(const tracked_ptr<T>& l, std::nullptr_t) noexcept {
-        return (l <=> nullptr) <= 0;
-    }
-    template<class T>
-    inline bool operator>(const tracked_ptr<T>& l, std::nullptr_t) noexcept {
-        return (l <=> nullptr) > 0;
-    }
-    template<class T>
-    inline bool operator>=(const tracked_ptr<T>& l, std::nullptr_t) noexcept {
-        return (l <=> nullptr) >= 0;
+    inline std::strong_ordering operator<=>(std::nullptr_t, const tracked_ptr<T>& r) noexcept {
+        return static_cast<decltype(r.get())>(nullptr) <=> r.get();
     }
 
     template<class T>
-    inline auto operator<=>(std::nullptr_t, const tracked_ptr<T>& r) noexcept {
-        return static_cast<decltype(r.get())>(nullptr) <=> r.get();
-    }
-    template<class T>
     inline bool operator==(std::nullptr_t, const tracked_ptr<T>& r) noexcept {
         return (nullptr <=> r) == 0;
-    }
-    template<class T>
-    inline bool operator!=(std::nullptr_t, const tracked_ptr<T>& r) noexcept {
-        return (nullptr <=> r) != 0;
-    }
-    template<class T>
-    inline bool operator<(std::nullptr_t, const tracked_ptr<T>& r) noexcept {
-        return (nullptr <=> r) < 0;
-    }
-    template<class T>
-    inline bool operator<=(std::nullptr_t, const tracked_ptr<T>& r) noexcept {
-        return (nullptr <=> r) <= 0;
-    }
-    template<class T>
-    inline bool operator>(std::nullptr_t, const tracked_ptr<T>& r) noexcept {
-        return (nullptr <=> r) > 0;
-    }
-    template<class T>
-    inline bool operator>=(std::nullptr_t, const tracked_ptr<T>& r) noexcept {
-        return (nullptr <=> r) >= 0;
     }
 
     template<class T, class U>
@@ -401,12 +348,12 @@ namespace sgcl {
     }
 
     template<class T>
-    inline void* get_metadata() {
+    inline void* get_metadata() noexcept {
         return detail::TypeInfo<T>::user_metadata;
     }
 
     template<class T>
-    inline void set_metadata(void* m) {
+    inline void set_metadata(void* m) noexcept {
         detail::TypeInfo<T>::user_metadata = m;
     }
 }
