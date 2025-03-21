@@ -12,6 +12,8 @@ namespace sgcl {
     class atomic_ref;
     class collector;
     template<class>
+    class list;
+    template<class>
     class tracked_ptr;
     template<class T, unsigned N>
     class tracked_ptr<T[N]>;
