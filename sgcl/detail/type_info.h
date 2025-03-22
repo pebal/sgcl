@@ -10,10 +10,15 @@
 namespace sgcl::detail {
     template<class T>
     struct MayContainTracked {
+#ifdef SGCL_ARCH_X86_64
+        static constexpr size_t PointerSize = sizeof(RawPointer);
+#else
+        static constexpr size_t PointerSize = sizeof(RawPointer) * 2;
+#endif
         using Type = std::remove_extent_t<T>;
         static constexpr auto value = std::is_same_v<Type, Pointer>
                                       || (!std::is_trivially_default_constructible_v<Type>
-                                          && sizeof(Type) >= sizeof(RawPointer) * 2);
+                                          && sizeof(Type) >= PointerSize);
     };
 
     template<>

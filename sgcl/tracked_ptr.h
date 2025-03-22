@@ -15,8 +15,13 @@
 namespace sgcl {
     template<class T>
     class tracked_ptr : detail::Tracked {
+#ifdef SGCL_ARCH_X86_64
+        static constexpr uintptr_t StackFlag = uintptr_t(1) << 63;
+        static constexpr uintptr_t ExternalHeapFlag = uintptr_t(1) << 62;
+#else
         static constexpr uintptr_t StackFlag = 1;
         static constexpr uintptr_t ExternalHeapFlag = 2;
+#endif
         static constexpr uintptr_t ClearMask = ~(StackFlag | ExternalHeapFlag);
 
     public:
@@ -56,7 +61,9 @@ namespace sgcl {
             if (!_set_ref_if_not_external_heap()) {
                 if (p.allocated_on_external_heap()) {
                     _raw_ptr_ref = p._raw_ptr_ref;
+#ifndef SGCL_ARCH_X86_64
                     p._raw_ptr_ref = &p._raw_ptr;
+#endif
                     p._raw_value = 0;
                 } else {
                     auto ptr = make_tracked<detail::Pointer>();
@@ -75,7 +82,9 @@ namespace sgcl {
                 if (p.allocated_on_external_heap()) {
                     _raw_ptr_ref = p._raw_ptr_ref;
                     _ptr()->store_no_update(static_cast<element_type*>(p.get()));
+#ifndef SGCL_ARCH_X86_64
                     p._raw_ptr_ref = &p._raw_ptr;
+#endif
                     p._raw_value = 0;
                 } else {
                     auto ptr = make_tracked<detail::Pointer>();
@@ -216,6 +225,9 @@ namespace sgcl {
 
     protected:
         static constexpr auto _set_flag(auto p, uintptr_t f) noexcept {
+#ifdef SGCL_ARCH_X86_64
+            assert(!((uintptr_t)p & ~ClearMask) && "Cannot use SGCL_ARCH_X86_64");
+#endif
             auto v = (uintptr_t)p | f;
             return (decltype(p))v;
         }
@@ -236,6 +248,35 @@ namespace sgcl {
             return ((uintptr_t)this - state.first) < state.second;
         }
 
+#ifdef SGCL_ARCH_X86_64
+        detail::Pointer* _ptr() noexcept {
+#if defined(__GNUC__) || defined(__clang__)
+            if (__builtin_expect(allocated_on_heap(), 1)) {
+#else
+            if (allocated_on_heap()) {
+#endif
+                return &_raw_ptr;
+            }
+            return _remove_flags(_raw_ptr_ref);
+        }
+
+        const detail::Pointer* _ptr() const noexcept {
+#if defined(__GNUC__) || defined(__clang__)
+            if (__builtin_expect(allocated_on_heap(), 1)) {
+#else
+            if (allocated_on_heap()) {
+#endif
+                return &_raw_ptr;
+            }
+            return _remove_flags(_raw_ptr_ref);
+        }
+
+        union {
+            detail::Pointer* _raw_ptr_ref;
+            detail::Pointer _raw_ptr;
+            uintptr_t _raw_value;
+        };
+#else
         detail::Pointer* _ptr() noexcept {
             return _remove_flags(_raw_ptr_ref);
         }
@@ -249,6 +290,7 @@ namespace sgcl {
             detail::Pointer _raw_ptr;
             uintptr_t _raw_value;
         };
+#endif
 
     private:
         bool _set_ref_if_not_external_heap() noexcept {
@@ -258,8 +300,12 @@ namespace sgcl {
                 _raw_ptr_ref = _set_flag(ref, StackFlag);
             } else {
                 if (this_on_heap(thread.alloc_range)) {
+#ifndef SGCL_ARCH_X86_64
                     _raw_ptr_ref = &_raw_ptr;
-                    new (_raw_ptr_ref) detail::Pointer();
+#else
+                    assert(!((uintptr_t)&_raw_ptr & ~ClearMask) && "Cannot use SGCL_ARCH_X86_64");
+#endif
+                    new (&_raw_ptr) detail::Pointer();
                 } else {
                     return false;
                 }

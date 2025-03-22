@@ -8,6 +8,15 @@
 // logging level [0-3]
 #define SGCL_LOG_PRINT_LEVEL 0
 
+//------------------------------------------------------------------------------
+// Reduces memory usage on x86-64 platforms by using two highest bits of pointer
+// Warning!
+// Note: User heap must be allocated in the low half of virtual address space
+//------------------------------------------------------------------------------
+#if defined(__x86_64__) || defined(_M_X64)
+#define SGCL_ARCH_X86_64
+#endif
+
 #include <chrono>
 #include <cstddef>
 

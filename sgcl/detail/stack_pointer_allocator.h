@@ -12,26 +12,37 @@
 
 namespace sgcl::detail {
     struct StackPointerAllocator {
+#ifdef SGCL_ARCH_X86_64
+        static constexpr unsigned MaxStackSize = config::MaxStackSize;
         static constexpr unsigned PageSize = 4096;
-        static constexpr unsigned PageCount = config::MaxStackSize / PageSize;
+#else
+        static constexpr unsigned MaxStackSize = config::MaxStackSize / 2;
+        static constexpr unsigned PageSize = 2048;
+#endif
+        static constexpr unsigned PageCount = MaxStackSize / PageSize;
 
         StackPointerAllocator() noexcept {}
 
         Pointer* alloc(void* p) noexcept {
-            auto index = ((uintptr_t)p / PageSize) % PageCount;
+#ifdef SGCL_ARCH_X86_64
+            auto address = (uintptr_t)p;
+#else
+            auto address = ((uintptr_t)p / 2) & ~(uintptr_t)(sizeof(RawPointer) - 1);
+#endif
+            auto index = (address / PageSize) % PageCount;
             auto used = is_used[index].load(std::memory_order_relaxed);
             if (!used) {
                 std::memset((char*)data + index * PageSize, 0, PageSize);
                 is_used[index].store(true, std::memory_order_release);
             }
-            auto offset = ((uintptr_t)p % config::MaxStackSize);
+            auto offset = (address % MaxStackSize);
             assert(offset % sizeof(RawPointer) == 0);
             return (Pointer*)((char*)data + offset);
         }
 
         std::atomic<bool> is_used[PageCount] = {};
         union {
-            RawPointer data[config::MaxStackSize / sizeof(RawPointer)];
+            RawPointer data[MaxStackSize / sizeof(RawPointer)];
         };
     };
 }

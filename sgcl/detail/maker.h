@@ -185,7 +185,9 @@ namespace sgcl::detail {
         static void _init_tracked(Type* data, size_t i, size_t size) {
             for (; i < size; ++i) {
                 auto tracked = data + i;
+#ifndef SGCL_ARCH_X86_64
                 tracked->_raw_ptr_ref = &tracked->_raw_ptr;
+#endif
             }
         }
 

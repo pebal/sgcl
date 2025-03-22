@@ -215,3 +215,7 @@ This library is written in C++20 and a compliant compiler is necessary.
 No external library is necessary and there are no other requirements.
 ## Usage
 This is a header only library. You can just copy the `sgcl` subfolder somewhere in your include path.
+
+## Compillers
+SGCL has been tested using clang, gcc and msvc compilers. 
+Due to issues with the destruction of thread-local objects and the TLS handling on Windows, using the gcc compiler on this system is not recommended.
