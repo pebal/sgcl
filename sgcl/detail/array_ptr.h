@@ -42,14 +42,14 @@ namespace sgcl::detail {
         }
 
         element_type& at(size_t i) {
-            if (!*this || i >= size()) {
+            if (i >= size()) {
                 throw std::out_of_range("sgcl::detail::ArrayPtr");
             }
             return (*this)[i];
         }
 
         const element_type& at(size_t i) const {
-            if (!*this || i >= size()) {
+            if (i >= size()) {
                 throw std::out_of_range("sgcl::detail::ArrayPtr");
             }
             return (*this)[i];
@@ -57,6 +57,10 @@ namespace sgcl::detail {
 
         size_t size() const noexcept {
             return Pointer::size(this->get());
+        }
+
+        size_t capacity() const noexcept {
+            return Pointer::capacity(this->get());
         }
 
         iterator begin() noexcept {

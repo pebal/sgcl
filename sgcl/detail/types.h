@@ -6,6 +6,8 @@
 #pragma once
 
 #include <atomic>
+#include <thread>
+#include <vector>
 
 namespace sgcl::detail {
     using RawPointer = std::atomic<void*>;
@@ -68,7 +70,7 @@ namespace sgcl::detail {
     Collector& collector_instance();
     void terminate_collector() noexcept;
     Thread& current_thread() noexcept;
-    template<class T>
-    void* clone_object(const void*);
     void waking_up_collector() noexcept;
+    void force_short_sleep() noexcept;
+    std::vector<std::thread>& destroyer_threads() noexcept;
 }

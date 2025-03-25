@@ -21,9 +21,10 @@
 #include <cstddef>
 
 namespace sgcl::config {
-    [[maybe_unused]] static constexpr auto MaxSleepTime = std::chrono::seconds(30);
+    [[maybe_unused]] static constexpr auto   LongSleepTime = std::chrono::seconds(30);
+    [[maybe_unused]] static constexpr auto   ShortSleepTime = std::chrono::seconds(3);
                      static constexpr size_t PageSize = 0x10000;
-                     static constexpr size_t MaxStackSize = 0x400000;
+                     static constexpr size_t MaxStackSize = 0x800000;
     [[maybe_unused]] static constexpr size_t MaxOffsetForStackDetection = 0x1000;
     [[maybe_unused]] static constexpr size_t MaxTypesNumber = 4096;
 

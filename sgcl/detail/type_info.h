@@ -18,7 +18,8 @@ namespace sgcl::detail {
         using Type = std::remove_extent_t<T>;
         static constexpr auto value = std::is_same_v<Type, Pointer>
                                       || (!std::is_trivially_default_constructible_v<Type>
-                                          && sizeof(Type) >= PointerSize);
+                                          && sizeof(Type) >= PointerSize
+                                          && alignof(Type) >= alignof(RawPointer));
     };
 
     template<>

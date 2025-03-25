@@ -14,15 +14,16 @@
 
 namespace sgcl::detail {
     struct ChildPointers {
-        using Map = std::array<std::atomic<uint8_t>, config::PageSize / sizeof(RawPointer) / 8>;
+        using Map = std::vector<std::atomic<uint8_t>>;
         using Vector = std::vector<ptrdiff_t>;
 
-        constexpr ChildPointers(bool f) noexcept
-        : final(f) {
+        constexpr ChildPointers(bool f, size_t object_size) noexcept
+        : final(f)
+        , map(f ? 0 : (object_size + sizeof(RawPointer) * 8 - 1) / (sizeof(RawPointer) * 8)) {
         };
 
-        Vector* offsets = {nullptr};
-        Map map = {};
+        std::unique_ptr<Vector> offsets;
         std::atomic<bool> final;
+        Map map;
     };
 }

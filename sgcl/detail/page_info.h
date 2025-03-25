@@ -43,7 +43,7 @@ namespace sgcl::detail {
             return *metadata;
         }
 
-        inline static ChildPointers child_pointers {std::is_base_of_v<ArrayBase, Type> || !MayContainTracked<Type>::value};
+        inline static ChildPointers child_pointers {!MayContainTracked<Type>::value, ObjectSize};
 
     private:
         static void _destroy(void* p) noexcept {

@@ -13,3 +13,4 @@
 #include "make_tracked.h"
 #include "tracked_ptr.h"
 #include "unique_ptr.h"
+#include "vector.h"

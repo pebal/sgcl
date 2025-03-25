@@ -463,11 +463,11 @@ TEST(List_Test, Resize) {
     EXPECT_EQ(collector::get_live_object_count(), 6u);
     std::vector<int> result(lst.begin(), lst.end());
     std::vector<int> expected = {1, 2, 3, 0, 0};
-    EXPECT_EQ(lst.size(), 5);
+    EXPECT_EQ(lst.size(), 5u);
     EXPECT_EQ(result, expected);
     lst.resize(2);
     EXPECT_EQ(collector::get_live_object_count(), 3u);
-    EXPECT_EQ(lst.size(), 2);
+    EXPECT_EQ(lst.size(), 2u);
     result = std::vector<int>(lst.begin(), lst.end());
     expected = std::vector<int>({1, 2});
     EXPECT_EQ(result, expected);

@@ -9,16 +9,12 @@
 #include "child_pointers.h"
 
 namespace sgcl::detail {
-    template<class T>
-    void* clone_object(const void*);
-
     struct Metadata {
         template<class T>
         Metadata(T*) noexcept
         : child_pointers(TypeInfo<T>::child_pointers)
         , destroy(TypeInfo<T>::get_destroy_function())
         , free(TypeInfo<T>::Allocator::free)
-        , clone(clone_object<T>)
         , object_size(TypeInfo<T>::ObjectSize)
         , object_count(TypeInfo<T>::ObjectCount)
         , is_array(TypeInfo<T>::IsArray)
@@ -29,7 +25,6 @@ namespace sgcl::detail {
         ChildPointers& child_pointers;
         void (*const destroy)(void*) noexcept;
         void (*const free)(Page*) noexcept;
-        void* (*const clone)(const void*);
         const size_t object_size;
         const unsigned object_count;
         const bool is_array;

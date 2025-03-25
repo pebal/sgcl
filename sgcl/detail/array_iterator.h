@@ -8,7 +8,7 @@
 #include <iterator>
 
 namespace sgcl::detail {
-    template<typename T>
+    template<class T>
     class ArrayIterator {
     public:
         using iterator_category = std::random_access_iterator_tag;
@@ -20,16 +20,17 @@ namespace sgcl::detail {
         using const_reference = const T&;
         using reverse_iterator = std::reverse_iterator<ArrayIterator>;
 
+        ArrayIterator() noexcept
+        : _object_size(0) {
+        }
+
         ArrayIterator(pointer ptr, size_t object_size) noexcept
         : _ptr(ptr)
         , _object_size(object_size) {
         }
 
-        ArrayIterator(const ArrayIterator&) = default;
-        ArrayIterator& operator=(const ArrayIterator&) = default;
-
         reference operator[](difference_type n) const noexcept {
-            return *_at(n);
+            return *_get(n);
         }
 
         reference operator*() const noexcept {
@@ -41,7 +42,7 @@ namespace sgcl::detail {
         }
 
         ArrayIterator& operator++() noexcept {
-            _ptr = _at<1>();
+            _ptr = _get<1>();
             return *this;
         }
 
@@ -52,7 +53,7 @@ namespace sgcl::detail {
         }
 
         ArrayIterator& operator--() noexcept {
-            _ptr = _at<-1>();
+            _ptr = _get<-1>();
             return *this;
         }
 
@@ -63,66 +64,64 @@ namespace sgcl::detail {
         }
 
         ArrayIterator operator+(difference_type n) const noexcept {
-            return ArrayIterator(_at(n), _object_size);
+            return ArrayIterator(_get(n), _object_size);
         }
 
         ArrayIterator operator-(difference_type n) const noexcept {
-            return ArrayIterator(_at(-n), _object_size);
+            return ArrayIterator(_get(-n), _object_size);
         }
 
         ArrayIterator& operator+=(difference_type n) noexcept {
-            _ptr = _at(n);
+            _ptr = _get(n);
             return *this;
         }
 
         ArrayIterator& operator-=(difference_type n) noexcept {
-            _ptr = _at(-n);
+            _ptr = _get(-n);
             return *this;
         }
 
         difference_type operator-(const ArrayIterator& other) const noexcept {
-            return (_ptr - other._ptr) / _object_size;
+            return ((char*)_ptr - (char*)other._ptr) / _object_size;
         }
 
-        bool operator==(const ArrayIterator& i) const noexcept {
-            return _ptr == i._ptr;
+        bool operator==(const ArrayIterator<std::remove_cv_t<T>>& other) const noexcept {
+            return (_ptr <=> other._ptr) == 0;
         }
 
-        bool operator!=(const ArrayIterator& i) const noexcept {
-            return !(*this == i);
+        std::strong_ordering operator<=>(const ArrayIterator<std::remove_cv_t<T>>& other) const noexcept {
+            return (_ptr <=> other._ptr);
         }
 
-        bool operator<(const ArrayIterator& i) const noexcept {
-            return _ptr < i._ptr;
+        bool operator==(const ArrayIterator<const std::remove_cv_t<T>>& other) const noexcept {
+            return (_ptr <=> other._ptr) == 0;
         }
 
-        bool operator>(const ArrayIterator& i) const noexcept {
-            return i < *this;
-        }
-
-        bool operator<=(const ArrayIterator& i) const noexcept {
-            return !(i < *this);
-        }
-
-        bool operator>=(const ArrayIterator& i) const noexcept {
-            return !(*this < i);
+        std::strong_ordering operator<=>(const ArrayIterator<const std::remove_cv_t<T>>& other) const noexcept {
+            return (_ptr <=> other._ptr);
         }
 
         reverse_iterator make_reverse_iterator() const noexcept {
             return reverse_iterator(*this);
         }
 
+        operator ArrayIterator<const value_type>&() const noexcept {
+            return *(ArrayIterator<const value_type>*)(this);
+        }
+
     private:
-        pointer _at(difference_type offset) const {
+        pointer _ptr;
+        size_t _object_size;
+
+        pointer _get(difference_type offset) const {
             return (pointer)((char*)_ptr + _object_size * offset);
         }
 
         template<difference_type Offset>
-        pointer _at() const {
+        pointer _get() const {
             return (pointer)((char*)_ptr + _object_size * Offset);
         }
 
-        pointer _ptr;
-        const size_t _object_size;
+        template<class> friend class ArrayIterator;
     };
 }

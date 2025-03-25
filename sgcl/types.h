@@ -21,4 +21,6 @@ namespace sgcl {
     class unique_ptr;
     template<class T, unsigned N>
     class unique_ptr<T[N]>;
+    template<class>
+    class vector;
 }

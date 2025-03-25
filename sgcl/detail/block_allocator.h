@@ -10,6 +10,8 @@
 #include "merge_sort.h"
 #include "pointer_pool.h"
 #include <functional>
+#include <iostream>
+#include <thread>
 
 namespace sgcl::detail {
     class BlockAllocator {
@@ -53,10 +55,10 @@ namespace sgcl::detail {
         }
 
         static void free(DataPage* pages, bool destructor = false) noexcept {
-            size_t count = 0;
+            size_t free_count = 0;
             auto page = pages;
             while(page) {
-                ++count;
+                ++free_count;
                 page = page->next;
             }
             Block* blocks = _remove_empty(pages);
@@ -70,8 +72,13 @@ namespace sgcl::detail {
                 last->next = _empty_pages.load(std::memory_order_relaxed);
                 while(!_empty_pages.compare_exchange_weak(last->next, pages, std::memory_order_release, std::memory_order_relaxed));
             }
-            if (count && !destructor) {
-                MemoryCounters::update_free(count, config::PageSize * count);
+            if (free_count && !destructor) {
+                auto size = config::PageSize * free_count;
+                MemoryCounters::update_free(free_count, size);
+                auto alloc_count = MemoryCounters::last_alloc_count();
+                if (free_count * 4 > alloc_count + 64) {
+                    force_short_sleep();
+                }
             }
         }
 
@@ -111,15 +118,25 @@ namespace sgcl::detail {
             return blocks;
         }
 
-        static void _release_empty(Block* blocks) noexcept {
-            while(blocks) {
-                auto next = blocks->next;
-                if (blocks->page_count == Block::PageCount) {
-                    delete blocks;
+        static void _release_empty(Block* block) noexcept {
+            std::vector<Block*> blocks_to_delete;
+            while(block) {
+                auto next = block->next;
+                if (block->page_count == Block::PageCount) {
+                    blocks_to_delete.push_back(block);
                 } else {
-                    blocks->page_count = 0;
+                    block->page_count = 0;
                 }
-                blocks = next;
+                block = next;
+            }
+            if (blocks_to_delete.size()) {
+                destroyer_threads().emplace_back(
+                    std::thread([blocks = std::move(blocks_to_delete)] {
+                        for (auto block: blocks) {
+                            delete block;
+                        }
+                    })
+                );
             }
         }
     };

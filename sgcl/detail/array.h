@@ -11,14 +11,14 @@
 namespace sgcl::detail {
     template<size_t Size = 1>
     struct Array : ArrayBase {
-        constexpr Array(size_t c) noexcept
-        : ArrayBase(c) {
+        constexpr Array(size_t size, size_t capacity) noexcept
+        : ArrayBase(size, capacity) {
         }
 
         ~Array() noexcept {
             auto metadata = this->metadata.load(std::memory_order_acquire);
             if (metadata && metadata->destroy) {
-                metadata->destroy(data, count);
+                metadata->destroy(data, size);
             }
         }
 

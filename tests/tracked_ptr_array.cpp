@@ -106,14 +106,6 @@ TEST_F(Pointer_ArrayTests, swap) {
     EXPECT_EQ(ptr2[1], 2);
 }
 
-TEST_F(Pointer_ArrayTests, clone) {
-    tracked_ptr<int[]> ptr1 = make_tracked<int>(4);
-    auto ptr2 = ptr1.clone();
-    ASSERT_NE(ptr1, nullptr);
-    ASSERT_NE(ptr2, nullptr);
-    EXPECT_EQ(ptr1[0], ptr2[0]);
-}
-
 TEST_F(Pointer_ArrayTests, is) {
     tracked_ptr<Bar[]> bar = make_tracked<Foo[]>(6);
     EXPECT_TRUE(bar.is<Foo[]>());

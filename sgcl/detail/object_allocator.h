@@ -10,6 +10,7 @@
 #include "type_info.h"
 
 #include <functional>
+#include <thread>
 
 namespace sgcl::detail {
     template<class T>
@@ -45,18 +46,29 @@ namespace sgcl::detail {
 
         static void free(Page* pages) noexcept {
             Page* page = pages;
-            size_t count = 0;
             size_t size = 0;
+            std::vector<void*> mems_to_delete;
             while(page) {
                 auto data = (void*)(page->data - sizeof(uintptr_t));
-                ::operator delete(data, std::align_val_t(config::PageSize));
-                ++count;
+                mems_to_delete.push_back(data);
                 size += page->alloc_size;
                 page->is_used = false;
                 page = page->next_empty;
             }
-            if (count) {
-                MemoryCounters::update_free(count, size);
+            if (mems_to_delete.size()) {
+                MemoryCounters::update_free(mems_to_delete.size(), size);
+                auto alloc_counter = MemoryCounters::last_alloc_counter();
+                auto free_counter = Counter(mems_to_delete.size(), size);
+                if (free_counter * 4 > alloc_counter + Counter(64, config::PageSize * 4 * 64)) {
+                    force_short_sleep();
+                }
+                destroyer_threads().emplace_back(
+                    std::thread([mems = std::move(mems_to_delete)] {
+                        for (auto mem: mems) {
+                            ::operator delete(mem, std::align_val_t(config::PageSize));
+                        }
+                    })
+                );
             }
         }
     };

@@ -13,7 +13,7 @@ namespace sgcl::detail {
     public:
         Pointer() noexcept {
 #if !defined(NDEBUG)
-            if (_val == std::numeric_limits<size_t>::max()) {
+            if (_val == size_t(1)) {
 #else
             if (_val) {
 #endif
@@ -22,6 +22,7 @@ namespace sgcl::detail {
                 auto& pointers = thread.child_pointers;
                 assert(pointers.map && "Objects that are not roots cannot be allocated on the stack or unmanaged heap");
                 auto offset = ((uintptr_t)&_ptr - pointers.base) / sizeof(Pointer);
+                assert(offset / 8 < pointers.map->size());
                 (*pointers.map)[offset / 8].fetch_or(1 << (offset % 8), std::memory_order_relaxed);
                 store(nullptr);
             }
@@ -209,29 +210,6 @@ namespace sgcl::detail {
             return type_info<T>(p);
         }
 
-        inline static void* clone(const void* p) {
-            if (p) {
-                auto metadata = Page::metadata_of(p);
-                if (metadata.is_array) {
-                    auto array = (ArrayBase*)Page::base_address_of(p);
-                    auto metadata = array->metadata.load(std::memory_order_relaxed);
-                    return metadata->clone(p);
-                } else {
-                    auto base = Page::base_address_of(p);
-                    auto offset = (char*)p - (char*)base;
-                    auto c = metadata.clone(base);
-                    return (char*)c + offset;
-                }
-            } else {
-                return nullptr;
-            }
-        }
-
-        void* clone() const {
-            auto p = load();
-            return clone(p);
-        }
-
         inline static bool is_array(const void* p) noexcept {
             return p ? Page::metadata_of(p).is_array : false;
         }
@@ -265,7 +243,7 @@ namespace sgcl::detail {
                 auto metadata = detail::Page::metadata_of(p);
                 if (metadata.is_array) {
                     auto array = (detail::ArrayBase*)Page::base_address_of(p);
-                    return array->count;
+                    return array->size;
                 } else {
                     return 1;
                 }
@@ -273,9 +251,43 @@ namespace sgcl::detail {
             return 0;
         }
 
-        size_t size() const noexcept {
-            auto p = load();
-            return size(p);
+        inline static size_t* size_ptr(const void* p) noexcept {
+            if (p) {
+                auto metadata = detail::Page::metadata_of(p);
+                if (metadata.is_array) {
+                    auto array = (detail::ArrayBase*)Page::base_address_of(p);
+                    return &array->size;
+                } else {
+                    return nullptr;
+                }
+            }
+            return nullptr;
+        }
+
+        inline static size_t capacity(const void* p) noexcept {
+            if (p) {
+                auto metadata = detail::Page::metadata_of(p);
+                if (metadata.is_array) {
+                    auto array = (detail::ArrayBase*)Page::base_address_of(p);
+                    return array->capacity;
+                } else {
+                    return 1;
+                }
+            }
+            return 0;
+        }
+
+        inline static const size_t* capacity_ptr(const void* p) noexcept {
+            if (p) {
+                auto metadata = detail::Page::metadata_of(p);
+                if (metadata.is_array) {
+                    auto array = (detail::ArrayBase*)Page::base_address_of(p);
+                    return &array->capacity;
+                } else {
+                    return nullptr;
+                }
+            }
+            return nullptr;
         }
 
     private:
@@ -290,33 +302,4 @@ namespace sgcl::detail {
             RawPointer _ptr;
         };
     };
-
-    template<class T>
-    void* clone_object(const void* p) {
-        using ElementType = std::remove_extent_t<T>;
-        if constexpr (std::is_copy_constructible_v<ElementType>) {
-            if (p) {
-                if constexpr(std::is_array_v<T>) {
-                    if constexpr(std::is_copy_assignable_v<ElementType>) {
-                        auto array = (ArrayBase*)Page::base_address_of(p);
-                        auto dst = Maker<T>::make_tracked(array);
-                        return dst.release();
-                    } else {
-                        assert(!"[sgcl] clone(): no copy assignable");
-                        return nullptr;
-                    }
-                } else {
-                    auto c = Maker<T>::make_tracked(*((const T*)p));
-                    return c.release();
-                }
-            }
-            else {
-                return nullptr;
-            }
-        } else {
-            std::ignore = p;
-            assert(!"[sgcl] clone(): no copy constructor");
-            return nullptr;
-        }
-    }
 }

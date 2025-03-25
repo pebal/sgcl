@@ -8,10 +8,11 @@
 #include "make_tracked.h"
 #include "tracked_ptr.h"
 
+#include <list>
+
 namespace sgcl {
     template<class T>
     class list {
-    private:
         struct Node;
         using NodePtr = tracked_ptr<Node>;
         using TailPtr = tracked_ptr<tracked_ptr<Node>>;
@@ -96,19 +97,19 @@ namespace sgcl {
             }
 
             bool operator==(const Iterator<std::remove_cv_t<T>>& other) const noexcept {
-                return _node == other._node;
+                return (_node <=> other._node) == 0;
+            }
+
+            std::strong_ordering operator<=>(const Iterator<std::remove_cv_t<T>>& other) const noexcept {
+                return (_node <=> other._node);
             }
 
             bool operator==(const Iterator<const std::remove_cv_t<T>>& other) const noexcept {
-                return _node == other._node;
+                return (_node <=> other._node) == 0;
             }
 
-            bool operator!=(const Iterator<std::remove_cv_t<T>>& other) const noexcept {
-                return _node != other._node;
-            }
-
-            bool operator!=(const Iterator<const std::remove_cv_t<T>>& other) const noexcept {
-                return _node != other._node;
+            std::strong_ordering operator<=>(const Iterator<const std::remove_cv_t<T>>& other) const noexcept {
+                return (_node <=> other._node);
             }
 
             reverse_iterator make_reverse_iterator() const noexcept {
@@ -155,7 +156,7 @@ namespace sgcl {
             assign(ilist);
         }
 
-        template<class InputIt> requires (!std::is_integral_v<InputIt>)
+        template<std::input_iterator InputIt>
         list(InputIt first, InputIt last)
         : list() {
             assign(first, last);
@@ -177,7 +178,9 @@ namespace sgcl {
         }
 
         list& operator=(const list& other) {
-            assign(other.begin(), other.end());
+            if (this != &other) {
+                assign(other.begin(), other.end());
+            }
             return *this;
         }
 
@@ -221,7 +224,7 @@ namespace sgcl {
             }
         }
 
-        template<class InputIt> requires (!std::is_integral_v<InputIt>)
+        template<std::input_iterator InputIt>
         void assign(InputIt first, InputIt last) {
             if (first != last) {
                 size_t size = 0;
@@ -315,7 +318,7 @@ namespace sgcl {
         }
 
         bool empty() const noexcept {
-            return _size == 0;
+            return size() == 0;
         }
 
         size_t size() const noexcept {
@@ -446,7 +449,7 @@ namespace sgcl {
             }
         }
 
-        template<class InputIt> requires (!std::is_integral_v<InputIt>)
+        template<std::input_iterator InputIt>
         iterator insert(const const_iterator& pos, InputIt first, InputIt last) {
             if (first == last) {
                 return iterator(pos._node, pos._tail);
@@ -552,8 +555,8 @@ namespace sgcl {
         }
 
         void swap(list& other) noexcept {
-            std::swap(_head, other._head);
-            std::swap(*_tail, *other._tail);
+            _head.swap(other._head);
+            _tail->swap(*other._tail);
             std::swap(_size, other._size);
         }
 
@@ -704,6 +707,10 @@ namespace sgcl {
         }
 
     private:
+        NodePtr _head;
+        TailPtr _tail;
+        size_t _size;
+
         void _push_back(const NodePtr& node) {
             node->prev = *_tail;
             if (*_tail) {
@@ -860,10 +867,6 @@ namespace sgcl {
                 pos->prev = last;
             }
         }
-
-        NodePtr _head;
-        TailPtr _tail;
-        size_t _size;
     };
 
     template <class T>
@@ -900,4 +903,10 @@ namespace sgcl {
         }
         return std::strong_ordering::equal;
     }
+
+    template<typename T>
+    class list<unique_ptr<T>> : public std::list<unique_ptr<T>> {
+    public:
+        using std::list<unique_ptr<T>>::list;
+    };
 }

@@ -94,17 +94,12 @@ int main() {
     // or
     c = static_pointer_cast<char>(any);
 
-    // Cloning
-    auto message = sgcl::make_tracked<std::string>("message");
-    auto clone = message.clone();
-    std::cout << "clone: " << *clone << std::endl;
-
-    // Using a list with cycle detection
+    // Using a list and vector with cycle detection
     struct Node {
         int value;
         sgcl::list<sgcl::tracked_ptr<Node>> childs;
     };
-    sgcl::list<sgcl::tracked_ptr<Node>> nodes;
+    sgcl::vector<sgcl::tracked_ptr<Node>> nodes;
 
     // Metadata usage
     sgcl::set_metadata<int>(new std::string("int metadata"));

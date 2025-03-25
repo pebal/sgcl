@@ -90,3 +90,46 @@ struct Foo : Far, Bar, Faz {
         Faz::set_value(val + 2);
     }
 };
+
+struct Int {
+    Int() noexcept
+    : _value(0) {
+        ++counter;
+    }
+
+    Int(int value) noexcept
+    : _value(value) {
+        ++counter;
+    }
+
+    Int(const Int& other) noexcept
+    : _value(other._value) {
+        ++counter;
+    }
+
+    ~Int() {
+        --counter;
+    }
+
+    Int operator=(Int other) noexcept {
+        _value = other._value;
+        return *this;
+    }
+
+    operator int() const noexcept {
+        return _value;
+    }
+
+    bool operator==(int value) const noexcept {
+        return (_value <=> value) == 0;
+    }
+
+    std::strong_ordering operator<=>(int value) const noexcept {
+        return (_value <=> value);
+    }
+
+    inline static size_t counter = 0;
+
+private:
+    int _value;
+};

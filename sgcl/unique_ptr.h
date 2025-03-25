@@ -42,11 +42,6 @@ namespace sgcl {
             return detail::Pointer::data_base_address_of(this->get());
         }
 
-        unique_ptr clone() const {
-            auto p = this->get();
-            return (element_type*)detail::Pointer::clone(p);
-        }
-
         template<class U>
         bool is() const noexcept {
             return type() == typeid(U);
@@ -98,10 +93,6 @@ namespace sgcl {
     public:
         using Base::Base;
         using Base::operator=;
-
-        unique_ptr<T[]> clone() const {
-            return unique_ptr<T[]>(unique_ptr<T>::clone());
-        }
     };
 
     template<class T, class U>

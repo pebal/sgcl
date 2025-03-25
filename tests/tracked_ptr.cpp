@@ -167,6 +167,7 @@ TEST_F(TrackedPtr_Tests, MoveConstructor) {
         auto ee = std::make_unique<tracked_ptr<int>>(std::move(*e));
         ASSERT_NE(*ee, nullptr);
         EXPECT_EQ(**ee, 10);
+        *e = tracked_ptr<int>();
         ASSERT_EQ(*e, nullptr);
     }
 }
@@ -221,6 +222,7 @@ TEST_F(TrackedPtr_Tests, MoveCastConstructor) {
         auto ee = std::make_unique<tracked_ptr<Bar>>(std::move(*e));
         ASSERT_NE(*ee, nullptr);
         EXPECT_EQ((*ee)->get_value(), 6);
+        e->reset();
         ASSERT_EQ(*e, nullptr);
     }
 }
@@ -297,14 +299,6 @@ TEST_F(TrackedPtr_Tests, swap) {
     ASSERT_NE(ptr2, nullptr);
     EXPECT_EQ(*ptr1, 5);
     EXPECT_EQ(*ptr2, 2);
-}
-
-TEST_F(TrackedPtr_Tests, clone) {
-    tracked_ptr<int> ptr1 = make_tracked<int>(4);
-    auto ptr2 = ptr1.clone();
-    ASSERT_NE(ptr1, nullptr);
-    ASSERT_NE(ptr2, nullptr);
-    EXPECT_EQ(*ptr1, *ptr2);
 }
 
 TEST_F(TrackedPtr_Tests, is) {

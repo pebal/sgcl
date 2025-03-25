@@ -85,6 +85,10 @@ namespace sgcl::detail {
             };
         }
 
+        void force_short_sleep() {
+            _short_sleep = true;
+        }
+
         void static terminate() noexcept {
             if (created()) {
                 collector_instance()._terminate();
@@ -99,6 +103,10 @@ namespace sgcl::detail {
             return _created.load(std::memory_order_acquire);
         }
 
+        inline std::vector<std::thread>& destroyer_threads() noexcept {
+            return _destroyer_threads;
+        }
+
         inline static void delete_unique(const void* p) noexcept {
             assert(p != nullptr);
             auto page = Page::page_of(p);
@@ -110,18 +118,15 @@ namespace sgcl::detail {
     private:
         inline static void _update_child_offsets(ChildPointers& childs) {
             if (!childs.offsets && childs.final.load(std::memory_order_acquire)) {
-                childs.offsets = new ChildPointers::Vector;
+                childs.offsets.reset(new ChildPointers::Vector);
                 for (unsigned index = 0; index < childs.map.size(); ++index) {
                     auto flags = childs.map[index].load(std::memory_order_relaxed);
-                    if (flags) {
-                        for (unsigned i = 0; i < 8; ++ i) {
-                            auto mask = uint8_t(1) << i;
-                            if (flags & mask) {
-                                auto offset = (index * 8 + i) * sizeof(RawPointer);
-                                childs.offsets->emplace_back(offset);
-                            }
-                        }
-                    }
+                    while(flags) {
+                        auto i = std::countr_zero(flags);
+                        auto offset = index * 8 + i;
+                        childs.offsets->emplace_back(offset);
+                        flags &= flags - 1;
+                    };
                 }
             }
         }
@@ -297,19 +302,17 @@ namespace sgcl::detail {
         }
 
         void _mark(const void* ptr) noexcept {
-            if (ptr) {
-                auto page = Page::page_of(ptr);
-                auto index = page->index_of(ptr);
-                auto flag_index = Page::flag_index_of(index);
-                auto mask = Page::flag_mask_of(index);
-                auto& flag = page->flags()[flag_index];
-                if ((flag.registered & ~flag.marked & ~flag.reachable & mask)) {
-                    flag.reachable |= mask;
-                    if (!page->reachable) {
-                        page->reachable = true;
-                        page->next_reachable = _reachable_pages;
-                        _reachable_pages = page;
-                    }
+            auto page = Page::page_of(ptr);
+            auto index = page->index_of(ptr);
+            auto flag_index = Page::flag_index_of(index);
+            auto mask = Page::flag_mask_of(index);
+            auto& flag = page->flags()[flag_index];
+            if ((flag.registered & ~flag.marked & ~flag.reachable & mask)) {
+                flag.reachable |= mask;
+                if (!page->reachable) {
+                    page->reachable = true;
+                    page->next_reachable = _reachable_pages;
+                    _reachable_pages = page;
                 }
             }
         }
@@ -325,7 +328,10 @@ namespace sgcl::detail {
                             auto first = i * (StackPointerAllocator::PageSize / sizeof(RawPointer));
                             auto last = first + (StackPointerAllocator::PageSize / sizeof(RawPointer));
                             for (size_t index = first; index < last; ++index) {
-                                _mark(allocator.data[index].load(std::memory_order_relaxed));
+                                auto p = allocator.data[index].load(std::memory_order_relaxed);
+                                if (p) {
+                                    _mark(p);
+                                }
                             }
                         }
                     }
@@ -336,9 +342,9 @@ namespace sgcl::detail {
 
         void _mark_childs(void* ptr, const ChildPointers::Vector& offsets) noexcept {
             for (auto offset : offsets) {
-                auto ap = (RawPointer*)((uintptr_t)ptr + offset);
-                auto p = ap->load(std::memory_order_acquire);
-                if ((size_t)p != std::numeric_limits<size_t>::max()) {
+                auto ap = (RawPointer*)ptr + offset;
+                auto p = ap->load(std::memory_order_relaxed);
+                if ((size_t)p > 1) {
                     _mark(p);
                 }
             }
@@ -347,27 +353,16 @@ namespace sgcl::detail {
         void _mark_childs(void* ptr, const ChildPointers::Map& map) noexcept {
             for (unsigned index = 0; index < map.size(); ++index) {
                 auto flags = map[index].load(std::memory_order_relaxed);
-                if (flags) {
-                    for (unsigned i = 0; i < 8; ++ i) {
-                        unsigned mask = 1 << i;
-                        if (flags & mask) {
-                            auto offset = (index * 8 + i) * sizeof(RawPointer);
-                            auto ap = (RawPointer*)((uintptr_t)ptr + offset);
-                            auto p = ap->load(std::memory_order_relaxed);
-                            if ((size_t)p != std::numeric_limits<size_t>::max()) {
-                                _mark(p);
-                            }
-                        }
+                while(flags) {
+                    auto i = std::countr_zero(flags);
+                    auto offset = index * 8 + i;
+                    auto ap = (RawPointer*)ptr + offset;
+                    auto p = ap->load(std::memory_order_relaxed);
+                    if ((size_t)p > 1) {
+                        _mark(p);
                     }
-                }
-            }
-        }
-
-        void _mark_childs(ChildPointers& pointers, void* ptr) noexcept {
-            if (pointers.offsets) {
-                _mark_childs(ptr, *pointers.offsets);
-            } else {
-                _mark_childs(ptr, pointers.map);
+                    flags &= flags - 1;
+                };
             }
         }
 
@@ -382,15 +377,23 @@ namespace sgcl::detail {
                 auto object_size = metadata->object_size;
                 if (pointers.offsets) {
                     if (pointers.offsets->size()) {
-                        for (size_t c = 0; c < array->count; ++c, data += object_size) {
+                        for (size_t i = 0; i < array->capacity; ++i, data += object_size) {
                             _mark_childs((void*)data, *pointers.offsets);
                         }
                     }
                 } else {
-                    for (size_t c = 0; c < array->count; ++c, data += object_size) {
+                    for (size_t i = 0; i < array->capacity; ++i, data += object_size) {
                         _mark_childs((void*)data, pointers.map);
                     }
                 }
+            }
+        }
+
+        void _mark_childs(ChildPointers& pointers, void* ptr) noexcept {
+            if (pointers.offsets) {
+                _mark_childs(ptr, *pointers.offsets);
+            } else {
+                _mark_childs(ptr, pointers.map);
             }
         }
 
@@ -398,7 +401,9 @@ namespace sgcl::detail {
             auto page = _reachable_pages;
             _reachable_pages = nullptr;
             while(page) {
-                _update_child_offsets(page->metadata->child_pointers);
+                auto metadata = page->metadata;
+                _update_child_offsets(metadata->child_pointers);
+                const bool is_array = metadata->is_array;
                 auto flags = page->flags();
                 auto count = page->flags_count();
                 bool marked;
@@ -415,10 +420,10 @@ namespace sgcl::detail {
                                 flag.marked |= mask;
                                 auto index = offset + countr_zero;
                                 auto ptr = page->pointer_of(index);
-                                if (page->metadata->is_array) {
+                                if (is_array) {
                                     _mark_array_childs(ptr);
                                 } else {
-                                    _mark_childs(page->metadata->child_pointers, ptr);
+                                    _mark_childs(metadata->child_pointers, ptr);
                                 }
                                 ++_live_object_count;
                                 if (_share_live_objects) {
@@ -504,7 +509,7 @@ namespace sgcl::detail {
 
         inline static void _clear_childs(void* ptr, const ChildPointers::Vector& offsets) noexcept {
             for (auto offset : offsets) {
-                auto p = (RawPointer*)((uintptr_t)ptr + offset);
+                auto p = (RawPointer*)ptr + offset;
                 p->store(nullptr, std::memory_order_relaxed);
             }
         }
@@ -512,16 +517,13 @@ namespace sgcl::detail {
         inline static void _clear_childs(void* ptr, const ChildPointers::Map& map) noexcept {
             for (unsigned index = 0; index < map.size(); ++index) {
                 auto flags = map[index].load(std::memory_order_relaxed);
-                if (flags) {
-                    for (unsigned i = 0; i < 8; ++ i) {
-                        unsigned mask = 1 << i;
-                        if (flags & mask) {
-                            auto offset = (index * 8 + i) * sizeof(RawPointer);
-                            auto p = (RawPointer*)((uintptr_t)ptr + offset);
-                            p->store(nullptr, std::memory_order_relaxed);
-                        }
-                    }
-                }
+                while(flags) {
+                    auto i = std::countr_zero(flags);
+                    auto offset = index * 8 + i;
+                    auto p = (RawPointer*)ptr + offset;
+                    p->store(nullptr, std::memory_order_relaxed);
+                    flags &= flags - 1;
+                };
             }
         }
 
@@ -544,12 +546,12 @@ namespace sgcl::detail {
                 auto object_size = metadata->object_size;
                 if (pointers.offsets) {
                     if (pointers.offsets->size()) {
-                        for (size_t c = 0; c < array->count; ++c, data += object_size) {
+                        for (size_t i = 0; i < array->size; ++i, data += object_size) {
                             _clear_childs((void*)data, *pointers.offsets);
                         }
                     }
                 } else {
-                    for (size_t c = 0; c < array->count; ++c, data += object_size) {
+                    for (size_t i = 0; i < array->size; ++i, data += object_size) {
                         _clear_childs((void*)data, pointers.map);
                     }
                 }
@@ -643,6 +645,12 @@ namespace sgcl::detail {
                 }
                 page = page->next_registered;
             }
+
+            for (auto& thread: destroyer_threads()) {
+                thread.join();
+            }
+            destroyer_threads().clear();
+
             bool possible_empty_blocks = metadata != nullptr;
             while(metadata) {
                 metadata->free(metadata->empty_page);
@@ -653,6 +661,7 @@ namespace sgcl::detail {
             if (possible_empty_blocks) {
                 BlockAllocator::release_empty();
             }
+            std::vector<Page*> pages_to_delete;
             Page* prev = nullptr;
             page = _registered_pages;
             while(page) {
@@ -665,12 +674,21 @@ namespace sgcl::detail {
                     }
                     // To avoid ABA
                     if (!page->is_last_registered) {
-                        delete page;
+                        pages_to_delete.push_back(page);
                     }
                 } else {
                     prev = page;
                 }
                 page = next;
+            }
+            if (pages_to_delete.size()) {
+                destroyer_threads().emplace_back(
+                    std::thread([pages = std::move(pages_to_delete)] {
+                        for (auto page: pages) {
+                            delete page;
+                        }
+                    })
+                );
             }
         }
 
@@ -760,7 +778,9 @@ namespace sgcl::detail {
                 if (!_terminating && can_sleep) {
                     sleep_flag.store(true, std::memory_order_relaxed);
                     std::unique_lock<std::mutex> lock(_mutex);
-                    sleep_cv.wait_for(lock, config::MaxSleepTime, [this]{
+                    auto sleep_time = _short_sleep ? config::ShortSleepTime : config::LongSleepTime;
+                    _short_sleep = false;
+                    sleep_cv.wait_for(lock, sleep_time, [this]{
                         return !sleep_flag.load(std::memory_order_acquire)
                             || _forced_collect_count.load(std::memory_order_relaxed)
                             || _terminating.load(std::memory_order_relaxed);
@@ -776,6 +796,9 @@ namespace sgcl::detail {
                     }
                 }
             } while(finalization_counter);
+            for (auto& thread: destroyer_threads()) {
+                thread.join();
+            }
 #if SGCL_LOG_PRINT_LEVEL > 0
             std::cout << "[sgcl] stop collector id: " << std::this_thread::get_id() << std::endl;
 #endif
@@ -826,6 +849,8 @@ namespace sgcl::detail {
         std::condition_variable _cv_data_processed;
         bool _dataReady = false;
         bool _dataProcessed = false;
+        bool _short_sleep = false;
+        std::vector<std::thread> _destroyer_threads;
 
         friend inline void delete_unique(const void*) noexcept;
     };
@@ -845,5 +870,13 @@ namespace sgcl::detail {
 
     inline void waking_up_collector() noexcept {
         collector_instance().waking_up();
+    }
+
+    inline void force_short_sleep() noexcept {
+        collector_instance().force_short_sleep();
+    }
+
+    inline std::vector<std::thread>& destroyer_threads() noexcept {
+        return collector_instance().destroyer_threads();
     }
 }

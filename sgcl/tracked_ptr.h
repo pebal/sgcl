@@ -61,10 +61,7 @@ namespace sgcl {
             if (!_set_ref_if_not_external_heap()) {
                 if (p.allocated_on_external_heap()) {
                     _raw_ptr_ref = p._raw_ptr_ref;
-#ifndef SGCL_ARCH_X86_64
-                    p._raw_ptr_ref = &p._raw_ptr;
-#endif
-                    p._raw_value = 0;
+                    p._raw_ptr_ref = _set_flag(decltype(_raw_ptr_ref)(nullptr), ExternalHeapFlag);
                 } else {
                     auto ptr = make_tracked<detail::Pointer>();
                     auto ref = ptr.release();
@@ -82,10 +79,7 @@ namespace sgcl {
                 if (p.allocated_on_external_heap()) {
                     _raw_ptr_ref = p._raw_ptr_ref;
                     _ptr()->store_no_update(static_cast<element_type*>(p.get()));
-#ifndef SGCL_ARCH_X86_64
-                    p._raw_ptr_ref = &p._raw_ptr;
-#endif
-                    p._raw_value = 0;
+                    p._raw_ptr_ref = _set_flag(decltype(_raw_ptr_ref)(nullptr), ExternalHeapFlag);
                 } else {
                     auto ptr = make_tracked<detail::Pointer>();
                     auto ref = ptr.release();
@@ -105,7 +99,9 @@ namespace sgcl {
 
         ~tracked_ptr() noexcept {
             if (allocated_on_external_heap()) {
-                detail::Page::set_state<detail::State::Destroyed>(_ptr());
+                if (auto ptr = _ptr()) {
+                    detail::Page::set_state<detail::State::Destroyed>(ptr);
+                }
             } else {
                 _ptr()->store(nullptr);
             }
@@ -131,6 +127,42 @@ namespace sgcl {
         tracked_ptr& operator=(unique_ptr<U>&& u) noexcept {
             auto p = u.release();
             _ptr()->store(static_cast<element_type*>(p));
+            return *this;
+        }
+
+        tracked_ptr& operator=(tracked_ptr&& p) noexcept {
+            if (auto ptr = _ptr()) {
+                ptr->store(p.get());
+            } else {
+                if (p.allocated_on_external_heap()) {
+                    _raw_ptr_ref = p._raw_ptr_ref;
+                    p._raw_ptr_ref = _set_flag(decltype(_raw_ptr_ref)(nullptr), ExternalHeapFlag);
+                } else {
+                    auto ptr = make_tracked<detail::Pointer>();
+                    auto ref = ptr.release();
+                    _raw_ptr_ref = _set_flag(ref, ExternalHeapFlag);
+                    ref->store(p.get());
+                }
+            }
+            return *this;
+        }
+
+        template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
+        tracked_ptr& operator=(tracked_ptr<U>&& p) noexcept {
+            if (auto ptr = _ptr()) {
+                ptr->store(static_cast<element_type*>(p.get()));
+            } else {
+                if (p.allocated_on_external_heap()) {
+                    _raw_ptr_ref = p._raw_ptr_ref;
+                    _ptr()->store_no_update(static_cast<element_type*>(p.get()));
+                    p._raw_ptr_ref = _set_flag(decltype(_raw_ptr_ref)(nullptr), ExternalHeapFlag);
+                } else {
+                    auto ptr = make_tracked<detail::Pointer>();
+                    auto ref = ptr.release();
+                    _raw_ptr_ref = _set_flag(ref, ExternalHeapFlag);
+                    ref->store(static_cast<element_type*>(p.get()));
+                }
+            }
             return *this;
         }
 
@@ -167,17 +199,22 @@ namespace sgcl {
         }
 
         void reset() noexcept {
+            if (allocated_on_external_heap() && !_ptr()) {
+                auto ptr = make_tracked<detail::Pointer>();
+                auto ref = ptr.release();
+                _raw_ptr_ref = _set_flag(ref, ExternalHeapFlag);
+            }
             _ptr()->store(nullptr);
         }
 
         void swap(tracked_ptr<element_type>& p) noexcept {
-            tracked_ptr<element_type> t = *this;
-            *this = p;
-            p = t;
-        }
-
-        unique_ptr<element_type> clone() const {
-            return (element_type*)_ptr()->clone();
+            if (allocated_on_external_heap() && p.allocated_on_external_heap()) {
+                std::swap(_raw_ptr_ref, p._raw_ptr_ref);
+            } else {
+                tracked_ptr<element_type> t = *this;
+                *this = p;
+                p = t;
+            }
         }
 
         template<class U>
@@ -274,7 +311,6 @@ namespace sgcl {
         union {
             detail::Pointer* _raw_ptr_ref;
             detail::Pointer _raw_ptr;
-            uintptr_t _raw_value;
         };
 #else
         detail::Pointer* _ptr() noexcept {
@@ -288,7 +324,6 @@ namespace sgcl {
         detail::Pointer* _raw_ptr_ref;
         union {
             detail::Pointer _raw_ptr;
-            uintptr_t _raw_value;
         };
 #endif
 
@@ -326,10 +361,6 @@ namespace sgcl {
     public:
         using Base::Base;
         using Base::operator=;
-
-        unique_ptr<T[]> clone() const {
-            return unique_ptr<T[]>(tracked_ptr<T>::clone());
-        }
     };
 
     template <typename T>

@@ -30,6 +30,10 @@ namespace sgcl::detail {
             std::atomic_thread_fence(std::memory_order_acquire);
             return Counter(_alloc_count.load(std::memory_order_relaxed), _alloc_size.load(std::memory_order_relaxed));
         }
+        inline static Counter last_alloc_counter() noexcept {
+            std::atomic_thread_fence(std::memory_order_acquire);
+            return Counter(_last_alloc_count.load(std::memory_order_relaxed), _last_alloc_size.load(std::memory_order_relaxed));
+        }
         inline static Counter free_counter() noexcept {
             std::atomic_thread_fence(std::memory_order_acquire);
             return Counter(_free_count.load(std::memory_order_relaxed), _free_size.load(std::memory_order_relaxed));
@@ -44,6 +48,9 @@ namespace sgcl::detail {
         inline static size_t alloc_count() noexcept {
             return _alloc_count.load(std::memory_order_acquire);
         }
+        inline static size_t last_alloc_count() noexcept {
+            return _last_alloc_count.load(std::memory_order_acquire);
+        }
         inline static size_t free_count() noexcept {
             return _free_count.load(std::memory_order_acquire);
         }
@@ -56,6 +63,8 @@ namespace sgcl::detail {
             _free_size.store(0, std::memory_order_relaxed);
         }
         inline static void reset_all() noexcept {
+            _last_alloc_count.store(_alloc_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
+            _last_alloc_size.store(_alloc_size.load(std::memory_order_relaxed), std::memory_order_relaxed);
             reset_alloc();
             reset_free();
         }
@@ -64,6 +73,8 @@ namespace sgcl::detail {
         inline static std::atomic<size_t> _live_size = {0};
         inline static std::atomic<size_t> _alloc_count = {0};
         inline static std::atomic<size_t> _alloc_size = {0};
+        inline static std::atomic<size_t> _last_alloc_count = {0};
+        inline static std::atomic<size_t> _last_alloc_size = {0};
         inline static std::atomic<size_t> _free_count = {0};
         inline static std::atomic<size_t> _free_size = {0};
     };

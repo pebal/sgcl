@@ -41,7 +41,7 @@ SGCL introduces four types of smart pointers.
     
   - `unique_ptr`
     
-    A unique pointer to objects created on the managed heap. Provides deterministic destruction.
+    This pointer serves as the root of the application's object graph. It is a specialization of std::unique_ptr and, like it, provides deterministic object destruction.
       
   - `tracked_ptr`
     
@@ -58,6 +58,10 @@ SGCL introduces four types of smart pointers.
   - `list`
    
     Equivalent of std::list with cycle support.
+
+  - `vector`
+     
+    Equivalent of std::vector with cycle support.
     
 ## make_tracked method
 The `make_tracked` method is dedicated for creating objects and arrays on the managed heap. This method returns a unique pointer.
@@ -159,17 +163,12 @@ int main() {
     // or
     c = static_pointer_cast<char>(any);
     
-    // Cloning
-    auto message = sgcl::make_tracked<std::string>("message");
-    auto clone = message.clone();
-    std::cout << "clone: " << *clone << std::endl;
-    
-    // Using a list with cycle detection
+    // Using a list and vector with cycle detection
     struct Node {
         int value;
         sgcl::list<sgcl::tracked_ptr<Node>> childs;
     };
-    sgcl::list<sgcl::tracked_ptr<Node>> nodes;
+    sgcl::vector<sgcl::tracked_ptr<Node>> nodes;
     
     // Metadata usage
     sgcl::set_metadata<int>(new std::string("int metadata"));

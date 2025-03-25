@@ -11,8 +11,9 @@
 
 namespace sgcl::detail {
     struct ArrayBase {
-        constexpr ArrayBase(size_t c) noexcept
-        : count(c) {
+        constexpr ArrayBase(size_t s, size_t c) noexcept
+        : size(s)
+        , capacity(c) {
         }
 
         template<typename T>
@@ -25,7 +26,8 @@ namespace sgcl::detail {
         }
 
         std::atomic<ArrayMetadata*> metadata = {nullptr};
-        const size_t count;
+        size_t size;
+        const size_t capacity;
 
     private:
         template<class T>

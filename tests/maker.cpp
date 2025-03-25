@@ -41,13 +41,21 @@ TEST_F(Maker_Tests, DefaultArrayConstructor) {
     EXPECT_EQ(tr[2], nullptr);
 }
 
-TEST_F(Maker_Tests, ParameterArrayConstructor) {
+TEST_F(Maker_Tests, ArrayConstructorNValues) {
     auto ptr = make_tracked<int[]>(3, 5);
     EXPECT_NE(ptr, nullptr);
     EXPECT_EQ(ptr[2], 5);
     auto foo = make_tracked<Foo[]>(3, 7);
     EXPECT_NE(foo, nullptr);
     EXPECT_EQ(foo[2].get_value(), 7);
+    ptr = make_tracked<int[]>(7000, 5);
+    EXPECT_EQ(ptr.size(), 7000);
+    for (size_t i = 0; i < 7000; ++i) {
+        EXPECT_EQ(ptr.get()[i], 5);
+        if (ptr.get()[i] != 5) {
+            break;
+        }
+    }
 }
 
 TEST_F(Maker_Tests, InitializerListArrayConstructor) {

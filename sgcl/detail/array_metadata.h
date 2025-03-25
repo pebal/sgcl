@@ -13,7 +13,6 @@ namespace sgcl::detail {
         ArrayMetadata(T*) noexcept
         : child_pointers(TypeInfo<T>::child_pointers)
         , destroy(ArrayBase::get_destroy_function<T>())
-        , clone(clone_object<T[]>)
         , type_info(typeid(T[]))
         , object_size(TypeInfo<T>::ObjectSize)
         , user_metadata(TypeInfo<T[]>::user_metadata)
@@ -22,7 +21,6 @@ namespace sgcl::detail {
 
         ChildPointers& child_pointers;
         void (*const destroy)(void*, size_t) noexcept;
-        void* (*const clone)(const void*);
         const std::type_info& type_info;
         const size_t object_size;
         void*& user_metadata;
