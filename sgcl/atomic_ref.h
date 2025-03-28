@@ -33,7 +33,7 @@ namespace sgcl {
         }
 
         value_type operator=(value_type p) noexcept {
-            store(p);
+            _ptr().store(p.get(), std::memory_order_seq_cst);
             return p;
         }
 
@@ -148,30 +148,30 @@ namespace sgcl {
         }
 
         void notify_one() noexcept {
-            ref._ptr().notify_one();
+            _ptr().notify_one();
         }
 
         void notify_all() noexcept {
-            ref._ptr().notify_all();
+            _ptr().notify_all();
         }
 
         void wait(std::nullptr_t, std::memory_order m = std::memory_order_seq_cst) const noexcept {
-            ref._ptr().wait(nullptr, m);
+            _ptr().wait(nullptr, m);
         }
 
         void wait(value_type p, std::memory_order m = std::memory_order_seq_cst) const noexcept {
-            ref._ptr().wait(p.get(), m);
+            _ptr().wait(p.get(), m);
         }
 
         value_type& ref;
 
     private:
         detail::Pointer& _ptr() noexcept {
-            return ref._ptr();
+            return *ref._ptr();
         }
 
         const detail::Pointer& _ptr() const noexcept {
-            return ref._ptr();
+            return *ref._ptr();
         }
     };
 
