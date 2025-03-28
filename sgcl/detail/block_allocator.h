@@ -10,7 +10,6 @@
 #include "merge_sort.h"
 #include "pointer_pool.h"
 #include <functional>
-#include <iostream>
 #include <thread>
 
 namespace sgcl::detail {
