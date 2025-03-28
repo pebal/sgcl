@@ -40,7 +40,7 @@ namespace sgcl {
         }
 
         value_type operator=(value_type p) noexcept {
-            store(p);
+            _ptr().store(p.get(), std::memory_order_seq_cst);
             return p;
         }
 
