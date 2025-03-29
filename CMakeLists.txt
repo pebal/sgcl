@@ -10,10 +10,8 @@ add_library(sgcl INTERFACE
 )
 
 target_include_directories(sgcl INTERFACE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/sgcl>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/sgcl/detail>
-    $<INSTALL_INTERFACE:include>
     $<INSTALL_INTERFACE:include/sgcl>
     $<INSTALL_INTERFACE:include/sgcl/detail>
 )
