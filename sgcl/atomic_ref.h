@@ -45,7 +45,7 @@ namespace sgcl {
         static constexpr std::size_t required_alignment = alignof(detail::RawPointer);
 
         bool is_lock_free() const noexcept {
-            return _ptr()._is_lock_free();
+            return _ptr().is_lock_free();
         }
 
         value_type load(const std::memory_order m = std::memory_order_seq_cst) const noexcept {
