@@ -5,12 +5,8 @@
 //------------------------------------------------------------------------------
 #include "types.h"
 
-#include <list>
 #include <vector>
 
-struct List_Test : ::testing::Test {};
-
-// Test konstrukcji pustej listy
 TEST(List_Test, DefaultConstructorEmpty) {
     sgcl::list<int> lst;
     EXPECT_EQ(collector::get_live_object_count(), 1u);

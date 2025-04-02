@@ -5,9 +5,7 @@
 //------------------------------------------------------------------------------
 #include "types.h"
 
-struct TrackedPtr_Tests : ::testing::Test {};
-
-TEST_F(TrackedPtr_Tests, DefaultConstructor) {
+TEST(TrackedPtr_Tests, DefaultConstructor) {
     { // stack
         tracked_ptr<int> ptr;
         EXPECT_EQ(ptr, nullptr);
@@ -25,7 +23,7 @@ TEST_F(TrackedPtr_Tests, DefaultConstructor) {
     }
 }
 
-TEST_F(TrackedPtr_Tests, NullConstructor) {
+TEST(TrackedPtr_Tests, NullConstructor) {
     { // stack
         tracked_ptr<int> ptr(nullptr);
         EXPECT_EQ(ptr, nullptr);
@@ -40,7 +38,7 @@ TEST_F(TrackedPtr_Tests, NullConstructor) {
     }
 }
 
-TEST_F(TrackedPtr_Tests, UniqueConstructor) {
+TEST(TrackedPtr_Tests, UniqueConstructor) {
     { // stack
         tracked_ptr<Bar> ptr = make_tracked<Foo>(3);
         ASSERT_NE(ptr, nullptr);
@@ -58,7 +56,7 @@ TEST_F(TrackedPtr_Tests, UniqueConstructor) {
     }
 }
 
-TEST_F(TrackedPtr_Tests, RawConstructor) {
+TEST(TrackedPtr_Tests, RawConstructor) {
     { // stack
         tracked_ptr<Foo> foo = make_tracked<Foo>(10);
         tracked_ptr<int> alias(&foo->value);
@@ -79,7 +77,7 @@ TEST_F(TrackedPtr_Tests, RawConstructor) {
     }
 }
 
-TEST_F(TrackedPtr_Tests, CopyConstructor) {
+TEST(TrackedPtr_Tests, CopyConstructor) {
     tracked_ptr<int> ptr1 = make_tracked<int>(8);
     { // stack
         tracked_ptr<int> ptr2(ptr1);
@@ -98,7 +96,7 @@ TEST_F(TrackedPtr_Tests, CopyConstructor) {
     }
 }
 
-TEST_F(TrackedPtr_Tests, CopyCastConstructor) {
+TEST(TrackedPtr_Tests, CopyCastConstructor) {
     tracked_ptr<Foo> foo = make_tracked<Foo>(4);
     { // stack
         tracked_ptr<Bar> bar = foo;
@@ -117,7 +115,7 @@ TEST_F(TrackedPtr_Tests, CopyCastConstructor) {
     }
 }
 
-TEST_F(TrackedPtr_Tests, MoveConstructor) {
+TEST(TrackedPtr_Tests, MoveConstructor) {
     { // stack
         tracked_ptr<int> s = make_tracked<int>(8);
         auto h = make_tracked<tracked_ptr<int>>(make_tracked<int>(9));
@@ -172,7 +170,7 @@ TEST_F(TrackedPtr_Tests, MoveConstructor) {
     }
 }
 
-TEST_F(TrackedPtr_Tests, MoveCastConstructor) {
+TEST(TrackedPtr_Tests, MoveCastConstructor) {
     { // stack
         tracked_ptr<Foo> s = make_tracked<Foo>(4);
         auto h = make_tracked<tracked_ptr<Foo>>(make_tracked<Foo>(5));
@@ -227,7 +225,7 @@ TEST_F(TrackedPtr_Tests, MoveCastConstructor) {
     }
 }
 
-TEST_F(TrackedPtr_Tests, CopyAssignmentOperator) {
+TEST(TrackedPtr_Tests, CopyAssignmentOperator) {
     tracked_ptr<int> ptr1 = make_tracked<int>(3);
     tracked_ptr<int> ptr2;
     ptr2 = ptr1;
@@ -235,7 +233,7 @@ TEST_F(TrackedPtr_Tests, CopyAssignmentOperator) {
     EXPECT_EQ(*ptr2, 3);
 }
 
-TEST_F(TrackedPtr_Tests, CopyCastAssignmentOperator) {
+TEST(TrackedPtr_Tests, CopyCastAssignmentOperator) {
     tracked_ptr<Foo> foo = make_tracked<Foo>(5);
     tracked_ptr<Bar> bar;
     bar = foo;
@@ -243,7 +241,7 @@ TEST_F(TrackedPtr_Tests, CopyCastAssignmentOperator) {
     EXPECT_EQ(bar->get_value(), 5);
 }
 
-TEST_F(TrackedPtr_Tests, NullAssignmentOperator) {
+TEST(TrackedPtr_Tests, NullAssignmentOperator) {
     tracked_ptr<int> ptr = make_tracked<int>(8);
     ASSERT_NE(ptr, nullptr);
     EXPECT_EQ(*ptr, 8);
@@ -251,7 +249,7 @@ TEST_F(TrackedPtr_Tests, NullAssignmentOperator) {
     EXPECT_EQ(ptr, nullptr);
 }
 
-TEST_F(TrackedPtr_Tests, UniqueCastAssignmentOperator) {
+TEST(TrackedPtr_Tests, UniqueCastAssignmentOperator) {
     auto foo = make_tracked<Foo>(11);
     tracked_ptr<Bar> bar;
     bar = std::move(foo);
@@ -259,39 +257,39 @@ TEST_F(TrackedPtr_Tests, UniqueCastAssignmentOperator) {
     EXPECT_EQ(bar->get_value(), 11);
 }
 
-TEST_F(TrackedPtr_Tests, VoidRefOperator) {
+TEST(TrackedPtr_Tests, VoidRefOperator) {
     tracked_ptr<int> ptr = make_tracked<int>(3);
     ASSERT_NE(ptr, nullptr);
     tracked_ptr<void>& ref = ptr;
     ASSERT_NE(ref, nullptr);
 }
 
-TEST_F(TrackedPtr_Tests, BoolOperator) {
+TEST(TrackedPtr_Tests, BoolOperator) {
     tracked_ptr<int> ptr = make_tracked<int>(5);
     EXPECT_TRUE(ptr);
     ptr = nullptr;
     EXPECT_FALSE(ptr);
 }
 
-TEST_F(TrackedPtr_Tests, IndirectionOperator) {
+TEST(TrackedPtr_Tests, IndirectionOperator) {
     tracked_ptr<int> ptr = make_tracked<int>(15);
     ASSERT_NE(ptr, nullptr);
     EXPECT_EQ(*ptr, *ptr.get());
 }
 
-TEST_F(TrackedPtr_Tests, StructureDereferenceOperator) {
+TEST(TrackedPtr_Tests, StructureDereferenceOperator) {
     tracked_ptr<Foo> ptr = make_tracked<Foo>(3);
     ASSERT_NE(ptr, nullptr);
     EXPECT_EQ(ptr->value, ptr.get()->value);
 }
 
-TEST_F(TrackedPtr_Tests, reset) {
+TEST(TrackedPtr_Tests, reset) {
     tracked_ptr<int> ptr = make_tracked<int>(9);
     ptr.reset();
     EXPECT_EQ(ptr, nullptr);
 }
 
-TEST_F(TrackedPtr_Tests, swap) {
+TEST(TrackedPtr_Tests, swap) {
     tracked_ptr<int> ptr1 = make_tracked<int>(2);
     tracked_ptr<int> ptr2 = make_tracked<int>(5);
     ptr1.swap(ptr2);
@@ -301,7 +299,7 @@ TEST_F(TrackedPtr_Tests, swap) {
     EXPECT_EQ(*ptr2, 2);
 }
 
-TEST_F(TrackedPtr_Tests, is) {
+TEST(TrackedPtr_Tests, is) {
     tracked_ptr<Foo> foo = make_tracked<Foo>(6);
     tracked_ptr<Bar> bar = foo;
     EXPECT_TRUE(bar.is<Foo>());
@@ -311,7 +309,7 @@ TEST_F(TrackedPtr_Tests, is) {
     EXPECT_FALSE(alias.is<int>());
 }
 
-TEST_F(TrackedPtr_Tests, as) {
+TEST(TrackedPtr_Tests, as) {
     tracked_ptr<Bar> bar = make_tracked<Foo>(8);
     tracked_ptr<Baz> baz = bar.as<Baz>();
     EXPECT_EQ(baz, nullptr);
@@ -325,12 +323,12 @@ TEST_F(TrackedPtr_Tests, as) {
     EXPECT_EQ(foo->value, 12);
 }
 
-TEST_F(TrackedPtr_Tests, type) {
+TEST(TrackedPtr_Tests, type) {
     tracked_ptr<Bar> bar = make_tracked<Foo>(10);
     EXPECT_EQ(bar.type(), typeid(Foo));
 }
 
-TEST_F(TrackedPtr_Tests, metadata) {
+TEST(TrackedPtr_Tests, metadata) {
     tracked_ptr<Foo> foo = make_tracked<Foo>(12);
     tracked_ptr<Bar> bar = foo;
     EXPECT_EQ(foo.metadata(), nullptr);
@@ -350,12 +348,12 @@ TEST_F(TrackedPtr_Tests, metadata) {
     set_metadata<Foo>(nullptr);
 }
 
-TEST_F(TrackedPtr_Tests, is_array) {
+TEST(TrackedPtr_Tests, is_array) {
     tracked_ptr<Bar> bar = make_tracked<Foo>(14);
     EXPECT_FALSE(bar.is_array());
 }
 
-TEST_F(TrackedPtr_Tests, Comparisons) {
+TEST(TrackedPtr_Tests, Comparisons) {
     tracked_ptr<Foo> a = make_tracked<Foo>(14);
     tracked_ptr<Foo> b = a;
 
@@ -396,7 +394,7 @@ TEST_F(TrackedPtr_Tests, Comparisons) {
     EXPECT_TRUE(b >= a);
 }
 
-TEST_F(TrackedPtr_Tests, Casts) {
+TEST(TrackedPtr_Tests, Casts) {
     tracked_ptr<Bar> bar = make_tracked<Foo>(1);
     auto foo = static_pointer_cast<Foo>(bar);
     EXPECT_EQ(foo->value, 1);

@@ -5,46 +5,44 @@
 //------------------------------------------------------------------------------
 #include "types.h"
 
-struct Pointer_ArrayTests : ::testing::Test {};
-
-TEST_F(Pointer_ArrayTests, DefaultConstructor) {
+TEST(Pointer_ArrayTests, DefaultConstructor) {
     tracked_ptr<int[]> ptr;
     EXPECT_EQ(ptr, nullptr);
 }
 
-TEST_F(Pointer_ArrayTests, NullConstructor) {
+TEST(Pointer_ArrayTests, NullConstructor) {
     tracked_ptr<int[]> ptr(nullptr);
     EXPECT_EQ(ptr, nullptr);
 }
 
-TEST_F(Pointer_ArrayTests, UniqueConstructor) {
+TEST(Pointer_ArrayTests, UniqueConstructor) {
     tracked_ptr<Bar[]> bar = make_tracked<Foo[]>(3, 2);
     ASSERT_NE(bar, nullptr);
     EXPECT_EQ(bar[2].get_value(), 2);
 }
 
-TEST_F(Pointer_ArrayTests, RawConstructor) {
+TEST(Pointer_ArrayTests, RawConstructor) {
     tracked_ptr<Foo> foo = make_tracked<Foo>(10);
     tracked_ptr<int[]> alias(&foo->value);
     ASSERT_NE(alias, nullptr);
     EXPECT_EQ(alias[0], 10);
 }
 
-TEST_F(Pointer_ArrayTests, CopyConstructor) {
+TEST(Pointer_ArrayTests, CopyConstructor) {
     tracked_ptr<int[]> ptr1 = make_tracked<int[]>(3, 8);
     tracked_ptr<int[]> ptr2 = ptr1;
     ASSERT_NE(ptr1, nullptr);
     EXPECT_EQ(ptr2[2], 8);
 }
 
-TEST_F(Pointer_ArrayTests, CopyCastConstructor) {
+TEST(Pointer_ArrayTests, CopyCastConstructor) {
     tracked_ptr<Foo> foo = make_tracked<Foo>(4);
     tracked_ptr<Bar[]> bar = foo;
     ASSERT_NE(bar, nullptr);
     EXPECT_EQ(bar[0].get_value(), 4);
 }
 
-TEST_F(Pointer_ArrayTests, CopyAssignmentOperator) {
+TEST(Pointer_ArrayTests, CopyAssignmentOperator) {
     tracked_ptr<int[]> ptr1 = make_tracked<int>(3);
     tracked_ptr<int[]> ptr2;
     ptr2 = ptr1;
@@ -52,7 +50,7 @@ TEST_F(Pointer_ArrayTests, CopyAssignmentOperator) {
     EXPECT_EQ(ptr2[0], 3);
 }
 
-TEST_F(Pointer_ArrayTests, CopyCastAssignmentOperator) {
+TEST(Pointer_ArrayTests, CopyCastAssignmentOperator) {
     tracked_ptr<Foo[]> foo = make_tracked<Foo>(5);
     tracked_ptr<Bar[]> bar;
     bar = foo;
@@ -60,7 +58,7 @@ TEST_F(Pointer_ArrayTests, CopyCastAssignmentOperator) {
     EXPECT_EQ(bar[0].get_value(), 5);
 }
 
-TEST_F(Pointer_ArrayTests, NullAssignmentOperator) {
+TEST(Pointer_ArrayTests, NullAssignmentOperator) {
     tracked_ptr<int[]> ptr = make_tracked<int>(8);
     ASSERT_NE(ptr, nullptr);
     EXPECT_EQ(ptr[0], 8);
@@ -68,7 +66,7 @@ TEST_F(Pointer_ArrayTests, NullAssignmentOperator) {
     EXPECT_EQ(ptr, nullptr);
 }
 
-TEST_F(Pointer_ArrayTests, UniqueCastAssignmentOperator) {
+TEST(Pointer_ArrayTests, UniqueCastAssignmentOperator) {
     auto foo = make_tracked<Foo>(11);
     tracked_ptr<Bar[]> bar;
     bar = std::move(foo);
@@ -76,27 +74,27 @@ TEST_F(Pointer_ArrayTests, UniqueCastAssignmentOperator) {
     EXPECT_EQ(bar[0].get_value(), 11);
 }
 
-TEST_F(Pointer_ArrayTests, VoidRefOperator) {
+TEST(Pointer_ArrayTests, VoidRefOperator) {
     tracked_ptr<int[]> ptr = make_tracked<int>(3);
     ASSERT_NE(ptr, nullptr);
     tracked_ptr<void>& ref = ptr;
     ASSERT_NE(ref, nullptr);
 }
 
-TEST_F(Pointer_ArrayTests, BoolOperator) {
+TEST(Pointer_ArrayTests, BoolOperator) {
     tracked_ptr<int[]> ptr = make_tracked<int>(5);
     EXPECT_TRUE(ptr);
     ptr = nullptr;
     EXPECT_FALSE(ptr);
 }
 
-TEST_F(Pointer_ArrayTests, reset) {
+TEST(Pointer_ArrayTests, reset) {
     tracked_ptr<int[]> ptr = make_tracked<int>(9);
     ptr.reset();
     EXPECT_EQ(ptr, nullptr);
 }
 
-TEST_F(Pointer_ArrayTests, swap) {
+TEST(Pointer_ArrayTests, swap) {
     tracked_ptr<int[]> ptr1 = make_tracked<int[]>(2, 2);
     tracked_ptr<int[]> ptr2 = make_tracked<int[]>(2, 5);
     ASSERT_NE(ptr1, nullptr);
@@ -106,27 +104,27 @@ TEST_F(Pointer_ArrayTests, swap) {
     EXPECT_EQ(ptr2[1], 2);
 }
 
-TEST_F(Pointer_ArrayTests, is) {
+TEST(Pointer_ArrayTests, is) {
     tracked_ptr<Bar[]> bar = make_tracked<Foo[]>(6);
     EXPECT_TRUE(bar.is<Foo[]>());
     EXPECT_FALSE(bar.is<Foo>());
     EXPECT_FALSE(bar.is<Bar[]>());
 }
 
-TEST_F(Pointer_ArrayTests, as) {
+TEST(Pointer_ArrayTests, as) {
     tracked_ptr<Bar[]> bar = make_tracked<Foo[]>(1, 8);
     auto foo = bar.as<Foo[]>();
     ASSERT_NE(foo, nullptr);
     EXPECT_EQ(foo[0].value, 8);
 }
 
-TEST_F(Pointer_ArrayTests, type) {
+TEST(Pointer_ArrayTests, type) {
     tracked_ptr<Bar[]> bar = make_tracked<Foo[]>(10);
     EXPECT_EQ(bar.type(), typeid(Foo[]));
     EXPECT_NE(bar.type(), typeid(Foo));
 }
 
-TEST_F(Pointer_ArrayTests, metadata) {
+TEST(Pointer_ArrayTests, metadata) {
     tracked_ptr<Bar[]> bar = make_tracked<Foo[]>(5, 12);
     struct {
         void operator()(void* p, size_t size) {
@@ -143,14 +141,14 @@ TEST_F(Pointer_ArrayTests, metadata) {
     set_metadata<Foo[]>(nullptr);
 }
 
-TEST_F(Pointer_ArrayTests, is_array) {
+TEST(Pointer_ArrayTests, is_array) {
     tracked_ptr<Bar> bar1 = make_tracked<Foo[]>(14);
     tracked_ptr<Bar[]> bar2 = make_tracked<Foo>(14);
     EXPECT_TRUE(bar1.is_array());
     EXPECT_FALSE(bar2.is_array());
 }
 
-TEST_F(Pointer_ArrayTests, size) {
+TEST(Pointer_ArrayTests, size) {
     tracked_ptr<int[]> arr = make_tracked<int[]>({1, 2, 3});
     tracked_ptr<int[]> ptr = make_tracked<int>();
     EXPECT_EQ(arr.size(), 3);
@@ -163,14 +161,14 @@ TEST_F(Pointer_ArrayTests, size) {
     EXPECT_EQ(arr.size(), 7);
 }
 
-TEST_F(Pointer_ArrayTests, index_operator) {
+TEST(Pointer_ArrayTests, index_operator) {
     tracked_ptr<int[]> arr = make_tracked<int[]>({0, 1, 2});
     for (int i = 0; i < arr.size(); ++i) {
         EXPECT_EQ(arr[i], i);
     }
 }
 
-TEST_F(Pointer_ArrayTests, at) {
+TEST(Pointer_ArrayTests, at) {
     tracked_ptr<int[]> arr = make_tracked<int[]>({0, 1, 2, 3, 4});
     for (int i = 0; i < arr.size(); ++i) {
         EXPECT_EQ(arr.at(i), i);
@@ -178,7 +176,7 @@ TEST_F(Pointer_ArrayTests, at) {
     EXPECT_THROW(arr.at(10), std::out_of_range);
 }
 
-TEST_F(Pointer_ArrayTests, iterators) {
+TEST(Pointer_ArrayTests, iterators) {
     tracked_ptr<int[]> arr = make_tracked<int[]>({1, 2, 3});
     int c = 0;
     for (auto v : arr) {
@@ -198,7 +196,7 @@ TEST_F(Pointer_ArrayTests, iterators) {
     }
 }
 
-TEST_F(Pointer_ArrayTests, Comparisons) {
+TEST(Pointer_ArrayTests, Comparisons) {
     tracked_ptr<Foo[]> a = make_tracked<Foo[]>(3);
     tracked_ptr<Foo[]> b = a;
 
@@ -239,7 +237,7 @@ TEST_F(Pointer_ArrayTests, Comparisons) {
     EXPECT_TRUE(b >= a);
 }
 
-TEST_F(Pointer_ArrayTests, Casts) {
+TEST(Pointer_ArrayTests, Casts) {
     tracked_ptr<Bar[]> bar = make_tracked<Foo[]>(3, 3);
     auto foo = static_pointer_cast<Foo[]>(bar);
     EXPECT_EQ(foo[2].value, 3);

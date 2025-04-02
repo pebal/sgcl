@@ -5,9 +5,7 @@
 //------------------------------------------------------------------------------
 #include "types.h"
 
-struct Maker_Tests : ::testing::Test {};
-
-TEST_F(Maker_Tests, DefaultConstructor) {
+TEST(Maker_Tests, DefaultConstructor) {
     struct S {
         char value = 2;
     };
@@ -19,13 +17,13 @@ TEST_F(Maker_Tests, DefaultConstructor) {
     EXPECT_EQ(*tr, nullptr);
 }
 
-TEST_F(Maker_Tests, ParameterConstructor) {
+TEST(Maker_Tests, ParameterConstructor) {
     auto ptr = make_tracked<int>(3);
     EXPECT_NE(ptr, nullptr);
     EXPECT_EQ(*ptr, 3);
 }
 
-TEST_F(Maker_Tests, DefaultArrayConstructor) {
+TEST(Maker_Tests, DefaultArrayConstructor) {
     struct S {
         char value = 9;
     };
@@ -41,7 +39,7 @@ TEST_F(Maker_Tests, DefaultArrayConstructor) {
     EXPECT_EQ(tr[2], nullptr);
 }
 
-TEST_F(Maker_Tests, ArrayConstructorNValues) {
+TEST(Maker_Tests, ArrayConstructorNValues) {
     auto ptr = make_tracked<int[]>(3, 5);
     EXPECT_NE(ptr, nullptr);
     EXPECT_EQ(ptr[2], 5);
@@ -58,7 +56,7 @@ TEST_F(Maker_Tests, ArrayConstructorNValues) {
     }
 }
 
-TEST_F(Maker_Tests, InitializerListArrayConstructor) {
+TEST(Maker_Tests, InitializerListArrayConstructor) {
     auto ptr = make_tracked<int[]>({1, 2, 3});
     EXPECT_NE(ptr, nullptr);
     EXPECT_EQ(ptr[0], 1);

@@ -7,9 +7,6 @@
 
 #include <vector>
 
-struct Vector_Test : ::testing::Test {};
-
-// Test konstrukcji pustej listy
 TEST(Vector_Test, DefaultConstructorEmpty) {
     sgcl::vector<Int> vec;
     EXPECT_EQ(collector::get_live_object_count(), 0u);
