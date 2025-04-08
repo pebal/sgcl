@@ -19,10 +19,10 @@ namespace sgcl {
         public:
             using iterator_category = std::random_access_iterator_tag;
             using value_type = U;
+            using reference = U&;
             using difference_type = ptrdiff_t;
             using pointer = U*;
             using const_pointer = const U*;
-            using reference = U&;
             using const_reference = const U&;
             using reverse_iterator = std::reverse_iterator<Iterator>;
 
@@ -133,10 +133,10 @@ namespace sgcl {
         , _capacity(nullptr) {
         }
 
-        explicit vector(size_t count)
+        explicit vector(size_t count) requires std::default_initializable<T>
         : vector() {
             if (count) {
-                _make(count, T());
+                _make(count);
             }
         }
 
@@ -392,7 +392,7 @@ namespace sgcl {
         }
 
         template<class ...A>
-        iterator emplace_back(A&&... a) {
+        reference emplace_back(A&&... a) {
             if (!capacity()) {
                 _make(1, std::forward<A>(a)...);
             } else {
@@ -401,7 +401,7 @@ namespace sgcl {
                 }
                 _construct(end(), std::forward<A>(a)...);
             }
-            return begin() + (size() - 1);
+            return back();
         }
 
         void reserve(size_t capacity) {
@@ -415,13 +415,18 @@ namespace sgcl {
         template<class... A>
         iterator emplace(const_iterator pos, A&&... a) {
             if (pos == end()) {
-                return emplace_back(std::forward<A>(a)...);
+                emplace_back(std::forward<A>(a)...);
+                return --end();
             } else {
                 auto index = pos - begin();
                 _move(pos, 1);
                 _construct(begin() + index, std::forward<A>(a)...);
                 return begin() + index;
             }
+        }
+
+        void insert(size_type count, const T& value) {
+            insert(end(), count, value);
         }
 
         iterator insert(const_iterator pos, const T& value) {
@@ -439,7 +444,7 @@ namespace sgcl {
             }
             if (pos < end()) {
                 _move(pos, count);
-            } else {
+            } else if (size() + count > capacity()) {
                 _resize(size() + count);
             }
             auto ptr = _ptr.get() + index;
@@ -458,7 +463,7 @@ namespace sgcl {
             size_t count = _distance(first, last);
             if (pos < end()) {
                 _move(pos, count);
-            } else {
+            } else if (size() + count > capacity()) {
                 _resize(size() + count);
             }
             auto ptr = _ptr.get() + index;
@@ -490,7 +495,7 @@ namespace sgcl {
             return iterator(begin() + index);
         }
 
-        void resize(size_type count) {
+        void resize(size_type count) requires std::default_initializable<T> {
             resize(count, T());
         }
 
@@ -502,6 +507,23 @@ namespace sgcl {
             }
         }
 
+        void shrink_to_fit() {
+            if (capacity()) {
+                if (size()) {
+                    auto lock = _ptr;
+                    auto s = size();
+                    auto r = begin();
+                    _allocate(size());
+                    auto l = begin();
+                    for (size_t i = 0; i < s; ++i) {
+                        _construct(l + i, std::move(*(r + i)));
+                    }
+                } else {
+                    clear();
+                }
+            }
+        }
+
         void swap(vector& other) noexcept {
             _ptr.swap(other._ptr);
             std::swap(_size, other._size);
@@ -509,9 +531,7 @@ namespace sgcl {
         }
 
         void clear() noexcept {
-            if (_ptr) {
-                _destruct(begin(), end());
-            }
+            vector().swap(*this);
         }
 
     private:
@@ -527,6 +547,12 @@ namespace sgcl {
 
         void _allocate(size_t capacity) {
             _ptr = (unique_ptr<T[]>)(detail::Maker<T[]>::make_tracked_data(capacity));
+            _size = detail::Pointer::size_ptr(_ptr.get());
+            _capacity = detail::Pointer::capacity_ptr(_ptr.get());
+        }
+
+        void _make(size_t n) requires std::default_initializable<T> {
+            _ptr = make_tracked<T[]>(n);
             _size = detail::Pointer::size_ptr(_ptr.get());
             _capacity = detail::Pointer::capacity_ptr(_ptr.get());
         }
@@ -627,6 +653,21 @@ namespace sgcl {
             }
         }
     };
+
+    template<class T>
+    bool operator==(const vector<T>& lhs, const vector<T>& rhs) {
+        return std::equal(lhs.begin(), lhs.end(), rhs.begin());
+    }
+
+    template<class T>
+    auto operator<=>(const vector<T>& lhs, const vector<T>& rhs)
+    -> std::strong_ordering requires std::three_way_comparable<T> {
+        return std::lexicographical_compare_three_way(
+            lhs.begin(), lhs.end(),
+            rhs.begin(), rhs.end(),
+            std::compare_three_way{}
+        );
+    }
 
     template<typename T>
     class vector<unique_ptr<T>> : public std::vector<unique_ptr<T>> {

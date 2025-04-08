@@ -116,7 +116,7 @@ TEST(Vector_Test, CopyAssignment) {
 
     other = sgcl::vector<Int>();
     vec = other;
-    EXPECT_EQ(collector::get_live_object_count(), 1u);
+    EXPECT_EQ(collector::get_live_object_count(), 0u);
     EXPECT_EQ(Int::counter, 0u);
     EXPECT_EQ(vec.size(), 0u);
     EXPECT_EQ(vec.begin(), vec.end());
@@ -162,7 +162,7 @@ TEST(Vector_Test, ListAssignment) {
     EXPECT_EQ(result, expected);
 
     vec = std::initializer_list<Int>();
-    EXPECT_EQ(collector::get_live_object_count(), 1u);
+    EXPECT_EQ(collector::get_live_object_count(), 0u);
     EXPECT_EQ(Int::counter, 0u);
     EXPECT_EQ(vec.size(), 0u);
     EXPECT_EQ(vec.begin(), vec.end());
@@ -207,7 +207,7 @@ TEST(Vector_Test, AssignNValues) {
     EXPECT_EQ(result, expected);
 
     vec.assign(0, 0);
-    EXPECT_EQ(collector::get_live_object_count(), 1u);
+    EXPECT_EQ(collector::get_live_object_count(), 0u);
     EXPECT_EQ(Int::counter, 0u);
     EXPECT_EQ(vec.size(), 0u);
     EXPECT_EQ(vec.begin(), vec.end());
@@ -239,7 +239,7 @@ TEST(Vector_Test, AssignRange) {
     EXPECT_EQ(result, expected);
 
     vec.assign(expected.begin(), expected.begin());
-    EXPECT_EQ(collector::get_live_object_count(), 1u);
+    EXPECT_EQ(collector::get_live_object_count(), 0u);
     EXPECT_EQ(Int::counter, 0u);
     EXPECT_EQ(vec.size(), 0u);
     EXPECT_EQ(vec.begin(), vec.end());
@@ -271,7 +271,7 @@ TEST(Vector_Test, AssignList) {
     EXPECT_EQ(result, expected);
 
     vec.assign(std::initializer_list<Int>());
-    EXPECT_EQ(collector::get_live_object_count(), 1u);
+    EXPECT_EQ(collector::get_live_object_count(), 0u);
     EXPECT_EQ(Int::counter, 0u);
     EXPECT_EQ(vec.size(), 0u);
     EXPECT_EQ(vec.cbegin(), vec.cend());
@@ -291,10 +291,10 @@ TEST(Vector_Test, Back) {
 TEST(Vector_Test, PushAndEmplaceBack) {
     sgcl::vector<Int> vec({1, 2, 3});
     vec.push_back(4);
-    auto it = vec.emplace_back(5);
-    EXPECT_EQ(*it, 5);
+    auto v = vec.emplace_back(5);
+    EXPECT_EQ(v, 5);
     EXPECT_EQ(collector::get_live_object_count(), 1u);
-    EXPECT_EQ(Int::counter, 5u);
+    EXPECT_EQ(Int::counter, 6u);
     std::vector<int> result(vec.begin(), vec.end());
     std::vector<int> expected = {1, 2, 3, 4, 5};
     EXPECT_EQ(vec.size(), 5u);
@@ -545,7 +545,7 @@ TEST(Vector_Test, Swap) {
 TEST(Vector_Test, Clear) {
     sgcl::vector<Int> vec({5, 6, 7});
     vec.clear();
-    EXPECT_EQ(collector::get_live_object_count(), 1u);
+    EXPECT_EQ(collector::get_live_object_count(), 0u);
     EXPECT_EQ(Int::counter, 0u);
     EXPECT_TRUE(vec.empty());
     EXPECT_EQ(vec.size(), 0u);
@@ -553,4 +553,14 @@ TEST(Vector_Test, Clear) {
     EXPECT_EQ(vec.cbegin(), vec.cend());
     EXPECT_EQ(vec.rbegin(), vec.rend());
     EXPECT_EQ(vec.crbegin(), vec.crend());
+}
+
+TEST(Vector_Test, ShrinkToFit) {
+    sgcl::vector<Int> vec(20);
+    EXPECT_EQ(Int::counter, 20u);
+    vec.assign({5, 6, 7});
+    vec.shrink_to_fit();
+    EXPECT_EQ(collector::get_live_object_count(), 1u);
+    EXPECT_EQ(Int::counter, 3u);
+    EXPECT_EQ(vec.capacity(), 4u);
 }
