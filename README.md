@@ -63,6 +63,10 @@ SGCL introduces four types of smart pointers.
      
     Equivalent of std::vector with cycle support.
     
+  - `unordered_map`
+   
+    Equivalent of std::unordered_map with cycle support.
+    
 ## make_tracked method
 The `make_tracked` method is dedicated for creating objects and arrays on the managed heap. This method returns a unique pointer.
 
@@ -169,6 +173,7 @@ int main() {
         sgcl::list<sgcl::tracked_ptr<Node>> childs;
     };
     sgcl::vector<sgcl::tracked_ptr<Node>> nodes;
+    sgcl::unordered_map<int, sgcl::tracked_ptr<Node>> nodes_map;
     
     // Metadata usage
     sgcl::set_metadata<int>(new std::string("int metadata"));

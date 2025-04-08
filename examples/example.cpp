@@ -100,6 +100,7 @@ int main() {
         sgcl::list<sgcl::tracked_ptr<Node>> childs;
     };
     sgcl::vector<sgcl::tracked_ptr<Node>> nodes;
+    sgcl::unordered_map<int, sgcl::tracked_ptr<Node>> nodes_map;
 
     // Metadata usage
     sgcl::set_metadata<int>(new std::string("int metadata"));
