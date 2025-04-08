@@ -9,7 +9,7 @@
 
 TEST(List_Test, DefaultConstructorEmpty) {
     sgcl::list<int> lst;
-    EXPECT_EQ(collector::get_live_object_count(), 1u);
+    EXPECT_EQ(collector::get_live_object_count(), 0u);
     EXPECT_TRUE(lst.empty());
     EXPECT_EQ(lst.size(), 0u);
     EXPECT_EQ(lst.begin(), lst.end());
@@ -72,7 +72,7 @@ TEST(List_Test, CopyConstructor) {
 TEST(List_Test, MoveConstructor) {
     sgcl::list<int> other({4, 5, 6});
     sgcl::list<int> lst(std::move(other));
-    EXPECT_EQ(collector::get_live_object_count(), 5u);
+    EXPECT_EQ(collector::get_live_object_count(), 4u);
     EXPECT_TRUE(other.empty());
     EXPECT_FALSE(lst.empty());
     EXPECT_EQ(lst.size(), 3u);
@@ -107,7 +107,7 @@ TEST(List_Test, CopyAssignment) {
 
     other = sgcl::list<int>();
     lst = other;
-    EXPECT_EQ(collector::get_live_object_count(), 2u);
+    EXPECT_EQ(collector::get_live_object_count(), 1u);
     EXPECT_EQ(lst.size(), 0u);
     EXPECT_EQ(lst.begin(), lst.end());
     EXPECT_EQ(lst.rbegin(), lst.rend());
@@ -117,7 +117,7 @@ TEST(List_Test, MoveAssignment) {
     sgcl::list<int> other({4, 5, 6});
     sgcl::list<int> lst;
     lst = std::move(other);
-    EXPECT_EQ(collector::get_live_object_count(), 5u);
+    EXPECT_EQ(collector::get_live_object_count(), 4u);
     EXPECT_TRUE(other.empty());
     EXPECT_FALSE(lst.empty());
     EXPECT_EQ(lst.size(), 3u);
@@ -253,7 +253,8 @@ TEST(List_Test, Back) {
 TEST(List_Test, PushAndEmplaceBack) {
     sgcl::list<int> lst({2, 3});
     lst.push_back(4);
-    lst.emplace_back(5);
+    auto v = lst.emplace_back(5);
+    EXPECT_EQ(v, 5);
     EXPECT_EQ(collector::get_live_object_count(), 5u);
     std::vector<int> result(lst.begin(), lst.end());
     std::vector<int> expected = {2, 3, 4, 5};
@@ -264,7 +265,8 @@ TEST(List_Test, PushAndEmplaceBack) {
 TEST(List_Test, PushAndEmplaceFront) {
     sgcl::list<int> lst({3, 4});
     lst.push_front(2);
-    lst.emplace_front(1);
+    auto v = lst.emplace_front(1);
+    EXPECT_EQ(v, 1);
     EXPECT_EQ(collector::get_live_object_count(), 5u);
     std::vector<int> result(lst.begin(), lst.end());
     std::vector<int> expected = {1, 2, 3, 4};

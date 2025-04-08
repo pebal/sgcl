@@ -130,15 +130,16 @@ namespace sgcl {
 
     public:
         using value_type = T;
+        using reference = T&;
+        using const_reference = const T&;
         using size_type = size_t;
         using iterator = Iterator<value_type>;
         using const_iterator = Iterator<const value_type>;
         using reverse_iterator = typename iterator::reverse_iterator;
         using const_reverse_iterator = typename const_iterator::reverse_iterator;
 
-        list()
-        : _tail(make_tracked<tracked_ptr<Node>>())
-        , _size(0) {
+        constexpr list() noexcept
+        : _size(0) {
         }
 
         explicit list(size_t n)
@@ -167,13 +168,12 @@ namespace sgcl {
             assign(other.begin(), other.end());
         }
 
-        list(list&& other)
+        list(list&& other) noexcept
         : _head(std::move(other._head))
-        , _tail(make_tracked<tracked_ptr<Node>>())
+        , _tail_ptr(std::move(other._tail_ptr))
         , _size(other._size) {
-            *_tail = std::move(*other._tail);
             other._head = nullptr;
-            *other._tail = nullptr;
+            other._tail_ptr = nullptr;
             other._size = 0;
         }
 
@@ -188,10 +188,10 @@ namespace sgcl {
             if (this != &other) {
                 clear();
                 _head = other._head;
-                *_tail = *other._tail;
+                _tail_ptr = other._tail_ptr;
                 _size = other._size;
                 other._head = nullptr;
-                *other._tail = nullptr;
+                other._tail_ptr = nullptr;
                 other._size = 0;
             }
             return *this;
@@ -214,7 +214,7 @@ namespace sgcl {
                     }
                 }
                 if (node && node != _head) {
-                    *_tail = node->prev;
+                    _tail() = node->prev;
                     node->prev->next = nullptr;
                     node->prev = nullptr;
                     _size = n;
@@ -239,7 +239,7 @@ namespace sgcl {
                     }
                 }
                 if (node && node != _head) {
-                    *_tail = node->prev;
+                    _tail() = node->prev;
                     node->prev->next = nullptr;
                     node->prev = nullptr;
                     _size = size;
@@ -262,15 +262,15 @@ namespace sgcl {
         }
 
         T& back() noexcept {
-            return (*_tail)->data;
+            return _tail()->data;
         }
 
         const T& back() const noexcept {
-            return (*_tail)->data;
+            return _tail()->data;
         }
 
         iterator begin() noexcept {
-            return iterator(_head, _tail);
+            return iterator(_head, _tail_ptr);
         }
 
         const_iterator begin() const noexcept {
@@ -278,7 +278,7 @@ namespace sgcl {
         }
 
         iterator end() noexcept {
-            return iterator(nullptr, _tail);
+            return iterator(nullptr, _tail_ptr);
         }
 
         const_iterator end() const noexcept {
@@ -286,11 +286,11 @@ namespace sgcl {
         }
 
         const_iterator cbegin() const noexcept {
-            return const_iterator(_head, _tail);
+            return const_iterator(_head, _tail_ptr);
         }
 
         const_iterator cend() const noexcept {
-            return const_iterator(nullptr, _tail);
+            return const_iterator(nullptr, _tail_ptr);
         }
 
         reverse_iterator rbegin() noexcept {
@@ -340,10 +340,10 @@ namespace sgcl {
         }
 
         template<class ...A>
-        iterator emplace_back(A&&... a) {
+        reference emplace_back(A&&... a) {
             NodePtr node = make_tracked<Node>(std::forward<A>(a)...);
             _push_back(node);
-            return iterator(node, _tail);
+            return node->data;
         }
 
         void push_front(const T& value) {
@@ -357,19 +357,20 @@ namespace sgcl {
         }
 
         template<class ...A>
-        iterator emplace_front(A&&... a) {
+        reference emplace_front(A&&... a) {
             NodePtr node = make_tracked<Node>(std::forward<A>(a)...);
             _push_front(node);
-            return iterator(node, _tail);
+            return node->data;
         }
 
         void pop_back() noexcept {
-            if (!*_tail) {
+            auto& tail = _tail();
+            if (!tail) {
                 return;
             }
-            *_tail = (*_tail)->prev;
-            if (*_tail) {
-                (*_tail)->next = nullptr;
+            tail = tail->prev;
+            if (tail) {
+                tail->next = nullptr;
             } else {
                 _head = nullptr;
             }
@@ -384,7 +385,7 @@ namespace sgcl {
             if (_head) {
                 _head->prev = nullptr;
             } else {
-                *_tail = nullptr;
+                _tail() = nullptr;
             }
             --_size;
         }
@@ -392,9 +393,11 @@ namespace sgcl {
         template<class... A>
         iterator emplace(const const_iterator& pos, A&&... a) {
             if (pos == begin()) {
-                return emplace_front(std::forward<A>(a)...);
+                emplace_front(std::forward<A>(a)...);
+                return begin();
             } else if (pos == end()) {
-                return emplace_back(std::forward<A>(a)...);
+                emplace_back(std::forward<A>(a)...);
+                return --end();
             } else {
                 const NodePtr& current = pos._node;
                 tracked_ptr node = make_tracked<Node>(std::forward<A>(a)...);
@@ -403,7 +406,7 @@ namespace sgcl {
                 current->prev->next = node;
                 current->prev = node;
                 ++_size;
-                return iterator(node, _tail);
+                return iterator(node, _tail_ptr);
             }
         }
 
@@ -445,7 +448,7 @@ namespace sgcl {
                     }
                     ++_size;
                 }
-                return iterator(first_insert, _tail);
+                return iterator(first_insert, _tail_ptr);
             }
         }
 
@@ -481,7 +484,7 @@ namespace sgcl {
                     }
                     ++_size;
                 }
-                return iterator(first_insert, _tail);
+                return iterator(first_insert, _tail_ptr);
             }
         }
 
@@ -502,10 +505,10 @@ namespace sgcl {
             if (node->next) {
                 node->next->prev = node->prev;
             } else {
-                *_tail = node->prev;
+                _tail() = node->prev;
             }
             --_size;
-            return iterator(node->next, _tail);
+            return iterator(node->next, _tail_ptr);
         }
 
         iterator erase(const_iterator first, const const_iterator& last) noexcept {
@@ -520,7 +523,7 @@ namespace sgcl {
             if (last._node) {
                 last._node->prev = first._node->prev;
             } else {
-                *_tail = first._node->prev;
+                _tail() = first._node->prev;
             }
             while(first != last) {
                 --_size;
@@ -544,7 +547,7 @@ namespace sgcl {
                 while(--count) {
                     node = node->next;
                 }
-                *_tail = node;
+                _tail() = node;
                 if (node->next) {
                     node->next->prev = nullptr;
                 }
@@ -556,7 +559,7 @@ namespace sgcl {
 
         void swap(list& other) noexcept {
             _head.swap(other._head);
-            _tail->swap(*other._tail);
+            _tail_ptr.swap(other._tail_ptr);
             std::swap(_size, other._size);
         }
 
@@ -592,12 +595,12 @@ namespace sgcl {
                 return;
             }
             _size += other._size;
-            _slice(pos._node, other._head, other._tail);
+            _splice(pos._node, other._head, other._tail_ptr);
             other.clear();
         }
 
         void splice(const_iterator pos, list&& other) noexcept {
-            slice(pos, other);
+            splice(pos, other);
         }
 
         void splice(const_iterator pos, list& other, const_iterator it) noexcept {
@@ -607,11 +610,11 @@ namespace sgcl {
             _size += other._size;
             other.erase(it, other.end());
             _size -= other._size;
-            _slice(pos._node, it._node, nullptr);
+            _splice(pos._node, it._node, nullptr);
         }
 
         void splice(const_iterator pos, list&& other, const_iterator it) noexcept {
-            slice(pos, other, it);
+            splice(pos, other, it);
         }
 
         void splice(const_iterator pos, list& other, const_iterator first, const_iterator last) noexcept {
@@ -621,11 +624,11 @@ namespace sgcl {
             _size += other._size;
             other.erase(first, last);
             _size -= other._size;
-            _slice(pos._node, first._node, last._node);
+            _splice(pos._node, first._node, last._node);
         }
 
         void splice(const_iterator pos, list&& other, const_iterator first, const_iterator last) noexcept {
-            slice(pos, other, first, last);
+            splice(pos, other, first, last);
         }
 
         size_type remove(const T& value) noexcept {
@@ -648,7 +651,7 @@ namespace sgcl {
                     if (node->next) {
                         node->next->prev = node->prev;
                     } else {
-                        *_tail = node->prev;
+                        _tail() = node->prev;
                     }
                     ++removed;
                     --_size;
@@ -667,7 +670,7 @@ namespace sgcl {
                 node->next = temp;
                 node = node->prev;
             }
-            std::swap(_head, *_tail);
+            std::swap(_head, _tail());
         }
 
         size_type unique() noexcept {
@@ -689,7 +692,7 @@ namespace sgcl {
                     if (dup->next) {
                         dup->next->prev = node;
                     } else {
-                        *_tail = node;
+                        _tail() = node;
                     }
                     ++removed;
                     --_size;
@@ -702,23 +705,31 @@ namespace sgcl {
 
         void clear() noexcept {
             _head = nullptr;
-            *_tail = nullptr;
+            _tail() = nullptr;
             _size = 0;
         }
 
     private:
         NodePtr _head;
-        TailPtr _tail;
+        TailPtr _tail_ptr;
         size_t _size;
 
+        NodePtr& _tail() noexcept {
+            if (!_tail_ptr) {
+                _tail_ptr = make_tracked<tracked_ptr<Node>>();
+            }
+            return *_tail_ptr;
+        }
+
         void _push_back(const NodePtr& node) {
-            node->prev = *_tail;
-            if (*_tail) {
-                (*_tail)->next = node;
+            auto& tail = _tail();
+            node->prev = tail;
+            if (tail) {
+                tail->next = node;
             } else {
                 _head = node;
             }
-            *_tail = node;
+            tail = node;
             ++_size;
         }
 
@@ -727,7 +738,7 @@ namespace sgcl {
             if (_head) {
                 _head->prev = node;
             } else {
-                *_tail = node;
+                _tail() = node;
             }
             _head = node;
             ++_size;
@@ -765,9 +776,10 @@ namespace sgcl {
                 }
             }
             if (q) {
-                (*_tail)->next = q;
-                q->prev = *_tail;
-                *_tail = *other._tail;
+                auto& tail = _tail();
+                tail->next = q;
+                q->prev = tail;
+                tail = other._tail();
             }
             other.clear();
         }
@@ -784,9 +796,9 @@ namespace sgcl {
                 node->next->prev = node;
                 node = node->next;
             }
-            *_tail = node;
+            _tail() = node;
         }
-
+        
         template<class Compare>
         NodePtr _merge(NodePtr left, NodePtr right, Compare comp) noexcept {
             if (!left) {
@@ -803,19 +815,24 @@ namespace sgcl {
                 result = right;
                 right = right->next;
             }
+            result->prev = nullptr;
             NodePtr current = result;
             while (left && right) {
                 if (comp(left->data, right->data)) {
                     current->next = left;
+                    left->prev = current;
                     current = left;
                     left = left->next;
                 } else {
                     current->next = right;
+                    right->prev = current;
                     current = right;
                     right = right->next;
                 }
             }
-            current->next = left ? left : right;
+            NodePtr rest = left ? left : right;
+            if (rest) rest->prev = current;
+            current->next = rest;
             return result;
         }
 
@@ -846,18 +863,19 @@ namespace sgcl {
                 } else {
                     first->prev = nullptr;
                     last->next = nullptr;
-                    *_tail = last;
+                    _tail() = last;
                 }
                 _head = first;
             } else if (pos == nullptr) {
-                if (*_tail) {
-                    (*_tail)->next = first;
-                    first->prev = *_tail;
+                auto& tail = _tail();
+                if (tail) {
+                    tail->next = first;
+                    first->prev = tail;
                 } else {
                     first->prev = nullptr;
                     _head = first;
                 }
-                *_tail = last;
+                tail = last;
                 last->next = nullptr;
             } else {
                 NodePtr& before = pos->prev;
@@ -877,7 +895,7 @@ namespace sgcl {
         auto it2 = rhs.begin();
         auto lend = lhs.end();
         auto rend = rhs.end();
-        for (; it1 != lend && it2 != rend; ++it1, ++it2) {
+        for (; it1 != lend; ++it1, ++it2) {
             if (!(*it1 == *it2)) {
                 return false;
             }
@@ -891,7 +909,7 @@ namespace sgcl {
         auto it2 = rhs.begin();
         auto lend = lhs.end();
         auto rend = rhs.end();
-        for (; it1 != lend && it2 != rend; ++it1, ++it2) {
+        for (; it1 != lend; ++it1, ++it2) {
             if (auto cmp = (*it1 <=> *it2); cmp != 0)
                 return cmp;
         }
