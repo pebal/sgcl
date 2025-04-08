@@ -207,7 +207,7 @@ namespace sgcl {
             _ptr()->store(nullptr);
         }
 
-        void swap(tracked_ptr<element_type>& p) noexcept {
+        void swap(tracked_ptr& p) noexcept {
             if (allocated_on_external_heap() && p.allocated_on_external_heap()) {
                 std::swap(_raw_ptr_ref, p._raw_ptr_ref);
             } else {
@@ -433,4 +433,13 @@ namespace sgcl {
     inline void set_metadata(void* m) noexcept {
         detail::TypeInfo<T>::user_metadata = m;
     }
+}
+
+namespace std {
+    template<class T>
+    struct hash<sgcl::tracked_ptr<T>> {
+        std::size_t operator()(const sgcl::tracked_ptr<T>& p) const noexcept {
+            return std::hash<T*>{}(p.get());
+        }
+    };
 }

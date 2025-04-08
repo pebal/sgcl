@@ -110,3 +110,12 @@ namespace sgcl {
         return unique_ptr<T>(dynamic_cast<typename unique_ptr<T>::element_type*>(r.release()));
     }
 }
+
+namespace std {
+    template<class T>
+    struct hash<sgcl::unique_ptr<T>> {
+        std::size_t operator()(const sgcl::unique_ptr<T>& p) const noexcept {
+            return std::hash<T*>{}(p.get());
+        }
+    };
+}
