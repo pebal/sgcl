@@ -51,11 +51,11 @@ namespace sgcl {
 
             Iterator() = default;
 
-            explicit Iterator(std::nullptr_t, const TailPtr& tail) noexcept
+            Iterator(std::nullptr_t, const TailPtr& tail) noexcept
             : _tail(tail) {
             }
 
-            explicit Iterator(const NodePtr& node, const TailPtr& tail) noexcept
+            Iterator(const NodePtr& node, const TailPtr& tail) noexcept
             : _node(node)
             , _tail(tail) {
             }
@@ -96,33 +96,25 @@ namespace sgcl {
                 return tmp;
             }
 
-            bool operator==(const Iterator<std::remove_cv_t<T>>& other) const noexcept {
-                return (_node <=> other._node) == 0;
-            }
-
-            std::strong_ordering operator<=>(const Iterator<std::remove_cv_t<T>>& other) const noexcept {
-                return (_node <=> other._node);
-            }
-
-            bool operator==(const Iterator<const std::remove_cv_t<T>>& other) const noexcept {
-                return (_node <=> other._node) == 0;
-            }
-
-            std::strong_ordering operator<=>(const Iterator<const std::remove_cv_t<T>>& other) const noexcept {
-                return (_node <=> other._node);
-            }
-
             reverse_iterator make_reverse_iterator() const noexcept {
                 return reverse_iterator(*this);
             }
 
-            operator Iterator<const value_type>&() const noexcept {
-                return *(Iterator<const value_type>*)(this);
+            operator Iterator<const value_type>() const noexcept {
+                return Iterator<const value_type>(_node, _tail);
             }
 
         private:
             NodePtr _node;
             TailPtr _tail;
+
+            friend bool operator==(const Iterator& lhs, const Iterator& rhs) noexcept {
+                return (lhs._node <=> rhs._node) == 0;
+            }
+
+            friend std::strong_ordering operator<=>(const Iterator& lhs, const Iterator& rhs) noexcept {
+                return (lhs._node <=> rhs._node);
+            }
 
             template<class> friend class Iterator;
             template<class> friend class list;
@@ -885,42 +877,41 @@ namespace sgcl {
                 pos->prev = last;
             }
         }
-    };
 
-    template <class T>
-    bool operator==(const list<T>& lhs, const list<T>& rhs) noexcept {
-        if (lhs.size() != rhs.size())
-            return false;
-        auto it1 = lhs.begin();
-        auto it2 = rhs.begin();
-        auto lend = lhs.end();
-        auto rend = rhs.end();
-        for (; it1 != lend; ++it1, ++it2) {
-            if (!(*it1 == *it2)) {
+        friend bool operator==(const list<T>& lhs, const list<T>& rhs) noexcept {
+            if (lhs.size() != rhs.size()) {
                 return false;
             }
+            auto it1 = lhs.begin();
+            auto it2 = rhs.begin();
+            auto lend = lhs.end();
+            auto rend = rhs.end();
+            for (; it1 != lend; ++it1, ++it2) {
+                if (!(*it1 == *it2)) {
+                    return false;
+                }
+            }
+            return true;
         }
-        return true;
-    }
 
-    template <class T>
-    std::compare_three_way_result_t<T> operator<=>(const list<T>& lhs, const list<T>& rhs) noexcept {
-        auto it1 = lhs.begin();
-        auto it2 = rhs.begin();
-        auto lend = lhs.end();
-        auto rend = rhs.end();
-        for (; it1 != lend; ++it1, ++it2) {
-            if (auto cmp = (*it1 <=> *it2); cmp != 0)
-                return cmp;
+        friend std::compare_three_way_result_t<T> operator<=>(const list<T>& lhs, const list<T>& rhs) noexcept {
+            auto it1 = lhs.begin();
+            auto it2 = rhs.begin();
+            auto lend = lhs.end();
+            auto rend = rhs.end();
+            for (; it1 != lend; ++it1, ++it2) {
+                if (auto cmp = (*it1 <=> *it2); cmp != 0)
+                    return cmp;
+            }
+            if (lhs.size() < rhs.size()) {
+                return std::strong_ordering::less;
+            }
+            if (lhs.size() > rhs.size()) {
+                return std::strong_ordering::greater;
+            }
+            return std::strong_ordering::equal;
         }
-        if (lhs.size() < rhs.size()) {
-            return std::strong_ordering::less;
-        }
-        if (lhs.size() > rhs.size()) {
-            return std::strong_ordering::greater;
-        }
-        return std::strong_ordering::equal;
-    }
+    };
 
     template<typename T>
     class list<unique_ptr<T>> : public std::list<unique_ptr<T>> {

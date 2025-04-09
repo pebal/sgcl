@@ -30,7 +30,7 @@ namespace sgcl {
             : _ptr(nullptr) {
             }
 
-            Iterator(pointer ptr) noexcept
+            explicit Iterator(pointer ptr) noexcept
             : _ptr(ptr) {
             }
 
@@ -86,20 +86,8 @@ namespace sgcl {
                 return _ptr - other._ptr;
             }
 
-            bool operator==(const Iterator<std::remove_cv_t<T>>& other) const noexcept {
-                return (_ptr <=> other._ptr) == 0;
-            }
-
-            std::strong_ordering operator<=>(const Iterator<std::remove_cv_t<T>>& other) const noexcept {
-                return (_ptr <=> other._ptr);
-            }
-
-            bool operator==(const Iterator<const std::remove_cv_t<T>>& other) const noexcept {
-                return (_ptr <=> other._ptr) == 0;
-            }
-
-            std::strong_ordering operator<=>(const Iterator<const std::remove_cv_t<T>>& other) const noexcept {
-                return (_ptr <=> other._ptr);
+            reference operator[](difference_type n) const noexcept {
+                return *(*this + n);
             }
 
             reverse_iterator make_reverse_iterator() const noexcept {
@@ -112,6 +100,14 @@ namespace sgcl {
 
         private:
             pointer _ptr;
+
+            friend bool operator==(const Iterator& lhs, const Iterator& rhs) noexcept {
+                return lhs._ptr == rhs._ptr;
+            }
+
+            friend std::strong_ordering operator<=>(const Iterator& lhs, const Iterator& rhs) noexcept {
+                return lhs._ptr <=> rhs._ptr;
+            }
 
             template<class> friend class Iterator;
             template<class> friend class vector;
@@ -276,7 +272,7 @@ namespace sgcl {
                             ++first;
                         }
                         if (size() > n) {
-                            _destruct(ptr + n, end());
+                            _destruct(iterator(ptr + n), end());
                         }
                     }
                     return;
@@ -565,29 +561,39 @@ namespace sgcl {
         }
 
         template<class ...A>
-        inline void _construct(iterator i, A&&... a) {
-            auto ptr = i._ptr;
-            detail::Maker<T>::construct(ptr, std::forward<A>(a)...);
+        inline void _construct(T* p, A&&... a) {
+            detail::Maker<T>::construct(p, std::forward<A>(a)...);
             ++(*_size);
         }
 
-        inline void _destruct(iterator i) noexcept(std::is_nothrow_destructible_v<T>) {
-            auto ptr = i._ptr;
+        template<class ...A>
+        inline void _construct(iterator i, A&&... a) {
+            _construct(i._ptr, std::forward<A>(a)...);
+        }
+
+        inline void _destruct(T* p) noexcept(std::is_nothrow_destructible_v<T>) {
             --(*_size);
             if constexpr(!std::is_trivially_destructible_v<T> && std::is_destructible_v<T>) {
-                detail::Maker<T>::destroy(ptr);
+                detail::Maker<T>::destroy(p);
             }
         }
 
-        inline void _destruct(iterator first, iterator last) noexcept(std::is_nothrow_destructible_v<T>) {
-            auto ptr = first._ptr;
+        inline void _destruct(iterator i) noexcept(std::is_nothrow_destructible_v<T>) {
+            _destruct(i._ptr);
+        }
+
+        inline void _destruct(T* first, T* last) noexcept(std::is_nothrow_destructible_v<T>) {
             size_t n = last - first;
             *_size -= n;
             if constexpr(!std::is_trivially_destructible_v<T> && std::is_destructible_v<T>) {
                 for (size_t i = n; i > 0; --i) {
-                    detail::Maker<T>::destroy(ptr + i - 1);
+                    detail::Maker<T>::destroy(first + i - 1);
                 }
             }
+        }
+
+        inline void _destruct(iterator first, iterator last) noexcept(std::is_nothrow_destructible_v<T>) {
+            _destruct(first._ptr, last._ptr);
         }
 
         void _resize(size_t capacity = 0, size_t pos = 0, size_t offset = 0) {
@@ -652,22 +658,19 @@ namespace sgcl {
                 _destruct(ptr + s + offset, ptr + s);
             }
         }
+
+        friend bool operator==(const vector<T>& lhs, const vector<T>& rhs) {
+            return std::equal(lhs.begin(), lhs.end(), rhs.begin());
+        }
+
+        friend std::strong_ordering operator<=>(const vector<T>& lhs, const vector<T>& rhs) {
+            return std::lexicographical_compare_three_way(
+                lhs.begin(), lhs.end(),
+                rhs.begin(), rhs.end(),
+                std::compare_three_way{}
+            );
+        }
     };
-
-    template<class T>
-    bool operator==(const vector<T>& lhs, const vector<T>& rhs) {
-        return std::equal(lhs.begin(), lhs.end(), rhs.begin());
-    }
-
-    template<class T>
-    auto operator<=>(const vector<T>& lhs, const vector<T>& rhs)
-    -> std::strong_ordering requires std::three_way_comparable<T> {
-        return std::lexicographical_compare_three_way(
-            lhs.begin(), lhs.end(),
-            rhs.begin(), rhs.end(),
-            std::compare_three_way{}
-        );
-    }
 
     template<typename T>
     class vector<unique_ptr<T>> : public std::vector<unique_ptr<T>> {

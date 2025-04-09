@@ -52,6 +52,11 @@ namespace sgcl {
                 }
             }
 
+            template <bool ConstCheck = IsConst, std::enable_if_t<ConstCheck, int> = 0>
+            Iterator(const Iterator<false>& other) noexcept
+            : _map(other._map), _bucket_index(other._bucket_index), _node(other._node) {
+            }
+
             reference operator*() const noexcept {
                 return _node->p;
             }
@@ -76,10 +81,6 @@ namespace sgcl {
             template<bool B>
             bool operator!=(const Iterator<B>& other) const noexcept {
                 return !(*this == other);
-            }
-
-            operator Iterator<true>&() const noexcept {
-                return *(Iterator<true>*)(this);
             }
 
         private:
@@ -217,24 +218,7 @@ namespace sgcl {
             return *this;
         }
 
-        friend bool operator==(const unordered_map& lhs, const unordered_map& rhs) noexcept {
-            if (lhs.size() != rhs.size()) {
-                return false;
-            }
-            for (const auto& [key, val] : lhs) {
-                auto found = rhs.find(key);
-                if (found == rhs.end() || (*found).second != val) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        friend bool operator!=(const unordered_map& lhs, const unordered_map& rhs) noexcept {
-            return !(lhs == rhs);
-        }
-
-        T& operator[](const Key& key) noexcept {
+        T& operator[](const Key& key) {
             if (_buckets.size()) {
                 size_t idx = _bucket_index(key);
                 NodePtr current = _buckets[idx];
@@ -253,7 +237,7 @@ namespace sgcl {
             return ref->p.second;
         }
 
-        T& operator[](Key&& key) noexcept {
+        T& operator[](Key&& key) {
             if (_buckets.size()) {
                 size_t idx = _bucket_index(key);
                 NodePtr current = _buckets[idx];
@@ -747,9 +731,9 @@ namespace sgcl {
         template<class H2, class P2>
         void merge(unordered_map<Key, T, H2, P2>&& source) {
             for (auto it = source.begin(); it != source.end(); ) {
-                Key&& k = std::move(const_cast<Key&>(it->first));
+                const Key& k = it->first;
                 if (!contains(k)) {
-                    emplace(std::move(k), std::move(it->second));
+                    emplace(k, std::move(it->second));
                     it = source.erase(it);
                 } else {
                     ++it;
@@ -914,6 +898,23 @@ namespace sgcl {
                 required_bucket_count = std::max(required_bucket_count, _buckets.size() * 2);
                 _rehash(required_bucket_count);
             }
+        }
+
+        friend bool operator==(const unordered_map& lhs, const unordered_map& rhs) noexcept {
+            if (lhs.size() != rhs.size()) {
+                return false;
+            }
+            for (const auto& [key, val] : lhs) {
+                auto found = rhs.find(key);
+                if (found == rhs.end() || (*found).second != val) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        friend bool operator!=(const unordered_map& lhs, const unordered_map& rhs) noexcept {
+            return !(lhs == rhs);
         }
     };
 
