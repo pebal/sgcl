@@ -9,6 +9,7 @@
 #include "types.h"
 
 #include <cassert>
+#include <cstring>
 
 namespace sgcl::detail {
     struct StackPointerAllocator {
@@ -29,14 +30,14 @@ namespace sgcl::detail {
 #else
             auto address = ((uintptr_t)p / 2) & ~(uintptr_t)(sizeof(RawPointer) - 1);
 #endif
-            auto index = (address / PageSize) % PageCount;
+            auto offset = address % MaxStackSize;
+            assert(offset % sizeof(RawPointer) == 0);
+            auto index = offset / PageSize;
             auto used = is_used[index].load(std::memory_order_relaxed);
             if (!used) {
                 std::memset((char*)data + index * PageSize, 0, PageSize);
                 is_used[index].store(true, std::memory_order_release);
             }
-            auto offset = (address % MaxStackSize);
-            assert(offset % sizeof(RawPointer) == 0);
             return (Pointer*)((char*)data + offset);
         }
 
