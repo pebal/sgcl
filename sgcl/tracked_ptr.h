@@ -278,7 +278,7 @@ namespace sgcl {
             uintptr_t this_addr = (uintptr_t)this;
             uintptr_t stack_addr = (uintptr_t)&this_addr;
             ptrdiff_t offset = this_addr - stack_addr;
-            return abs(offset) <= config::MaxOffsetForStackDetection;
+            return std::abs(offset) <= config::MaxOffsetForStackDetection;
         }
 
         constexpr bool this_on_heap(std::pair<uintptr_t, uintptr_t> state) const noexcept {
