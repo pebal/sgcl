@@ -40,7 +40,7 @@ int main() {
     for (auto v: arr) {
         std::cout << v << " ";
     }
-    for (auto i = arr.rbegin(); i < arr.rend(); ++i) {
+    for (auto i = arr.rbegin(); i != arr.rend(); ++i) {
         *i = 12;
     }
     for (auto i = 0; i < arr.size(); ++i) {

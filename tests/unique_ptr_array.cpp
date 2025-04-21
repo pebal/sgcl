@@ -160,16 +160,16 @@ TEST(UniquePtr_ArrayTests, iterators) {
     for (auto v : arr) {
         EXPECT_EQ(v, ++c);
     }
-    for (auto i = arr.rbegin(); i < arr.rend(); ++i) {
+    for (auto i = arr.rbegin(); i != arr.rend(); ++i) {
         *i = c--;
     }
-    for (auto i = arr.cbegin(); i < arr.cend(); ++i) {
+    for (auto i = arr.cbegin(); i != arr.cend(); ++i) {
         EXPECT_EQ(*i, ++c);
     }
-    for (auto i = arr.begin(); i < arr.end(); ++i) {
+    for (auto i = arr.begin(); i != arr.end(); ++i) {
         *i = c--;
     }
-    for (auto i = arr.crbegin(); i < arr.crend(); ++i) {
+    for (auto i = arr.crbegin(); i != arr.crend(); ++i) {
         EXPECT_EQ(*i, ++c);
     }
 }
