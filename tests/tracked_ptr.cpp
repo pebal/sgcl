@@ -406,3 +406,52 @@ TEST(TrackedPtr_Tests, Casts) {
     auto pbar = const_pointer_cast<Bar>(cbar);
     EXPECT_EQ(pbar->get_value(), 5);
 }
+
+// Regression test: tracked_ptrs on the C++ heap (external-heap mode) can be
+// left in a "moved-from" state where _ptr() returns nullptr after a move
+// construction where both source and destination are external-heap tracked_ptrs.
+// All assignment operators must handle this case gracefully by re-allocating
+// a fresh Pointer rather than calling _ptr()->store(...) unconditionally.
+TEST(TrackedPtr_Tests, AssignmentToMovedFromExternalHeap) {
+    // Create an external-heap tracked_ptr with a value
+    auto src = std::make_unique<tracked_ptr<Bar>>(make_tracked<Foo>(42));
+    ASSERT_NE(*src, nullptr);
+    EXPECT_EQ((*src)->get_value(), 42);
+    EXPECT_TRUE(src->allocated_on_external_heap());
+
+    // Move-construct another external-heap tracked_ptr from src.
+    // Both being on the C++ heap (external-heap mode) triggers the move
+    // constructor's Pointer-steal path, leaving *src moved-from with null _ptr().
+    auto dest = std::make_unique<tracked_ptr<Bar>>(std::move(*src));
+    ASSERT_NE(*dest, nullptr);
+    EXPECT_EQ((*dest)->get_value(), 42);
+    EXPECT_TRUE(dest->allocated_on_external_heap());
+    // src is now moved-from; do not dereference it before reassigning.
+
+    // At this point src is moved-from: _ptr() returns nullptr.
+    // Verify that copy assignment recovers gracefully.
+    *src = *dest;
+    ASSERT_NE(*src, nullptr);
+    EXPECT_EQ((*src)->get_value(), 42);
+    EXPECT_TRUE(src->allocated_on_external_heap());
+
+    // Move-assign to the recovered src
+    auto dest2 = std::make_unique<tracked_ptr<Bar>>(make_tracked<Foo>(99));
+    *src = std::move(*dest2);
+    ASSERT_NE(*src, nullptr);
+    EXPECT_EQ((*src)->get_value(), 99);
+
+    // Nullptr assignment to a moved-from tracked_ptr
+    auto src2 = std::make_unique<tracked_ptr<int>>(make_tracked<int>(7));
+    auto dest3 = std::make_unique<tracked_ptr<int>>(std::move(*src2));
+    *src2 = nullptr;
+    EXPECT_EQ(*src2, nullptr);
+    EXPECT_TRUE(src2->allocated_on_external_heap());
+
+    // Unique_ptr assignment to a moved-from tracked_ptr
+    *src2 = make_tracked<int>(21);
+    ASSERT_NE(*src2, nullptr);
+    EXPECT_EQ(**src2, 21);
+
+    // Cleanup (destructors run automatically)
+}

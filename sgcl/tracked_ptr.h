@@ -108,25 +108,53 @@ namespace sgcl {
         }
 
         tracked_ptr& operator=(std::nullptr_t) noexcept {
-            _ptr()->store(nullptr);
+            if (auto ptr = _ptr()) {
+                ptr->store(nullptr);
+            } else {
+                auto new_ptr = make_tracked<detail::Pointer>();
+                auto ref = new_ptr.release();
+                _raw_ptr_ref = _set_flag(ref, ExternalHeapFlag);
+                ref->store(nullptr);
+            }
             return *this;
         }
 
         tracked_ptr& operator=(const tracked_ptr& p) noexcept {
-            _ptr()->store(p.get());
+            if (auto self_ptr = _ptr()) {
+                self_ptr->store(p.get());
+            } else {
+                auto new_ptr = make_tracked<detail::Pointer>();
+                auto ref = new_ptr.release();
+                _raw_ptr_ref = _set_flag(ref, ExternalHeapFlag);
+                ref->store(p.get());
+            }
             return *this;
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
         tracked_ptr& operator=(const tracked_ptr<U>& p) noexcept {
-            _ptr()->store(static_cast<element_type*>(p.get()));
+            if (auto self_ptr = _ptr()) {
+                self_ptr->store(static_cast<element_type*>(p.get()));
+            } else {
+                auto new_ptr = make_tracked<detail::Pointer>();
+                auto ref = new_ptr.release();
+                _raw_ptr_ref = _set_flag(ref, ExternalHeapFlag);
+                ref->store(static_cast<element_type*>(p.get()));
+            }
             return *this;
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
         tracked_ptr& operator=(unique_ptr<U>&& u) noexcept {
             auto p = u.release();
-            _ptr()->store(static_cast<element_type*>(p));
+            if (auto self_ptr = _ptr()) {
+                self_ptr->store(static_cast<element_type*>(p));
+            } else {
+                auto new_ptr = make_tracked<detail::Pointer>();
+                auto ref = new_ptr.release();
+                _raw_ptr_ref = _set_flag(ref, ExternalHeapFlag);
+                ref->store(static_cast<element_type*>(p));
+            }
             return *this;
         }
 
