@@ -12,7 +12,7 @@ namespace sgcl::detail {
     struct Metadata {
         template<class T>
         Metadata(T*) noexcept
-        : child_pointers(TypeInfo<T>::child_pointers)
+        : child_pointers(TypeInfo<T>::child_pointers())
         , destroy(TypeInfo<T>::get_destroy_function())
         , free(TypeInfo<T>::Allocator::free)
         , object_size(TypeInfo<T>::ObjectSize)

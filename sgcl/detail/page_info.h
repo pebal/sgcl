@@ -43,7 +43,24 @@ namespace sgcl::detail {
             return *metadata;
         }
 
-        inline static ChildPointers child_pointers {!MayContainTracked<Type>::value, ObjectSize};
+        // Lazily constructed (mirrors private_metadata()/array_metadata()
+        // above), not a plain eagerly-initialized static data member: this
+        // member's constructor does real dynamic (heap-allocating)
+        // initialization via ChildPointers' std::vector `map`, so an eager
+        // `inline static` here would have unspecified initialization order
+        // relative to every other translation unit's own static-duration
+        // objects. A caller whose own static/dynamic initializer is the
+        // first thing to construct a tracked object of this type -- e.g. a
+        // module-level variable initializer that runs during C++ static
+        // initialization, before main() -- could otherwise observe this
+        // member not yet constructed (an under-sized/absent `map`), corrupting
+        // the child-pointer bitmap offset check in Pointer's constructor.
+        // A function-local static is guaranteed to initialize exactly once,
+        // on first call, regardless of static-initialization order.
+        inline static ChildPointers& child_pointers() {
+            static ChildPointers cp{!MayContainTracked<Type>::value, ObjectSize};
+            return cp;
+        }
 
     private:
         static void _destroy(void* p) noexcept {

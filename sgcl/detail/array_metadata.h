@@ -11,7 +11,7 @@ namespace sgcl::detail {
     struct ArrayMetadata {
         template<class T>
         ArrayMetadata(T*) noexcept
-        : child_pointers(TypeInfo<T>::child_pointers)
+        : child_pointers(TypeInfo<T>::child_pointers())
         , destroy(ArrayBase::get_destroy_function<T>())
         , type_info(typeid(T[]))
         , object_size(TypeInfo<T>::ObjectSize)
