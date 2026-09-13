@@ -293,3 +293,83 @@ TEST(TrackedPtr_Tests, Casts) {
     auto pbar = const_pointer_cast<Bar>(cbar);
     EXPECT_EQ(pbar->get_value(), 5);
 }
+
+TEST(TrackedPtr_Tests, ToSharedHoldsTheObjectFromUnmanagedMemory) {
+    struct Node {
+        int value = 7;
+        tracked_ptr<Node> next;
+    };
+    collector::force_collect(true);
+    auto live0 = collector::get_live_object_count();
+    std::vector<std::shared_ptr<Node>> unmanaged;   // a std container: where no tracked_ptr may live
+    off_frame([&] {
+        tracked_ptr node = make_tracked<Node>();
+        node->next = make_tracked<Node>();
+        unmanaged.push_back(node.to_shared());
+    });
+    collector::clear_stack(SIZE_MAX);
+    collector::force_collect(true);
+    ASSERT_EQ(unmanaged.size(), 1u);
+    off_frame([&] {
+        EXPECT_EQ(unmanaged[0]->value, 7);
+        ASSERT_NE(unmanaged[0]->next, nullptr);
+        EXPECT_EQ(unmanaged[0]->next->value, 7);
+    });
+    EXPECT_EQ(collector::get_live_object_count(), live0 + 3);   // the node, its next, the holder
+    auto copy = unmanaged[0];                        // shares the control block: no new holder
+    unmanaged.clear();
+    collector::force_collect(true);
+    off_frame([&] {
+        EXPECT_EQ(copy->value, 7);
+    });
+    EXPECT_EQ(collector::get_live_object_count(), live0 + 3);
+    copy.reset();                                    // the last shared_ptr: the holder is released
+    collector::clear_stack(SIZE_MAX);
+    collector::force_collect(true);
+    EXPECT_EQ(collector::get_live_object_count(), live0);
+}
+
+TEST(TrackedPtr_Tests, ToSharedOfNullAndOfAnAlias) {
+    struct Node {
+        int value = 7;
+    };
+    tracked_ptr<Node> null;
+    EXPECT_EQ(null.to_shared(), nullptr);
+    std::shared_ptr<int> value;
+    {
+        tracked_ptr node = make_tracked<Node>();
+        tracked_ptr<int> alias(&node->value);
+        value = alias.to_shared();                   // an alias into a member keeps the whole object
+    }
+    collector::clear_stack(SIZE_MAX);
+    collector::force_collect(true);
+    ASSERT_NE(value, nullptr);
+    EXPECT_EQ(*value, 7);
+}
+
+TEST(TrackedPtr_Tests, ToSharedAcrossThreads) {
+    struct Node {
+        std::atomic<int> hits = {0};
+    };
+    std::shared_ptr<Node> shared;
+    {
+        tracked_ptr node = make_tracked<Node>();
+        shared = node.to_shared();
+    }
+    std::vector<std::thread> threads;
+    for (int t = 0; t < 4; ++t) {
+        threads.emplace_back([shared] {              // a copy captured by a lambda run on another thread
+            for (int i = 0; i < 1000; ++i) {
+                ++shared->hits;
+                if (i % 100 == 0) {
+                    std::this_thread::yield();
+                }
+            }
+        });
+    }
+    collector::force_collect(true);
+    for (auto& t : threads) {
+        t.join();
+    }
+    EXPECT_EQ(shared->hits.load(), 4000);
+}

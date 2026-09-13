@@ -11,11 +11,15 @@
 #include "unique_ptr.h"
 #include "types.h"
 
+#include <memory>
+
 namespace sgcl {
     namespace detail {
         // Tag of the callers that hold a reference to current_thread():
         // the thread is registered, the constructor need not check.
         struct OnRegisteredThread {};
+
+        struct SharedHolder;
     }
 
     // One word: the pointer itself. A tracked_ptr lives either inside a
@@ -194,6 +198,19 @@ namespace sgcl {
             p = t;
         }
 
+        // The object held from unmanaged memory: a std::shared_ptr whose
+        // control block owns a managed holder of this pointer (a root), so
+        // the shared_ptr may live anywhere a tracked_ptr may not (new
+        // memory, a std container, a global, a lambda on the heap), and
+        // the object outlives the last copy of it no longer than it would
+        // outlive any other root. Two allocations per call (the holder on
+        // the managed heap, the control block on the unmanaged one): a
+        // named function, not a conversion, so that the cost and the new
+        // root are visible where they are paid. The object stays managed:
+        // destroyed on a collector thread once nothing reaches it, under
+        // the rules of destructors.
+        std::shared_ptr<element_type> to_shared() const;   // below, after detail::SharedHolder
+
         template<class U>
         bool is() const noexcept {
             return type() == typeid(U);
@@ -279,6 +296,27 @@ namespace sgcl {
     // them and create them through detail::Maker<T[]>.
     template<class T>
     class tracked_ptr<T[]>;
+
+    namespace detail {
+        // The managed object behind tracked_ptr::to_shared: a root (its
+        // unique_ptr owns it from the control block of the shared_ptr)
+        // holding the pointer where a tracked_ptr may live. One type for
+        // every T: one pool of pages, not one per pointee type.
+        struct SharedHolder {
+            tracked_ptr<void> ptr;
+        };
+    }
+
+    template<class T>
+    std::shared_ptr<T> tracked_ptr<T>::to_shared() const {
+        auto p = get();
+        if (!p) {
+            return std::shared_ptr<T>();
+        }
+        std::shared_ptr<detail::SharedHolder> holder = make_tracked<detail::SharedHolder>();
+        holder->ptr = *this;
+        return std::shared_ptr<T>(std::move(holder), p);
+    }
 
     template <typename T>
     tracked_ptr(T*) -> tracked_ptr<T>;

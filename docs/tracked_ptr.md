@@ -16,6 +16,7 @@ The object comes from [`make_tracked`](make_tracked.md) as a `unique_ptr`; movin
 ## Rules
 
 - A `tracked_ptr` lives inside a managed object (one created with `make_tracked`, a node or buffer of an `sgcl` container, a managed coroutine frame) or on a thread's stack. Never in `new`/`malloc` memory, a `std` container, a global, a `thread_local`, a lambda copied to the heap, or the frame of a plain coroutine. Debug builds assert it in the constructor; a release build loses the object ([The rules](../README.md#the-rules), 1; [Stack roots](../README.md#stack-roots)). A global root is a `unique_ptr`, to the object or to a managed object holding the `tracked_ptr`.
+- The object held from unmanaged memory is a `std::shared_ptr` from `to_shared()` (below): a `unique_ptr` for one owner, a `shared_ptr` for many, a `tracked_ptr` for neither.
 - It does not share its storage with data: no `union` with a value, no `std::variant`, no small-buffer `std::function` or `std::any` holding one. A union of two `tracked_ptr`s and `std::optional<tracked_ptr<T>>` are fine ([Pointer maps](../README.md#pointer-maps)).
 - It addresses a managed object or a part of it, a member or a base ([Pointer aliases](../README.md#pointer-aliases)); never an element of a container's buffer (`sgcl::vector`, `sgcl::array<T>`), and never an object a `unique_ptr` owns. Debug builds assert both.
 - A destructor reads the `tracked_ptr` members of its object only through `if_alive()`: the object dies with everything reachable only from it, in no particular order, on a collector thread ([Pointer maps](../README.md#pointer-maps), [Threads](../README.md#threads)).
@@ -210,6 +211,29 @@ sgcl::tracked_ptr a = sgcl::make_tracked<int>(1);
 sgcl::tracked_ptr b = sgcl::make_tracked<int>(2);
 a.swap(b);
 assert(*a == 2 && *b == 1);
+```
+
+### to_shared
+
+```cpp
+std::shared_ptr<element_type> to_shared() const;
+```
+
+The object held from unmanaged memory. Returns a `std::shared_ptr` to the object whose control block owns a managed holder of this pointer: the holder is a root (its `unique_ptr` lives in the control block), so the object is reachable for as long as any copy of the `shared_ptr` lives, and the `shared_ptr` itself may live anywhere a `tracked_ptr` may not: `new` memory, a `std` container, a global, a lambda copied to the heap or run on another thread. Copies of the `shared_ptr` share the control block and the holder; only the call allocates, twice (the holder on the managed heap, the control block on the unmanaged one), which is why this is a named function and not a conversion. A null pointer gives a null `shared_ptr`. An alias into a member gives a `shared_ptr` to the member that keeps the whole object.
+
+The object stays managed: when the last `shared_ptr` is gone the holder is released and the object lives on if anything else reaches it, and is destroyed on a collector thread, under the rules of destructors, once nothing does. A `shared_ptr` from `to_shared()` is not a deterministic owner the way `unique_ptr` is.
+
+```cpp
+struct Node { int value = 7; sgcl::tracked_ptr<Node> next; };
+
+std::vector<std::shared_ptr<Node>> kept;           // a std container: no tracked_ptr may live in it
+sgcl::tracked_ptr node = sgcl::make_tracked<Node>();
+node->next = sgcl::make_tracked<Node>();
+kept.push_back(node.to_shared());                  // the Node and its next live while the shared_ptr does
+node = nullptr;
+sgcl::collector::force_collect();                  // optional, to show the result at once
+assert(kept[0]->next->value == 7);
+kept.clear();                                      // the last copy: the holder is released, the Node is garbage
 ```
 
 ### is, as, type

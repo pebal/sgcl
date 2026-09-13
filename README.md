@@ -47,7 +47,7 @@ Every public class and function has a page of its own in [docs/](docs/README.md)
 
 ## SGCL classes
 - `unique_ptr<T>`: what `make_tracked<T>(...)` returns. A specialization of `std::unique_ptr` whose object lives on the managed heap: destroyed at scope exit like any `unique_ptr`, and the root of whatever it owns meanwhile. Converts into a `tracked_ptr`, after which the object belongs to the collector.
-- `tracked_ptr<T>`: the pointer the collector follows. One word; lives inside a managed object or on a stack ("Stack roots" below). Copies, converts to base classes, compares, `reset()` and `reset(T*)`, `get()`; `type()`, `is<U>()` and `as<U>()` for the dynamic type of the object; `if_alive()` for the one situation a pointer may be dangling, a destructor reading a peer that may be dying in the same sweep ("Pointer maps" below).
+- `tracked_ptr<T>`: the pointer the collector follows. One word; lives inside a managed object or on a stack ("Stack roots" below). Copies, converts to base classes, compares, `reset()` and `reset(T*)`, `get()`; `type()`, `is<U>()` and `as<U>()` for the dynamic type of the object; `if_alive()` for the one situation a pointer may be dangling, a destructor reading a peer that may be dying in the same sweep ("Pointer maps" below); `to_shared()` for a `std::shared_ptr` that holds the object from unmanaged memory ("The rules" below).
 - `atomic<tracked_ptr<T>>` and `atomic_ref<tracked_ptr<T>>`: `load`, `store`, `compare_exchange_weak` and `compare_exchange_strong` with `std::memory_order`, plus `wait`/`notify`; lock-free, the loaded object protected by a hazard pointer for the length of the load.
 - `managed_frame`, `frame_ptr<Promise>`, `task<T>`, `generator<T>`: coroutines with frames on the managed heap ("Coroutines" below).
 - `expiry_queue<T>`: `watch(object, f)` is a `weak_ptr` to the object plus `f`, kept for the day nothing else reaches the object; `drain()` calls the `f` of every such entry with the object, alive one last time ("Weak pointers" below).
@@ -130,6 +130,8 @@ The basics, in one file (`examples/example.cpp` has the long version):
 ```cpp
 #include "sgcl/sgcl.h"
 #include <iostream>
+#include <memory>
+#include <vector>
 
 struct Node {
     int value;
@@ -180,7 +182,8 @@ int main() {
     // std::vector<sgcl::tracked_ptr<Node>> edges;   // a std container's buffer is that heap
     // static sgcl::tracked_ptr<Node> root;          // a global is neither a stack nor an object
     sgcl::vector<sgcl::tracked_ptr<Node>> edges;     // the managed forms: a managed buffer,
-    static sgcl::unique_ptr root = sgcl::make_tracked<Node>(0);   // a global that owns its root
+    static sgcl::unique_ptr root = sgcl::make_tracked<Node>(0);   // a global that owns its root,
+    std::vector<std::shared_ptr<Node>> kept = {node.to_shared()};  // a shared_ptr that may live anywhere
 }
 ```
 
@@ -300,6 +303,14 @@ static sgcl::unique_ptr current = sgcl::make_tracked<Current>();   // the root, 
 
 sgcl::tracked_ptr<Config> config = current->load();                          // a reader: held until dropped
 current->store(sgcl::make_tracked<Config>(...));                             // a writer: the old one lives on for its readers
+```
+
+A managed object held from anywhere else in unmanaged memory (a `std::vector`, a `new`ed object, a lambda run on another thread) is a `std::shared_ptr` from `to_shared()`: its control block owns a managed holder of the pointer, a root that lives exactly as long as the last copy of the `shared_ptr`, and the object stays managed, destroyed on the collector's threads once nothing reaches it. Two allocations per call, so a named function, not a conversion:
+
+```cpp
+std::vector<std::shared_ptr<Node>> kept;              // a std container: no tracked_ptr may live in it
+sgcl::tracked_ptr node = sgcl::make_tracked<Node>();
+kept.push_back(node.to_shared());                     // the Node lives while the shared_ptr does
 ```
 
 ## Threads
