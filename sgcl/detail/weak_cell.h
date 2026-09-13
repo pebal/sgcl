@@ -1,0 +1,45 @@
+//------------------------------------------------------------------------------
+// SGCL: Smart Garbage Collection Library
+// Copyright (c) 2022-2026 Sebastian Nibisz
+// SPDX-License-Identifier: Apache-2.0
+//------------------------------------------------------------------------------
+#pragma once
+
+#include <atomic>
+
+namespace sgcl::detail {
+    // The cell behind a weak_ptr: a managed object of its own type holding
+    // the target as a word the collector does not trace (type_info.h:
+    // MayContainTracked<WeakCell> is false, so the type's pointer map is
+    // empty). The cells of a program lie on the pages of this one type,
+    // which is how the collector finds them (collector.h:
+    // _clear_weak_cells): a live cell whose target a cycle found
+    // unreachable has the word cleared before the sweep. A weak_ptr is a
+    // tracked_ptr to a cell; copies share it, and the cell is collected
+    // with the last of them. Constructed inside the allocator's init,
+    // before its slot is published (maker.h: make_tracked_before_publish),
+    // so the collector never sees a cell half-written or the word of the
+    // slot's last occupant.
+    // A cell watched by an expiry_queue (expiry_queue.h) carries flags: the
+    // collector, finding the target of a Watched cell unreachable, does not
+    // clear it but marks the target reachable and sets Expired, and keeps
+    // the target alive from then on, cycle after cycle, until the queue
+    // drains the entry and sets Drained; from then on the cell is an
+    // ordinary one and the target dies with the next cycle that finds it
+    // unreachable, unless the queue's function kept it.
+    struct WeakCell {
+        enum Flags : unsigned {
+            Watched = 1,   // an expiry_queue holds an entry for this cell
+            Expired = 2,   // the collector found the target unreachable and kept it for the queue
+            Drained = 4    // the queue has run its function: no longer kept
+        };
+
+        explicit WeakCell(void* p, unsigned f = 0) noexcept
+        : target(p)
+        , flags(f) {
+        }
+
+        std::atomic<void*> target;
+        std::atomic<unsigned> flags;
+    };
+}

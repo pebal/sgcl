@@ -1,6 +1,6 @@
 //------------------------------------------------------------------------------
 // SGCL: Smart Garbage Collection Library
-// Copyright (c) 2022-2025 Sebastian Nibisz
+// Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
@@ -64,7 +64,7 @@ namespace sgcl {
                 thread.set_hazard_pointer(l);
                 l = (T*)_ptr().load(order);
             } while(l != t);
-            value_type p(l);
+            value_type p(l, detail::OnRegisteredThread{});
             thread.clear_hazard_pointer();
             return p;
         }

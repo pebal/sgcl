@@ -1,81 +1,70 @@
 //------------------------------------------------------------------------------
 // SGCL: Smart Garbage Collection Library
-// Copyright (c) 2022-2025 Sebastian Nibisz
+// Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "counter.h"
+#include "../config.h"
 
 #include <atomic>
+#include <cstddef>
 
 namespace sgcl::detail {
+    // Pages taken from and returned to the heap, in pages. The mutators add
+    // with one relaxed fetch_add per page or range and get back the pages
+    // allocated since the cycle began, which is what the wake rule wants
+    // (page_allocator.h); no fences, nothing is published through these
+    // numbers. The counters written by many threads have lines of their own;
+    // the cycle snapshots the collector writes once per cycle share a
+    // read-mostly line.
     class MemoryCounters {
     public:
-        inline static void update_alloc(int64_t count, int64_t size) noexcept {
-            _alloc_count.fetch_add(count, std::memory_order_relaxed);
-            _alloc_size.fetch_add(size, std::memory_order_relaxed);
-            _live_count.fetch_add(count, std::memory_order_relaxed);
-            _live_size.fetch_add(size, std::memory_order_relaxed);
-            std::atomic_thread_fence(std::memory_order_release);
+        inline static size_t add_alloc(size_t pages) noexcept {
+            auto total = _alloc.fetch_add(pages, std::memory_order_relaxed) + pages;
+            return total - _alloc_at_cycle.load(std::memory_order_relaxed);
         }
-        inline static void update_free(size_t count, int64_t size) noexcept {
-            _free_count.fetch_add(count, std::memory_order_relaxed);
-            _free_size.fetch_add(size, std::memory_order_relaxed);
-            _live_count.fetch_sub(count, std::memory_order_relaxed);
-            _live_size.fetch_sub(size, std::memory_order_relaxed);
-            std::atomic_thread_fence(std::memory_order_release);
+        inline static void add_free(size_t pages) noexcept {
+            _free.fetch_add(pages, std::memory_order_relaxed);
         }
-        inline static Counter alloc_counter() noexcept {
-            std::atomic_thread_fence(std::memory_order_acquire);
-            return Counter(_alloc_count.load(std::memory_order_relaxed), _alloc_size.load(std::memory_order_relaxed));
+        inline static size_t alloc_since_cycle() noexcept {
+            return _alloc.load(std::memory_order_relaxed) - _alloc_at_cycle.load(std::memory_order_relaxed);
         }
-        inline static Counter last_alloc_counter() noexcept {
-            std::atomic_thread_fence(std::memory_order_acquire);
-            return Counter(_last_alloc_count.load(std::memory_order_relaxed), _last_alloc_size.load(std::memory_order_relaxed));
+        inline static size_t free_since_cycle() noexcept {
+            return _free.load(std::memory_order_relaxed) - _free_at_cycle.load(std::memory_order_relaxed);
         }
-        inline static Counter free_counter() noexcept {
-            std::atomic_thread_fence(std::memory_order_acquire);
-            return Counter(_free_count.load(std::memory_order_relaxed), _free_size.load(std::memory_order_relaxed));
+        // pages allocated during the previous cycle (and the sleep after it)
+        inline static size_t last_alloc() noexcept {
+            return _last_alloc.load(std::memory_order_relaxed);
         }
-        inline static Counter live_counter() noexcept {
-            std::atomic_thread_fence(std::memory_order_acquire);
-            return Counter(_live_count.load(std::memory_order_relaxed), _live_size.load(std::memory_order_relaxed));
+        inline static size_t live_pages() noexcept {
+            return _alloc.load(std::memory_order_relaxed) - _free.load(std::memory_order_relaxed);
         }
-        inline static size_t live_count() noexcept {
-            return _live_count.load(std::memory_order_acquire);
+        inline static size_t live_bytes() noexcept {
+            return live_pages() * config::PageSize;
         }
-        inline static size_t alloc_count() noexcept {
-            return _alloc_count.load(std::memory_order_acquire);
+        // Pages in use when the last cycle ended, with its garbage swept:
+        // the base of the wake rule. The pages in use right now include the
+        // garbage waiting for the next sweep, and a rule measured against
+        // them lets a backlog grow itself.
+        inline static size_t live_after_cycle() noexcept {
+            return _live_after_cycle.load(std::memory_order_relaxed);
         }
-        inline static size_t last_alloc_count() noexcept {
-            return _last_alloc_count.load(std::memory_order_acquire);
+        inline static void end_cycle() noexcept {
+            _live_after_cycle.store(live_pages(), std::memory_order_relaxed);
         }
-        inline static size_t free_count() noexcept {
-            return _free_count.load(std::memory_order_acquire);
-        }
-        inline static void reset_alloc() noexcept {
-            _alloc_count.store(0, std::memory_order_relaxed);
-            _alloc_size.store(0, std::memory_order_relaxed);
-        }
-        inline static void reset_free() noexcept {
-            _free_count.store(0, std::memory_order_relaxed);
-            _free_size.store(0, std::memory_order_relaxed);
-        }
-        inline static void reset_all() noexcept {
-            _last_alloc_count.store(_alloc_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
-            _last_alloc_size.store(_alloc_size.load(std::memory_order_relaxed), std::memory_order_relaxed);
-            reset_alloc();
-            reset_free();
+        inline static void begin_cycle() noexcept {
+            auto alloc = _alloc.load(std::memory_order_relaxed);
+            _last_alloc.store(alloc - _alloc_at_cycle.load(std::memory_order_relaxed), std::memory_order_relaxed);
+            _alloc_at_cycle.store(alloc, std::memory_order_relaxed);
+            _free_at_cycle.store(_free.load(std::memory_order_relaxed), std::memory_order_relaxed);
         }
     private:
-        inline static std::atomic<size_t> _live_count = {0};
-        inline static std::atomic<size_t> _live_size = {0};
-        inline static std::atomic<size_t> _alloc_count = {0};
-        inline static std::atomic<size_t> _alloc_size = {0};
-        inline static std::atomic<size_t> _last_alloc_count = {0};
-        inline static std::atomic<size_t> _last_alloc_size = {0};
-        inline static std::atomic<size_t> _free_count = {0};
-        inline static std::atomic<size_t> _free_size = {0};
+        alignas(config::CacheLineSize) inline static std::atomic<size_t> _alloc = {0};
+        alignas(config::CacheLineSize) inline static std::atomic<size_t> _free = {0};
+        alignas(config::CacheLineSize) inline static std::atomic<size_t> _alloc_at_cycle = {0};
+        inline static std::atomic<size_t> _free_at_cycle = {0};
+        inline static std::atomic<size_t> _last_alloc = {0};
+        inline static std::atomic<size_t> _live_after_cycle = {0};
     };
 }

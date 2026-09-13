@@ -1,6 +1,6 @@
 //------------------------------------------------------------------------------
 // SGCL: Smart Garbage Collection Library
-// Copyright (c) 2022-2025 Sebastian Nibisz
+// Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
@@ -8,43 +8,27 @@
 #include "array_metadata.h"
 #include "thread.h"
 
+#include <cstring>
+
 namespace sgcl::detail {
     class Pointer {
     public:
-        Pointer() noexcept {
-#if !defined(NDEBUG)
-            if (_val == size_t(1)) {
-#else
-            if (_val) {
-#endif
-                static_assert(sizeof(Pointer) == sizeof(RawPointer));
-                auto& thread = current_thread();
-                auto& pointers = thread.child_pointers;
-                assert(pointers.map && "Objects that are not roots cannot be allocated on the stack or unmanaged heap");
-                auto offset = ((uintptr_t)&_ptr - pointers.base) / sizeof(Pointer);
-                assert(offset / 8 < pointers.map->size());
-                (*pointers.map)[offset / 8].fetch_or(1 << (offset % 8), std::memory_order_relaxed);
-                store(nullptr);
-            }
-            else {
-#if !defined(NDEBUG)
-                assert(_val == 0 && "Objects that are not roots cannot be allocated on the stack or unmanaged heap");
-#endif
-            }
+        Pointer() noexcept
+        : _ptr(nullptr) {
         }
 
         Pointer(std::nullptr_t) noexcept
-        : Pointer() {
+        : _ptr(nullptr) {
         }
 
+        // One store, then the barrier: the word is never null first.
         Pointer(const void* p) noexcept
-        : Pointer() {
-            store(p);
+        : _ptr(const_cast<void*>(p)) {
+            _update(p);
         }
 
         Pointer(const Pointer& p) noexcept
-        : Pointer() {
-            store(p.load());
+        : Pointer(p.load()) {
         }
 
         Pointer& operator=(const Pointer& p) noexcept {
@@ -56,12 +40,20 @@ namespace sgcl::detail {
             return _ptr.load(std::memory_order_relaxed);
         }
 
+        // A plain load, for the thread that owns the word: a container
+        // reading the pointer to its own buffer. Unlike the atomic load, the
+        // compiler may keep the value in a register across a loop.
+        void* load_plain() const noexcept {
+            static_assert(sizeof(_ptr) == sizeof(void*));
+            return *reinterpret_cast<void* const*>(&_ptr);   // a typed load: no aliasing with the buffer's header
+        }
+
         void* load(const std::memory_order m) const noexcept {
             return _ptr.load(m);
         }
 
         void store(std::nullptr_t) noexcept {
-            _ptr.store(nullptr, std::memory_order_release);
+            _ptr.store(nullptr, std::memory_order_relaxed);   // a null publishes nothing
         }
 
         void store(const void* p) noexcept {
@@ -156,8 +148,9 @@ namespace sgcl::detail {
         }
 
         inline static void* data_base_address_of(const void* p) noexcept {
-            auto data = base_address_of(p);
-            return Page::metadata_of(p).is_array ? ((ArrayBase*)data) + 1 : data;
+            auto page = Page::page_of(p);
+            auto data = page->pointer_of(page->index_of(p));
+            return page->metadata->is_array ? ((ArrayBase*)data) + 1 : data;
         }
 
         void* data_base_address() const noexcept {
@@ -166,38 +159,15 @@ namespace sgcl::detail {
         }
 
         template<class T>
-        inline static void* metadata(const void* p) noexcept {
-            using Info = TypeInfo<T>;
-            if (p) {
-                auto metadata = Page::metadata_of(p);
-                if (metadata.is_array) {
-                    auto array = (ArrayBase*)Page::base_address_of(p);
-                    auto metadata = array->metadata.load(std::memory_order_relaxed);
-                    return metadata->user_metadata;
-                } else {
-                    return metadata.user_metadata;
-                }
-            } else {
-                return Info::user_metadata;
-            }
-        }
-
-        template<class T>
-        void* metadata() const noexcept {
-            auto p = load();
-            return metadata<T>(p);
-        }
-
-        template<class T>
         inline static const std::type_info& type_info(const void* p) noexcept {
             if (p) {
                 auto metadata = Page::metadata_of(p);
                 if (metadata.is_array) {
                     auto array = (ArrayBase*)Page::base_address_of(p);
-                    auto metadata = array->metadata.load(std::memory_order_relaxed);
+                    auto metadata = array->metadata;
                     return metadata->type_info;
                 } else {
-                    return Page::metadata_of(p).type_info;
+                    return metadata.type_info;
                 }
             } else {
                 return typeid(T);
@@ -224,7 +194,7 @@ namespace sgcl::detail {
                 auto metadata = detail::Page::metadata_of(p);
                 if (metadata.is_array) {
                     auto array = (detail::ArrayBase*)Page::base_address_of(p);
-                    auto metadata = array->metadata.load(std::memory_order_relaxed);
+                    auto metadata = array->metadata;
                     return metadata->object_size;
                 } else {
                     return metadata.object_size;
@@ -243,25 +213,12 @@ namespace sgcl::detail {
                 auto metadata = detail::Page::metadata_of(p);
                 if (metadata.is_array) {
                     auto array = (detail::ArrayBase*)Page::base_address_of(p);
-                    return array->size;
+                    return array->capacity;
                 } else {
                     return 1;
                 }
             }
             return 0;
-        }
-
-        inline static size_t* size_ptr(const void* p) noexcept {
-            if (p) {
-                auto metadata = detail::Page::metadata_of(p);
-                if (metadata.is_array) {
-                    auto array = (detail::ArrayBase*)Page::base_address_of(p);
-                    return &array->size;
-                } else {
-                    return nullptr;
-                }
-            }
-            return nullptr;
         }
 
         inline static size_t capacity(const void* p) noexcept {
@@ -291,15 +248,16 @@ namespace sgcl::detail {
         }
 
     private:
-        static void _update(const void* p) noexcept {
+        // Write barrier: the target becomes Reachable (the collector marks
+        // it in this cycle), and the page holding this pointer is carded for
+        // the young cycles (page.h: mark_card).
+        void _update(const void* p) noexcept {
             if (p) {
                 Page::set_state<State::Reachable>(p);
+                Page::mark_card(this);
             }
         }
 
-        union {
-            size_t _val;
-            RawPointer _ptr;
-        };
+        RawPointer _ptr;
     };
 }

@@ -1,18 +1,21 @@
 //------------------------------------------------------------------------------
 // SGCL: Smart Garbage Collection Library
-// Copyright (c) 2022-2025 Sebastian Nibisz
+// Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "heap.h"
 #include "memory_counters.h"
 #include "object_allocator_base.h"
 #include "type_info.h"
 
-#include <functional>
-#include <thread>
+#include <new>
 
 namespace sgcl::detail {
+    // Objects larger than a page: each one gets its own range of pages and its
+    // own header; every page of the range maps to that header in the heap
+    // table, so interior pointers anywhere in the object resolve correctly.
     template<class T>
     class ObjectAllocator : public ObjectAllocatorBase {
     public:
@@ -23,52 +26,57 @@ namespace sgcl::detail {
         : ObjectAllocatorBase(pages) {
         }
 
-        ValueType* alloc(size_t size) const {
-            using WakingUp = std::unique_ptr<Counter, std::function<void(Counter*)>>;
-            WakingUp waking_up;
-            size += sizeof(ValueType) + sizeof(uintptr_t);
-            MemoryCounters::update_alloc(1, size);
-            auto alloc_counter = MemoryCounters::alloc_counter();
-            auto live_counter = MemoryCounters::live_counter();
-            if (alloc_counter * 4 > live_counter + Counter(64, config::PageSize * 4 * 64)) {
-                waking_up = WakingUp(&live_counter, [](Counter*){ waking_up_collector(); });
+        // `init` runs on the range before its slot is published, as in
+        // object_pool_allocator_base.h.
+        template<class Init>
+        ValueType* alloc(size_t size, Init&& init) const {
+            size += sizeof(ValueType);
+            auto pages = (size + config::PageSize - 1) / config::PageSize;
+            auto since = MemoryCounters::add_alloc(pages);   // page_allocator.h: the same rule
+            bool wake = since * 4 > MemoryCounters::live_after_cycle() + 64;
+            auto data = (ValueType*)Heap::instance().alloc_range(pages);
+            if (!data) {
+                // at the commit limit (or no contiguous range): a full
+                // collection may free enough; otherwise give up cleanly
+                collect_before_bad_alloc();
+                data = (ValueType*)Heap::instance().alloc_range(pages);
+                if (!data) {
+                    throw std::bad_alloc();
+                }
             }
-            auto mem = ::operator new(size, std::align_val_t(config::PageSize));
-            auto data = (ValueType*)((uintptr_t)mem + sizeof(uintptr_t));
-            auto hmem = ::operator new(TypeInfo<T>::HeaderSize);
-            auto page = new(hmem) Page(nullptr, data);
-            page->alloc_size = size;
-            *((Page**)mem) = page;
+            wake = wake || Heap::instance().under_pressure();
+            auto hmem = TypeInfo<T>::header_slab().alloc();
+            auto page = new(hmem) Page(data);
+            page->page_count = pages;
+            // the one slot comes out in state UniqueLock, like a pool slot
+            init(data);
+            page->states()[0].store(State::UniqueLock, std::memory_order_release);
+            page->object_created.store(true, std::memory_order_release);
+            Heap::set_pages(data, pages, page);
+            // publish: the collector may exchange the list away at any time
             page->next = _pages.load(std::memory_order_relaxed);
-            _pages.store(page, std::memory_order_release);
+            while (!_pages.compare_exchange_weak(page->next, page, std::memory_order_release, std::memory_order_relaxed)) {
+            }
+            if (wake) {
+                waking_up_collector();
+            }
             return data;
         }
 
+        // GC thread. The headers stay valid until the collector unlinks and
+        // deletes them; only the pages go back to the heap here.
         static void free(Page* pages) noexcept {
-            Page* page = pages;
-            size_t size = 0;
-            std::vector<void*> mems_to_delete;
-            while(page) {
-                auto data = (void*)(page->data - sizeof(uintptr_t));
-                mems_to_delete.push_back(data);
-                size += page->alloc_size;
+            size_t count = 0;
+            for (auto page = pages; page; page = page->next_empty) {
+                Heap::instance().free_range((void*)page->data, page->page_count);
+                count += page->page_count;
                 page->is_used = false;
-                page = page->next_empty;
             }
-            if (mems_to_delete.size()) {
-                MemoryCounters::update_free(mems_to_delete.size(), size);
-                auto alloc_counter = MemoryCounters::last_alloc_counter();
-                auto free_counter = Counter(mems_to_delete.size(), size);
-                if (free_counter * 4 > alloc_counter + Counter(64, config::PageSize * 4 * 64)) {
+            if (count) {
+                MemoryCounters::add_free(count);
+                if (count * 4 > MemoryCounters::last_alloc() + 64) {
                     force_short_sleep();
                 }
-                destroyer_threads().emplace_back(
-                    std::thread([mems = std::move(mems_to_delete)] {
-                        for (auto mem: mems) {
-                            ::operator delete(mem, std::align_val_t(config::PageSize));
-                        }
-                    })
-                );
             }
         }
     };

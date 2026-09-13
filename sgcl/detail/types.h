@@ -1,6 +1,6 @@
 //------------------------------------------------------------------------------
 // SGCL: Smart Garbage Collection Library
-// Copyright (c) 2022-2025 Sebastian Nibisz
+// Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
@@ -16,14 +16,13 @@ namespace sgcl::detail {
     struct Array;
     struct ArrayBase;
     struct ArrayMetadata;
-    struct Block;
-    class  BlockAllocator;
     struct ChildPointers;
     class  Collector;
     struct Counter;
-    struct DataPage;
+    class  Heap;
     template<class>
-    class  ArrayIterator;
+    struct Conservative;
+    struct FrameWord;
     template<class>
     struct MayContainTracked;
     template<class>
@@ -37,22 +36,29 @@ namespace sgcl::detail {
     class  ObjectPoolAllocator;
     class  ObjectPoolAllocatorBase;
     struct Page;
+    class  PageAllocator;
     template<class>
     struct PageInfo;
     class  Pointer;
-    template<unsigned, unsigned>
-    class  PointerPool;
-    class  PointerPoolBase;
     template <class>
     class  RootContainerAllocator;
-    struct StackPointerAllocator;
     class  Thread;
     class  Timer;
     class  Tracked;
     template<class>
     struct TypeInfo;
     struct UniqueDeleter;
+    struct WeakCell;
 
+    // The state of a slot. Reachable carries the parity of the epoch the
+    // barrier read when it set it (Page::reachable_state): the state of the
+    // current parity says "reachable in this cycle", the other parity says
+    // nothing, as Used does. Nothing demotes a state: a cycle begins with a
+    // flip of the epoch, one atomic store, and every state set before it is
+    // out of date at once. Fresh marks an object handed to its first
+    // tracked_ptr and not registered yet; with the current parity it says
+    // "created after the flip", and the cycle leaves such an object alone
+    // (page.h: set_state, collector.h: _register_page).
     enum State : uint8_t {
         Used = 0,
         Reachable = 1,
@@ -61,9 +67,11 @@ namespace sgcl::detail {
         BadAlloc = 8,
         Reserved = 16,
         Unused = 32,
+        Parity = 64,        // with Reachable: the epoch's parity
+        Fresh = 128,        // with Reachable: made tracked in the epoch of its parity, not registered yet
         Unreachable = Used,
-        ReachableMask = 3,
-        CreatedMask = 15
+        CreatedMask = 15,
+        FreeMask = Reserved | Unused
     };
 
     void collector_init();
@@ -72,5 +80,6 @@ namespace sgcl::detail {
     Thread& current_thread() noexcept;
     void waking_up_collector() noexcept;
     void force_short_sleep() noexcept;
-    std::vector<std::thread>& destroyer_threads() noexcept;
+    // full collection, waits for the cycle: the allocators' last resort
+    void collect_before_bad_alloc();
 }

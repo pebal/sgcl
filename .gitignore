@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+# Local design notes
+DESIGN.md
+
+# Build directories
+build*/

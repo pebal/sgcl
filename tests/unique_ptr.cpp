@@ -1,6 +1,6 @@
 //------------------------------------------------------------------------------
 // SGCL: Smart Garbage Collection Library
-// Copyright (c) 2022-2025 Sebastian Nibisz
+// Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #include "types.h"
@@ -119,25 +119,6 @@ TEST(UniquePtr_Tests, as) {
 TEST(UniquePtr_Tests, type) {
     auto bar = make_tracked<Foo>(10);
     EXPECT_EQ(bar.type(), typeid(Foo));
-}
-
-TEST(UniquePtr_Tests, metadata) {
-    auto ptr = make_tracked<int>(12);
-    struct {
-        void operator()(void* p) {
-            EXPECT_EQ(*(int*)p, 12);
-        }
-    } metadata;
-    EXPECT_EQ(ptr.metadata(), nullptr);
-    set_metadata<int>(&metadata);
-    EXPECT_EQ(ptr.metadata(), &metadata);
-    metadata(ptr.get());
-    set_metadata<int>(nullptr);
-}
-
-TEST(UniquePtr_Tests, is_array) {
-    unique_ptr<Bar> bar(make_tracked<Foo>(14));
-    EXPECT_FALSE(bar.is_array());
 }
 
 TEST(UniquePtr_Tests, Comparisons) {

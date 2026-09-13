@@ -3,6 +3,7 @@
 #include <chrono>
 #include <future>
 #include <iostream>
+#include <optional>
 
 template<typename T>
 class LockFreeStack {

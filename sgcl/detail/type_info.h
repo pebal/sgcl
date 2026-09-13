@@ -1,20 +1,18 @@
 //------------------------------------------------------------------------------
 // SGCL: Smart Garbage Collection Library
-// Copyright (c) 2022-2025 Sebastian Nibisz
+// Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "frame_word.h"
 #include "page_info.h"
+#include "weak_cell.h"
 
 namespace sgcl::detail {
     template<class T>
     struct MayContainTracked {
-#ifdef SGCL_ARCH_X86_64
         static constexpr size_t PointerSize = sizeof(RawPointer);
-#else
-        static constexpr size_t PointerSize = sizeof(RawPointer) * 2;
-#endif
         using Type = std::remove_extent_t<T>;
         static constexpr auto value = std::is_same_v<Type, Pointer>
                                       || (!std::is_trivially_default_constructible_v<Type>
@@ -25,6 +23,26 @@ namespace sgcl::detail {
     template<>
     struct MayContainTracked<void> {
         static constexpr auto value = false;
+    };
+
+    // The word of a weak cell is a pointer the collector must not follow
+    template<>
+    struct MayContainTracked<WeakCell> {
+        static constexpr auto value = false;
+    };
+
+    // A conservative type: every word may be a pointer in one object and
+    // data in another, so a word found holding data does not remove its
+    // offset from the type's pointer map (child_pointers.h). The frames of
+    // coroutines (frame_word.h) only.
+    template<class T>
+    struct Conservative {
+        static constexpr auto value = false;
+    };
+
+    template<>
+    struct Conservative<FrameWord> {
+        static constexpr auto value = true;
     };
 
     template<class T>

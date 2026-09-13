@@ -1,11 +1,10 @@
 //------------------------------------------------------------------------------
 // SGCL: Smart Garbage Collection Library
-// Copyright (c) 2022-2025 Sebastian Nibisz
+// Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "detail/array_ptr.h"
 #include "detail/pointer.h"
 #include "detail/tracked.h"
 #include "make_tracked.h"
@@ -13,98 +12,88 @@
 #include "types.h"
 
 namespace sgcl {
+    namespace detail {
+        // Tag of the callers that hold a reference to current_thread():
+        // the thread is registered, the constructor need not check.
+        struct OnRegisteredThread {};
+    }
+
+    // One word: the pointer itself. A tracked_ptr lives either inside a
+    // managed object (the collector finds it through the type's pointer
+    // map, which it builds itself) or on a thread's stack (the collector
+    // scans the stacks); nowhere else. Construction is a check of the
+    // thread-registration flag (one thread-local load; skipping it for
+    // members of managed objects with a heap range check measured slower
+    // than the load), a store of the value with the barrier, and an escape
+    // of the address: an atomic whose address never escapes may otherwise
+    // be kept in a register, where no scan can see it. The registration
+    // comes first: a thread registered before the store has its stack
+    // scanned after it, or does the barrier after the cycle's demotion, so
+    // either the word or the state is seen (_registered).
     template<class T>
     class tracked_ptr : detail::Tracked {
-#ifdef SGCL_ARCH_X86_64
-        static constexpr uintptr_t StackFlag = uintptr_t(1) << 63;
-        static constexpr uintptr_t ExternalHeapFlag = uintptr_t(1) << 62;
-#else
-        static constexpr uintptr_t StackFlag = 1;
-        static constexpr uintptr_t ExternalHeapFlag = 2;
-#endif
-        static constexpr uintptr_t ClearMask = ~(StackFlag | ExternalHeapFlag);
-
     public:
         using element_type = T;
 
-        tracked_ptr() noexcept {
-            if (!_set_ref_if_not_external_heap()) {
-                auto ptr = make_tracked<detail::Pointer>();
-                detail::Pointer* ref = ptr.release();
-                _raw_ptr_ref = _set_flag(ref, ExternalHeapFlag);
-            }
-        };
+        tracked_ptr() noexcept
+        : _raw_ptr(_registered((element_type*)nullptr)) {
+            _init();
+        }
 
-        constexpr tracked_ptr(std::nullptr_t)
+        tracked_ptr(std::nullptr_t) noexcept
         : tracked_ptr() {
         }
 
+        // From a raw pointer: into a managed object (the object, a base
+        // subobject, a member), never into a buffer of a container, whose
+        // elements no tracked_ptr may address (README, "Pointer aliases"),
+        // and never into an object a unique_ptr owns.
+        // The constructors with a value store it once, with the barrier,
+        // and never write a null first (detail::Pointer).
         template<class U, std::enable_if_t<std::is_convertible_v<U*, element_type*>, int> = 0>
         explicit tracked_ptr(U* p) noexcept
-        : tracked_ptr() {
+        : _raw_ptr(_registered(static_cast<element_type*>(p))) {
+            _init();
+            assert((!p || detail::Page::is_object(p)) && "a tracked_ptr may address a managed object or a part of it, not an element of a container's buffer");
             assert(!p || !detail::Page::is_unique(p));
-            _ptr()->store(static_cast<element_type*>(p));
         }
 
         tracked_ptr(const tracked_ptr& p) noexcept
-        : tracked_ptr() {
-            _ptr()->store(p.get());
+        : _raw_ptr(_registered(p.get())) {
+            _init();
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
         tracked_ptr(const tracked_ptr<U>& p) noexcept
-        : tracked_ptr() {
-            _ptr()->store(static_cast<element_type*>(p.get()));
+        : _raw_ptr(_registered(static_cast<element_type*>(p.get()))) {
+            _init();
         }
 
-        tracked_ptr(tracked_ptr&& p) noexcept {
-            if (!_set_ref_if_not_external_heap()) {
-                if (p.allocated_on_external_heap()) {
-                    _raw_ptr_ref = p._raw_ptr_ref;
-                    p._raw_ptr_ref = _set_flag(decltype(_raw_ptr_ref)(nullptr), ExternalHeapFlag);
-                } else {
-                    auto ptr = make_tracked<detail::Pointer>();
-                    auto ref = ptr.release();
-                    _raw_ptr_ref = _set_flag(ref, ExternalHeapFlag);
-                    ref->store(p.get());
-                }
-            } else {
-                _ptr()->store(p.get());
-            }
+        tracked_ptr(tracked_ptr&& p) noexcept
+        : _raw_ptr(_registered(p.get())) {
+            _init();
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        tracked_ptr(tracked_ptr<U>&& p) noexcept {
-            if (!_set_ref_if_not_external_heap()) {
-                if (p.allocated_on_external_heap()) {
-                    _raw_ptr_ref = p._raw_ptr_ref;
-                    _ptr()->store_no_update(static_cast<element_type*>(p.get()));
-                    p._raw_ptr_ref = _set_flag(decltype(_raw_ptr_ref)(nullptr), ExternalHeapFlag);
-                } else {
-                    auto ptr = make_tracked<detail::Pointer>();
-                    auto ref = ptr.release();
-                    _raw_ptr_ref = _set_flag(ref, ExternalHeapFlag);
-                    ref->store(static_cast<element_type*>(p.get()));
-                }
-            } else {
-                _ptr()->store(static_cast<element_type*>(p.get()));
-            }
+        tracked_ptr(tracked_ptr<U>&& p) noexcept
+        : _raw_ptr(_registered(static_cast<element_type*>(p.get()))) {
+            _init();
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
         tracked_ptr(unique_ptr<U>&& u) noexcept
-        : tracked_ptr() {
-            _ptr()->store(static_cast<element_type*>(u.release()));
+        : _raw_ptr(_registered(static_cast<element_type*>(u.release()))) {
+            _init();
         }
 
-        ~tracked_ptr() noexcept {
-            if (allocated_on_external_heap()) {
-                if (auto ptr = _ptr()) {
-                    detail::Page::set_state<detail::State::Destroyed>(ptr);
-                }
-            } else {
-                _ptr()->store(nullptr);
-            }
+        // Clears the word: a dead slot or stack word does not keep its
+        // target alive. A plain store hidden from the thread sanitizer: the
+        // destructor of an object the collector reclaims runs on its thread,
+        // ordered after the object's last use by the cycle that found it
+        // unreferenced, which the sanitizer cannot see (os::load_word does
+        // the same for the collector's reads).
+        SGCL_NO_SANITIZE ~tracked_ptr() noexcept {
+            *(void* volatile*)&_raw_ptr = nullptr;
         }
 
         tracked_ptr& operator=(std::nullptr_t) noexcept {
@@ -131,38 +120,13 @@ namespace sgcl {
         }
 
         tracked_ptr& operator=(tracked_ptr&& p) noexcept {
-            if (auto ptr = _ptr()) {
-                ptr->store(p.get());
-            } else {
-                if (p.allocated_on_external_heap()) {
-                    _raw_ptr_ref = p._raw_ptr_ref;
-                    p._raw_ptr_ref = _set_flag(decltype(_raw_ptr_ref)(nullptr), ExternalHeapFlag);
-                } else {
-                    auto ptr = make_tracked<detail::Pointer>();
-                    auto ref = ptr.release();
-                    _raw_ptr_ref = _set_flag(ref, ExternalHeapFlag);
-                    ref->store(p.get());
-                }
-            }
+            _ptr()->store(p.get());
             return *this;
         }
 
-        template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
+        template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
         tracked_ptr& operator=(tracked_ptr<U>&& p) noexcept {
-            if (auto ptr = _ptr()) {
-                ptr->store(static_cast<element_type*>(p.get()));
-            } else {
-                if (p.allocated_on_external_heap()) {
-                    _raw_ptr_ref = p._raw_ptr_ref;
-                    _ptr()->store_no_update(static_cast<element_type*>(p.get()));
-                    p._raw_ptr_ref = _set_flag(decltype(_raw_ptr_ref)(nullptr), ExternalHeapFlag);
-                } else {
-                    auto ptr = make_tracked<detail::Pointer>();
-                    auto ref = ptr.release();
-                    _raw_ptr_ref = _set_flag(ref, ExternalHeapFlag);
-                    ref->store(static_cast<element_type*>(p.get()));
-                }
-            }
+            _ptr()->store(static_cast<element_type*>(p.get()));
             return *this;
         }
 
@@ -194,27 +158,40 @@ namespace sgcl {
             return (element_type*)_ptr()->load();
         }
 
-        void* get_base() const noexcept {
-            return _ptr()->data_base_address();
+        // For destructors: a copy of the pointer, or null when its target
+        // dies in the same sweep as the object being destroyed (README,
+        // "Pointer maps": a destructor may not touch such a peer, it may be
+        // gone already). Elsewhere a plain copy: outside a sweep a
+        // tracked_ptr in a live object points at a live object. The copy
+        // of a live target is safe in the middle of a sweep too: the
+        // barrier's mark lands on a marked object, which the sweep leaves
+        // alone, and the next cycle demotes it as usual.
+        tracked_ptr if_alive() const noexcept {
+            auto p = get();
+            if (p && detail::sweeping && detail::Page::dying(p)) {
+                return tracked_ptr();
+            }
+            return *this;
         }
 
         void reset() noexcept {
-            if (allocated_on_external_heap() && !_ptr()) {
-                auto ptr = make_tracked<detail::Pointer>();
-                auto ref = ptr.release();
-                _raw_ptr_ref = _set_flag(ref, ExternalHeapFlag);
-            }
             _ptr()->store(nullptr);
         }
 
+        // The pointer replaced by a raw one, under the rules of the raw
+        // constructor (a managed object or a part of it): one store with
+        // its barrier, no temporary. What the containers use to relink
+        // nodes the container roots.
+        void reset(element_type* p) noexcept {
+            assert((!p || detail::Page::is_object(p)) && "a tracked_ptr may address a managed object or a part of it, not an element of a container's buffer");
+            assert(!p || !detail::Page::is_unique(p));
+            _ptr()->store(p);
+        }
+
         void swap(tracked_ptr& p) noexcept {
-            if (allocated_on_external_heap() && p.allocated_on_external_heap()) {
-                std::swap(_raw_ptr_ref, p._raw_ptr_ref);
-            } else {
-                tracked_ptr<element_type> t = *this;
-                *this = p;
-                p = t;
-            }
+            tracked_ptr<element_type> t = *this;
+            *this = p;
+            p = t;
         }
 
         template<class U>
@@ -225,7 +202,7 @@ namespace sgcl {
         template<class U>
         tracked_ptr<U> as() const noexcept {
             if (is<U>()) {
-                return tracked_ptr<U>((typename tracked_ptr<U>::element_type*)get_base());
+                return tracked_ptr<U>((typename tracked_ptr<U>::element_type*)_ptr()->data_base_address());
             } else {
                 return {nullptr};
             }
@@ -235,133 +212,73 @@ namespace sgcl {
             return _ptr()->template type_info<element_type>();
         }
 
-        template<class M = void>
-        M* metadata() const noexcept {
-            return (M*)_ptr()->template metadata<element_type>();
-        }
-
-        bool is_array() const noexcept {
-            return _ptr()->is_array();
-        }
-
-        size_t object_size() const noexcept {
-            return _ptr()->object_size();
-        }
-
-        bool allocated_on_heap() const noexcept {
-            return !((uintptr_t)_raw_ptr_ref & (StackFlag | ExternalHeapFlag));
-        }
-
-        bool allocated_on_stack() const noexcept {
-            return (uintptr_t)_raw_ptr_ref & StackFlag;
-        }
-
-        bool allocated_on_external_heap() const noexcept {
-            return (uintptr_t)_raw_ptr_ref & ExternalHeapFlag;
-        }
-
     protected:
-        static constexpr auto _set_flag(auto p, uintptr_t f) noexcept {
-#ifdef SGCL_ARCH_X86_64
-            assert(!((uintptr_t)p & ~ClearMask) && "Cannot use SGCL_ARCH_X86_64");
-#endif
-            auto v = (uintptr_t)p | f;
-            return (decltype(p))v;
-        }
-
-        static constexpr auto _remove_flags(auto p) noexcept {
-            auto v = (uintptr_t)p & ClearMask;
-            return (decltype(p))v;
-        }
-
-        constexpr bool this_on_stack() const noexcept {
-            uintptr_t this_addr = (uintptr_t)this;
-            uintptr_t stack_addr = (uintptr_t)&this_addr;
-            ptrdiff_t offset = this_addr - stack_addr;
-            return std::abs(offset) <= config::MaxOffsetForStackDetection;
-        }
-
-        constexpr bool this_on_heap(std::pair<uintptr_t, uintptr_t> state) const noexcept {
-            return ((uintptr_t)this - state.first) < state.second;
-        }
-
-#ifdef SGCL_ARCH_X86_64
         detail::Pointer* _ptr() noexcept {
-#if defined(__GNUC__) || defined(__clang__)
-            if (__builtin_expect(allocated_on_heap(), 1)) {
-#else
-            if (allocated_on_heap()) {
-#endif
-                return &_raw_ptr;
-            }
-            return _remove_flags(_raw_ptr_ref);
+            return &_raw_ptr;
         }
 
         const detail::Pointer* _ptr() const noexcept {
-#if defined(__GNUC__) || defined(__clang__)
-            if (__builtin_expect(allocated_on_heap(), 1)) {
-#else
-            if (allocated_on_heap()) {
-#endif
-                return &_raw_ptr;
-            }
-            return _remove_flags(_raw_ptr_ref);
+            return &_raw_ptr;
         }
 
-        union {
-            detail::Pointer* _raw_ptr_ref;
-            detail::Pointer _raw_ptr;
-        };
-#else
-        detail::Pointer* _ptr() noexcept {
-            return _remove_flags(_raw_ptr_ref);
-        }
-
-        const detail::Pointer* _ptr() const noexcept {
-            return _remove_flags(_raw_ptr_ref);
-        }
-
-        detail::Pointer* _raw_ptr_ref;
-        union {
-            detail::Pointer _raw_ptr;
-        };
-#endif
+        detail::Pointer _raw_ptr;
 
     private:
-        bool _set_ref_if_not_external_heap() noexcept {
-            auto& thread = detail::current_thread();
-            if (this_on_stack()) {
-                auto ref = thread.stack_allocator->alloc(this);
-                _raw_ptr_ref = _set_flag(ref, StackFlag);
-            } else {
-                if (this_on_heap(thread.alloc_range)) {
-#ifndef SGCL_ARCH_X86_64
-                    _raw_ptr_ref = &_raw_ptr;
-#else
-                    assert(!((uintptr_t)&_raw_ptr & ~ClearMask) && "Cannot use SGCL_ARCH_X86_64");
-#endif
-                    new (&_raw_ptr) detail::Pointer();
-                } else {
-                    return false;
-                }
-            }
-            return true;
-        };
+        // From a raw pointer on a thread known to be registered (the
+        // atomics, right after current_thread()): the null store and the
+        // escape as in every constructor, the thread-local check skipped.
+        // On Darwin that check is a call into the dynamic loader per
+        // construction, which costs the atomics a third of their time.
+        tracked_ptr(element_type* p, detail::OnRegisteredThread) noexcept
+        : _raw_ptr(p) {
+            detail::os::escape(this);
+            assert(detail::thread_registered);
+            assert(!p || detail::Page::is_object(p));
+        }
+
+        // Before the word is stored, in every constructor: the thread is
+        // registered. The write barrier skips its store when the target's
+        // state is Reachable already, and a cycle's first round demotes
+        // that state; a thread that copied a pointer onto its stack before
+        // registering, and registered after the cycle's second round, had
+        // neither its stack scanned in that cycle nor a state left on the
+        // target, and lost the object (DESIGN, the stack-root race). With
+        // the registration first, a thread registered before the second
+        // round has its stack scanned after the store, and one registered
+        // later does the barrier after the demotion, so its store stands.
+        static element_type* _registered(element_type* p) noexcept {
+            detail::ensure_thread_registered();
+            return p;
+        }
+
+        // Every constructor, after the store: the address escapes (an
+        // atomic that never escapes may live in a register only, invisible
+        // to the stack scan), the location is a legal one.
+        void _init() noexcept {
+            detail::os::escape(this);
+            assert((detail::Heap::contains(this) || detail::current_thread().on_stack(this)) && "a tracked_ptr must live on the stack or inside a managed object");
+        }
+
+        // The pointer read without an atomic load (detail::Pointer::load_plain):
+        // for the containers, on the pointer to their own buffer, which no
+        // other thread writes.
+        element_type* get_plain() const noexcept {
+            return (element_type*)_ptr()->load_plain();
+        }
 
         template<class> friend class atomic;
         template<class> friend class atomic_ref;
         template<class> friend class tracked_ptr;
+        template<class> friend class vector;
+        template<class> friend class weak_ptr;
+        template<class, size_t> friend struct array;
         template<class> friend class detail::Maker;
     };
 
+    // Arrays are not a public type: sgcl::vector and the other containers own
+    // them and create them through detail::Maker<T[]>.
     template<class T>
-    class tracked_ptr<T[]> : public detail::ArrayPtr<T, tracked_ptr<T>> {
-        using Base = detail::ArrayPtr<T, tracked_ptr<T>>;
-
-    public:
-        using Base::Base;
-        using Base::operator=;
-    };
+    class tracked_ptr<T[]>;
 
     template <typename T>
     tracked_ptr(T*) -> tracked_ptr<T>;
@@ -380,7 +297,7 @@ namespace sgcl {
 
     template<class T, class U>
     inline bool operator==(const tracked_ptr<T>& l, const tracked_ptr<U>& r) noexcept {
-        return (l <=> r) == 0;
+        return static_cast<const void*>(l.get()) == static_cast<const void*>(r.get());
     }
 
     template<class T>
@@ -390,7 +307,7 @@ namespace sgcl {
 
     template<class T>
     inline bool operator==(const tracked_ptr<T>& l, std::nullptr_t) noexcept {
-        return (l <=> nullptr) == 0;
+        return l.get() == nullptr;
     }
 
     template<class T>
@@ -400,7 +317,7 @@ namespace sgcl {
 
     template<class T>
     inline bool operator==(std::nullptr_t, const tracked_ptr<T>& r) noexcept {
-        return (nullptr <=> r) == 0;
+        return r.get() == nullptr;
     }
 
     template<class T, class U>
@@ -424,15 +341,6 @@ namespace sgcl {
         return s;
     }
 
-    template<class T>
-    inline void* get_metadata() noexcept {
-        return detail::TypeInfo<T>::user_metadata;
-    }
-
-    template<class T>
-    inline void set_metadata(void* m) noexcept {
-        detail::TypeInfo<T>::user_metadata = m;
-    }
 }
 
 namespace std {

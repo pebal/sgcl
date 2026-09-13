@@ -1,6 +1,6 @@
 //------------------------------------------------------------------------------
 // SGCL: Smart Garbage Collection Library
-// Copyright (c) 2022-2025 Sebastian Nibisz
+// Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
@@ -10,6 +10,23 @@
 #include <gtest/gtest.h>
 
 using namespace sgcl;
+
+// The stack is scanned conservatively, so a raw pointer or an iterator left
+// in the test's own frame keeps its target alive. Code that must not leave
+// such words behind runs in a frame of its own; collector::clear_stack() then
+// overwrites it before a count. A pointer kept across a count is hidden.
+template<class F>
+SGCL_NOINLINE void off_frame(F&& f) {
+    f();
+}
+
+inline uintptr_t hide(const void* p) noexcept {
+    return ~(uintptr_t)p;
+}
+
+inline char* unhide(uintptr_t h) noexcept {
+    return (char*)~h;
+}
 
 struct Bar {
     virtual ~Bar() = default;

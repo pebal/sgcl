@@ -1,39 +1,82 @@
 //------------------------------------------------------------------------------
 // SGCL: Smart Garbage Collection Library
-// Copyright (c) 2022-2025 Sebastian Nibisz
+// Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "heap.h"
 #include "metadata.h"
 
 #include <cassert>
 #include <cstring>
 
 namespace sgcl::detail {
-    struct Page {
+    struct alignas(config::CacheLineSize) Page {
         template<class T>
         using Info = TypeInfo<T>;
 
         using Flag = uint64_t;
         static constexpr unsigned FlagBitCount = sizeof(Flag) * 8;
 
+        // The collector's bits, one word of each per 64 slots. The free
+        // bitmap of the allocator (free_bits) is an array of its own behind
+        // them: the owning mutator writes it while it allocates, and on
+        // these lines only the collector writes.
         struct Flags {
             Flag registered = {0};
             Flag reachable = {0};
             Flag marked = {0};
         };
 
+        // The header lives outside its page: `data` is the first byte of the
+        // page (or of the page range of a large object) in the heap.
         template<class T>
-        Page(Block* block, T* data) noexcept
+        Page(T* data) noexcept
         : metadata(&Info<T>::private_metadata())
-        , block(block)
         , data((uintptr_t)data)
-        , multiplier((1ull << 32 | 0x10000) / metadata->object_size) {
+        // A page with a single object (large objects included) maps every
+        // interior pointer to index 0: multiplier 0 does that for free.
+        , multiplier(metadata->object_count == 1 ? 0 : (1ull << 32 | 0x10000) / metadata->object_size) {
             assert(metadata != nullptr);
             assert(data != nullptr);
             std::memset(this->states(), State::Reserved, metadata->object_count);
             std::memset(this->flags(), 0, sizeof(Flags) * this->flags_count());
+            set_all_free();
+        }
+
+        // Every slot free: a fresh page, or the rebuild in the collector.
+        void set_all_free() noexcept {
+            auto free = this->free_bits();
+            auto count = flags_count();
+            auto objects = metadata->object_count;
+            for (unsigned i = 0; i < count; ++i) {
+                auto valid = (i == count - 1 && objects % FlagBitCount) ? (Flag(1) << (objects % FlagBitCount)) - 1 : ~Flag(0);
+                free[i] = valid;
+            }
+            auto summary = this->summary();
+            auto words = summary_count();
+            for (unsigned w = 0; w < words; ++w) {
+                auto valid = (w == words - 1 && count % 64) ? (uint64_t(1) << (count % 64)) - 1 : ~uint64_t(0);
+                summary[w] = valid;
+            }
+        }
+
+        // Slot allocation bitmap, a word per Flags word: bit set = slot free.
+        // Written by the owning mutator only (owned == true); the collector
+        // rebuilds it from the states before handing the page to the
+        // per-type buffer.
+        Flag* free_bits() const noexcept {
+            return (Flag*)(flags() + flags_count());
+        }
+
+        // One bit per Flags word: set when that word has a free slot.
+        uint64_t* summary() const noexcept {
+            return (uint64_t*)(free_bits() + flags_count());
+        }
+
+        unsigned summary_count() const noexcept {
+            return (flags_count() + 63) / 64;
         }
 
         ~Page() noexcept {
@@ -56,13 +99,52 @@ namespace sgcl::detail {
             return (metadata->object_count + FlagBitCount - 1) / FlagBitCount;
         }
 
-        void clear_flags() noexcept {
+        // Start of a cycle. A full cycle forgets every mark; a young cycle
+        // keeps them (an object marked once stays marked until the next full
+        // cycle).
+        void clear_flags(bool full) noexcept {
             auto flags = this->flags();
             auto count = flags_count();
             for (unsigned i = 0; i < count; ++i) {
                 flags[i].reachable = 0;
-                flags[i].marked = 0;
+                if (full) {
+                    flags[i].marked = 0;
+                }
             }
+        }
+
+        // Card marking for the young cycles. A pointer stored into an object
+        // stamps the card of the object's page with the current epoch (a
+        // cycle number the collector advances at the start of every cycle;
+        // heap.h: stamp_card). A young cycle retraces the objects of every
+        // page stamped with the previous epoch or the current one, so that a
+        // pointer from an already marked object to a young one is followed
+        // although the marked object is not traced again. The collector
+        // never clears a stamp, it only advances the epoch: no store from a
+        // mutator can be lost to a clear. Pointers held on the stacks need
+        // no card: the stacks are scanned every cycle.
+        static void mark_card(const void* location) noexcept {
+            if constexpr(!config::Generational) {
+                return;
+            }
+            // Fast path for the stack: a location within ChunkSize of this
+            // frame is not an object, because the heap's range keeps a
+            // guard chunk at both ends (heap.h). No memory is read; without
+            // it a copy onto the stack pays the card's reads (1.34 to 1.69
+            // ns measured). A location farther up a stack stamps a card
+            // nothing reads (heap.h: card_of covers every address).
+            char probe;
+            auto distance = (intptr_t)((const char*)location - &probe);
+            if ((uintptr_t)(distance + (intptr_t)config::ChunkSize) < 2 * config::ChunkSize) {
+                return;
+            }
+            Heap::mark_card(location);
+        }
+
+        // The page (or its range) holds a pointer stored during the epoch
+        // before `e` or later.
+        bool dirty_since(uint32_t e) const noexcept {
+            return Heap::dirty_since_last((const void*)data, page_count, e);
         }
 
         static constexpr unsigned flag_index_of(unsigned i) noexcept {
@@ -84,8 +166,18 @@ namespace sgcl::detail {
 
         static Page* page_of(const void* p) noexcept {
             assert(p != nullptr);
-            auto page = ((uintptr_t)p & ~(uintptr_t)(config::PageSize - 1));
-            return *((Page**)page);
+            return Heap::page_of(p);
+        }
+
+        // Headers live in a per-type slab; never `delete` one.
+        static void release(Page* page) noexcept {
+            auto slab = page->metadata->header_slab;
+            page->~Page();
+            slab->free(page);
+        }
+
+        size_t data_size() const noexcept {
+            return page_count * config::PageSize;
         }
 
         static Metadata& metadata_of(const void* p) noexcept {
@@ -112,11 +204,68 @@ namespace sgcl::detail {
                 state.store(S, std::memory_order_relaxed);
                 page->object_created.store(true, std::memory_order_release);
             } else if constexpr(S == State::Reachable) {
-                state.store(S, std::memory_order_relaxed);
-                page->state_updated.store(true, std::memory_order_release);
+                // Write barrier: Reachable with the parity of the current
+                // epoch. Both stores are conditional: the states line is
+                // shared by 64 objects and the flag by a whole page, so an
+                // unconditional store from every thread copying a pointer to
+                // the same page keeps those lines bouncing between cores. A
+                // skipped flag store only delays the collector's look at an
+                // already reachable object by a cycle (the collector clears
+                // the flag with an acq_rel exchange), never its safety.
+                // The first tracked_ptr to an object (its state UniqueLock
+                // since the allocation) leaves Reachable with the current
+                // parity and Fresh: the object is not registered yet, and
+                // the cycle that finds Fresh with its own parity knows the
+                // object was made after the flip and leaves it alone. Such
+                // an object needs no state (unregistered, it is neither
+                // swept nor traced), so the barrier skips it; a Fresh object
+                // of the other parity was made before the flip and is
+                // registered by the cycle: a store to it sets the state the
+                // cycle takes for reachable, and drops Fresh.
+                auto wanted = reachable_state();
+                auto old = state.load(std::memory_order_relaxed);
+                if (old != wanted) [[unlikely]] {
+                    if (old != State(wanted | State::Fresh)) {
+                        state.store(old == State::UniqueLock ? State(wanted | State::Fresh) : wanted, std::memory_order_relaxed);
+                    }
+                }
+                if (!page->state_updated.load(std::memory_order_relaxed)) {
+                    page->state_updated.store(true, std::memory_order_release);
+                }
             } else {
                 state.store(S, std::memory_order_release);
             }
+        }
+
+        static State state_of(const void* p) noexcept {
+            assert(p != nullptr);
+            auto page = Page::page_of(p);
+            return page->states()[page->index_of(p)].load(std::memory_order_acquire);
+        }
+
+        // The object dies in the sweep in progress: registered and not
+        // marked by the cycle. Meaningful on a sweeping thread only
+        // (thread.h: sweeping), where the flags are frozen until every run
+        // of the sweep is done; during marking the bit is transient.
+        static bool dying(const void* p) noexcept {
+            assert(p != nullptr);
+            auto page = Page::page_of(p);
+            auto index = page->index_of(p);
+            auto& flag = page->flags()[flag_index_of(index)];
+            auto mask = flag_mask_of(index);
+            return (flag.registered & mask) && !(flag.marked & mask);
+        }
+
+        // `p` points into a created object of the managed heap (a base
+        // subobject, a member, the object itself), not into a buffer: the
+        // target a tracked_ptr may be made from a raw pointer (tracked_ptr.h).
+        static bool is_object(const void* p) noexcept {
+            auto page = Heap::page_of_checked(p);
+            if (!page || page->metadata->is_array) {
+                return false;
+            }
+            auto index = page->index_of(p);
+            return index < page->metadata->object_count && !(page->states()[index].load(std::memory_order_acquire) & State::FreeMask);
         }
 
         static bool is_unique(const void* p) noexcept {
@@ -127,28 +276,61 @@ namespace sgcl::detail {
             return state.load(std::memory_order_acquire) == State::UniqueLock;
         }
 
+        // The header is two 64-byte lines. The first holds what the mutators
+        // read on every barrier (data, multiplier) and the flags they write
+        // (state_updated, card, object_created, owned, on_empty_list); the
+        // second what the collector writes while it works (its lists, the
+        // page's marks). The states follow at CacheLineSize, on lines of
+        // their own, so that a collector's write to the header never
+        // invalidates the line a barrier is storing a state into.
         Metadata* const metadata;
-        Block* const block;
         const uintptr_t data;
         const uint64_t multiplier;
-        size_t alloc_size = 0;
-        bool reachable = {false};
-        bool unreachable = {false};
-        bool is_used = {true};
-        bool is_last_registered = {false};
+        size_t page_count = 1;   // > 1 for objects larger than a page
         std::atomic_bool object_created = {false};
         std::atomic_bool state_updated = {false};
         std::atomic_bool on_empty_list = {false};
+        // true while a pool allocator hands out slots from the page: then only
+        // it touches the free bitmap, and the collector leaves the page alone.
+        // Pages of large objects are never owned.
+        std::atomic_bool owned = {false};
+        inline static std::atomic<uint32_t> epoch = {1};
+        // Reachable with the parity of `epoch`, stored by the collector at
+        // every flip (collector.h: flip_epoch): one byte load for the barrier
+        inline static std::atomic<State> current_reachable = {State(State::Reachable | State::Parity)};
+
+        // The state the barrier sets in the current epoch, and the collector
+        // takes for reachable in the current cycle. A read of it just
+        // before the flip followed by a store after it leaves the old
+        // parity: harmless, since the store is into an object that existed
+        // before the flip, which the cycle registers and traces (the state
+        // only matters for objects created after the flip, whose stores
+        // read the new epoch).
+        static State reachable_state() noexcept {
+            return current_reachable.load(std::memory_order_relaxed);
+        }
+
+        static void flip_epoch(uint32_t e) noexcept {
+            epoch.store(e, std::memory_order_relaxed);
+            Heap::set_epoch(e);
+            current_reachable.store(State(State::Reachable | ((e & 1) << 6)), std::memory_order_relaxed);
+        }
+
+        // slots freed by the collector since the page was last handed out
+        alignas(64) uint16_t unused_counter_gc = {0};   // at most the objects of one page
+        bool reachable = {false};
+        bool unreachable = {false};
+        bool retire = {false};   // collector: states of the other parity to retire, set where state_updated is lowered
+        bool is_used = {true};
+        // result of the last rebuild of the free bitmap (object_pool_allocator_base.h)
+        bool all_free = {false};
         std::atomic_bool unused_occur = {true};
-        unsigned int unused_counter_mutators = {0};
-        unsigned int unused_counter_gc = {0};
-        std::atomic_uint unused_atomic = {0};
         Page* next_reachable = {nullptr};
         Page* next_unreachable = {nullptr};
-        Page* next_registered = {nullptr};
         Page* next_empty = {nullptr};
         Page* next_unused = {nullptr};
         Page* next_atomic = {nullptr};
         Page* next = {nullptr};
     };
+    static_assert(sizeof(Page) == config::CacheLineSize, "the page header is one line of CacheLineSize; the states follow it");
 }

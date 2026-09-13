@@ -1,6 +1,6 @@
 //------------------------------------------------------------------------------
 // SGCL: Smart Garbage Collection Library
-// Copyright (c) 2022-2025 Sebastian Nibisz
+// Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
@@ -10,7 +10,8 @@
 #include "types.h"
 
 namespace sgcl::detail {
-    static constexpr size_t PageDataSize = config::PageSize - sizeof(uintptr_t);
+    // The whole page holds objects: the header is outside (heap.h).
+    static constexpr size_t PageDataSize = config::PageSize;
 
     template<class T>
     struct PageInfo {
@@ -20,7 +21,9 @@ namespace sgcl::detail {
         static constexpr size_t StatesSize = (sizeof(std::atomic<State>) * ObjectCount + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1);
         static constexpr size_t FlagsCount = (ObjectCount + Page::FlagBitCount - 1) / Page::FlagBitCount;
         static constexpr size_t FlagsSize = sizeof(Page::Flags) * FlagsCount;
-        static constexpr size_t HeaderSize = sizeof(Page) + StatesSize + FlagsSize;
+        static constexpr size_t SummaryCount = (FlagsCount + 63) / 64;
+        static constexpr size_t FreeBitsSize = sizeof(Page::Flag) * FlagsCount;
+        static constexpr size_t HeaderSize = sizeof(Page) + StatesSize + FlagsSize + FreeBitsSize + sizeof(uint64_t) * SummaryCount;
         using Allocator = std::conditional_t<ObjectSize <= PageDataSize, ObjectPoolAllocator<Type>, ObjectAllocator<Type>>;
 
         static constexpr auto get_destroy_function() -> void(*)(void*) noexcept {
@@ -31,7 +34,13 @@ namespace sgcl::detail {
             }
         }
 
-        inline static void* user_metadata = nullptr;
+        // Headers of this type come from one slab (page.h: Page::release).
+        // Never destroyed: the collector thread and the exiting threads still
+        // return headers while the process runs its static destructors.
+        inline static HeaderSlab& header_slab() {
+            static auto slab = new HeaderSlab(HeaderSize);
+            return *slab;
+        }
 
         inline static auto& private_metadata() {
             static auto metadata = new Metadata((std::remove_extent_t<Type>*)0);
@@ -43,7 +52,16 @@ namespace sgcl::detail {
             return *metadata;
         }
 
-        inline static ChildPointers child_pointers {!MayContainTracked<Type>::value, ObjectSize};
+        // A function-local static like its siblings above, not an inline
+        // static data member: the map is a vector, so the member's dynamic
+        // initialization would be unordered with respect to the globals of
+        // other translation units, and a global whose initializer creates
+        // the first object of this type could bind the metadata to a map
+        // not yet constructed (reported in pull request #13).
+        inline static ChildPointers& child_pointers() {
+            static ChildPointers pointers {MayContainTracked<Type>::value, ObjectSize, typeid(Type), Conservative<Type>::value};
+            return pointers;
+        }
 
     private:
         static void _destroy(void* p) noexcept {

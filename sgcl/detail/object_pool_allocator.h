@@ -1,6 +1,6 @@
 //------------------------------------------------------------------------------
 // SGCL: Smart Garbage Collection Library
-// Copyright (c) 2022-2025 Sebastian Nibisz
+// Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
@@ -14,8 +14,15 @@ namespace sgcl::detail {
         using ValueType = typename TypeInfo<T>::Type;
         using IsPoolAllocator = std::true_type;
 
-        constexpr ObjectPoolAllocator(BlockAllocator& a, std::atomic<Page*>& pages) noexcept
-            : ObjectPoolAllocatorBase(a, pages, _pointer_pool, _pages_buffer) {
+        constexpr ObjectPoolAllocator(PageAllocator& a, std::atomic<Page*>& pages) noexcept
+            : ObjectPoolAllocatorBase(a, pages, _pages_buffer) {
+        }
+
+        ~ObjectPoolAllocator() noexcept override {
+            auto& slab = TypeInfo<T>::header_slab();
+            while (_header_count) {
+                slab.free(_headers[--_header_count]);
+            }
         }
 
         static void free(Page* pages) noexcept {
@@ -23,15 +30,22 @@ namespace sgcl::detail {
         }
 
     private:
-        using PointerPool = detail::PointerPool<TypeInfo<T>::ObjectCount, sizeof(std::conditional_t<std::is_void_v<ValueType>, char, ValueType>)>;
-
-        PointerPool _pointer_pool;
         inline static std::atomic<Page*> _pages_buffer = {nullptr};
 
-        Page* _create_page_parameters(DataPage* data) override {
-            auto mem = ::operator new(TypeInfo<T>::HeaderSize);
-            auto page = new(mem) Page(data->block, (ValueType*)data->data);
-            return page;
+        // Headers cached per thread and type, refilled from the slab in
+        // batches so that page turnover on many threads does not serialize
+        // on the slab mutex.
+        static constexpr unsigned HeaderCacheSize = 8;
+        void* _headers[HeaderCacheSize];
+        unsigned _header_count = 0;
+
+        Page* _create_page_parameters(void* data) override {
+            if (!_header_count) {
+                TypeInfo<T>::header_slab().alloc(_headers, HeaderCacheSize);
+                _header_count = HeaderCacheSize;
+            }
+            auto mem = _headers[--_header_count];
+            return new(mem) Page((ValueType*)data);
         }
     };
 }

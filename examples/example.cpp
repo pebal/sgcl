@@ -30,12 +30,13 @@ int main() {
     sgcl::tracked_ptr faz_value(&faz->value);
     std::cout << "Faz::value: " << *faz_value << std::endl;
 
-    // Creating managed array
-    sgcl::tracked_ptr arr = sgcl::make_tracked<int[]>(10);
-    arr = sgcl::make_tracked<int[]>(10, 0);
-    arr = sgcl::make_tracked<int[]>({ 7, 8, 9 });
+    // Managed arrays are not a public type: sgcl::vector owns its buffer on
+    // the managed heap and supports cycles like every other container here
+    sgcl::vector<int> arr(10);
+    arr.assign(10, 0);
+    arr = { 7, 8, 9 };
 
-    // Iterating over the array
+    // Iterating over the vector
     std::cout << "arr: ";
     for (auto v: arr) {
         std::cout << v << " ";
@@ -43,12 +44,12 @@ int main() {
     for (auto i = arr.rbegin(); i != arr.rend(); ++i) {
         *i = 12;
     }
-    for (auto i = 0; i < arr.size(); ++i) {
+    for (size_t i = 0; i < arr.size(); ++i) {
         std::cout << arr[i] << " ";
     }
     std::cout << std::endl;
 
-    // Array casting
+    // Objects with a base class
     struct Bar {
         int value;
     };
@@ -56,25 +57,17 @@ int main() {
         Foo(int v) : Bar{v * v}, value{v} {}
         int value;
     };
-    sgcl::tracked_ptr foo = sgcl::make_tracked<Foo[]>({1, 2, 3, 4, 5});
+    sgcl::vector<sgcl::tracked_ptr<Foo>> foos;
+    for (int v: {1, 2, 3, 4, 5}) {
+        foos.push_back(sgcl::make_tracked<Foo>(v));
+    }
     std::cout << "foo: ";
-    for (auto& f: foo) {
-        std::cout << f.value << " ";
+    for (auto& f: foos) {
+        std::cout << f->value << " ";
     }
-    // Casting 'foo' to base class
-    // Note: this is safe in the SGCL
-    sgcl::tracked_ptr<Bar[]> bar = foo;
-    std::cout << std::endl << "bar: ";
-    for (auto& b: bar) {
-        std::cout << b.value << " ";
-    }
-    std::cout << std::endl;
-
-    // Casting array to object
-    sgcl::tracked_ptr<Foo> first_foo = foo;
-
-    // Casting object to array
-    sgcl::tracked_ptr<int[]> single_value_array = sgcl::make_tracked<int>(12);
+    // Casting to the base class
+    sgcl::tracked_ptr<Bar> bar = foos[2];
+    std::cout << std::endl << "bar: " << bar->value << std::endl;
 
     // Using an atomic pointer
     sgcl::atomic<sgcl::tracked_ptr<int>> atomic = sgcl::make_tracked<int>(2);
@@ -102,18 +95,11 @@ int main() {
     sgcl::vector<sgcl::tracked_ptr<Node>> nodes;
     sgcl::unordered_map<int, sgcl::tracked_ptr<Node>> nodes_map;
 
-    // Metadata usage
-    sgcl::set_metadata<int>(new std::string("int metadata"));
-    sgcl::set_metadata<double>(new std::string("double metadata"));
-    any = sgcl::make_tracked<int>();
-    std::cout << *any.metadata<std::string>() << std::endl;
-    any = sgcl::make_tracked<double>();
-    std::cout << *any.metadata<std::string>() << std::endl;
-
-    // Forcing garbage collection
+    // Forcing a collection: optional, the collector runs its cycles by
+    // itself; used here only to show the result at once
     sgcl::collector::force_collect();
 
-    // Forcing garbage collection and waiting for the cycle to complete
+    // Forcing a collection and waiting for the cycle to complete
     sgcl::collector::force_collect(true);
 
     // Get number of live objects
@@ -133,7 +119,11 @@ int main() {
         std::cout << std::endl;
     } // The pause guard is destroyed at this point
 
-    // Terminate collector
-    // Note: This call is optional
+    // Counters of the collector's work, read without stopping it
+    auto stats = sgcl::collector::get_statistics();
+    std::cout << stats.cycles << " cycles, " << stats.live_objects << " live objects, last cycle "
+              << stats.last_cycle_ms << " ms" << std::endl;
+
+    // Stop the collector; optional, a program may simply end
     sgcl::collector::terminate();
 }

@@ -1,14 +1,16 @@
 //------------------------------------------------------------------------------
 // SGCL: Smart Garbage Collection Library
-// Copyright (c) 2022-2025 Sebastian Nibisz
+// Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
 #include "object_allocator.h"
 #include "object_pool_allocator.h"
-#include "stack_pointer_allocator.h"
+#include "os.h"
 
+#include <cstdio>
+#include <exception>
 #include <thread>
 
 #if SGCL_LOG_PRINT_LEVEL >= 3
@@ -16,83 +18,72 @@
 #endif
 
 namespace sgcl::detail {
+    // Set by the constructor of Thread; see ensure_thread_registered().
+    inline thread_local bool thread_registered = false;
+    // True on a thread while it sweeps garbage: the destructors it runs are
+    // those of objects that die together with everything reachable only
+    // from them, in no order (containers.h: a container inside such an
+    // object leaves its nodes to the sweep).
+    inline thread_local bool sweeping = false;
+
     class Thread {
     public:
-        struct Data {
-            Data(BlockAllocator* b, StackPointerAllocator* s) noexcept
-            : block_allocator(b)
-            , stack_roots_allocator(s) {
+        // A line of its own: the hazard pointer is written at every atomic
+        // operation of the thread, and the Data of two threads would
+        // otherwise share a line.
+        struct alignas(config::CacheLineSize) Data {
+            Data(PageAllocator* p) noexcept
+            : page_allocator(p) {
             }
-            std::unique_ptr<BlockAllocator> block_allocator;
-            std::unique_ptr<StackPointerAllocator> stack_roots_allocator;
+            std::unique_ptr<PageAllocator> page_allocator;
+            // The whole stack of the thread, [stack_begin, stack_end); the
+            // collector scans its used pages for roots.
+            uintptr_t stack_begin = 0;
+            uintptr_t stack_end = 0;
+            // Handshake at thread exit: the collector raises stack_scan for
+            // the time it reads the stack and skips a thread that is exiting;
+            // the thread raises exiting and waits for stack_scan to drop
+            // before its stack goes away. Both sides use seq_cst so that at
+            // least one of them sees the other's flag.
+            std::atomic<bool> exiting = {false};
+            std::atomic<bool> stack_scan = {false};
             std::atomic<bool> is_deleted = {false};
-            bool is_used = {true};
-            bool is_last_registered = {false};
             Data* next = {nullptr};
             Data* next_registered = {nullptr};
-            std::atomic<Page*> pages = {nullptr};
-            Page* last_page_registered = {nullptr};
+            std::atomic<Page*> pages = {nullptr};   // mutator pushes, collector exchanges
             RawPointer hazard_pointer = {nullptr};
         };
 
-        struct ChildPointers {
-            uintptr_t base;
-            detail::ChildPointers::Map* map;
-        };
-
-        struct ChildGuard {
-            ChildGuard(const ChildGuard&) = delete;
-            void operator=(const ChildGuard&) = delete;
-
-            constexpr ChildGuard(Thread& t, ChildPointers cp) noexcept
-            : thread(t)
-            , old_pointers(t.child_pointers) {
-                thread.child_pointers = cp;
-            }
-
-            ~ChildGuard() noexcept {
-                thread.child_pointers = old_pointers;
-            }
-
-            Thread& thread;
-            const ChildPointers old_pointers;
-        };
-
-        struct RangeGuard {
-            RangeGuard(const RangeGuard&) = delete;
-            void operator=(const RangeGuard&) = delete;
-
-            constexpr RangeGuard(Thread& t, std::pair<uintptr_t, uintptr_t> ar) noexcept
-            : thread(t)
-            , old_alloc_range(t.alloc_range) {
-                thread.alloc_range = ar;
-            }
-
-            ~RangeGuard() noexcept {
-                thread.alloc_range = old_alloc_range;
-            }
-
-            Thread& thread;
-            const std::pair<uintptr_t, uintptr_t> old_alloc_range;
-        };
-
         Thread()
-        : stack_allocator(new StackPointerAllocator)
-        , _block_allocator(new BlockAllocator)
-        , _data(new Data{_block_allocator, stack_allocator}) {
+        : _page_allocator(new PageAllocator)
+        , _data(new Data{_page_allocator}) {
 #if SGCL_LOG_PRINT_LEVEL >= 3
             std::cout << "[sgcl] start thread id: " << std::this_thread::get_id() << std::endl;
 #endif
+            if (!os::thread_stack(_data->stack_begin, _data->stack_end)) {
+                std::fprintf(stderr, "[sgcl] cannot determine the stack range of a thread\n");
+                std::terminate();
+            }
+            thread_registered = true;   // stays set: no re-registration from thread_local destructors
             _data->next = threads_data.load(std::memory_order_acquire);
             while(!threads_data.compare_exchange_weak(_data->next, _data, std::memory_order_release, std::memory_order_relaxed));
         }
 
         ~Thread() noexcept {
+            // No more stack roots from here on: wait out a scan in progress,
+            // the stack is about to disappear.
+            _data->exiting.store(true, std::memory_order_seq_cst);
+            while (_data->stack_scan.load(std::memory_order_seq_cst)) {
+                std::this_thread::yield();
+            }
+            // The allocators return their pool slots and cached headers first;
+            // is_deleted is this thread's last store, and from then on the
+            // collector may take the remaining pages and delete Data.
+            for (auto& a : _allocators) {
+                a.reset();
+            }
             _data->is_deleted.store(true, std::memory_order_release);
             if (std::this_thread::get_id() == main_thread_id) {
-                for (auto& a : _allocators) {
-                    a.reset();
-                }
                 terminate_collector();
             }
 #if SGCL_LOG_PRINT_LEVEL >= 3
@@ -105,30 +96,32 @@ namespace sgcl::detail {
             return _allocator<typename TypeInfo<T>::Allocator>();
         }
 
-        ChildGuard use_child_pointers(ChildPointers cp) noexcept {
-            return {*this, cp};
+        bool on_stack(const void* p) const noexcept {
+            return (uintptr_t)p - _data->stack_begin < _data->stack_end - _data->stack_begin;
         }
 
-        RangeGuard use_alloc_range(std::pair<uintptr_t, uintptr_t> ar) noexcept {
-            return {*this, ar};
+        uintptr_t stack_begin() const noexcept {
+            return _data->stack_begin;
         }
 
+        // seq_cst on purpose: the hazard protocol publishes the pointer and
+        // then reads the atomic again, and the read must not be performed
+        // before the publication is visible. On ARM a store-release before a
+        // load-acquire is ordered anyway (the same stlr); on x86 a plain
+        // store may be overtaken by the load, and seq_cst makes it an xchg.
         void set_hazard_pointer(void* p) {
-            _data->hazard_pointer.store(p, std::memory_order_release);
+            _data->hazard_pointer.store(p, std::memory_order_seq_cst);
         }
 
         void clear_hazard_pointer() {
             _data->hazard_pointer.store(nullptr, std::memory_order_release);
         }
 
-        ChildPointers child_pointers = {0, nullptr};
-        StackPointerAllocator* const stack_allocator;
         inline static std::atomic<Data*> threads_data = {nullptr};
         inline static std::thread::id main_thread_id = {};
-        std::pair<uintptr_t, uintptr_t> alloc_range = {0, 0};
 
     private:
-        BlockAllocator* const _block_allocator;
+        PageAllocator* const _page_allocator;
         std::array<std::unique_ptr<ObjectAllocatorBase>, config::MaxTypesNumber> _allocators;
         Data* const _data;
 
@@ -137,7 +130,7 @@ namespace sgcl::detail {
             auto& alocator = _allocators[_type_index<typename Allocator::ValueType>()];
             if (!alocator) {
                 if constexpr(Allocator::IsPoolAllocator::value) {
-                    alocator.reset(new Allocator(*_block_allocator, _data->pages));
+                    alocator.reset(new Allocator(*_page_allocator, _data->pages));
                 } else {
                     alocator.reset(new Allocator(_data->pages));
                 }
@@ -146,8 +139,17 @@ namespace sgcl::detail {
         }
         template<class T>
         inline static unsigned _type_index() {
-            static const unsigned index = _type_counter++;
-            assert(_type_counter < config::MaxTypesNumber);
+            static const unsigned index = _next_type_index();
+            return index;
+        }
+        static unsigned _next_type_index() {
+            auto index = _type_counter++;
+            if (index >= config::MaxTypesNumber) {
+                // Was an assert: in release the next line would index past
+                // _allocators. Not a recoverable condition for the caller.
+                std::fprintf(stderr, "[sgcl] more than %zu managed types; raise config::MaxTypesNumber\n", config::MaxTypesNumber);
+                std::terminate();
+            }
             return index;
         }
         inline static std::atomic<unsigned> _type_counter = {0};
@@ -164,5 +166,30 @@ namespace sgcl::detail {
     inline Thread& current_thread() noexcept {
         static thread_local Thread instance;
         return instance;
+    }
+
+    // Lowest address to zero when clearing the stack below the caller:
+    // `bytes` below here, never within config::StackGuardMargin of the end
+    // of this thread's stack, and never below the pages the stack has
+    // already touched (zeroing untouched pages would only add them to the
+    // scan).
+    SGCL_ALWAYS_INLINE uintptr_t stack_clear_limit(size_t bytes) noexcept {
+        uintptr_t here = (uintptr_t)&here;
+        auto floor = current_thread().stack_begin() + config::StackGuardMargin;
+        auto limit = bytes < here ? here - bytes : 0;
+        limit = limit < floor ? floor : limit;
+        auto touched = os::lowest_touched(limit, here);
+        return touched > limit ? touched : limit;
+    }
+
+    // A thread's stack is scanned for roots only once the thread is
+    // registered, and a thread can hold a root without ever allocating (a
+    // copy of a pointer read from a shared object), so constructing a
+    // tracked_ptr on the stack registers the thread. One thread-local flag:
+    // the check is a load and a predictable branch.
+    inline void ensure_thread_registered() noexcept {
+        if (!thread_registered) [[unlikely]] {
+            current_thread();
+        }
     }
 }

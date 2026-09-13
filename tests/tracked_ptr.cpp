@@ -1,6 +1,6 @@
 //------------------------------------------------------------------------------
 // SGCL: Smart Garbage Collection Library
-// Copyright (c) 2022-2025 Sebastian Nibisz
+// Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #include "types.h"
@@ -9,17 +9,10 @@ TEST(TrackedPtr_Tests, DefaultConstructor) {
     { // stack
         tracked_ptr<int> ptr;
         EXPECT_EQ(ptr, nullptr);
-        EXPECT_TRUE(ptr.allocated_on_stack());
     }
     { // heap
         auto ptr = make_tracked<tracked_ptr<int>>();
         EXPECT_EQ(*ptr, nullptr);
-        EXPECT_TRUE(ptr->allocated_on_heap());
-    }
-    { // external heap
-        auto ptr = std::make_unique<tracked_ptr<int>>();
-        EXPECT_EQ(*ptr, nullptr);
-        EXPECT_TRUE(ptr->allocated_on_external_heap());
     }
 }
 
@@ -32,10 +25,6 @@ TEST(TrackedPtr_Tests, NullConstructor) {
         auto ptr = make_tracked<tracked_ptr<int>>(nullptr);
         EXPECT_EQ(*ptr, nullptr);
     }
-    { // external heap
-        auto ptr = std::make_unique<tracked_ptr<int>>(nullptr);
-        EXPECT_EQ(*ptr, nullptr);
-    }
 }
 
 TEST(TrackedPtr_Tests, UniqueConstructor) {
@@ -46,11 +35,6 @@ TEST(TrackedPtr_Tests, UniqueConstructor) {
     }
     { // heap
         auto ptr = make_tracked<tracked_ptr<Foo>>(make_tracked<Foo>(3));
-        ASSERT_NE(*ptr, nullptr);
-        EXPECT_EQ((*ptr)->get_value(), 3);
-    }
-    { // external heap
-        auto ptr = std::make_unique<tracked_ptr<Foo>>(make_tracked<Foo>(3));
         ASSERT_NE(*ptr, nullptr);
         EXPECT_EQ((*ptr)->get_value(), 3);
     }
@@ -69,12 +53,6 @@ TEST(TrackedPtr_Tests, RawConstructor) {
         ASSERT_NE(*alias, nullptr);
         EXPECT_EQ(**alias, 10);
     }
-    { // external heap
-        tracked_ptr<Foo> foo = make_tracked<Foo>(10);
-        auto alias = std::make_unique<tracked_ptr<int>>(&foo->value);
-        ASSERT_NE(*alias, nullptr);
-        EXPECT_EQ(**alias, 10);
-    }
 }
 
 TEST(TrackedPtr_Tests, CopyConstructor) {
@@ -86,11 +64,6 @@ TEST(TrackedPtr_Tests, CopyConstructor) {
     }
     { // heap
         auto ptr2 = make_tracked<tracked_ptr<int>>(ptr1);
-        ASSERT_NE(*ptr2, nullptr);
-        EXPECT_EQ(**ptr2, 8);
-    }
-    { // external heap
-        auto ptr2 = std::make_unique<tracked_ptr<int>>(ptr1);
         ASSERT_NE(*ptr2, nullptr);
         EXPECT_EQ(**ptr2, 8);
     }
@@ -108,18 +81,12 @@ TEST(TrackedPtr_Tests, CopyCastConstructor) {
         ASSERT_NE(*bar, nullptr);
         EXPECT_EQ((*bar)->get_value(), 4);
     }
-    { // external heap
-        auto bar = std::make_unique<tracked_ptr<Bar>>(foo);
-        ASSERT_NE(*bar, nullptr);
-        EXPECT_EQ((*bar)->get_value(), 4);
-    }
 }
 
 TEST(TrackedPtr_Tests, MoveConstructor) {
     { // stack
         tracked_ptr<int> s = make_tracked<int>(8);
         auto h = make_tracked<tracked_ptr<int>>(make_tracked<int>(9));
-        auto e = std::make_unique<tracked_ptr<int>>(make_tracked<int>(10));
         tracked_ptr<int> ss(std::move(s));
         ASSERT_NE(ss, nullptr);
         EXPECT_EQ(*ss, 8);
@@ -128,15 +95,10 @@ TEST(TrackedPtr_Tests, MoveConstructor) {
         ASSERT_NE(sh, nullptr);
         EXPECT_EQ(*sh, 9);
         ASSERT_NE(*h, nullptr);
-        tracked_ptr<int> se(std::move(*e));
-        ASSERT_NE(se, nullptr);
-        EXPECT_EQ(*se, 10);
-        ASSERT_NE(*e, nullptr);
     }
     { // heap
         tracked_ptr<int> s = make_tracked<int>(8);
         auto h = make_tracked<tracked_ptr<int>>(make_tracked<int>(9));
-        auto e = std::make_unique<tracked_ptr<int>>(make_tracked<int>(10));
         auto hs = make_tracked<tracked_ptr<int>>(std::move(s));
         ASSERT_NE(*hs, nullptr);
         EXPECT_EQ(**hs, 8);
@@ -145,28 +107,6 @@ TEST(TrackedPtr_Tests, MoveConstructor) {
         ASSERT_NE(*hh, nullptr);
         EXPECT_EQ(**hh, 9);
         ASSERT_NE(*h, nullptr);
-        auto he = make_tracked<tracked_ptr<int>>(std::move(*e));
-        ASSERT_NE(*he, nullptr);
-        EXPECT_EQ(**he, 10);
-        ASSERT_NE(*e, nullptr);
-    }
-    { // external heap
-        tracked_ptr<int> s = make_tracked<int>(8);
-        auto h = make_tracked<tracked_ptr<int>>(make_tracked<int>(9));
-        auto e = std::make_unique<tracked_ptr<int>>(make_tracked<int>(10));
-        auto es = std::make_unique<tracked_ptr<int>>(std::move(s));
-        ASSERT_NE(*es, nullptr);
-        EXPECT_EQ(**es, 8);
-        ASSERT_NE(s, nullptr);
-        auto eh = std::make_unique<tracked_ptr<int>>(std::move(*h));
-        ASSERT_NE(*eh, nullptr);
-        EXPECT_EQ(**eh, 9);
-        ASSERT_NE(*h, nullptr);
-        auto ee = std::make_unique<tracked_ptr<int>>(std::move(*e));
-        ASSERT_NE(*ee, nullptr);
-        EXPECT_EQ(**ee, 10);
-        *e = tracked_ptr<int>();
-        ASSERT_EQ(*e, nullptr);
     }
 }
 
@@ -174,7 +114,6 @@ TEST(TrackedPtr_Tests, MoveCastConstructor) {
     { // stack
         tracked_ptr<Foo> s = make_tracked<Foo>(4);
         auto h = make_tracked<tracked_ptr<Foo>>(make_tracked<Foo>(5));
-        auto e = std::make_unique<tracked_ptr<Foo>>(make_tracked<Foo>(6));
         tracked_ptr<Bar> ss(std::move(s));
         ASSERT_NE(ss, nullptr);
         EXPECT_EQ(ss->get_value(), 4);
@@ -183,15 +122,10 @@ TEST(TrackedPtr_Tests, MoveCastConstructor) {
         ASSERT_NE(sh, nullptr);
         EXPECT_EQ(sh->get_value(), 5);
         ASSERT_NE(*h, nullptr);
-        tracked_ptr<Bar> se(std::move(*e));
-        ASSERT_NE(se, nullptr);
-        EXPECT_EQ(se->get_value(), 6);
-        ASSERT_NE(*e, nullptr);
     }
     { // heap
         tracked_ptr<Foo> s = make_tracked<Foo>(4);
         auto h = make_tracked<tracked_ptr<Foo>>(make_tracked<Foo>(5));
-        auto e = std::make_unique<tracked_ptr<Foo>>(make_tracked<Foo>(6));
         auto hs = make_tracked<tracked_ptr<Bar>>(std::move(s));
         ASSERT_NE(*hs, nullptr);
         EXPECT_EQ((*hs)->get_value(), 4);
@@ -200,28 +134,6 @@ TEST(TrackedPtr_Tests, MoveCastConstructor) {
         ASSERT_NE(*hh, nullptr);
         EXPECT_EQ((*hh)->get_value(), 5);
         ASSERT_NE(*h, nullptr);
-        auto he = make_tracked<tracked_ptr<Bar>>(std::move(*e));
-        ASSERT_NE(*he, nullptr);
-        EXPECT_EQ((*he)->get_value(), 6);
-        ASSERT_NE(*e, nullptr);
-    }
-    { // external heap
-        tracked_ptr<Foo> s = make_tracked<Foo>(4);
-        auto h = make_tracked<tracked_ptr<Foo>>(make_tracked<Foo>(5));
-        auto e = std::make_unique<tracked_ptr<Foo>>(make_tracked<Foo>(6));
-        auto es = std::make_unique<tracked_ptr<Bar>>(std::move(s));
-        ASSERT_NE(*es, nullptr);
-        EXPECT_EQ((*es)->get_value(), 4);
-        ASSERT_NE(s, nullptr);
-        auto eh = std::make_unique<tracked_ptr<Bar>>(std::move(*h));
-        ASSERT_NE(*eh, nullptr);
-        EXPECT_EQ((*eh)->get_value(), 5);
-        ASSERT_NE(*h, nullptr);
-        auto ee = std::make_unique<tracked_ptr<Bar>>(std::move(*e));
-        ASSERT_NE(*ee, nullptr);
-        EXPECT_EQ((*ee)->get_value(), 6);
-        e->reset();
-        ASSERT_EQ(*e, nullptr);
     }
 }
 
@@ -326,31 +238,6 @@ TEST(TrackedPtr_Tests, as) {
 TEST(TrackedPtr_Tests, type) {
     tracked_ptr<Bar> bar = make_tracked<Foo>(10);
     EXPECT_EQ(bar.type(), typeid(Foo));
-}
-
-TEST(TrackedPtr_Tests, metadata) {
-    tracked_ptr<Foo> foo = make_tracked<Foo>(12);
-    tracked_ptr<Bar> bar = foo;
-    EXPECT_EQ(foo.metadata(), nullptr);
-    EXPECT_EQ(bar.metadata(), nullptr);
-    struct {
-        void operator()(void* p) {
-            EXPECT_EQ(((Foo*)p)->get_value(), 12);
-        }
-    } metadata;
-    set_metadata<Bar>(&metadata);
-    EXPECT_EQ(bar.metadata(), nullptr);
-    set_metadata<Foo>(&metadata);
-    EXPECT_EQ(foo.metadata(), &metadata);
-    EXPECT_EQ(bar.metadata(), &metadata);
-    metadata(bar.get_base());
-    set_metadata<Bar>(nullptr);
-    set_metadata<Foo>(nullptr);
-}
-
-TEST(TrackedPtr_Tests, is_array) {
-    tracked_ptr<Bar> bar = make_tracked<Foo>(14);
-    EXPECT_FALSE(bar.is_array());
 }
 
 TEST(TrackedPtr_Tests, Comparisons) {
