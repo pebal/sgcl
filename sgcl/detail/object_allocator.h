@@ -50,7 +50,7 @@ namespace sgcl::detail {
             page->page_count = pages;
             // the one slot comes out in state UniqueLock, like a pool slot
             init(data);
-            page->states()[0].store(State::UniqueLock, std::memory_order_release);
+            page->states()[0].store(Page::unique_state(), std::memory_order_release);
             page->object_created.store(true, std::memory_order_release);
             Heap::set_pages(data, pages, page);
             // publish: the collector may exchange the list away at any time

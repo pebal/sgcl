@@ -222,11 +222,30 @@ namespace sgcl::detail {
                 // of the other parity was made before the flip and is
                 // registered by the cycle: a store to it sets the state the
                 // cycle takes for reachable, and drops Fresh.
+                // "Made after the flip" has to mean that every store of the
+                // object's constructor read the new epoch, since nothing
+                // traces the object: the parity the allocator read
+                // (unique_state, kept in the UniqueLock state) is the
+                // earliest read of the thread, so a Fresh state of the
+                // current parity that came out of a UniqueLock of the other
+                // one is marked Earlier, and the cycle registers the object
+                // like one made before the flip (collector.h:
+                // _register_page); its stores may have read the old epoch.
+                // Branches, not selects, past the first test: a select on
+                // the Fresh state is computed ahead of the branch, on the
+                // hot path of every copy (measured: 1.35 -> 2.1 ns per
+                // copy), and so is a call in the branch.
                 auto wanted = reachable_state();
                 auto old = state.load(std::memory_order_relaxed);
                 if (old != wanted) [[unlikely]] {
                     if (old != State(wanted | State::Fresh)) {
-                        state.store(old == State::UniqueLock ? State(wanted | State::Fresh) : wanted, std::memory_order_relaxed);
+                        if (!is_unique_state(old)) {
+                            state.store(wanted, std::memory_order_relaxed);
+                        } else if ((old ^ wanted) & State::Parity) {
+                            state.store(State(wanted | State::Fresh | State::Earlier), std::memory_order_relaxed);
+                        } else {
+                            state.store(State(wanted | State::Fresh), std::memory_order_relaxed);
+                        }
                     }
                 }
                 if (!page->state_updated.load(std::memory_order_relaxed)) {
@@ -273,7 +292,7 @@ namespace sgcl::detail {
             auto page = Page::page_of(p);
             auto index = page->index_of(p);
             auto &state = page->states()[index];
-            return state.load(std::memory_order_acquire) == State::UniqueLock;
+            return is_unique_state(state.load(std::memory_order_acquire));
         }
 
         // The header is two 64-byte lines. The first holds what the mutators
@@ -302,18 +321,31 @@ namespace sgcl::detail {
         // The state the barrier sets in the current epoch, and the collector
         // takes for reachable in the current cycle. A read of it just
         // before the flip followed by a store after it leaves the old
-        // parity: harmless, since the store is into an object that existed
-        // before the flip, which the cycle registers and traces (the state
-        // only matters for objects created after the flip, whose stores
-        // read the new epoch).
+        // parity: harmless for an object that existed before the flip,
+        // which the cycle registers and traces, and harmless for one made
+        // after it, whose registration the allocation's parity decides
+        // (unique_state, set_state<Reachable>).
         static State reachable_state() noexcept {
             return current_reachable.load(std::memory_order_relaxed);
+        }
+
+        // The state a slot is handed out in: UniqueLock with the parity of
+        // the epoch as this thread sees it, read with acquire so that the
+        // flip (a release) is ordered before everything the object's
+        // creator publishes it with, and a thread that got the object from
+        // there reads the new epoch in its stores (set_state<Reachable>).
+        static State unique_state() noexcept {
+            return State(State::UniqueLock | (current_reachable.load(std::memory_order_acquire) & State::Parity));
+        }
+
+        static bool is_unique_state(State s) noexcept {
+            return State(s & ~State::Parity) == State::UniqueLock;
         }
 
         static void flip_epoch(uint32_t e) noexcept {
             epoch.store(e, std::memory_order_relaxed);
             Heap::set_epoch(e);
-            current_reachable.store(State(State::Reachable | ((e & 1) << 6)), std::memory_order_relaxed);
+            current_reachable.store(State(State::Reachable | ((e & 1) << 6)), std::memory_order_release);
         }
 
         // slots freed by the collector since the page was last handed out

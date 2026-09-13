@@ -79,7 +79,8 @@ namespace sgcl::detail {
         // live in this object (the owning thread is the only writer of the
         // page's bitmap, so the page copy is refreshed only when the word is
         // exhausted or the page is given up).
-        // The slot comes out in state UniqueLock with the page's
+        // The slot comes out in state UniqueLock, with the epoch's parity
+        // (page.h: unique_state), and with the page's
         // object_created flag raised (set once per page, unless the
         // collector lowered it since): the maker need not look the page up.
         // `init` runs on the slot before the state is stored: the slot is
@@ -102,7 +103,7 @@ namespace sgcl::detail {
             _free_word = free & (free - 1);
             auto p = (void*)(_word_base + bit * _object_size);
             init(p);
-            _word_states[bit].store(State::UniqueLock, std::memory_order_release);
+            _word_states[bit].store(Page::unique_state(), std::memory_order_release);
             if (!_current_page->object_created.load(std::memory_order_relaxed)) {
                 _current_page->object_created.store(true, std::memory_order_release);
             }

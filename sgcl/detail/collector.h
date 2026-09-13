@@ -301,10 +301,11 @@ namespace sgcl::detail {
 
         // Registers the objects created on the page before the cycle began:
         // the unregistered slots whose state says created, except the ones
-        // Fresh with the current parity, which were handed to their first
-        // tracked_ptr after the flip of the epoch. Those stay unregistered
-        // this cycle (not swept, not traced): their stores read the new
-        // epoch, so what they point to is reachable by state; registering
+        // Fresh with the current parity and not Earlier, which were
+        // allocated and handed to their first tracked_ptr after the flip of
+        // the epoch (page.h: unique_state, set_state). Those stay
+        // unregistered this cycle (not swept, not traced): their stores
+        // read the new epoch, so what they point to is reachable by state; registering
         // them would make them roots for nothing, a million a cycle with
         // four threads allocating (DESIGN, young cycles). The page keeps
         // its object_created flag for them. The page's state_updated flag
@@ -351,7 +352,7 @@ namespace sgcl::detail {
                             auto fresh = created & ~after_flip;
                             skipped |= after_flip != 0;
                             registered |= Page::Flag(fresh) << g;
-                            updated |= (States8::equal(w, State::UniqueLock) & fresh) != 0;   // a root by state: the pass over the states must look here
+                            updated |= ((States8::equal(w, State::UniqueLock) | States8::equal(w, State(State::UniqueLock | State::Parity))) & fresh) != 0;   // a root by state: the pass over the states must look here
                             objects_created += std::popcount(fresh);
                         }
                         flag.registered = registered;
@@ -1265,7 +1266,7 @@ namespace sgcl::detail {
                             // fails it, and the word is read again
                             std::atomic_ref<uint64_t> word(*reinterpret_cast<uint64_t*>(states + offset + g));
                             for (;;) {
-                                auto old = (States8::equal(w, stale) | States8::equal(w, State(stale | State::Fresh))) & registered;
+                                auto old = (States8::equal(w, stale) | States8::equal(w, State(stale | State::Fresh)) | States8::equal(w, State(stale | State::Fresh | State::Earlier))) & registered;
                                 if (!old) {
                                     break;
                                 }
@@ -1403,7 +1404,7 @@ namespace sgcl::detail {
                             auto countr_zero = std::countr_zero(unreachable);
                             auto index = offset + countr_zero;
                             auto state = states[index].load(std::memory_order_relaxed);
-                            assert(state != Page::reachable_state() && state != State(Page::reachable_state() | State::Fresh) && state != State::UniqueLock);
+                            assert(state != Page::reachable_state() && state != State(Page::reachable_state() | State::Fresh) && state != State(Page::reachable_state() | State::Fresh | State::Earlier) && !Page::is_unique_state(state));
 #ifdef SGCL_TRACE_STACK
                             std::fprintf(stderr, "[sweep] %p type %s state %d\n", page->pointer_of(index), page->metadata->type_info.name(), (int)state);
 #endif
