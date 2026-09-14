@@ -5,7 +5,9 @@
 //------------------------------------------------------------------------------
 #include "types.h"
 
+#include <atomic>
 #include <memory>
+#include <thread>
 #include <vector>
 
 // The collector one gate at a time (collector::stepper): the races of the
@@ -171,4 +173,143 @@ TEST(Stepping_Tests, ABlockOfCellsGoesWithTheNextRegistration) {
     collector::clear_stack(SIZE_MAX);
     s.finish_cycle();
     EXPECT_EQ(collector::get_statistics().live_objects, live0);       // freed by the cycle after
+}
+
+// A thread that exits between the registration of the cycle and the scan
+// of the stacks: the scan skips it (is_deleted) and its objects, held by
+// nothing else, die at the sweep of the same cycle. Before the exit the
+// handshake of the thread with a scan in progress is the thread's wait
+// for stack_scan to drop (thread.h).
+TEST(Stepping_Tests, AThreadExitingBeforeTheScanFreesItsObjects) {
+    collector::stepper s;
+    settle(s);
+    Counted::alive = 0;
+    std::atomic<bool> go = false;
+    std::atomic<bool> ready = false;
+    std::thread other([&] {
+        tracked_ptr held = make_tracked<Counted>();     // on this thread's stack only
+        ready = true;
+        while (!go) {
+            std::this_thread::yield();
+        }
+    });
+    while (!ready) {
+        std::this_thread::yield();
+    }
+    EXPECT_EQ(Counted::alive, 1);
+    s.advance_to(phase::registered);                    // the thread registered for this cycle
+    go = true;
+    other.join();                                       // gone before the scan
+    s.advance_to(phase::swept);
+    EXPECT_EQ(Counted::alive, 0);                       // not on any stack the scan read
+    s.finish_cycle();
+}
+
+// A thread that exits after the scan: its object, found on its stack,
+// lives through the cycle and dies with the next full one.
+TEST(Stepping_Tests, AThreadExitingAfterTheScanKeepsItsObjectsForTheCycle) {
+    collector::stepper s;
+    settle(s);
+    Counted::alive = 0;
+    std::atomic<bool> go = false;
+    std::atomic<bool> ready = false;
+    std::thread other([&] {
+        tracked_ptr held = make_tracked<Counted>();
+        ready = true;
+        while (!go) {
+            std::this_thread::yield();
+        }
+    });
+    while (!ready) {
+        std::this_thread::yield();
+    }
+    s.advance_to(phase::roots);                         // the stacks scanned: the object is a root
+    go = true;
+    other.join();
+    s.finish_cycle();
+    EXPECT_EQ(Counted::alive, 1);                       // marked by the scan
+    settle(s);
+    EXPECT_EQ(Counted::alive, 0);                       // nothing holds it now
+}
+
+// An object loaded from an atomic after the stacks were scanned, its only
+// other reference dropped at once: the copy made by the load is a root by
+// its state (the barrier of the copy) although its frame was scanned
+// before it existed, and the states pass of the marking finds it.
+TEST(Stepping_Tests, LoadedAfterTheStackScanIsReachableByItsState) {
+    struct Holder { atomic<tracked_ptr<Counted>> slot; };
+    collector::stepper s;
+    tracked_ptr holder = make_tracked<Holder>();
+    settle(s);
+    Counted::alive = 0;
+    off_frame([&] { holder->slot = make_tracked<Counted>(); });
+    collector::clear_stack(SIZE_MAX);
+    s.advance_to(phase::roots);                         // holder is a root; its word not traced yet
+    tracked_ptr<Counted> loaded;
+    off_frame([&] {
+        loaded = holder->slot.load();                   // the copy: a store with the barrier into this frame
+        holder->slot = nullptr;                         // the only other reference gone before the tracing
+    });
+    collector::clear_stack(SIZE_MAX);
+    s.finish_cycle();
+    EXPECT_EQ(Counted::alive, 1);                       // found by its state
+    loaded = nullptr;
+    settle(s);
+    EXPECT_EQ(Counted::alive, 0);
+}
+
+// An object made before the flip (registered by this cycle) and released
+// from its unique_ptr into an old, marked object after the dirty pages
+// were traced: neither the scan nor the card of this cycle sees it; the
+// state of the release, with the current parity and without Fresh, does.
+TEST(Stepping_Tests, ReleasedAfterTheRootsIsReachableByItsState) {
+    collector::stepper s(false);
+    tracked_ptr holder = make_tracked<Counted>();
+    settle(s, true);
+    Counted::alive = 1;
+    auto u = make_tracked<Counted>();                   // before the flip: registered by this cycle, unmarked
+    s.advance_to(phase::roots);                         // the stacks scanned (u's word is a unique_ptr: a root by its state, not a tracked word), the dirty pages traced
+    off_frame([&] { holder->next = std::move(u); });    // the release: the state, and a card the next cycle reads
+    collector::clear_stack(SIZE_MAX);
+    s.advance_to(phase::swept);
+    EXPECT_EQ(Counted::alive, 2);                       // not swept: reachable by its state
+    s.finish_cycle();
+    collector::clear_stack(SIZE_MAX);
+    s.finish_cycle();
+    EXPECT_EQ(Counted::alive, 2);                       // and by the card since
+    off_frame([&] { holder->next = nullptr; });
+    settle(s);
+    EXPECT_EQ(Counted::alive, 1);
+}
+
+// An object watched by an expiry_queue and reached by nothing else: the
+// weak phase of the cycle finds it unreachable, keeps it (Expired, marked
+// reachable) instead of clearing the cell, and drain() hands it to the
+// function alive; a function that keeps it keeps it, otherwise it dies
+// with the next cycle.
+TEST(Stepping_Tests, AWatchedObjectIsKeptForTheDrain) {
+    collector::stepper s;
+    expiry_queue<Counted> queue;
+    settle(s);
+    Counted::alive = 0;
+    int expired = 0;
+    tracked_ptr<Counted> revived;
+    off_frame([&] {
+        tracked_ptr object = make_tracked<Counted>();
+        queue.watch(object, [&](tracked_ptr<Counted> t) { ++expired; revived = t; });   // kept by the function
+    });
+    collector::clear_stack(SIZE_MAX);
+    s.advance_to(phase::marked);                        // the weak phase: unreachable, kept for the queue
+    EXPECT_EQ(Counted::alive, 1);
+    EXPECT_EQ(expired, 0);
+    s.finish_cycle();
+    EXPECT_EQ(Counted::alive, 1);                       // not swept
+    EXPECT_EQ(queue.drain(), 1u);                       // the function runs, the object alive
+    EXPECT_EQ(expired, 1);
+    EXPECT_NE(revived, nullptr);
+    settle(s);
+    EXPECT_EQ(Counted::alive, 1);                       // kept by `revived`
+    revived = nullptr;
+    settle(s);
+    EXPECT_EQ(Counted::alive, 0);                       // an ordinary object now: gone
 }
