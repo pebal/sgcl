@@ -38,9 +38,11 @@ namespace sgcl::detail {
     // out, or the thread gone) the allocator sets the block's state to
     // UniqueReleased (types.h), and from then on the collector frees the
     // block in the cycle that finds every slot free (collector.h:
-    // _release_cell_blocks). The collector reads the words of a block
-    // without the type's pointer map: it knows them all to be pointers
-    // (collector.h: _mark_cell_block).
+    // _release_cell_blocks). The marking traces a block by the type's
+    // pointer map like any object: the map is full and stays so, every
+    // word a heap address, a free cell's its own, which marks the block
+    // itself, a root already (a branch in the trace for the blocks alone
+    // cost every object of every type 15% of the marking).
     // The words are plain, so that the type is trivial and make_tracked's
     // default-initialization leaves them as they are; the collector reads
     // them as the atomic words they are used as (a slot in use is a

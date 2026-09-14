@@ -26,8 +26,8 @@ namespace sgcl::detail {
         static constexpr auto value = false;
     };
 
-    // A block of cells is pointers only, without a constructor: traced by
-    // its words (collector.h: _mark_cell_block), never through the map
+    // A block of cells is pointers only, without a constructor (the trait
+    // would say no): traced through its map, which is full and stays so
     template<>
     struct MayContainTracked<CellBlock> {
         static constexpr auto value = true;

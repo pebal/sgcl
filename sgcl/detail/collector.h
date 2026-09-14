@@ -890,18 +890,6 @@ namespace sgcl::detail {
             }
         }
 
-        // A block of cells (cell_block.h) is nothing but pointers: its
-        // words without the map, a free slot (its own address) skipped
-        template<bool Parallel>
-        void _mark_cell_block(CellBlock* block, Marker& m) noexcept {
-            for (auto& slot : block->slots) {
-                auto word = CellBlock::word(slot);
-                if (word && word != (uintptr_t)&slot) {
-                    _mark_conservative<Parallel>((const void*)word, m);
-                }
-            }
-        }
-
         // The blocks of cells their allocators have let go of (types.h:
         // UniqueReleased): the ones with every slot free are Destroyed here,
         // their marks cleared, so that the sweep of this cycle, young or
@@ -950,10 +938,8 @@ namespace sgcl::detail {
             m.unregistered_hit = false;
             if (is_array) {
                 _mark_array_childs<Parallel>(ptr, m);
-            } else if (page->metadata->is_cell_block) {
-                _mark_cell_block<Parallel>((CellBlock*)ptr, m);
             } else {
-                _mark_childs<Parallel>(page->metadata->child_pointers, ptr, m);
+                _mark_childs<Parallel>(page->metadata->child_pointers, ptr, m);   // a block of cells too: its map is full and stays so, every word a heap address (a free cell its own)
             }
             if (m.unregistered_hit) {
                 Heap::stamp_card(ptr, _epoch);
@@ -1196,14 +1182,52 @@ namespace sgcl::detail {
             page->reachable = false;
         }
 
+        // The objects on the stack are traced through a window: an object
+        // popped goes to the back of the window with a prefetch of its
+        // first line, and is traced when it comes out at the front,
+        // PrefetchWindow pops later, its line in the cache by then. The
+        // stack's order is depth first over a graph in memory the
+        // allocation laid out, so every trace is a miss without this, and
+        // the loads of one object's words wait for the miss before the
+        // next object's can start (Cher, Hosking, Vitek: software
+        // prefetching for mark-sweep).
+        static constexpr unsigned PrefetchWindow = config::MarkPrefetchWindow;
+        static_assert((PrefetchWindow & (PrefetchWindow - 1)) == 0, "a power of two, or 0");
+
         void _drain(Marker& m) noexcept {
             auto& q = _mark_queue;
-            while (!m.work.empty()) {
-                auto item = m.work.back();
-                m.work.pop_back();
-                _trace<true>(item.page, item.ptr, item.page->metadata->is_array, m);
-                if (m.work.size() >= 2 && q.idle.load(std::memory_order_relaxed)) {
-                    _spill(m);
+            if constexpr(PrefetchWindow == 0) {
+                while (!m.work.empty()) {
+                    auto item = m.work.back();
+                    m.work.pop_back();
+                    _trace<true>(item.page, item.ptr, item.page->metadata->is_array, m);
+                    if (m.work.size() >= 2 && q.idle.load(std::memory_order_relaxed)) {
+                        _spill(m);
+                    }
+                }
+                return;
+            } else {
+                MarkItem window[PrefetchWindow];
+                unsigned in = 0;    // items put in
+                unsigned out = 0;   // items taken out
+                for (;;) {
+                    // fill: pop while the window has room
+                    while (in - out < PrefetchWindow && !m.work.empty()) {
+                        auto& slot = window[in & (PrefetchWindow - 1)];
+                        slot = m.work.back();
+                        m.work.pop_back();
+                        __builtin_prefetch(slot.ptr);
+                        ++in;
+                    }
+                    if (in == out) {
+                        return;
+                    }
+                    auto& item = window[out & (PrefetchWindow - 1)];
+                    ++out;
+                    _trace<true>(item.page, item.ptr, item.page->metadata->is_array, m);
+                    if (m.work.size() >= 2 && q.idle.load(std::memory_order_relaxed)) {
+                        _spill(m);
+                    }
                 }
             }
         }
@@ -2392,9 +2416,17 @@ namespace sgcl::detail {
                 // than it converges (a mutator allocating at full speed kept
                 // one cycle open for the whole run). Threads are picked up so
                 // that their hazard pointers are honoured.
+#ifdef SGCL_MARK_STATS
+                unsigned rounds = 0, all_passes = 0;
+                size_t list_pages = 0;
+#endif
                 do {
                     _mark_reachable();
                     phase(3);
+#ifdef SGCL_MARK_STATS
+                    ++rounds;
+                    if (!_unreachable_pages) ++all_passes; else { for (auto p = _unreachable_pages; p; p = p->next_unreachable) ++list_pages; }
+#endif
                     if (!_unreachable_pages) {
                         _register_threads();
                         _update_hazard_pointers();
@@ -2445,7 +2477,7 @@ namespace sgcl::detail {
                 phase(7);
                 _gate(Gate::Released);
 #ifdef SGCL_MARK_STATS
-                std::fprintf(stderr, "[cycle] %s register %.1f states %.1f roots %.1f mark %.1f updated %.1f sweep %.1f release %.1f trim %.1f ms, removed %zu\n", _full ? "full" : "young", phase_ms[0], phase_ms[1], phase_ms[2], phase_ms[3], phase_ms[4], phase_ms[5], phase_ms[6], phase_ms[7], last_objects_removed);
+                std::fprintf(stderr, "[cycle] %s register %.1f states %.1f roots %.1f mark %.1f updated %.1f sweep %.1f release %.1f trim %.1f ms, removed %zu, rounds %u (all-pages passes %u, list pages %zu of %zu)\n", _full ? "full" : "young", phase_ms[0], phase_ms[1], phase_ms[2], phase_ms[3], phase_ms[4], phase_ms[5], phase_ms[6], phase_ms[7], last_objects_removed, rounds, all_passes, list_pages, _pages.size());
 #endif
                 if (_full) {
                     _young_cycles = 0;
@@ -2617,13 +2649,6 @@ namespace sgcl::detail {
         std::vector<Page*> _pages;   // the registered pages
         std::vector<Page*> _weak_pages;   // of them, the pages of weak cells (weak_cell.h)
         std::vector<Page*> _cell_block_pages;   // and of the blocks of cells (cell_block.h)
-        std::atomic<bool> _stepping = {false};   // stepping (Gate): the test holds the cycle
-        std::mutex _step_mutex;
-        std::condition_variable _step_cv;
-        bool _step_full = true;
-        bool _step_armed = false;
-        long _step_reached = -1;   // gates arrived at since the stepper began, Start of the first cycle being 0
-        long _step_allowed = 0;    // gates the collector may pass
         std::atomic<int> _forced_collect_count = {0};
         std::atomic<int> _young_collect_count = {0};
         std::mutex _mutex;
@@ -2674,6 +2699,15 @@ namespace sgcl::detail {
         bool _short_sleep = false;
         static constexpr unsigned MaxQuiescenceRounds = 8;
         unsigned _quiescence_rounds = 0;
+
+        // Stepping (collector.h: stepper), cold: after everything the cycle touches
+        std::atomic<bool> _stepping = {false};   // stepping (Gate): the test holds the cycle
+        std::mutex _step_mutex;
+        std::condition_variable _step_cv;
+        bool _step_full = true;
+        bool _step_armed = false;
+        long _step_reached = -1;   // gates arrived at since the stepper began, Start of the first cycle being 0
+        long _step_allowed = 0;    // gates the collector may pass
 
         friend inline void delete_unique(const void*) noexcept;
     };

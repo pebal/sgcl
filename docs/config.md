@@ -154,6 +154,19 @@ Marking shares the helpers as well, once the previous cycle marked at least `Mar
 clang++ -std=c++20 -DSGCL_MARK_OBJECT_THRESHOLD=262144 app.cpp    # parallel marking from 256 K live objects
 ```
 
+### SGCL_MARK_PREFETCH_WINDOW, MarkPrefetchWindow
+
+```cpp
+#define SGCL_MARK_PREFETCH_WINDOW 8
+static constexpr unsigned MarkPrefetchWindow = SGCL_MARK_PREFETCH_WINDOW;
+```
+
+The parallel marking traces the objects it pops from its stack through a window of this many, each prefetched as it enters and traced as it leaves, so that the cache misses of a depth-first walk over a graph laid out by allocation overlap instead of waiting one at a time: a random graph marks in half the time; a tree laid out in the order it is traced gains nothing, the hardware prefetcher being ahead already. A power of two; `0` traces straight from the stack.
+
+```sh
+clang++ -std=c++20 -DSGCL_MARK_PREFETCH_WINDOW=16 app.cpp
+```
+
 ### SGCL_HELPERS_GROWTH_THRESHOLD, HelpersGrowthThreshold
 
 ```cpp
