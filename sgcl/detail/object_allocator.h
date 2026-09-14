@@ -30,6 +30,9 @@ namespace sgcl::detail {
         // object_pool_allocator_base.h.
         template<class Init>
         ValueType* alloc(size_t size, Init&& init) const {
+            if (os::forked_child.load(std::memory_order_relaxed)) [[unlikely]] {
+                os::fail_after_fork("a managed allocation");   // before the heap's copied lock (os.h)
+            }
             size += sizeof(ValueType);
             auto pages = (size + config::PageSize - 1) / config::PageSize;
             auto since = MemoryCounters::add_alloc(pages);   // page_allocator.h: the same rule

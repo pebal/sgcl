@@ -36,6 +36,7 @@ namespace sgcl::detail {
                 // and values near it in the dead part of this stack; scanned
                 // later, they would retain whatever lands on the first pages.
                 _clear_frames_below();
+                os::register_fork_handler();   // from here on a fork has a child without this thread (os.h: forked_child)
                 std::thread([this]{_main_loop();}).detach();
             }
         }
@@ -53,6 +54,9 @@ namespace sgcl::detail {
 #if SGCL_LOG_PRINT_LEVEL > 0
             std::cout << "[sgcl] force collect " << (wait ? "and wait " : "") << "from id: " << std::this_thread::get_id() << std::endl;
 #endif
+            if (os::forked_child.load(std::memory_order_relaxed)) [[unlikely]] {
+                os::fail_after_fork("a collection requested");
+            }
             if (wait) {
                 std::unique_lock<std::mutex> lock(_mutex);
                 if (_terminating) {
@@ -2148,6 +2152,9 @@ namespace sgcl::detail {
         }
 
         void _terminate() noexcept {
+            if (os::forked_child.load(std::memory_order_relaxed)) [[unlikely]] {
+                return;   // no collector thread to stop, and the copied mutex may be held (os.h: forked_child)
+            }
             if (!_terminating) {
 #if SGCL_LOG_PRINT_LEVEL > 0
                 std::cout << "[sgcl] terminate collector from id: " << std::this_thread::get_id() << std::endl;

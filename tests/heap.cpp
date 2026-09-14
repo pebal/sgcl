@@ -8,6 +8,9 @@
 #include "types.h"
 
 #include <random>
+#if !defined(_WIN32)
+#include <unistd.h>
+#endif
 
 // An array is rooted only by a pointer to its first element: an interior
 // pointer, tracked or not, keeps nothing once the owner is gone.
@@ -269,3 +272,20 @@ TEST(Heap_Tests, StatisticsFollowTheCycles) {
     EXPECT_GT(after.cycles, before.cycles + 1);
     EXPECT_EQ(after.live_objects, collector::get_live_object_count());
 }
+
+#if !defined(_WIN32)
+// The child of a fork reads the managed heap (a copy-on-write snapshot)
+// and exits; a managed allocation that needs a page, or a collection,
+// fails there with a message instead of hanging on a copied lock or
+// waiting for the collector's thread, which the child does not have.
+// gtest's death tests fork exactly so.
+TEST(Heap_Tests, TheChildOfAForkReadsAndExitsOrFails) {
+    struct Node { int value; tracked_ptr<Node> next; };
+    struct Fresh { long a[64]; };
+    tracked_ptr node = make_tracked<Node>(1, make_tracked<Node>(2));
+    collector::force_collect(true);   // the collector's thread exists: the atfork handler is registered
+    EXPECT_EXIT(::_exit(node->value == 1 && node->next->value == 2 ? 0 : 1), ::testing::ExitedWithCode(0), "");   // the snapshot read
+    EXPECT_DEATH(collector::force_collect(true), "a collection requested in the child of a fork");
+    EXPECT_DEATH((void)make_tracked<Fresh>(), "a managed allocation in the child of a fork");                     // the pages of a fresh type
+}
+#endif

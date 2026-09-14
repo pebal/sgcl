@@ -14,6 +14,7 @@
 #include "../config.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -69,6 +70,30 @@
 // commit and decommit it in chunks. Everything else in the library is
 // platform independent.
 namespace sgcl::detail::os {
+    // The child of a fork. The collector's thread and the other mutators
+    // do not exist in it, and the mutexes are copies, held or not as they
+    // were in the parent at the fork: the child may read the managed heap
+    // (its pages a copy-on-write snapshot; the headers live outside the
+    // pages, so the parent's marking does not dirty them) and exec or
+    // exit, and that is what it does in practice, but a managed
+    // allocation that needs a page or a call into the collector would
+    // hang on a copied lock or wait for a thread that is not there. Set
+    // by the atfork handler the collector registers when it starts
+    // (collector.h); the slow paths that would hang check it and fail
+    // with a message instead (fail_after_fork).
+    inline std::atomic<bool> forked_child = {false};
+
+    inline void register_fork_handler() noexcept {
+#if !defined(_WIN32)
+        ::pthread_atfork(nullptr, nullptr, [] { forked_child.store(true, std::memory_order_relaxed); });
+#endif
+    }
+
+    [[noreturn]] inline void fail_after_fork(const char* what) noexcept {
+        std::fprintf(stderr, "[sgcl] %s in the child of a fork: the collector does not run there; the child may read the managed heap and exec or exit, not allocate managed objects or collect\n", what);
+        std::terminate();
+    }
+
     struct Reservation {
         void* base = nullptr;
         size_t size = 0;

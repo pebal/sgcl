@@ -17,6 +17,7 @@ Three of the functions (`get_live_object_count`, `get_live_objects`, `get_type_s
 - Every function may be called from any thread, at any time, concurrently with the mutators and with each other. None of them stops a mutator; `get_live_objects()` pauses the collector while its `pause_guard` lives.
 - `force_collect(true)`, `get_live_object_count()`, `get_live_objects()` and `get_type_statistics()` block the calling thread until a full cycle after the call has completed; they must not be called from a destructor of a managed object (a destructor runs on the collector's threads, inside the cycle they would wait for).
 - `force_collect()` is optional in every program: the collector runs its cycles by itself. The examples and tests call it only to show or check a result at once.
+- In the child of a `fork()` the collector does not run (the child has no thread but the one that forked): the child may read managed objects and `exec` or exit; `force_collect`, `terminate` and a managed allocation that needs a page terminate the child with a message ([Threads](../README.md#threads)).
 - `get_live_object_count`, `get_live_objects`, `get_type_statistics`, `force_collect` and `clear_stack` are declared always-inline, so that no frame of their own lies between the caller and the area they zero.
 
 ## Members

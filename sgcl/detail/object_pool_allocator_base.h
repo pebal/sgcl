@@ -176,6 +176,9 @@ namespace sgcl::detail {
         }
 
         Page* _next_page() {
+            if (os::forked_child.load(std::memory_order_relaxed)) [[unlikely]] {
+                os::fail_after_fork("a managed allocation");   // before the copied locks (os.h)
+            }
             Page* page;
             {
                 // Slow path (once per page): a mutex instead of a lock-free
