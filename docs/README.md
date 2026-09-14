@@ -48,6 +48,7 @@ The interfaces of `std`, the nodes and buffers on the managed heap: a container 
 | [collector](collector.md) | `sgcl/collector.h` | `force_collect`, `terminate`, statistics and phase times, live objects and bytes by type, the memory limit |
 | [config](config.md) | `sgcl/config.h` | the compile-time constants and the `-D` macros that set them |
 | [diagnostics](diagnostics.md) | | the tools and the cases: what is alive and why, what a rule broken looks like, what a cycle costs, a race with the collector |
+| [how it works](how-it-works.md) | | the engine: the heap, a slot's states, the barrier, the roots, a cycle phase by phase, epochs and parity, young and full cycles, the weak phase, the `gc::` cells, `sgcl::` against `gc::` and when to use which, allocation |
 
 ## Reading the pages
 

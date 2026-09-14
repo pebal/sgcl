@@ -26,6 +26,8 @@ The library comes in two namespaces with one interface. `gc::` is the one to sta
 ## How it works
 The collector is a concurrent, non-moving, generational mark-and-sweep with a Dijkstra insertion barrier. A cycle begins with a flip of the epoch, one atomic store that retires every state the barrier set before it (a state carries the parity of the epoch it was set in), and the registration of the objects created before the flip; the roots are the used pages of every registered thread's stack, scanned conservatively while the threads keep running, plus the objects a `unique_ptr` owns; the heap is traced precisely, through a map per type of the words that may hold a pointer, which the collector builds by elimination as it goes (below, "Pointer maps"). Marking runs until a pass over the pages finds no unmarked object with a state the barrier set meanwhile; then the unmarked registered objects are swept, their destructors run, and their slots and pages go back to the allocators and the heap.
 
+The mechanism in full, phase by phase and with the invariants it rests on, is in [docs/how-it-works.md](docs/how-it-works.md).
+
 What the mutators do for all this is small and never blocking. Creating an object is a bitmap pop in a per-thread allocator and one byte of state. Copying a pointer into an object or onto a stack is the store of the word and the barrier: a byte of state on the target, a flag on its page, both conditional, so that threads copying pointers to the same object do not fight over a line. Nothing registers a constructor, nothing counts references, nothing is looked up. A thread that has never touched the library is registered the first time it copies a pointer, with a thread-local flag; when it exits it waits at most for a stack scan in progress to finish reading its stack. That handshake and the mutex a thread takes once per 64 KB page it gets from the heap are the only places a mutator can wait on anything, and neither involves the collector's work.
 
 The collector side scales with cores instead. Marking runs on a pool of helper threads, each tracing from a stack of its own and stealing from the others, once a cycle has enough to mark; the passes over the pages (registration, the search for barrier states, the sweep with its destructors, the rebuild of free bitmaps) are split over the same pool once the collector falls behind the allocation. The states of eight slots are read and tested at once. A cycle starts when the pages allocated since the last one reach a quarter of what it left in use, so what waits for a sweep is bounded by the live heap; the collector never throttles a mutator to keep that bound, which is where its memory goes above Go's on a program that allocates faster than any collector sweeps (binary-trees with four mutators: 495 MB against Go's 224 MB, in half the time).
@@ -42,7 +44,7 @@ The cycles are generational by default (sticky mark bits): a young cycle traces 
 - **Coroutines**: a promise type derived from `managed_frame` gets its frames from the managed heap, so the `tracked_ptr` locals, parameters and promise members of a suspended coroutine are roots; `task<T>` and `generator<T>` come ready.
 - **Weak pointers**: `weak_ptr<T>` with `lock()` and `expired()`, one word, copied for the price of a `tracked_ptr`; cleared by the collector, never dangling, never a reference count. `expiry_queue<T>` hands an object found unreachable to a function of your choice, on a thread of your choice, alive one last time: a cleanup, or a return to life.
 - **Dynamic type**: `type()`, `is<U>()` and `as<U>()` on any pointer, including `tracked_ptr<void>`, without virtual functions.
-- **Diagnostics**: cycle counters and phase times, live objects and bytes by type, the live objects themselves; read without stopping the collector or after a cycle it runs for the question ("Methods useful for state analysis").
+- **Diagnostics**: cycle counters and phase times, live objects and bytes by type, the live objects themselves, what holds an object and what it retains, and the collector one gate at a time for the tests of the engine; read without stopping the collector or after a cycle it runs for the question ("Methods useful for state analysis" below, [docs/diagnostics.md](docs/diagnostics.md)).
 - **Memory under control**: a committed-memory ceiling (90% of the cgroup or physical limit by default), a collection forced before it and `std::bad_alloc` instead of the OOM killer past it; the whole managed heap is one reservation, backed lazily and returned in 2 MB chunks.
 
 ## Reference
@@ -415,6 +417,8 @@ auto limit = gc::collector::get_memory_limit();
 gc::collector::set_memory_limit(size_t(4) << 30);   // 4 GB
 ```
 ## Methods useful for state analysis
+The tools by case, with what each costs, are in [docs/diagnostics.md](docs/diagnostics.md); the members, in [docs/collector.md](docs/collector.md).
+
 ```cpp
 // Forcing a collection: optional, the collector runs its cycles by itself
 // (used in the examples and tests only to show or check a result at once)
@@ -465,6 +469,37 @@ for (int i = 0; i < 8; ++i) {                 // registration, states, roots, ma
     std::cout << gc::collector::phase_names[i] << " " << stats.phases_ms[i] << " ms" << std::endl;
 }
 
+// What holds an object: a chain from it up to a root, as text (a full
+// cycle first, the collector paused for the walk), and what dies with it
+gc::collector::explain(node.get(), std::cout);
+// 0x100... is held by
+//   a Node at 0x100..., the word at byte 8
+//   a unique_ptr: the Node at 0x100... is its object
+// and keeps alive 3 objects, 48 bytes, itself included
+
+// The same as data: every word that points at the object (members,
+// buffer elements, cells, stack words, a unique_ptr, weak cells), the
+// chain, what the object retains. One pause_guard at a time.
+{
+    auto [guard, referrers] = gc::collector::get_referrers(node.get());
+    for (auto& r : referrers) {
+        std::cout << (r.type ? r.type->name() : "a stack word") << " at " << r.holder << " +" << r.offset << std::endl;
+    }
+}
+{
+    auto [guard, path] = gc::collector::get_path_to_root(node.get());   // [0] holds node, [1] holds [0]'s holder, ..., a root
+}
+auto [objects, bytes] = gc::collector::get_retained(node.get());
+
+// The collector one gate at a time, for the tests of the engine: no cycle
+// runs while the stepper lives; the calling thread is the mutator
+{
+    gc::collector::stepper s(false);                        // young cycles
+    s.advance_to(gc::collector::stepper::phase::roots);     // the stacks scanned, the dirty pages traced
+    holder->next = gc::make_tracked<Node>();                // a store in that window
+    s.finish_cycle();
+}
+
 // Stop the collector: cycles run until nothing dies any more, the threads exit.
 // Optional; afterwards no cycle runs and tracked garbage stays until exit.
 gc::collector::terminate();
@@ -478,23 +513,23 @@ The Boehm–Demers–Weiser collector, the one C++ has had for three decades, is
 
 The environments are not the same size: a Java object carries a 12-byte header and the graph's node holds its links in a separate array, Go's runtime scans its stacks precisely, and the JVM's numbers include its warm-up. The scripts are in the tree to rerun with other versions and sizes.
 
-The two SGCL columns come from one run (`compare.sh` with `VARIANTS="sgcl gc"`, and `bench_containers` for each variant, the best of three), later than the run of the other columns, and the ratio in parentheses is `gc::` against `sgcl::` of that run. Between the runs the `sgcl::` numbers moved within their rounding, except for the memory-bound container cases, which move by a tenth from run to run (the `std` column of the container table is from the later run too, for that reason).
+The SGCL columns, the two of a table where the families differ, come from one run (`compare.sh` with `VARIANTS="sgcl gc"`, and `bench_containers` for each variant, the best of three), later than the run of the other columns, and the ratio in parentheses is `gc::` against `sgcl::` of that run. Between the runs the `sgcl::` numbers moved within their rounding, except for the memory-bound container cases, which move by a tenth from run to run (the `std` column of the container table is from the later run too, for that reason).
 
 The current version has been tested on Apple Silicon only. The code has no dependency on the architecture beyond what the standard library and the system calls in `detail/os.h` provide, but no number below has been reproduced on x86-64 or on Linux and Windows yet.
 
 ### Allocation
 Nanoseconds per object; each allocation retires the previous one, so the collectors have to keep up:
 
-| size, threads | SGCL `sgcl::` | SGCL `gc::` | `unique_ptr` | `shared_ptr` | Go | Java ZGC |
-|---|---|---|---|---|---|---|
-| 32 B, 1 | 5.4 | 5.3 (0.98×) | 21.7 | 21.9 | 7.0 | 3.1 |
-| 32 B, 4 | 5.9 | 6.0 (1.01×) | 37.5 | 37.7 | 32.9 | 6.9 |
-| 32 B, 24 | 12.3 | 12.2 (0.99×) | 90.7 | 107.2 | 291.1 | 26.9 |
-| 256 B, 1 | 6.5 | 6.6 (1.01×) | 21.0 | 23.7 | 97.7 | 9.0 |
-| 256 B, 4 | 9.3 | 9.5 (1.02×) | 36.1 | 47.1 | 284.1 | 25.3 |
-| 256 B, 24 | 48.9 | 49.0 (1.00×) | 82.3 | 113.5 | 2182.2 | 97.1 |
+| size, threads | SGCL | `unique_ptr` | `shared_ptr` | Go | Java ZGC |
+|---|---|---|---|---|---|
+| 32 B, 1 | 5.4 | 21.7 | 21.9 | 7.0 | 3.1 |
+| 32 B, 4 | 5.9 | 37.5 | 37.7 | 32.9 | 6.9 |
+| 32 B, 24 | 12.3 | 90.7 | 107.2 | 291.1 | 26.9 |
+| 256 B, 1 | 6.5 | 21.0 | 23.7 | 97.7 | 9.0 |
+| 256 B, 4 | 9.3 | 36.1 | 47.1 | 284.1 | 25.3 |
+| 256 B, 24 | 48.9 | 82.3 | 113.5 | 2182.2 | 97.1 |
 
-On one thread Java's bump allocation in a thread-local buffer is the fastest (3.1 ns for 32 bytes against SGCL's 5.4); from four threads up SGCL is (5.9 ns against Java's 6.9 and Go's 33 at four, 12 against 27 and 291 at 24), because its mutators never wait for the collector and its per-thread page allocator hands out slots without a lock or a barrier. Go's allocator pays for 256-byte objects with its size classes and assists (98 ns on one thread, 2.2 µs on 24), Java's ZGC with its allocation barriers and, under its ceiling, the collections it has to run (27 ns at 24 threads, 97 ns for 256-byte objects), `unique_ptr` and `shared_ptr` with malloc (21 to 22 ns on one thread, 82 to 113 on 24) and the second with its control block. The `gc::` pointer that keeps the newest object here is a local, an `sgcl::tracked_ptr` word once its constructor has checked the address: the same cost.
+On one thread Java's bump allocation in a thread-local buffer is the fastest (3.1 ns for 32 bytes against SGCL's 5.4); from four threads up SGCL is (5.9 ns against Java's 6.9 and Go's 33 at four, 12 against 27 and 291 at 24), because its mutators never wait for the collector and its per-thread page allocator hands out slots without a lock or a barrier. Go's allocator pays for 256-byte objects with its size classes and assists (98 ns on one thread, 2.2 µs on 24), Java's ZGC with its allocation barriers and, under its ceiling, the collections it has to run (27 ns at 24 threads, 97 ns for 256-byte objects), `unique_ptr` and `shared_ptr` with malloc (21 to 22 ns on one thread, 82 to 113 on 24) and the second with its control block. The allocation does not depend on the kind of the pointer that takes the object: the `gc::` variant of this benchmark measures the same within its rounding (the pointer is a local, an `sgcl::tracked_ptr` word once its constructor has checked the address), so the table has one SGCL column.
 
 ### Pointer copy
 Nanoseconds per copy of a pointer to a live object, 50 million per thread: for SGCL the write barrier, for `shared_ptr` the reference count, for Go and Java the store with their barriers. `unique_ptr` has no copy: the column is the raw pointer a program built on `unique_ptr` hands around instead, the plain store every other column adds its bookkeeping to. "local" is a store into a variable on the stack, "field" into a member of a heap object; with four threads every thread copies pointers to the same object.

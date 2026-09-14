@@ -187,8 +187,25 @@ namespace sgcl {
             return {std::move(guard), _referrers(detail::collector_instance().path_to_root(p, boundary))};
         }
 
-        // The chain of get_path_to_root as text, a line per link, or why
-        // there is none
+        // What dies with the object: the objects reachable from it and
+        // from nowhere else, itself included, and their bytes (the slots
+        // they occupy). A full cycle first, the collector paused for the
+        // walk, as get_referrers; {0, 0} for a pointer that is not into a
+        // live managed object.
+        struct retained {
+            size_t objects;
+            size_t bytes;
+        };
+
+        SGCL_NOINLINE static retained get_retained(const void* p) {
+            auto boundary = (uintptr_t)__builtin_frame_address(0);
+            auto [guard, objects] = get_live_objects();
+            auto r = detail::collector_instance().retained(p, boundary);
+            return {r.objects, r.bytes};
+        }
+
+        // The chain of get_path_to_root as text, a line per link, and what
+        // the object retains; or why there is no chain
         SGCL_NOINLINE static void explain(const void* p, std::ostream& out) {
             auto boundary = (uintptr_t)__builtin_frame_address(0);
             auto [guard, objects] = get_live_objects();
@@ -198,6 +215,7 @@ namespace sgcl {
                 out << p << (c.object_of(p).first ? ": held by nothing but the frames of this call: garbage once they are gone\n" : ": not a live managed object\n");
                 return;
             }
+            auto r = c.retained(p, boundary);
             out << p << " is held by\n";
             for (auto& r : path) {
                 switch (r.from) {
@@ -215,6 +233,7 @@ namespace sgcl {
                     case referrer::kind::weak: out << "  a weak_ptr's cell at " << r.holder << " (holds nothing)\n"; break;
                 }
             }
+            out << "and keeps alive " << r.objects << (r.objects == 1 ? " object, " : " objects, ") << r.bytes << " bytes, itself included\n";
         }
 
     private:

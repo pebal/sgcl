@@ -184,3 +184,44 @@ TEST(Referrers_Tests, ExplainAndTheEdges) {
     auto [guard, rs] = collector::get_referrers(&plain);
     EXPECT_TRUE(rs.empty());
 }
+
+// What an object retains: the objects reachable from it and from nowhere
+// else, itself included; what is shared with another root stays out, a
+// weak pointer holds nothing, a container's buffer counts as a slot.
+TEST(Referrers_Tests, RetainedSize) {
+    unique_ptr<Node> head = make_tracked<Node>();
+    head->next = make_tracked<Node>();
+    head->next->next = make_tracked<Node>();
+    head->next->leaf = make_tracked<Leaf>();
+    tracked_ptr shared = head->next->next;                       // the third node has a second root: this frame
+    auto [objects, bytes] = collector::get_retained(head.get());
+    EXPECT_EQ(objects, 3u);                                      // head, the second node, its leaf; not the third
+    EXPECT_EQ(bytes, 2 * sizeof(Node) + sizeof(Leaf));
+    auto whole = collector::get_retained(head->next->next.get());
+    EXPECT_EQ(whole.objects, 1u);
+    EXPECT_EQ(whole.bytes, sizeof(Node));
+    shared = nullptr;
+    collector::clear_stack(SIZE_MAX);
+    auto all = collector::get_retained(head.get());
+    EXPECT_EQ(all.objects, 4u);                                  // the third node too now
+    EXPECT_EQ(all.bytes, 3 * sizeof(Node) + sizeof(Leaf));
+    weak_ptr w = head->next->leaf;                               // a weak pointer: its cell dies with the leaf, its target is not held by it
+    auto with_weak = collector::get_retained(head.get());
+    EXPECT_EQ(with_weak.objects, 4u);                            // the cell is reached from this frame's weak_ptr, not from head
+    int plain = 0;
+    auto none = collector::get_retained(&plain);
+    EXPECT_EQ(none.objects, 0u);
+    std::ostringstream out;
+    collector::explain(head->next->leaf.get(), out);
+    EXPECT_NE(out.str().find("keeps alive 1 object, " + std::to_string(sizeof(Leaf)) + " bytes"), std::string::npos);
+}
+
+TEST(Referrers_Tests, RetainedSizeOfAContainer) {
+    unique_ptr<vector<tracked_ptr<Leaf>>> owned = make_tracked<vector<tracked_ptr<Leaf>>>();
+    for (int i = 0; i < 10; ++i) {
+        owned->push_back(make_tracked<Leaf>());
+    }
+    auto [objects, bytes] = collector::get_retained(owned.get());
+    EXPECT_EQ(objects, 12u);                                     // the vector, its buffer, ten leaves
+    EXPECT_GE(bytes, sizeof(vector<tracked_ptr<Leaf>>) + 10 * sizeof(Leaf) + sizeof(detail::ArrayBase) + owned->capacity() * sizeof(tracked_ptr<Leaf>));   // the buffer at least its capacity: the slot of its size class
+}

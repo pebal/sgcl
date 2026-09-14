@@ -2048,7 +2048,87 @@ namespace sgcl::detail {
             return path;
         }
 
+        // What dies with an object: the objects reachable from it and from
+        // nowhere else (the roots, the other objects) and their bytes, the
+        // object itself included. Two searches: everything reachable with
+        // the object as a wall, then everything reachable from the object
+        // that the first did not reach. A weak cell's word is not followed
+        // by either (it holds nothing); a block of cells is followed.
+        struct Retained {
+            size_t objects;
+            size_t bytes;
+        };
+
+        Retained retained(const void* p, uintptr_t boundary) noexcept {
+            auto [begin, end] = object_of(p);
+            if (!begin) {
+                return {0, 0};
+            }
+            auto wall = (const void*)begin;
+            Visited visited;
+            std::vector<const void*> queue;
+            auto reach = [&](const void* word) {
+                auto object = object_of((const void*)os::load_word(word)).first;
+                if (object && object != wall && visited.add(object)) {
+                    queue.push_back(object);
+                }
+            };
+            auto follow = [&](const void* object) {
+                auto page = Page::page_of(object);
+                if (page->metadata->is_weak_cell) {
+                    return;
+                }
+                _for_each_word(page, object, reach);
+            };
+            for (auto page : _pages) {
+                _for_each_live_object(page, [&](const void* object) {
+                    auto s = Page::state_of(object);
+                    if ((Page::is_unique_state(s) || s == State::UniqueReleased) && object != wall && visited.add(object)) {
+                        queue.push_back(object);
+                    }
+                });
+            }
+            _for_each_stack_word(boundary, false, reach);
+            for (size_t i = 0; i < queue.size(); ++i) {
+                follow(queue[i]);
+            }
+            // from the object: what the first search did not reach
+            Retained r = {0, 0};
+            queue.clear();
+            visited.add(wall);
+            queue.push_back(wall);
+            for (size_t i = 0; i < queue.size(); ++i) {
+                auto object = queue[i];
+                auto page = Page::page_of(object);
+                ++r.objects;
+                r.bytes += page->metadata->pool_allocated ? page->metadata->object_size : page->data_size();
+                follow(object);
+            }
+            return r;
+        }
+
     private:
+        // A bit per slot of the pages walked, outside the collector's flags
+        struct Visited {
+            std::unordered_map<Page*, std::vector<Page::Flag>> bits;
+
+            bool add(const void* object) {
+                auto page = Page::page_of(object);
+                auto& flags = bits[page];
+                if (flags.empty()) {
+                    flags.resize(page->flags_count());
+                }
+                auto index = page->index_of(object);
+                auto& word = flags[Page::flag_index_of(index)];
+                auto mask = Page::flag_mask_of(index);
+                if (word & mask) {
+                    return false;
+                }
+                word |= mask;
+                return true;
+            }
+        };
+
         static Referrer::Kind _kind_of(Page* page) noexcept {
             return page->metadata->is_cell_block ? Referrer::Kind::Cell
                  : page->metadata->is_weak_cell ? Referrer::Kind::Weak

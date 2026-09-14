@@ -11,7 +11,8 @@ What the library gives a program to find out what the collector is doing, what i
 | `collector::get_type_statistics()` | the live objects and bytes by type, buffers by their element type, pages by type; sorted by bytes | a full cycle, the caller waits |
 | `collector::get_live_objects()` | the addresses of every live object, with the collector paused while the `pause_guard` lives | a full cycle, the collector paused |
 | `collector::get_referrers(p)` | every word that points at the object: members, buffer elements, cells, stack words, a `unique_ptr`, weak cells | a full cycle, the collector paused, a pass over the heap and the stacks |
-| `collector::get_path_to_root(p)`, `explain(p, out)` | a chain from the object up to a root, or the reason there is none | a full cycle, the collector paused, a search from the roots |
+| `collector::get_path_to_root(p)`, `explain(p, out)` | a chain from the object up to a root, or the reason there is none; `explain` adds what the object retains | a full cycle, the collector paused, a search from the roots |
+| `collector::get_retained(p)` | what dies with the object: the objects reachable from it and from nowhere else, and their bytes | a full cycle, the collector paused, two passes over the heap |
 | `collector::clear_stack()` | zeroes the dead frames below the caller: what a conservative scan would otherwise still find | a `memset` of the stack below |
 | `collector::stepper` | the collector one gate at a time, for the tests of the engine | the cycle held by the test |
 | `tracked_ptr::type()`, `is<U>()`, `as<U>()` | the dynamic type of an object without virtual functions | a page lookup |
@@ -64,7 +65,10 @@ gc::collector::explain(p, std::cerr);
 //   a buffer of Item[] at 0x1000c0000, the word at byte 1040
 //   a Cache at 0x1000a0100, the word at byte 16
 //   a unique_ptr: the Cache at 0x1000a0100 is its object
+// and keeps alive 3 objects, 112 bytes, itself included
 ```
+
+`get_retained(p)` is the last line as data: what would go if the object went, the way a heap profiler reports a dominator. Asked of the top of a chain, of a global's object or a cache, it says whether that holder is the leak or only a link in it.
 
 `get_path_to_root(p)` is the same chain as data, `get_referrers(p)` every word that points at the object, the stack words included ([collector: get_referrers](collector.md#referrer-get_referrers-get_path_to_root-explain)). A chain that ends on a stack word of the calling thread, with nothing else in it, is case 1: nothing but that frame, or a stale word in it, holds the object. A chain through a buffer at a byte past the container's `size()` is case 3. A chain that ends at a `cell` is case 4: a `gc::tracked_ptr` somewhere in unmanaged memory. A `unique_ptr` at the top is an owner the program forgot, a global as a rule. Where the whole picture of a cycle is wanted rather than one object, `-DSGCL_TRACE_STACK` prints every marking decision: which stack word retained which object (`[stack]` and `[scan]` lines), which object was found reachable by its state (`[updated]`), by a card (`[dirty]`) or by a hazard pointer (`[hazard]`); a line per object per cycle, so for a program reduced to the case.
 

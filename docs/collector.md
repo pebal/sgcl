@@ -225,8 +225,14 @@ struct referrer {
     size_t offset;                // the word's byte offset in the holder
 };
 
+struct retained {
+    size_t objects;
+    size_t bytes;
+};
+
 static std::tuple<pause_guard, std::vector<referrer>> get_referrers(const void* p);
 static std::tuple<pause_guard, std::vector<referrer>> get_path_to_root(const void* p);
+static retained get_retained(const void* p);
 static void explain(const void* p, std::ostream& out);
 ```
 
@@ -236,7 +242,9 @@ What holds an object. Both run a full cycle first and keep the collector paused 
 
 `get_path_to_root` is a chain from the object up to a root: `[0]` holds the object, `[1]` holds that holder, and so on to a root: an object a `unique_ptr` owns, a block of cells (a `unique` link with `typeid(detail::CellBlock)`, a root by its state), a word on a stack. A search from the roots down, breadth first, the roots by state first, then the other threads' stacks, and the calling thread's frames above the call only when nothing else reaches the object: the caller holds the pointer it asks about and asks what else does, so a chain that ends on its own stack says that nothing else does. Empty: `p` is not into a live managed object, or only the frames of the call hold it.
 
-`explain` writes the chain as text, one line per link, or why there is none.
+`get_retained` is what dies with the object: the objects reachable from it and from nowhere else, itself included, and their bytes, the slots they occupy (a container's buffer at the slot of its size class). What is shared with another root stays out; a weak pointer holds nothing, so what is reachable only through a `weak_ptr` is not retained by its holder. A full cycle first and the collector paused for the walk, as above, the guard released on return; `{0, 0}` for a pointer that is not into a live managed object.
+
+`explain` writes the chain as text, one line per link, and what the object retains; or why there is no chain.
 
 ```cpp
 gc::unique_ptr<Node> head = gc::make_tracked<Node>();
@@ -247,6 +255,7 @@ gc::collector::explain(head->next->leaf.get(), std::cout);
 //   a Node at 0x100..., the word at byte 0
 //   a Node at 0x100..., the word at byte 8
 //   a unique_ptr: the Node at 0x100... is its object
+// and keeps alive 1 object, 4 bytes, itself included
 ```
 
 ### stepper
