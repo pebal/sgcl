@@ -24,9 +24,10 @@ namespace sgcl::detail {
     // for a node whose element is alive, with one exception it checks for:
     // a node whose element's constructor threw is Destroyed as well.
     // A union with the element as its only member keeps the element's
-    // pointers at fixed offsets, which the pointer maps require; the maker
-    // zeroes the node before construction, so an unconstructed element
-    // holds null pointers only.
+    // pointers at fixed offsets, which the pointer maps require; the page
+    // is zero when it is issued to the node's type and a destroyed element
+    // leaves its pointers null (maker.h: _init), so an unconstructed
+    // element holds null pointers only.
     template<class T, bool Trivial = std::is_trivially_destructible_v<T>>
     struct Slot {
         union {

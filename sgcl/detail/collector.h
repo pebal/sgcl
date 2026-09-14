@@ -890,9 +890,9 @@ namespace sgcl::detail {
         template<bool Parallel>
         void _mark_cell_block(CellBlock* block, Marker& m) noexcept {
             for (auto& slot : block->slots) {
-                auto word = slot.load();
-                if (word && word != &slot) {
-                    _mark_conservative<Parallel>(word, m);
+                auto word = CellBlock::word(slot);
+                if (word && word != (uintptr_t)&slot) {
+                    _mark_conservative<Parallel>((const void*)word, m);
                 }
             }
         }

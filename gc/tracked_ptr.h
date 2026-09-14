@@ -42,7 +42,7 @@ namespace sgcl::detail {
                 block = make_tracked<CellBlock>().release();
                 index = 0;
             }
-            auto slot = &block->slots[index];
+            auto slot = (Pointer*)&block->slots[index];   // the word, a tracked word from here on
             slot->store(nullptr);
             if (++index == CellBlock::Slots) [[unlikely]] {
                 release();
@@ -339,7 +339,7 @@ namespace gc {
 
         SGCL_NOINLINE void _release_cell() noexcept {
             auto cell = _cell_of();
-            assert(!sgcl::detail::CellBlock::is_free(*cell));
+            assert(!sgcl::detail::CellBlock::is_free(cell));
             cell->store_no_update(cell);   // free: its own address (detail/cell_block.h)
         }
 

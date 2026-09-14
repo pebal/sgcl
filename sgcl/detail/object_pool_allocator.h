@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "cell_block.h"
 #include "object_pool_allocator_base.h"
 
 namespace sgcl::detail {
@@ -45,6 +46,11 @@ namespace sgcl::detail {
                 _header_count = HeaderCacheSize;
             }
             auto mem = _headers[--_header_count];
+            // a page of blocks of cells: every word its own address, the
+            // free state of every slot of every block, once (cell_block.h)
+            if constexpr(std::is_same_v<ValueType, CellBlock>) {
+                CellBlock::fill_page(data, config::PageSize);
+            }
             return new(mem) Page((ValueType*)data);
         }
     };

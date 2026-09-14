@@ -37,10 +37,10 @@ namespace sgcl {
         // write and that read is the collector's (a block is destroyed
         // only after a cycle found it unreferenced), which the thread
         // sanitizer cannot see: the reads are hidden from it.
-        // The maker zeroes the storage before construction when the
-        // elements may hold pointers, and a destroyed element's tracked
-        // pointers are null again, so the pointer map of the block never
-        // meets a stale pointer in an unconstructed slot.
+        // The page is zero when it is issued to this type and a destroyed
+        // element's tracked pointers are null again (maker.h: _init), so
+        // the pointer map of the block never meets a stale pointer in an
+        // unconstructed slot.
         template<class T, size_t N>
         struct DequeBlock {
             union {
@@ -69,7 +69,7 @@ namespace sgcl {
         };
 
         // A block may hold pointers only when its elements may: a block of
-        // plain data is neither zeroed at allocation nor scanned.
+        // plain data is not scanned.
         template<class T, size_t N>
         struct MayContainTracked<DequeBlock<T, N>> {
             static constexpr auto value = MayContainTracked<T>::value;

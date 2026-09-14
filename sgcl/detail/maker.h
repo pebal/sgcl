@@ -86,12 +86,22 @@ namespace sgcl::detail {
 
         // The collector may read the words of the object once the slot is
         // published (state UniqueLock) and while it is being constructed:
-        // every word must be zero or its final value, never leftovers of
-        // the slot's last object. Zeroed before the publication, in the
-        // allocator's `init`, which the release store of the state orders
-        // before the collector's reads.
-        static void _zero(void* p) noexcept {
-            if constexpr(Info::MayContainTracked) {
+        // a word at a pointer offset of the type must be null or its final
+        // value, never a leftover of the slot's last object. A pool slot
+        // (object_pool_allocator.h) needs nothing for that: its page was
+        // zero when it was issued to the type (fresh from the heap, or
+        // zeroed by the collector when it went back: object_pool_allocator_base.h,
+        // _free), and every object of the type that died in the slot since
+        // left its pointer words null, the destructor of tracked_ptr
+        // storing a null (tracked_ptr.h); what is left at the other
+        // offsets is data of the same type, which the map's elimination
+        // classifies as it would the final value. A large object
+        // (object_allocator.h) is zeroed in the allocator's `init`, before
+        // the publication, which the release store of the state orders
+        // before the collector's reads: its page range comes from the heap
+        // as it was freed.
+        static void _init(void* p) noexcept {
+            if constexpr(Info::MayContainTracked && !Info::Allocator::IsPoolAllocator::value) {
                 std::memset(p, 0, sizeof(T));
             }
         }
@@ -100,7 +110,7 @@ namespace sgcl::detail {
         static UniquePtr<T> _make(A&&... a) {
             auto& thread = current_thread();
             auto& allocator = thread.alocator<Type>();
-            auto mem = allocator.alloc(0, _zero);
+            auto mem = allocator.alloc(0, _init);
             _construct_and_register<Type>(mem, std::forward<A>(a)...);
             return UniquePtr<T>((Type*)mem);
         }
@@ -108,7 +118,7 @@ namespace sgcl::detail {
         static UniquePtr<T> _make_data() {
             auto& thread = current_thread();
             auto& allocator = thread.alocator<Type>();
-            auto mem = allocator.alloc(0, _zero);
+            auto mem = allocator.alloc(0, _init);
             return UniquePtr<T>((Type*)mem);
         }
     };

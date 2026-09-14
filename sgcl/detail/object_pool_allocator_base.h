@@ -8,6 +8,8 @@
 #include "memory_counters.h"
 #include "merge_sort.h"
 #include "object_allocator_base.h"
+
+#include <cstring>
 #include "page.h"
 #include "states.h"
 #include "page_allocator.h"
@@ -86,7 +88,8 @@ namespace sgcl::detail {
         // `init` runs on the slot before the state is stored: the slot is
         // still free then, invisible to the collector (a free slot is
         // unregistered, and no scan, hazard or map reaches one), so the
-        // maker zeroes it or writes a buffer's header with plain stores.
+        // maker writes a buffer's header with plain stores (an object's
+        // slot needs nothing: maker.h, _init).
         // The store of the state is a release: the collector reads the
         // states relaxed and fences (acquire) before it reads the words of
         // the objects it registered, which orders the init before those
@@ -232,9 +235,13 @@ namespace sgcl::detail {
 
         // GC thread: returns the pages of entirely empty headers to the heap.
         // The headers stay valid until the collector unlinks and deletes them.
+        // GC thread. The page is zeroed here, before it goes back to the
+        // heap: the next type it is issued to constructs its objects on a
+        // page of zeros, as on a page fresh from the heap (maker.h: _init).
         static void _free(Page* pages) noexcept {
             std::vector<void*> data;
             for (auto page = pages; page; page = page->next_empty) {
+                std::memset((void*)page->data, 0, config::PageSize);
                 data.push_back((void*)page->data);
                 page->is_used = false;
             }

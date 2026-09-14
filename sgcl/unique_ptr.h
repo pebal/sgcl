@@ -20,6 +20,18 @@ namespace sgcl {
 
         unique_ptr() = default;
 
+        // reset() nulls the word before it runs the deleter (the standard
+        // orders it so), which the destructor of std::unique_ptr need not:
+        // a dead member leaves its slot's pointer offset null for the next
+        // object of the type, constructed on it without any zeroing
+        // (maker.h: _init), as a tracked_ptr's destructor does.
+        ~unique_ptr() {
+            this->reset();
+        }
+
+        unique_ptr(unique_ptr&&) noexcept = default;
+        unique_ptr& operator=(unique_ptr&&) noexcept = default;
+
         constexpr unique_ptr(std::nullptr_t) noexcept
         :Base(nullptr) {
         };

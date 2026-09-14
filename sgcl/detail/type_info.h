@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "cell_block.h"
 #include "frame_word.h"
 #include "page_info.h"
 #include "weak_cell.h"
@@ -23,6 +24,13 @@ namespace sgcl::detail {
     template<>
     struct MayContainTracked<void> {
         static constexpr auto value = false;
+    };
+
+    // A block of cells is pointers only, without a constructor: traced by
+    // its words (collector.h: _mark_cell_block), never through the map
+    template<>
+    struct MayContainTracked<CellBlock> {
+        static constexpr auto value = true;
     };
 
     // The word of a weak cell is a pointer the collector must not follow

@@ -109,6 +109,11 @@ namespace sgcl {
         // ordered after the object's last use by the cycle that found it
         // unreferenced, which the sanitizer cannot see (os::load_word does
         // the same for the collector's reads).
+        // The word nulled: a dead local leaves no pointer for the stack
+        // scan to find, and a dead member leaves its slot's pointer offset
+        // null for the next object of the type, which is constructed on it
+        // without any zeroing (maker.h: _init). Volatile: a store the
+        // compiler may not drop as dead.
         SGCL_NO_SANITIZE ~tracked_ptr() noexcept {
             *(void* volatile*)&_raw_ptr = nullptr;
         }
