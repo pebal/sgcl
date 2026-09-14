@@ -455,7 +455,7 @@ g.destroy();                                  // the other 99 never happen; g is
 ## Example
 
 ```cpp
-#include "gc/gc.h"
+#include "sgcl/sgcl.h"
 
 #include <coroutine>
 #include <iostream>

@@ -484,7 +484,7 @@ gc::unordered_map from_list = {std::pair{1, 2.5}};         // unordered_map<int,
 ## Example
 
 ```cpp
-#include "gc/gc.h"
+#include "sgcl/sgcl.h"
 #include <iostream>
 #include <string>
 

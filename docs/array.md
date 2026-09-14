@@ -292,7 +292,7 @@ auto b = gc::to_array({3, 2, 1});            // gc::array<int, 3>
 ## Example
 
 ```cpp
-#include "gc/gc.h"
+#include "sgcl/sgcl.h"
 #include <algorithm>
 #include <iostream>
 #include <numeric>

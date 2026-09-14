@@ -354,7 +354,7 @@ owned.pop_back();                                  // the int is destroyed here,
 ## Example
 
 ```cpp
-#include "gc/gc.h"
+#include "sgcl/sgcl.h"
 #include <algorithm>
 #include <iostream>
 

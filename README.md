@@ -49,7 +49,7 @@ The cycles are generational by default (sticky mark bits): a young cycle traces 
 Every public class and function has a page of its own in [docs/](docs/README.md): every member with its signature, the rules that apply, and examples that compile. The sections below are the guide; the reference is where to look up a member.
 
 ## The two namespaces
-`gc/gc.h` declares the `gc` namespace, `sgcl/sgcl.h` declares `sgcl` and includes `gc`. Every name below exists in both; what differs is the word by which a type holds its memory.
+`sgcl/sgcl.h` declares both namespaces (`gc/gc.h` declares `gc` and includes `sgcl`). Every name below exists in both; what differs is the word by which a type holds its memory.
 
 - In `sgcl::`, that word is `sgcl::tracked_ptr<T>`: the pointer the collector follows, one word, a store and a byte of state per copy. The collector finds such words in two places only, inside managed objects and on the stacks it scans, so an `sgcl::tracked_ptr`, and every `sgcl` container, atomic, weak pointer or coroutine handle, lives there and nowhere else: never in `new`/`malloc` memory, a `std` container, a global, a `thread_local` or a lambda copied to the heap (rule 1 below). Debug builds assert it.
 - In `gc::`, that word is `gc::tracked_ptr<T>`: inside a managed object or on a stack it is an `sgcl::tracked_ptr`, the same word at the same cost; in any other memory it is the address of a cell, a word of a managed block of a cache line of them that is the object's root, taken by the constructor from the thread's allocator, given back by the destructor, the pointer's own in between: no store allocates and no move takes a cell from another pointer, so threads race on the cell's word exactly as on an `sgcl::tracked_ptr`, never on the making of a cell; a block is one managed allocation per sixteen cells and is freed by the collector once every cell of it is given back. The mode is decided by the address at construction and read from the sign of the word; the collector never sees the cell form. What a `gc` type pays for living anywhere is the test of that word on each access: a store into a local 1.5 ns against 1.3, into a member 1.9 against 1.8, a dereference 0.48 against 0.44, a construction on the stack 1.8 against 1.3 (the check of the address), a construction and destruction in unmanaged memory 7.4 ([docs/gc/tracked_ptr.md](docs/gc/tracked_ptr.md), and the `gc::` columns of the benchmarks below).
@@ -141,7 +141,7 @@ The cost, for a program without such queues, is a test of an empty list per cycl
 The basics, in one file (`examples/example.cpp` has the long version):
 
 ```cpp
-#include "gc/gc.h"
+#include "sgcl/sgcl.h"
 #include <iostream>
 #include <memory>
 #include <vector>
@@ -593,7 +593,7 @@ The case a tracing collector likes least: a tree of 4 or 16 million nodes (depth
 - **The `gc::` tree is the binary-trees case again**: two `gc::tracked_ptr` members per node, each constructed with the location check and linked with a store that tests the mode, 1.8 times the wall time of `sgcl::` and still a third of `unique_ptr`'s; the memory is the same, and the mutators still do not feel the live set (4.0 s over 4 million nodes, 4.0 over 16 million).
 
 ## Dependencies and usage
-C++20 and nothing else: no external library, no runtime to link. Copy the `sgcl` and `gc` directories into your include path and `#include "gc/gc.h"` (both namespaces) or `"sgcl/sgcl.h"` (the same), or add this tree with CMake and link the `sgcl` interface target. The tests need googletest in `external/`; the benchmarks build with the tree, and their Go and Java counterparts need only a Go and a JDK to run `benchmarks/compare.sh`.
+C++20 and nothing else: no external library, no runtime to link. Copy the `sgcl` and `gc` directories into your include path and `#include "sgcl/sgcl.h"` (both namespaces; `"gc/gc.h"` is the same), or add this tree with CMake and link the `sgcl` interface target. The tests need googletest in `external/`; the benchmarks build with the tree, and their Go and Java counterparts need only a Go and a JDK to run `benchmarks/compare.sh`.
 
 ## Compilers and platforms
 Written for clang, gcc and MSVC on macOS, Linux and Windows; the current version has been built and tested on Apple Silicon (macOS, Apple clang) only, the other platforms are pending. On Windows, gcc's handling of thread-local destructors makes it a poor choice; clang and MSVC are fine. On macOS every access to a thread-local variable is a call into the dynamic loader, which is what the registration check in a `tracked_ptr` constructor costs there (about a nanosecond); Linux and Windows read a segment register.

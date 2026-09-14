@@ -374,7 +374,7 @@ From an iterator pair or an initializer list, as for `std::multiset`; an initial
 ## Example
 
 ```cpp
-#include "gc/gc.h"
+#include "sgcl/sgcl.h"
 #include <iostream>
 #include <string>
 

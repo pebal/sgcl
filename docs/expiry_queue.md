@@ -124,7 +124,7 @@ assert(gone.empty());
 ## Example
 
 ```cpp
-#include "gc/gc.h"
+#include "sgcl/sgcl.h"
 #include <iostream>
 
 // A resource outside the managed heap: released by the queue's function

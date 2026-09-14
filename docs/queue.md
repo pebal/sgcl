@@ -214,7 +214,7 @@ Swaps the containers and the comparators; no element is touched. There are no co
 ## Example
 
 ```cpp
-#include "gc/gc.h"
+#include "sgcl/sgcl.h"
 #include <iostream>
 
 // Breadth-first over a graph with a queue, then the vertices by weight with a priority queue

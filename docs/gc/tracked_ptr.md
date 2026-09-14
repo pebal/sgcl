@@ -1,7 +1,7 @@
 # gc::tracked_ptr
 
 ```cpp
-#include "gc/tracked_ptr.h"   // or "gc/gc.h", or "sgcl/sgcl.h"
+#include "gc/tracked_ptr.h"   // or "sgcl/sgcl.h"
 
 namespace gc {
     template<class T>

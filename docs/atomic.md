@@ -167,7 +167,7 @@ producer.join();
 ## Example
 
 ```cpp
-#include "gc/gc.h"
+#include "sgcl/sgcl.h"
 #include <cassert>
 #include <iostream>
 #include <thread>

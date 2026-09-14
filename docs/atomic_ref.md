@@ -183,7 +183,7 @@ template<class T> atomic_ref(tracked_ptr<T>) -> atomic_ref<tracked_ptr<T>>;
 ## Example
 
 ```cpp
-#include "gc/gc.h"
+#include "sgcl/sgcl.h"
 #include <cassert>
 #include <iostream>
 #include <thread>

@@ -462,7 +462,7 @@ From an iterator pair or an initializer list, as for `std::map`; an initializer 
 ## Example
 
 ```cpp
-#include "gc/gc.h"
+#include "sgcl/sgcl.h"
 #include <iostream>
 #include <string>
 

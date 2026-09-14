@@ -402,7 +402,7 @@ gc::unordered_multiset from_list = {1, 1, 2};                   // unordered_mul
 ## Example
 
 ```cpp
-#include "gc/gc.h"
+#include "sgcl/sgcl.h"
 #include <iostream>
 #include <string>
 

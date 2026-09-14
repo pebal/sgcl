@@ -186,7 +186,7 @@ assert(!shape && !mutable_shape && !circle && back);
 ## Example
 
 ```cpp
-#include "gc/gc.h"
+#include "sgcl/sgcl.h"
 #include <cassert>
 #include <iostream>
 

@@ -216,7 +216,7 @@ gc::collector::set_memory_limit(limit);                      // back to the defa
 ## Example
 
 ```cpp
-#include "gc/gc.h"
+#include "sgcl/sgcl.h"
 #include <iostream>
 
 struct Node {

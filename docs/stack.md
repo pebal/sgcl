@@ -118,7 +118,7 @@ bool less = a < b;                  // true: a prefix
 ## Example
 
 ```cpp
-#include "gc/gc.h"
+#include "sgcl/sgcl.h"
 #include <iostream>
 
 // A tree walked without recursion: the stack of pending nodes is a root

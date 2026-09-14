@@ -47,7 +47,7 @@ assert(*number == 42 && point->y == 2 && node->next->next == node && !owned->nex
 ## Example
 
 ```cpp
-#include "gc/gc.h"
+#include "sgcl/sgcl.h"
 #include <cassert>
 #include <iostream>
 #include <string>

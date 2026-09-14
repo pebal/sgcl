@@ -326,7 +326,7 @@ owned.pop_front();                                 // the int is destroyed here,
 ## Example
 
 ```cpp
-#include "gc/gc.h"
+#include "sgcl/sgcl.h"
 #include <iostream>
 
 struct Job {

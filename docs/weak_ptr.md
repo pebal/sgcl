@@ -158,7 +158,7 @@ template<class T> weak_ptr(const gc::tracked_ptr<T>&) -> weak_ptr<T, gc::tracked
 ## Example
 
 ```cpp
-#include "gc/gc.h"
+#include "sgcl/sgcl.h"
 #include <cassert>
 #include <iostream>
 

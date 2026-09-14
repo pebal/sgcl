@@ -407,7 +407,7 @@ gc::unordered_set from_list = {1, 2, 3};                   // unordered_set<int>
 ## Example
 
 ```cpp
-#include "gc/gc.h"
+#include "sgcl/sgcl.h"
 #include <iostream>
 #include <string>
 
