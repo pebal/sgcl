@@ -49,12 +49,12 @@ template<std::input_iterator InputIt> queue(InputIt first, InputIt last);
 An empty queue, a queue over a copy of `cont` or over `cont` itself (moved in), or a queue whose container is built from a range, the first element at the front. Copy and move construction and assignment are the implicit ones, so they are those of the container.
 
 ```cpp
-sgcl::deque<int> d = {1, 2, 3};
-sgcl::queue<int> from_copy(d);                        // front() is 1, d unchanged
-sgcl::queue<int> from_move(std::move(d));             // d is empty now
+gc::deque<int> d = {1, 2, 3};
+gc::queue<int> from_copy(d);                          // front() is 1, d unchanged
+gc::queue<int> from_move(std::move(d));               // d is empty now
 std::vector<int> src = {4, 5};
-sgcl::queue<int> from_range(src.begin(), src.end());  // front() is 4, back() is 5
-sgcl::queue<int, sgcl::list<int>> on_list;            // any managed sequence with push_back and pop_front
+gc::queue<int> from_range(src.begin(), src.end());    // front() is 4, back() is 5
+gc::queue<int, gc::list<int>> on_list;                // any managed sequence with push_back and pop_front
 ```
 
 ### front, back
@@ -86,9 +86,9 @@ template<class... A> decltype(auto) emplace(A&&... a);
 `c.push_back(value)` and `c.emplace_back(a...)`; `emplace` returns what the container's `emplace_back` returns, a reference to the new element for the SGCL containers.
 
 ```cpp
-sgcl::queue<sgcl::tracked_ptr<int>> q;
-q.push(sgcl::make_tracked<int>(1));
-int& two = *q.emplace(sgcl::make_tracked<int>(2));    // a reference to the element at the back
+gc::queue<gc::tracked_ptr<int>> q;
+q.push(gc::make_tracked<int>(1));
+int& two = *q.emplace(gc::make_tracked<int>(2));      // a reference to the element at the back
 ```
 
 ### pop
@@ -118,8 +118,8 @@ friend auto operator<=>(const queue& lhs, const queue& rhs);
 The comparisons of the containers, front to back: `<`, `<=`, `>`, `>=` and `!=` follow.
 
 ```cpp
-sgcl::deque<int> d = {1, 2};
-sgcl::queue<int> a(d), b(d);
+gc::deque<int> d = {1, 2};
+gc::queue<int> a(d), b(d);
 b.push(3);
 bool less = a < b;                  // true: a prefix
 ```
@@ -153,9 +153,9 @@ An empty queue, or one over a copy of `cont` or over `cont` itself (moved in), w
 
 ```cpp
 std::vector<int> values = {5, 1, 4, 1, 3};
-sgcl::priority_queue<int> max_heap(values.begin(), values.end());                      // top() is 5
-sgcl::priority_queue<int, sgcl::vector<int>, std::greater<int>> min_heap(values.begin(), values.end());   // top() is 1
-sgcl::priority_queue<int, sgcl::deque<int>> on_deque(std::less<int>(), sgcl::deque<int>{2, 9, 4});      // top() is 9
+gc::priority_queue<int> max_heap(values.begin(), values.end());                        // top() is 5
+gc::priority_queue<int, gc::vector<int>, std::greater<int>> min_heap(values.begin(), values.end());       // top() is 1
+gc::priority_queue<int, gc::deque<int>> on_deque(std::less<int>(), gc::deque<int>{2, 9, 4});            // top() is 9
 ```
 
 ### top
@@ -185,11 +185,11 @@ Appends to the container and sifts the element up: logarithmic in the size. `emp
 
 ```cpp
 struct ByValue {
-    bool operator()(const sgcl::tracked_ptr<int>& a, const sgcl::tracked_ptr<int>& b) const { return *a < *b; }
+    bool operator()(const gc::tracked_ptr<int>& a, const gc::tracked_ptr<int>& b) const { return *a < *b; }
 };
-sgcl::priority_queue<sgcl::tracked_ptr<int>, sgcl::vector<sgcl::tracked_ptr<int>>, ByValue> pq;
-pq.push(sgcl::make_tracked<int>(3));
-pq.emplace(sgcl::make_tracked<int>(7));
+gc::priority_queue<gc::tracked_ptr<int>, gc::vector<gc::tracked_ptr<int>>, ByValue> pq;
+pq.push(gc::make_tracked<int>(3));
+pq.emplace(gc::make_tracked<int>(7));
 int top = *pq.top();                                  // 7
 ```
 
@@ -214,28 +214,28 @@ Swaps the containers and the comparators; no element is touched. There are no co
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "gc/gc.h"
 #include <iostream>
 
 // Breadth-first over a graph with a queue, then the vertices by weight with a priority queue
 struct Vertex {
     int id;
     int weight;
-    sgcl::vector<sgcl::tracked_ptr<Vertex>> edges;
+    gc::vector<gc::tracked_ptr<Vertex>> edges;
     bool seen = false;
 };
 
 struct Heavier {
-    bool operator()(const sgcl::tracked_ptr<Vertex>& a, const sgcl::tracked_ptr<Vertex>& b) const {
+    bool operator()(const gc::tracked_ptr<Vertex>& a, const gc::tracked_ptr<Vertex>& b) const {
         return a->weight < b->weight;
     }
 };
 
 int main() {
     // A ring of vertices with a chord every fourth: the whole graph is one cycle
-    sgcl::vector<sgcl::tracked_ptr<Vertex>> vertices;
+    gc::vector<gc::tracked_ptr<Vertex>> vertices;
     for (int i = 0; i < 64; ++i) {
-        vertices.push_back(sgcl::make_tracked<Vertex>(i, (i * 37) % 64));
+        vertices.push_back(gc::make_tracked<Vertex>(i, (i * 37) % 64));
     }
     for (int i = 0; i < 64; ++i) {
         vertices[i]->edges.push_back(vertices[(i + 1) % 64]);
@@ -243,17 +243,17 @@ int main() {
             vertices[i]->edges.push_back(vertices[(i + 16) % 64]);
         }
     }
-    sgcl::tracked_ptr start = vertices[0];
+    gc::tracked_ptr start = vertices[0];
     vertices.clear();                                 // the graph is reachable through `start` only
 
     // Breadth-first: the queue roots the vertices waiting to be visited
-    sgcl::queue<sgcl::tracked_ptr<Vertex>> pending;
-    sgcl::priority_queue<sgcl::tracked_ptr<Vertex>, sgcl::vector<sgcl::tracked_ptr<Vertex>>, Heavier> by_weight;
+    gc::queue<gc::tracked_ptr<Vertex>> pending;
+    gc::priority_queue<gc::tracked_ptr<Vertex>, gc::vector<gc::tracked_ptr<Vertex>>, Heavier> by_weight;
     pending.push(start);
     start->seen = true;
     int visited = 0;
     while (!pending.empty()) {
-        sgcl::tracked_ptr v = pending.front();
+        gc::tracked_ptr v = pending.front();
         pending.pop();                                // the pointer is destroyed, the vertex lives on
         ++visited;
         by_weight.push(v);
@@ -272,9 +272,9 @@ int main() {
     by_weight.pop();
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
-    sgcl::collector::force_collect(true);
+    gc::collector::force_collect(true);
     std::cout << visited << " vertices visited, heaviest " << first << " then " << second << ", "
-              << by_weight.size() << " still queued; " << sgcl::collector::get_live_object_count() << " live objects\n";
+              << by_weight.size() << " still queued; " << gc::collector::get_live_object_count() << " live objects\n";
     return visited == 64 && first == 63 && second == 62 && by_weight.size() == 62 ? 0 : 1;
 }
 ```

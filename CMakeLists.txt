@@ -10,12 +10,13 @@ option(SGCL_BUILD_BENCHMARKS "Build benchmarks (always optimized)" ON)
 set(SGCL_SANITIZER "" CACHE STRING "Sanitizer for tests/examples: address, thread or empty")
 set_property(CACHE SGCL_SANITIZER PROPERTY STRINGS "" address thread)
 
-file(GLOB_RECURSE SGCL_SOURCES "sgcl/*.h")
+file(GLOB_RECURSE SGCL_SOURCES "sgcl/*.h" "gc/*.h")
 add_library(sgcl INTERFACE
     ${SGCL_SOURCES}
 )
 
 target_include_directories(sgcl INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/sgcl>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/sgcl/detail>
     $<INSTALL_INTERFACE:include/sgcl>
@@ -29,6 +30,11 @@ install(DIRECTORY sgcl/
 
 install(DIRECTORY sgcl/detail/
     DESTINATION include/sgcl/detail
+    FILES_MATCHING PATTERN "*.h"
+)
+
+install(DIRECTORY gc/
+    DESTINATION include/gc
     FILES_MATCHING PATTERN "*.h"
 )
 

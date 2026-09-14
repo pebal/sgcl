@@ -5,7 +5,7 @@
 //------------------------------------------------------------------------------
 // Cost of a weak pointer: SGCL's weak_ptr (a tracked_ptr to a cell the
 // collector clears) against std::weak_ptr (a second reference count).
-//   weak_ptr <sgcl|shared> [threads=1] [op=lock|copy|make]
+//   weak_ptr <sgcl|gc|shared> [threads=1] [op=lock|copy|make]   (gc: gc::tracked_ptr and gc::weak_ptr)
 //   lock: a weak pointer to a live object locked, the strong pointer dropped
 //   copy: a weak pointer copied into a local
 //   make: a weak pointer made from a strong pointer (SGCL: a cell allocated)
@@ -56,14 +56,16 @@ namespace {
 }
 int main(int argc, char** argv) {
     const char* variant = argc > 1 ? argv[1] : "sgcl";
-    if (!bench::has_variant(variant, {"sgcl", "shared"})) {
-        std::fprintf(stderr, "usage: weak_ptr <sgcl|shared> [threads] [lock|copy|make]\n");
+    if (!bench::has_variant(variant, {"sgcl", "gc", "shared"})) {
+        std::fprintf(stderr, "usage: weak_ptr <sgcl|gc|shared> [threads] [lock|copy|make]\n");
         return 2;
     }
     int threads = argc > 2 ? std::atoi(argv[2]) : 1;
     const char* op = argc > 3 ? argv[3] : "lock";
     double ns = !std::strcmp(variant, "sgcl")
         ? run<sgcl::tracked_ptr<Node>, sgcl::weak_ptr<Node>>(threads, op, [] { return sgcl::make_tracked<Node>(); })
+        : !std::strcmp(variant, "gc")
+        ? run<gc::tracked_ptr<Node>, gc::weak_ptr<Node>>(threads, op, [] { return gc::make_tracked<Node>(); })
         : run<std::shared_ptr<Node>, std::weak_ptr<Node>>(threads, op, [] { return std::make_shared<Node>(); });
     std::printf("%s threads=%d op=%s ns/op=%.2f\n", variant, threads, op, ns);
     return 0;

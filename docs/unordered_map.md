@@ -4,12 +4,14 @@
 #include "sgcl/unordered_map.h"   // or "sgcl/sgcl.h"
 
 namespace sgcl {
-    template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
+    template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>, template<class> class Ptr = tracked_ptr>
     class unordered_map;
 }
 ```
 
 `sgcl::unordered_map<Key, T, Hash, KeyEqual>` is `std::unordered_map` over managed nodes. The interface is the one of `std::unordered_map`: constructors, `insert`, `emplace`, `try_emplace`, `insert_or_assign`, `operator[]`, `at`, `erase`, `extract`, `merge`, node handles, the lookups with transparent hash and equality, forward iterators (`std::ranges` algorithms work), the bucket interface with local iterators, `load_factor`/`max_load_factor`/`rehash`/`reserve`, `hash_function`/`key_eq`, `swap`, `==`, deduction guides, `std::erase_if`. The behaviour is the one of `std::unordered_map` too: unique keys, an element destroyed the moment it is erased, iterators that stay valid across a rehash and until their element is erased.
+
+`Ptr`, the last parameter, is the kind of the word by which the container holds its memory: `tracked_ptr` by default, so that the container lives where a `tracked_ptr` may (on a stack or inside a managed object), or [`gc::tracked_ptr`](gc/tracked_ptr.md), so that it lives anywhere, at the cost of a `gc::tracked_ptr` on each access to that word; `gc::unordered_map` ([gc/gc.h](README.md#the-gc-namespace)) names the latter. The nodes and buffers are the same managed objects either way, and the elements are a choice apart; an element type that names a `tracked_type` (`gc::tracked_ptr<T>` names `sgcl::tracked_ptr<T>`) is stored as that type, one word in the same mode, and handed out as the type it was given, so a container of `gc::tracked_ptr`s costs what one of `sgcl::tracked_ptr`s does ([the gc namespace](README.md#the-gc-namespace)).
 
 What differs is where the memory lives and a few details of the layout. The map object holds two `tracked_ptr`s (the bucket array, a managed array of node pointers, and a sentinel node that precedes the first element), the counts, the hasher and the equality, so it lives where a `tracked_ptr` may live. Every element is a node on the managed heap and the nodes form one chain linked by tracked pointers, as in libstdc++: a bucket points at the node before its first node, so the whole chain is traced from the sentinel, an iterator is one raw node pointer, and an iteration is a load per step. A `unordered_map<Key, tracked_ptr<T>>`, or one inside a managed object, is traced like any other managed data, and a cycle through it is collected like any other cycle. Nothing is freed by hand: an `erase` destroys the element and unlinks the node, the collector reclaims the node later. The hash of each key is cached in its node, so a rehash hashes nothing and a lookup compares hashes before keys. The bucket count is always a power of two (a lookup masks the hash; `rehash` and the constructors round up), the table starts with no bucket array at all, and it grows when the size reaches `bucket_count() * max_load_factor()`, doubling at least, to eight buckets at the least. A lookup, an iteration and an iterator copy read raw pointers only and pay no write barrier; an insertion, an erasure and a rehash store tracked pointers and pay the barrier on each link they relink ([README: Containers](../README.md#containers)).
 
@@ -64,11 +66,11 @@ unordered_map(unordered_map&& other);
 The default constructor allocates nothing (`bucket_count() == 0`). A bucket count is rounded up to a power of two; 0 means no array yet. The range constructor, given a forward range, sizes the table for the distance first; a key seen twice keeps its first value. A copy reproduces `other`'s bucket count, order and `max_load_factor`; a move takes the table over and leaves `other` empty. An element constructor or hasher that throws while a constructor runs destroys the elements built so far.
 
 ```cpp
-sgcl::unordered_map<std::string, int> ages = {{"ann", 31}, {"bob", 27}};
-sgcl::unordered_map<int, int> sized(100);                                       // 128 buckets, no elements
+gc::unordered_map<std::string, int> ages = {{"ann", 31}, {"bob", 27}};
+gc::unordered_map<int, int> sized(100);                                         // 128 buckets, no elements
 std::vector<std::pair<int, int>> src = {{2, 20}, {1, 10}};
-sgcl::unordered_map from_range(src.begin(), src.end());                         // deduced: unordered_map<int, int>
-sgcl::unordered_map<std::string, int> taken = std::move(ages);                  // ages is empty now
+gc::unordered_map from_range(src.begin(), src.end());                           // deduced: unordered_map<int, int>
+gc::unordered_map<std::string, int> taken = std::move(ages);                    // ages is empty now
 ```
 
 ### Destructor
@@ -90,7 +92,7 @@ unordered_map& operator=(std::initializer_list<value_type> ilist);
 Copy assignment builds a copy of `other` and swaps it in (the old elements die when the temporary does); self-assignment is a no-op. Move assignment clears this map, destroying its elements at once, and takes the table over. The list form builds a new table with this map's hasher, equality and `max_load_factor` and swaps it in.
 
 ```cpp
-sgcl::unordered_map<int, int> a = {{1, 1}}, b;
+gc::unordered_map<int, int> a = {{1, 1}}, b;
 b = a;                       // copies
 b = {{5, 5}, {6, 6}};        // the old elements die here
 a = std::move(b);            // a holds 5 and 6, b is empty
@@ -106,7 +108,7 @@ iterator end() noexcept;                  const_iterator end() const noexcept;  
 Forward iterators over one chain of nodes; `end()` is a null iterator. The order is the chain's, bucket by bucket, and changes with a rehash. An iterator is a raw node pointer: copying and advancing it costs a load, never a write barrier, and it may be kept in unmanaged memory for as long as its element is in the map.
 
 ```cpp
-sgcl::unordered_map<std::string, int> m = {{"a", 1}, {"b", 2}};
+gc::unordered_map<std::string, int> m = {{"a", 1}, {"b", 2}};
 int sum = 0;
 for (auto& [key, value] : m) {
     sum += value;                          // 3, in whichever order
@@ -135,7 +137,7 @@ void clear() noexcept;
 Destroys every element at once and unlinks every node; the bucket array, the hasher, the equality and `max_load_factor` stay. The nodes are reclaimed by the collector.
 
 ```cpp
-sgcl::unordered_map<int, std::string> m = {{1, "a"}, {2, "b"}};
+gc::unordered_map<int, std::string> m = {{1, "a"}, {2, "b"}};
 auto buckets = m.bucket_count();
 m.clear();                                  // both strings are destroyed here
 bool same = m.bucket_count() == buckets;    // true
@@ -159,11 +161,11 @@ iterator insert(const_iterator hint, node_type&& nh);
 As in `std::unordered_map`: the single-element forms return the element with the key and whether it was inserted; nothing is built when the key is already there (the `P&&` forms go through `emplace`, which builds the element first and destroys it again on a duplicate). The hint is ignored. The table grows before the node is linked when the size has reached the threshold; an existing key never rehashes. The node-handle forms link the node of `nh` without copying the element: on success `nh` is empty afterwards; on a duplicate key the returned `node` (or `nh`, for the hinted form) keeps it and `position` points at the element in the way. An empty handle inserts nothing (`position == end()`, `inserted == false`).
 
 ```cpp
-sgcl::unordered_map<std::string, int> m;
+gc::unordered_map<std::string, int> m;
 auto [it, inserted] = m.insert({"a", 1});                          // inserted: true
 inserted = m.insert(std::pair<const char*, int>("a", 2)).second;   // false: "a" stays 1
 m.insert({{"b", 2}, {"c", 3}});
-sgcl::unordered_map<std::string, int> other = {{"q", 17}};
+gc::unordered_map<std::string, int> other = {{"q", 17}};
 auto r = m.insert(other.extract("q"));                             // relinked, no copy: r.inserted is true
 ```
 
@@ -177,7 +179,7 @@ template<class... A> iterator emplace_hint(const_iterator hint, A&&... a);
 Builds the `value_type` from `a...` in a new node before the key is looked up, as in `std`; if the key is already there the new element is destroyed and the existing one returned (the node is garbage for the collector). A single `value_type` argument is inserted without the detour. The hint is ignored. A hasher or equality that throws destroys the new element and leaves the map as it was.
 
 ```cpp
-sgcl::unordered_map<std::string, std::string> m;
+gc::unordered_map<std::string, std::string> m;
 m.emplace("k", "v");
 m.emplace(std::piecewise_construct, std::forward_as_tuple("p"), std::forward_as_tuple(3, 'x'));   // "p" -> "xxx"
 auto it = m.emplace_hint(m.end(), "z", "last");
@@ -201,7 +203,7 @@ struct Pinned {
     Pinned(const Pinned&) = delete;
     Pinned& operator=(const Pinned&) = delete;
 };
-sgcl::unordered_map<int, Pinned> m;
+gc::unordered_map<int, Pinned> m;
 m.try_emplace(1, 10);                                       // Pinned(10) built inside the node
 auto [it, fresh] = m.try_emplace(1, 11);                    // fresh: false; no Pinned(11) was built
 m.try_emplace(m.end(), 2, 20);                              // the hinted form returns an iterator
@@ -219,7 +221,7 @@ template<class M> iterator insert_or_assign(const_iterator hint, key_type&& key,
 Inserts `{key, obj}` when the key is new (`true`), otherwise assigns `obj` to the mapped value in place (`false`). The hint is ignored.
 
 ```cpp
-sgcl::unordered_map<std::string, int> m;
+gc::unordered_map<std::string, int> m;
 m.insert_or_assign("a", 1);                          // inserted
 auto [it, inserted] = m.insert_or_assign("a", 2);    // assigned: inserted is false, it->second is 2
 ```
@@ -238,7 +240,7 @@ mapped_type& operator[](key_type&& key);
 `at` throws `std::out_of_range` when the key is absent, and takes a `K` for transparent hash and equality. `operator[]` inserts a value-initialized mapped value for a new key (built in place, through `try_emplace`) and returns a reference to it; for a `tracked_ptr` mapped type that is a null pointer.
 
 ```cpp
-sgcl::unordered_map<std::string, int> counts;
+gc::unordered_map<std::string, int> counts;
 ++counts["x"];                       // inserted as 0, now 1
 ++counts["x"];                       // 2
 int x = counts.at("x");              // 2
@@ -258,7 +260,7 @@ template<class K> size_type erase(K&& key);   // when Hash and KeyEqual are tran
 Destroys the element at once, unlinks the node (the collector reclaims it later) and returns the iterator after it. The key forms return 0 or 1. Erasing during an iteration is done as with `std`: `it = m.erase(it)`. The bucket count never shrinks on an erase.
 
 ```cpp
-sgcl::unordered_map<int, std::string> m = {{1, "a"}, {2, "b"}, {3, "c"}, {4, "d"}};
+gc::unordered_map<int, std::string> m = {{1, "a"}, {2, "b"}, {3, "c"}, {4, "d"}};
 m.erase(2);                                        // "b" is destroyed here
 for (auto it = m.begin(); it != m.end();) {
     it = it->first % 2 ? m.erase(it) : std::next(it);   // 1 and 3 go
@@ -276,7 +278,7 @@ friend void swap(unordered_map& lhs, unordered_map& rhs) noexcept(noexcept(lhs.s
 Exchanges the tables, counts, load factors, hashers and equalities; no element is touched, and every iterator keeps pointing at its element, now in the other map.
 
 ```cpp
-sgcl::unordered_map<int, int> a = {{1, 1}}, b = {{2, 2}};
+gc::unordered_map<int, int> a = {{1, 1}}, b = {{2, 2}};
 auto it = a.begin();
 swap(a, b);                       // it still points at {1, 1}, which is in b now
 bool moved = it == b.find(1);     // true
@@ -293,7 +295,7 @@ template<class K> node_type extract(K&& key);   // when Hash and KeyEqual are tr
 Unlinks the node and hands it over in a node handle, the element untouched: the handle is the owner now, and destroys the element if it dies unused. The key forms return an empty handle when the key is absent. See [node_type](#node_type-the-node-handle).
 
 ```cpp
-sgcl::unordered_map<int, std::string> m = {{1, "a"}, {2, "b"}};
+gc::unordered_map<int, std::string> m = {{1, "a"}, {2, "b"}};
 auto nh = m.extract(1);           // m holds {2, "b"}; nh holds {1, "a"}
 nh.key() = 7;                     // the key may change outside a map
 m.insert(std::move(nh));          // {2, "b"}, {7, "a"}; no string was copied
@@ -302,15 +304,15 @@ m.insert(std::move(nh));          // {2, "b"}, {7, "a"}; no string was copied
 ### merge
 
 ```cpp
-template<class Traits2> void merge(detail::HashTable<Traits2>& source);    // any sgcl::unordered_map or unordered_multimap<Key, T, H2, E2>
+template<class Traits2> void merge(detail::HashTable<Traits2>& source);    // any gc::unordered_map or unordered_multimap<Key, T, H2, E2>
 template<class Traits2> void merge(detail::HashTable<Traits2>&& source);
 ```
 
 Relinks the nodes of `source` whose keys are not yet here into this map, rehashing them with this map's hasher; a node whose key is already here stays in `source`. No element is copied or destroyed, and every iterator follows its node. `source` may be a `sgcl::unordered_map` or `sgcl::unordered_multimap` with the same `Key` and `T` and any hasher and equality. Merging a map into itself does nothing.
 
 ```cpp
-sgcl::unordered_map<int, int> a = {{1, 1}, {3, 3}};
-sgcl::unordered_multimap<int, int> b = {{2, 2}, {3, 30}, {3, 31}};
+gc::unordered_map<int, int> a = {{1, 1}, {3, 3}};
+gc::unordered_multimap<int, int> b = {{2, 2}, {3, 30}, {3, 31}};
 a.merge(b);                       // a: 1 2 3;  b keeps both 3s
 ```
 
@@ -337,7 +339,7 @@ struct StringHash {
     using is_transparent = void;
     size_t operator()(std::string_view s) const { return std::hash<std::string_view>{}(s); }
 };
-sgcl::unordered_map<std::string, int, StringHash, std::equal_to<>> m = {{"apple", 1}};
+gc::unordered_map<std::string, int, StringHash, std::equal_to<>> m = {{"apple", 1}};
 std::string_view key = "apple";
 bool has = m.contains(key);        // no std::string is built
 auto it = m.find(key);             // it->second == 1
@@ -358,7 +360,7 @@ local_iterator end(size_type n);                const_local_iterator end(size_ty
 As in `std`. `bucket_count()` is 0 or a power of two; `bucket(key)` is the hash masked by `bucket_count() - 1` (0 while there are no buckets); `bucket_size(n)` walks the bucket. A local iterator walks the nodes of one bucket and stops at its end; for an `n` beyond `bucket_count()` the range is empty.
 
 ```cpp
-sgcl::unordered_map<int, int> m = {{1, 1}, {2, 2}, {3, 3}};
+gc::unordered_map<int, int> m = {{1, 1}, {2, 2}, {3, 3}};
 size_t n = m.bucket(2);
 size_t in_bucket = 0;
 for (auto it = m.begin(n); it != m.end(n); ++it) {
@@ -380,7 +382,7 @@ void reserve(size_type count);
 `load_factor()` is `size() / bucket_count()` (0 with no buckets); `max_load_factor()` defaults to 1.0. `max_load_factor(z)` sets it and takes effect on the next insertion (a value that is not positive, or not a number, is ignored). `rehash(count)` makes the bucket count the smallest power of two not below `count` and not below `size() / max_load_factor()`: it may shrink the table; `rehash(0)` on an empty table leaves it without buckets. `reserve(count)` is `rehash` for `count` elements. A rehash relinks the nodes in chain order, hashing nothing (the hash is cached) and invalidating no iterator.
 
 ```cpp
-sgcl::unordered_map<int, int> m;
+gc::unordered_map<int, int> m;
 m.reserve(1000);                                  // 1024 buckets: no rehash while inserting 1000 elements
 for (int i = 0; i < 1000; ++i) {
     m.emplace(i, i);
@@ -400,7 +402,7 @@ key_equal key_eq() const;
 Copies of the hasher and the equality.
 
 ```cpp
-sgcl::unordered_map<int, int> m;
+gc::unordered_map<int, int> m;
 bool eq = m.key_eq()(1, 1);                       // true
 size_t h = m.hash_function()(1);
 ```
@@ -414,8 +416,8 @@ friend bool operator==(const unordered_map& lhs, const unordered_map& rhs);
 Equal sizes and, for every element of `lhs`, an element of `rhs` with an equal key and an equal value (`value_type == value_type`), whatever the bucket counts and orders. `!=` follows; there is no ordering.
 
 ```cpp
-sgcl::unordered_map<int, int> a = {{1, 1}, {2, 2}};
-sgcl::unordered_map<int, int> b(1000);
+gc::unordered_map<int, int> a = {{1, 1}, {2, 2}};
+gc::unordered_map<int, int> b(1000);
 b.insert({{2, 2}, {1, 1}});
 bool same = a == b;                               // true
 ```
@@ -458,7 +460,7 @@ namespace std { using sgcl::erase_if; }
 Erases every element for which `pred(*it)` is true and returns how many; each erased element is destroyed at once.
 
 ```cpp
-sgcl::unordered_map<int, int> m = {{1, 1}, {2, 2}, {3, 3}, {4, 4}};
+gc::unordered_map<int, int> m = {{1, 1}, {2, 2}, {3, 3}, {4, 4}};
 auto n = std::erase_if(m, [](const auto& p) { return p.first % 2 == 0; });   // 2; m holds 1 and 3
 ```
 
@@ -475,39 +477,39 @@ From an iterator pair over pairs, or from an initializer list of `std::pair`s (t
 
 ```cpp
 std::vector<std::pair<std::string, int>> src = {{"a", 1}};
-sgcl::unordered_map from_range(src.begin(), src.end());    // unordered_map<std::string, int>
-sgcl::unordered_map from_list = {std::pair{1, 2.5}};       // unordered_map<int, double>
+gc::unordered_map from_range(src.begin(), src.end());      // unordered_map<std::string, int>
+gc::unordered_map from_list = {std::pair{1, 2.5}};         // unordered_map<int, double>
 ```
 
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "gc/gc.h"
 #include <iostream>
 #include <string>
 
 struct Node {
     int id;
-    sgcl::tracked_ptr<Node> next;   // a pointer inside an element: traced through the node
+    gc::tracked_ptr<Node> next;     // a pointer inside an element: traced through the node
 };
 
 // The map object lives inside a managed object: its nodes hang off it and
 // die with it, elements included, when the Registry is collected.
 struct Registry {
-    sgcl::unordered_map<int, sgcl::tracked_ptr<Node>> by_id;
+    gc::unordered_map<int, gc::tracked_ptr<Node>> by_id;
 };
 
 int main() {
-    sgcl::tracked_ptr registry = sgcl::make_tracked<Registry>();
+    gc::tracked_ptr registry = gc::make_tracked<Registry>();
     for (int id = 0; id < 100; ++id) {
         // operator[] inserts a null tracked_ptr; the object is made afterwards
-        registry->by_id[id] = sgcl::make_tracked<Node>(id);
+        registry->by_id[id] = gc::make_tracked<Node>(id);
     }
     registry->by_id[0]->next = registry->by_id[1];
     registry->by_id[1]->next = registry->by_id[0];             // a cycle: collected like any other
 
     // A map on the stack, keyed by pointer: std::hash<tracked_ptr> hashes the address
-    sgcl::unordered_map<sgcl::tracked_ptr<Node>, std::string> names;
+    gc::unordered_map<gc::tracked_ptr<Node>, std::string> names;
     names.try_emplace(registry->by_id[0], "zero");
     names.emplace(registry->by_id[1], "one");
     auto one = names.find(registry->by_id[1]);
@@ -519,9 +521,9 @@ int main() {
     std::erase_if(registry->by_id, [](const auto& p) { return p.first >= 2; });
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
-    sgcl::collector::force_collect(true);
+    gc::collector::force_collect(true);
     std::cout << registry->by_id.size() << " in the registry, "
-              << sgcl::collector::get_live_object_count() << " live objects\n";
+              << gc::collector::get_live_object_count() << " live objects\n";
     return registry->by_id.size() == 2 && names.size() == 2 ? 0 : 1;
 }
 ```

@@ -9,7 +9,7 @@
 // does not (config.h: SGCL_GENERATIONAL). The unique_ptr and shared_ptr
 // variants free the small trees as they drop them, recursively, on the
 // thread that made them. Same shape in benchmarks/go and benchmarks/java.
-//   large_tree <sgcl|unique|shared> [big_depth=22] [small_depth=8] [iterations=100000] [threads=1]
+//   large_tree <sgcl|gc|unique|shared> [big_depth=22] [small_depth=8] [iterations=100000] [threads=1]   (gc: gc::tracked_ptr)
 // Prints wall and process CPU time, small trees per second and, for SGCL,
 // the collector's cycles.
 #include "common.h"
@@ -20,10 +20,12 @@
 #include <thread>
 
 namespace {
+    // Ptr: sgcl::tracked_ptr, or gc::tracked_ptr for the gc variant
+    template<template<class> class Ptr>
     struct SgclTree {
-        sgcl::tracked_ptr<SgclTree> left, right;
-        static sgcl::tracked_ptr<SgclTree> make(int depth) {
-            sgcl::tracked_ptr<SgclTree> n = sgcl::make_tracked<SgclTree>();
+        Ptr<SgclTree> left, right;
+        static Ptr<SgclTree> make(int depth) {
+            Ptr<SgclTree> n = sgcl::make_tracked<SgclTree>();
             if (depth > 0) {
                 n->left = make(depth - 1);
                 n->right = make(depth - 1);
@@ -88,7 +90,7 @@ namespace {
         std::printf("large tree of depth %d (%ld nodes) built in %.2fs, check %ld\n", big, (1L << (big + 1)) - 1, built, check(large));
         std::printf("%s threads=%d small=%d iterations=%ld sum=%ld wall=%.2fs cpu=%.2fs trees/s=%.0f",
                     variant, threads, small, iterations, sum.load(), loop, bench::cpu_seconds(), iterations * threads / loop);
-        if (std::is_same_v<Tree, SgclTree>) {
+        if (std::is_same_v<Tree, SgclTree<sgcl::tracked_ptr>> || std::is_same_v<Tree, SgclTree<gc::tracked_ptr>>) {
             std::printf(" cycles=%zu full=%zu live=%zu", stats.cycles - stats0.cycles, stats.full_cycles - stats0.full_cycles, stats.live_objects);
         }
         std::printf("\n");
@@ -97,8 +99,8 @@ namespace {
 
 int main(int argc, char** argv) {
     const char* variant = argc > 1 ? argv[1] : "sgcl";
-    if (!bench::has_variant(variant, {"sgcl", "unique", "shared"})) {
-        std::fprintf(stderr, "usage: large_tree <sgcl|unique|shared> [big_depth] [small_depth] [iterations] [threads]\n");
+    if (!bench::has_variant(variant, {"sgcl", "gc", "unique", "shared"})) {
+        std::fprintf(stderr, "usage: large_tree <sgcl|gc|unique|shared> [big_depth] [small_depth] [iterations] [threads]\n");
         return 2;
     }
     int big = argc > 2 ? std::atoi(argv[2]) : 22;
@@ -106,7 +108,9 @@ int main(int argc, char** argv) {
     long iterations = argc > 4 ? std::atol(argv[4]) : 100000;
     int threads = argc > 5 ? std::atoi(argv[5]) : 1;
     if (!std::strcmp(variant, "sgcl")) {
-        run<SgclTree>(variant, big, small, iterations, threads);
+        run<SgclTree<sgcl::tracked_ptr>>(variant, big, small, iterations, threads);
+    } else if (!std::strcmp(variant, "gc")) {
+        run<SgclTree<gc::tracked_ptr>>(variant, big, small, iterations, threads);
     } else if (!std::strcmp(variant, "unique")) {
         run<UniqueTree>(variant, big, small, iterations, threads);
     } else {

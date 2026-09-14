@@ -301,9 +301,9 @@ namespace sgcl::detail {
 
         // Registers the objects created on the page before the cycle began:
         // the unregistered slots whose state says created, except the ones
-        // Fresh with the current parity and not Earlier, which were
-        // allocated and handed to their first tracked_ptr after the flip of
-        // the epoch (page.h: unique_state, set_state). Those stay
+        // Fresh with the current parity, which were allocated and handed to
+        // their first tracked_ptr after the flip of the epoch (page.h:
+        // unique_state, set_state_released). Those stay
         // unregistered this cycle (not swept, not traced): their stores
         // read the new epoch, so what they point to is reachable by state; registering
         // them would make them roots for nothing, a million a cycle with
@@ -1266,7 +1266,7 @@ namespace sgcl::detail {
                             // fails it, and the word is read again
                             std::atomic_ref<uint64_t> word(*reinterpret_cast<uint64_t*>(states + offset + g));
                             for (;;) {
-                                auto old = (States8::equal(w, stale) | States8::equal(w, State(stale | State::Fresh)) | States8::equal(w, State(stale | State::Fresh | State::Earlier))) & registered;
+                                auto old = (States8::equal(w, stale) | States8::equal(w, State(stale | State::Fresh))) & registered;
                                 if (!old) {
                                     break;
                                 }
@@ -1307,12 +1307,67 @@ namespace sgcl::detail {
             }
         }
 
+        // Objects created after this cycle registered their page (the page's
+        // object_created flag is up again) and released from their
+        // unique_ptr with an allocation parity that was not the current one
+        // (page.h: set_state_released): their state is the current one
+        // without Fresh, which nothing else leaves on an unregistered slot,
+        // and their constructors may have read the old epoch, so what they
+        // point to may have no state of its own. Registered here, before
+        // every round of the marking, and put on the round's list: the
+        // round takes the state for reachable and traces them. The pages
+        // are visited by their flag, which costs the round a load per page.
+        void _register_late() noexcept {
+            auto current = Page::reachable_state();
+            for (auto page : _pages) {
+                if (!page->is_used || !page->object_created.load(std::memory_order_acquire)) {
+                    continue;
+                }
+                auto states = page->states();
+                auto flags = page->flags();
+                auto count = page->flags_count();
+                auto object_count = page->metadata->object_count;
+                auto tail = object_count % Page::FlagBitCount;
+                auto last_valid = tail ? (Page::Flag(1) << tail) - 1 : ~Page::Flag(0);
+                bool late = false;
+                for (unsigned i = 0; i < count; ++i) {
+                    auto& flag = flags[i];
+                    auto unregistered = ~flag.registered;
+                    if (i == count - 1) {
+                        unregistered &= last_valid;
+                    }
+                    auto offset = i * Page::FlagBitCount;
+                    for (unsigned g = 0; g < Page::FlagBitCount; g += 8) {
+                        auto group = (unregistered >> g) & 0xFF;
+                        if (!group) {
+                            continue;
+                        }
+                        auto w = States8::load(states + offset + g);
+                        auto found = States8::equal(w, current) & group;
+                        if (found) {
+                            flag.registered |= Page::Flag(found) << g;
+                            late = true;
+                        }
+                    }
+                }
+                if (late) {
+                    page->state_updated.store(true, std::memory_order_release);
+                    if (!page->unreachable) {
+                        page->unreachable = true;
+                        page->next_unreachable = _unreachable_pages;
+                        _unreachable_pages = page;
+                    }
+                }
+            }
+        }
+
         // Objects whose state the barrier set since the demotion: over every
         // registered page (All) or over the pages that still hold unmarked
         // objects, when their flag says something was stored.
         template<bool All>
         void _mark_updated() noexcept {
             std::atomic_thread_fence(std::memory_order_acquire);
+            _register_late();
             std::vector<PageLists> results;
             if constexpr(All) {
                 results = _parallel_array<PageLists>(_pages.size(), [this](size_t begin, size_t end) {
@@ -1404,7 +1459,7 @@ namespace sgcl::detail {
                             auto countr_zero = std::countr_zero(unreachable);
                             auto index = offset + countr_zero;
                             auto state = states[index].load(std::memory_order_relaxed);
-                            assert(state != Page::reachable_state() && state != State(Page::reachable_state() | State::Fresh) && state != State(Page::reachable_state() | State::Fresh | State::Earlier) && !Page::is_unique_state(state));
+                            assert(state != Page::reachable_state() && state != State(Page::reachable_state() | State::Fresh) && !Page::is_unique_state(state));
 #ifdef SGCL_TRACE_STACK
                             std::fprintf(stderr, "[sweep] %p type %s state %d\n", page->pointer_of(index), page->metadata->type_info.name(), (int)state);
 #endif

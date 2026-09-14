@@ -31,6 +31,19 @@ namespace sgcl::detail {
         : Pointer(p.load()) {
         }
 
+        // The first store of an object released from its unique_ptr: the
+        // barrier that takes it out of the unique state (page.h:
+        // set_state_released), on this path only, and before the word: a
+        // thread that loads the word (an atomic, an atomic_ref) copies it
+        // through the ordinary barrier, which a unique object must never
+        // reach; the released state alone holds the object for the cycle,
+        // whatever the word says meanwhile.
+        struct Released {};
+        Pointer(const void* p, Released) noexcept
+        : _ptr(_released(p)) {
+            _card(p);
+        }
+
         Pointer& operator=(const Pointer& p) noexcept {
             store(p.load());
             return *this;
@@ -68,6 +81,16 @@ namespace sgcl::detail {
         void store(const void* p, const std::memory_order m) noexcept {
             _ptr.store(const_cast<void*>(p), m);
             _update(p);
+        }
+
+        void store_released(const void* p) noexcept {
+            store_no_update(_released(p));
+            _card(p);
+        }
+
+        void store_released(const void* p, const std::memory_order m) noexcept {
+            _ptr.store(_released(p), m);
+            _card(p);
         }
 
         void store_no_update(const void* p) noexcept {
@@ -254,6 +277,20 @@ namespace sgcl::detail {
         void _update(const void* p) noexcept {
             if (p) {
                 Page::set_state<State::Reachable>(p);
+                Page::mark_card(this);
+            }
+        }
+
+        // The released state, set before the word is stored (Released)
+        static void* _released(const void* p) noexcept {
+            if (p) {
+                Page::set_state_released(p);
+            }
+            return const_cast<void*>(p);
+        }
+
+        void _card(const void* p) noexcept {
+            if (p) {
                 Page::mark_card(this);
             }
         }

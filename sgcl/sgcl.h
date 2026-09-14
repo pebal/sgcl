@@ -30,3 +30,5 @@
 #include "unordered_set.h"
 #include "vector.h"
 #include "weak_ptr.h"
+
+#include "../gc/gc.h"   // the gc namespace: the same types with gc::tracked_ptr as their word

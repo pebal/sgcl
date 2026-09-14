@@ -5,7 +5,7 @@
 //------------------------------------------------------------------------------
 // The binary-trees benchmark (Computer Language Benchmarks Game): allocation
 // and destruction of many short-lived trees next to one long-lived tree.
-//   binary_trees <sgcl|shared|unique|raw> [max_depth=21] [threads=1]
+//   binary_trees <sgcl|gc|shared|unique|raw> [max_depth=21] [threads=1]   (gc: gc::tracked_ptr)
 // The work for the depths 4, 6, ..., max is split over the threads. Prints
 // wall time and process CPU time: for SGCL the destruction moves to the
 // collector's thread and shows up in the CPU time, not the wall time.
@@ -22,12 +22,13 @@ namespace {
         Ptr right;
     };
 
+    // Ptr: sgcl::tracked_ptr, or gc::tracked_ptr for the gc variant
+    template<template<class> class Ptr>
     struct Sgcl {
-        using N = Node<sgcl::tracked_ptr<void>>;
-        struct Tree { sgcl::tracked_ptr<Tree> left, right; };
-        using P = sgcl::tracked_ptr<Tree>;
+        struct Tree { Ptr<Tree> left, right; };
+        using P = Ptr<Tree>;
         static P make(int depth) {
-            auto n = sgcl::make_tracked<Tree>();
+            P n = sgcl::make_tracked<Tree>();
             if (depth > 0) {
                 n->left = make(depth - 1);
                 n->right = make(depth - 1);
@@ -146,13 +147,14 @@ namespace {
 
 int main(int argc, char** argv) {
     const char* variant = argc > 1 ? argv[1] : "sgcl";
-    if (!bench::has_variant(variant, {"sgcl", "shared", "unique", "raw"})) {
-        std::fprintf(stderr, "usage: binary_trees <sgcl|shared|unique|raw> [max_depth] [threads]\n");
+    if (!bench::has_variant(variant, {"sgcl", "gc", "shared", "unique", "raw"})) {
+        std::fprintf(stderr, "usage: binary_trees <sgcl|gc|shared|unique|raw> [max_depth] [threads]\n");
         return 2;
     }
     int max_depth = argc > 2 ? std::atoi(argv[2]) : 21;
     int threads = argc > 3 ? std::atoi(argv[3]) : 1;
-    if (!std::strcmp(variant, "sgcl")) run<Sgcl>(max_depth, threads);
+    if (!std::strcmp(variant, "sgcl")) run<Sgcl<sgcl::tracked_ptr>>(max_depth, threads);
+    else if (!std::strcmp(variant, "gc")) run<Sgcl<gc::tracked_ptr>>(max_depth, threads);
     else if (!std::strcmp(variant, "shared")) run<Shared>(max_depth, threads);
     else if (!std::strcmp(variant, "unique")) run<Unique>(max_depth, threads);
     else run<Raw>(max_depth, threads);

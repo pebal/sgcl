@@ -6,10 +6,12 @@
 namespace sgcl {
     template<class T>
     class atomic_ref<tracked_ptr<T>>;
+    template<class T>
+    class atomic_ref<gc::tracked_ptr<T>>;
 }
 ```
 
-`atomic_ref<tracked_ptr<T>>` is `std::atomic_ref` for a [`tracked_ptr`](tracked_ptr.md): the operations of [`atomic<tracked_ptr<T>>`](atomic.md) (`load`, `store`, `compare_exchange_weak`, `compare_exchange_strong`, `wait`, `notify`, with a `std::memory_order`) applied to a plain `tracked_ptr` that lives somewhere already: a member of a node, an element of an `sgcl::vector<tracked_ptr<T>>`, a local. The word of a `tracked_ptr` is a `std::atomic` of a pointer in any case, so nothing changes in the pointer's layout; the `atomic_ref` is a reference to it and the operations are the atomic ones, with the hazard pointer of `atomic::load` and the same freedom from ABA. Only the specialization for `tracked_ptr<T>` exists.
+`atomic_ref<tracked_ptr<T>>` is `std::atomic_ref` for a [`tracked_ptr`](tracked_ptr.md): the operations of [`atomic<tracked_ptr<T>>`](atomic.md) (`load`, `store`, `compare_exchange_weak`, `compare_exchange_strong`, `wait`, `notify`, with a `std::memory_order`) applied to a plain `tracked_ptr` that lives somewhere already: a member of a node, an element of an `sgcl::vector<tracked_ptr<T>>`, a local. The word of a `tracked_ptr` is a `std::atomic` of a pointer in any case, so nothing changes in the pointer's layout; the `atomic_ref` is a reference to it and the operations are the atomic ones, with the hazard pointer of `atomic::load` and the same freedom from ABA. `atomic_ref<gc::tracked_ptr<T>>` is the same for a [`gc::tracked_ptr`](gc/tracked_ptr.md), with `gc::tracked_ptr<T>` as its `value_type`: the constructor resolves the word once, the `tracked_ptr` itself inside a managed object or on a stack, the cell's word in any other memory (a null `gc::tracked_ptr` there gets its cell at that moment), and the operations are those of `atomic_ref<tracked_ptr<T>>` on that word; the `gc::tracked_ptr` must not be moved or destroyed while a view of it exists, as with any `atomic_ref`. Only these two specializations exist.
 
 ## Rules
 
@@ -38,10 +40,10 @@ atomic_ref& operator=(const atomic_ref&) = delete;
 A reference to `p`; a copy refers to the same pointer. Not assignable: an `atomic_ref` refers to one pointer for its life.
 
 ```cpp
-struct Node { sgcl::tracked_ptr<Node> next; };
-sgcl::tracked_ptr node = sgcl::make_tracked<Node>();
-sgcl::atomic_ref next(node->next);   // atomic_ref<tracked_ptr<Node>>, deduced
-sgcl::atomic_ref same = next;        // the same word
+struct Node { gc::tracked_ptr<Node> next; };
+gc::tracked_ptr node = gc::make_tracked<Node>();
+gc::atomic_ref next(node->next);     // atomic_ref<tracked_ptr<Node>>, deduced
+gc::atomic_ref same = next;          // the same word
 next.store(node);
 assert(same.load() == node);
 ```
@@ -66,10 +68,10 @@ operator value_type() const noexcept;
 `a = p` is `a.store(p)` with `std::memory_order_seq_cst`; `tracked_ptr<T> p = a` is `a.load()`.
 
 ```cpp
-sgcl::tracked_ptr<int> word;
-sgcl::atomic_ref a(word);
-a = sgcl::make_tracked<int>(1);   // a store
-sgcl::tracked_ptr<int> p = a;     // a load
+gc::tracked_ptr<int> word;
+gc::atomic_ref a(word);
+a = gc::make_tracked<int>(1);     // a store
+gc::tracked_ptr<int> p = a;       // a load
 a = nullptr;
 assert(*p == 1 && !a.load());
 ```
@@ -93,8 +95,8 @@ value_type load(const std::memory_order m = std::memory_order_seq_cst) const noe
 The pointer, as a `tracked_ptr` that holds the object: the word read twice around a hazard pointer published on the calling thread's record, so that the collector cannot reclaim the object between the read and the hold. The order is at least `acquire`: `relaxed` and `consume` are raised to it.
 
 ```cpp
-sgcl::tracked_ptr word = sgcl::make_tracked<int>(1);
-sgcl::tracked_ptr p = sgcl::atomic_ref(word).load(std::memory_order_acquire);   // the 1, held
+gc::tracked_ptr word = gc::make_tracked<int>(1);
+gc::tracked_ptr p = gc::atomic_ref(word).load(std::memory_order_acquire);       // the 1, held
 assert(*p == 1);
 ```
 
@@ -109,11 +111,11 @@ void store(value_type p, const std::memory_order m = std::memory_order_seq_cst) 
 Replaces the pointer: with null, with the object of a `unique_ptr` (released to the collector), or with a copy of a `tracked_ptr`. The old object lives on for whoever holds it. The store carries the write barrier.
 
 ```cpp
-sgcl::tracked_ptr<int> word;
-sgcl::atomic_ref(word).store(sgcl::make_tracked<int>(1));   // from a unique_ptr
-sgcl::tracked_ptr two = sgcl::make_tracked<int>(2);
-sgcl::atomic_ref(word).store(two, std::memory_order_release);
-sgcl::atomic_ref(word).store(nullptr);
+gc::tracked_ptr<int> word;
+gc::atomic_ref(word).store(gc::make_tracked<int>(1));       // from a unique_ptr
+gc::tracked_ptr two = gc::make_tracked<int>(2);
+gc::atomic_ref(word).store(two, std::memory_order_release);
+gc::atomic_ref(word).store(nullptr);
 ```
 
 ### compare_exchange_strong, compare_exchange_weak
@@ -133,16 +135,16 @@ bool compare_exchange_weak(value_type& e, value_type n, const std::memory_order 
 The compare-exchange of `std::atomic_ref`: when the word equals `e`, it is replaced by `n` (or null) and `true` is returned; otherwise `e` is set to the current value, loaded with `acquire` and held, and `false` is returned. The `weak` form may fail spuriously and belongs in a loop. With one order `m`, the failure order is derived from it as `std::atomic` does; with two, `s` is the order of the success and `f` of the failure. No ABA: the object `e` holds cannot be reused while `e` holds it.
 
 ```cpp
-struct Item { int value; sgcl::tracked_ptr<Item> next; };
-struct Stack { sgcl::tracked_ptr<Item> head; };   // a plain member, used atomically through atomic_ref
-sgcl::tracked_ptr stack = sgcl::make_tracked<Stack>();
+struct Item { int value; gc::tracked_ptr<Item> next; };
+struct Stack { gc::tracked_ptr<Item> head; };     // a plain member, used atomically through atomic_ref
+gc::tracked_ptr stack = gc::make_tracked<Stack>();
 
-sgcl::atomic_ref head(stack->head);
-sgcl::tracked_ptr item = sgcl::make_tracked<Item>(1);
+gc::atomic_ref head(stack->head);
+gc::tracked_ptr item = gc::make_tracked<Item>(1);
 item->next = head.load();
 while (!head.compare_exchange_weak(item->next, item)) {}   // push
 
-sgcl::tracked_ptr top = head.load();
+gc::tracked_ptr top = head.load();
 while (top && !head.compare_exchange_weak(top, top->next)) {}   // pop
 assert(top && top->value == 1 && !head.load());
 ```
@@ -159,14 +161,14 @@ void notify_all() noexcept;
 The waiting of `std::atomic_ref`: `wait(p)` blocks while the word equals `p` (or null), `notify_one` and `notify_all` wake the threads blocked in `wait` after a store.
 
 ```cpp
-struct Slot { sgcl::tracked_ptr<int> value; };
-sgcl::tracked_ptr slot = sgcl::make_tracked<Slot>();
+struct Slot { gc::tracked_ptr<int> value; };
+gc::tracked_ptr slot = gc::make_tracked<Slot>();
 std::thread producer([&slot] {                      // a reference: the tracked_ptr stays on this frame
-    sgcl::atomic_ref(slot->value).store(sgcl::make_tracked<int>(1));
-    sgcl::atomic_ref(slot->value).notify_one();
+    gc::atomic_ref(slot->value).store(gc::make_tracked<int>(1));
+    gc::atomic_ref(slot->value).notify_one();
 });
-sgcl::atomic_ref(slot->value).wait(nullptr);        // until the slot is not null
-assert(*sgcl::atomic_ref(slot->value).load() == 1);
+gc::atomic_ref(slot->value).wait(nullptr);          // until the slot is not null
+assert(*gc::atomic_ref(slot->value).load() == 1);
 producer.join();
 ```
 
@@ -181,7 +183,7 @@ template<class T> atomic_ref(tracked_ptr<T>) -> atomic_ref<tracked_ptr<T>>;
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "gc/gc.h"
 #include <cassert>
 #include <iostream>
 #include <thread>
@@ -198,15 +200,15 @@ struct Item {
 };
 
 int main() {
-    sgcl::vector<sgcl::tracked_ptr<Item>> slots(64);   // 64 null slots in a managed buffer
+    gc::vector<gc::tracked_ptr<Item>> slots(64);       // 64 null slots in a managed buffer
 
     std::vector<std::thread> workers;
     for (int t = 0; t < 4; ++t) {
         workers.emplace_back([&slots, t] {              // a reference: the vector stays in main's frame
             for (size_t i = 0; i < slots.size(); ++i) {
-                sgcl::tracked_ptr<Item> expected;       // null: the slot is free
-                sgcl::tracked_ptr mine = sgcl::make_tracked<Item>(t);
-                sgcl::atomic_ref slot(slots[i]);
+                gc::tracked_ptr<Item> expected;         // null: the slot is free
+                gc::tracked_ptr mine = gc::make_tracked<Item>(t);
+                gc::atomic_ref slot(slots[i]);
                 if (!slot.compare_exchange_strong(expected, mine)) {
                     assert(expected);                   // somebody else's item, now held by `expected`
                 }
@@ -224,7 +226,7 @@ int main() {
     }
     std::cout << counts[0] << ' ' << counts[1] << ' ' << counts[2] << ' ' << counts[3] << '\n';
 
-    sgcl::collector::force_collect(true);   // optional, for the demonstration only: the collector runs its cycles by itself
+    gc::collector::force_collect(true);     // optional, for the demonstration only: the collector runs its cycles by itself
     return 0;
 }
 ```

@@ -52,10 +52,9 @@ namespace sgcl::detail {
         // Reachable in the current cycle: Reachable with the current
         // parity (Fresh or not: a registered Fresh object of the current
         // parity was UniqueLock when registered and handed to a tracked_ptr
-        // since, or allocated before the flip and handed to one after it,
-        // Earlier), or UniqueLock of either parity
+        // since), or UniqueLock of either parity
         static unsigned reachable(uint64_t w, State current) noexcept {
-            return equal(w, current) | equal(w, State(current | State::Fresh)) | equal(w, State(current | State::Fresh | State::Earlier))
+            return equal(w, current) | equal(w, State(current | State::Fresh))
                  | equal(w, State::UniqueLock) | equal(w, State(State::UniqueLock | State::Parity));
         }
 

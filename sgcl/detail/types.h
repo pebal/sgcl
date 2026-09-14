@@ -67,9 +67,8 @@ namespace sgcl::detail {
         BadAlloc = 8,
         Reserved = 16,
         Unused = 32,
-        Parity = 64,        // with Reachable: the epoch's parity; with UniqueLock: the parity read at the allocation
+        Parity = 64,        // with Reachable: the epoch's parity; with UniqueLock: the parity read at the allocation (page.h: unique_state)
         Fresh = 128,        // with Reachable: made tracked in the epoch of its parity, not registered yet
-        Earlier = 2,        // with Reachable | Fresh: allocated in the epoch before the one of its parity (page.h: set_state)
         Unreachable = Used,
         CreatedMask = 15,
         FreeMask = Reserved | Unused

@@ -212,40 +212,23 @@ namespace sgcl::detail {
                 // skipped flag store only delays the collector's look at an
                 // already reachable object by a cycle (the collector clears
                 // the flag with an acq_rel exchange), never its safety.
-                // The first tracked_ptr to an object (its state UniqueLock
-                // since the allocation) leaves Reachable with the current
-                // parity and Fresh: the object is not registered yet, and
-                // the cycle that finds Fresh with its own parity knows the
-                // object was made after the flip and leaves it alone. Such
-                // an object needs no state (unregistered, it is neither
-                // swept nor traced), so the barrier skips it; a Fresh object
-                // of the other parity was made before the flip and is
-                // registered by the cycle: a store to it sets the state the
-                // cycle takes for reachable, and drops Fresh.
-                // "Made after the flip" has to mean that every store of the
-                // object's constructor read the new epoch, since nothing
-                // traces the object: the parity the allocator read
-                // (unique_state, kept in the UniqueLock state) is the
-                // earliest read of the thread, so a Fresh state of the
-                // current parity that came out of a UniqueLock of the other
-                // one is marked Earlier, and the cycle registers the object
-                // like one made before the flip (collector.h:
-                // _register_page); its stores may have read the old epoch.
-                // Branches, not selects, past the first test: a select on
-                // the Fresh state is computed ahead of the branch, on the
-                // hot path of every copy (measured: 1.35 -> 2.1 ns per
-                // copy), and so is a call in the branch.
+                // Two hot paths: a copy of a pointer to an object whose
+                // state is current (the first test), and to one still
+                // Fresh, made since the last cycle (the second test, taken
+                // for every young object). The store is once per object
+                // per cycle. Nothing else in here: an expression the
+                // compiler hoists ahead of the tests costs every copy
+                // (measured: a select with four operations, 1.4 -> 2.1 ns),
+                // which is why the transition out of UniqueLock is not
+                // here but in set_state_released, the barrier of the paths
+                // that release an object from its unique_ptr; a unique
+                // object never reaches this one.
                 auto wanted = reachable_state();
                 auto old = state.load(std::memory_order_relaxed);
+                assert(!is_unique_state(old) && "an object leaves its unique_ptr through store_released, never through this barrier");
                 if (old != wanted) [[unlikely]] {
                     if (old != State(wanted | State::Fresh)) {
-                        if (!is_unique_state(old)) {
-                            state.store(wanted, std::memory_order_relaxed);
-                        } else if ((old ^ wanted) & State::Parity) {
-                            state.store(State(wanted | State::Fresh | State::Earlier), std::memory_order_relaxed);
-                        } else {
-                            state.store(State(wanted | State::Fresh), std::memory_order_relaxed);
-                        }
+                        state.store(wanted, std::memory_order_relaxed);
                     }
                 }
                 if (!page->state_updated.load(std::memory_order_relaxed)) {
@@ -253,6 +236,33 @@ namespace sgcl::detail {
                 }
             } else {
                 state.store(S, std::memory_order_release);
+            }
+        }
+
+        // The write barrier for the first store of an object released
+        // from its unique_ptr (detail/pointer.h: store_released): the
+        // state from UniqueLock, with the parity the allocator read
+        // (unique_state), to Reachable with the current parity and Fresh,
+        // the state of an object made after the flip that the cycle leaves
+        // alone (collector.h: _register_page), unless the allocation's
+        // parity is not the current one: the object was allocated before
+        // the flip, or with an epoch the thread had not seen yet, and the
+        // stores of its constructor may have read the old epoch, so it gets
+        // the current state without Fresh: registered by the cycle like any
+        // object made before the flip, reachable by state should the
+        // thread's stack have been scanned already. Once per object, on a
+        // path of its own, so the select costs the ordinary barrier nothing.
+        static void set_state_released(const void* p) noexcept {
+            assert(p != nullptr);
+            auto page = Page::page_of(p);
+            auto index = page->index_of(p);
+            auto& state = page->states()[index];
+            auto wanted = reachable_state();
+            auto old = state.load(std::memory_order_relaxed);
+            assert(is_unique_state(old));
+            state.store((old ^ wanted) & State::Parity ? wanted : State(wanted | State::Fresh), std::memory_order_relaxed);
+            if (!page->state_updated.load(std::memory_order_relaxed)) {
+                page->state_updated.store(true, std::memory_order_release);
             }
         }
 

@@ -4,12 +4,14 @@
 #include "sgcl/unordered_multiset.h"   // or "sgcl/sgcl.h"
 
 namespace sgcl {
-    template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
+    template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>, template<class> class Ptr = tracked_ptr>
     class unordered_multiset;
 }
 ```
 
 `sgcl::unordered_multiset<Key, Hash, KeyEqual>` is `std::unordered_multiset` over managed nodes: the same hash table as [unordered_set](unordered_set.md), with equivalent keys allowed. The interface is the one of `std::unordered_multiset` (constructors, `insert`, `emplace`, `erase`, `extract`, `merge`, node handles, the lookups with transparent hash and equality, forward iterators, the bucket interface, `load_factor`/`max_load_factor`/`rehash`/`reserve`, `hash_function`/`key_eq`, `swap`, `==`, deduction guides, `std::erase_if`), and so is the behaviour: equal elements are adjacent in the iteration order and in their bucket, `erase(key)` removes all of them, `count` counts them, an element is destroyed the moment it is erased. Within a run of equal elements a new one goes in front of those already there.
+
+`Ptr`, the last parameter, is the kind of the word by which the container holds its memory: `tracked_ptr` by default, so that the container lives where a `tracked_ptr` may (on a stack or inside a managed object), or [`gc::tracked_ptr`](gc/tracked_ptr.md), so that it lives anywhere, at the cost of a `gc::tracked_ptr` on each access to that word; `gc::unordered_multiset` ([gc/gc.h](README.md#the-gc-namespace)) names the latter. The nodes and buffers are the same managed objects either way, and the elements are a choice apart; an element type that names a `tracked_type` (`gc::tracked_ptr<T>` names `sgcl::tracked_ptr<T>`) is stored as that type, one word in the same mode, and handed out as the type it was given, so a container of `gc::tracked_ptr`s costs what one of `sgcl::tracked_ptr`s does ([the gc namespace](README.md#the-gc-namespace)).
 
 What differs from `std` is where the memory lives. The container holds two `tracked_ptr`s (the bucket array and a sentinel node), the counts, the hasher and the equality, so it lives where a `tracked_ptr` may live; the elements are nodes on the managed heap, forming one chain linked by tracked pointers and traced from the sentinel, so elements that are or hold `tracked_ptr`s are traced and a cycle through the container is collected like any other. Nothing is freed by hand: an `erase` destroys the element and unlinks the node, the collector reclaims the node later. The hash of each key is cached in its node. The bucket count is 0 or a power of two, and the table grows when the size reaches `bucket_count() * max_load_factor()`, doubling at least, to eight buckets at the least. Iterators are one raw node pointer each, trivially copyable, storable anywhere, valid across rehashes and until their element is erased. As in `std`, `iterator` and `const_iterator` are one type, yielding `const Key&`: a key is never modified in place; `extract` it and insert it back. Lookups and iteration pay no write barrier; insertions, erasures and rehashes store tracked pointers and pay the barrier on each link they relink ([README: Containers](../README.md#containers)).
 
@@ -64,11 +66,11 @@ unordered_multiset(unordered_multiset&& other);
 The default constructor allocates nothing (`bucket_count() == 0`). A bucket count is rounded up to a power of two. The range constructor, given a forward range, sizes the table for the distance first; every element is kept. A copy reproduces `other`'s bucket count, order and `max_load_factor`; a move takes the table over and leaves `other` empty. A constructor or hasher that throws destroys the elements built so far.
 
 ```cpp
-sgcl::unordered_multiset<int> rolls = {4, 2, 4, 6, 2};                  // five elements
-sgcl::unordered_multiset<int> sized(100);                                // 128 buckets
+gc::unordered_multiset<int> rolls = {4, 2, 4, 6, 2};                    // five elements
+gc::unordered_multiset<int> sized(100);                                  // 128 buckets
 std::vector<int> src = {3, 1, 3};
-sgcl::unordered_multiset from_range(src.begin(), src.end());             // deduced: unordered_multiset<int>
-sgcl::unordered_multiset<int> taken = std::move(rolls);                  // rolls is empty now
+gc::unordered_multiset from_range(src.begin(), src.end());               // deduced: unordered_multiset<int>
+gc::unordered_multiset<int> taken = std::move(rolls);                    // rolls is empty now
 ```
 
 ### Destructor
@@ -90,7 +92,7 @@ unordered_multiset& operator=(std::initializer_list<value_type> ilist);
 Copy assignment builds a copy of `other` and swaps it in; move assignment clears this container (destroying its elements at once) and takes the table over; the list form builds a new table with this container's hasher, equality and `max_load_factor` and swaps it in.
 
 ```cpp
-sgcl::unordered_multiset<int> a = {1, 1}, b;
+gc::unordered_multiset<int> a = {1, 1}, b;
 b = a;
 b = {5};                     // the old elements die here
 a = std::move(b);            // a is {5}, b is empty
@@ -106,7 +108,7 @@ iterator end() noexcept;                  const_iterator end() const noexcept;  
 Forward iterators over one chain of nodes; `end()` is a null iterator. Equal elements are adjacent. An iterator is a raw node pointer: copying and advancing it costs a load, and it may be kept in unmanaged memory while its element is in the container.
 
 ```cpp
-sgcl::unordered_multiset<std::string> s = {"a", "b", "a"};
+gc::unordered_multiset<std::string> s = {"a", "b", "a"};
 std::string joined;
 for (const auto& key : s) {
     joined += key;                         // "aab" or "baa"
@@ -132,7 +134,7 @@ void clear() noexcept;
 Destroys every element at once and unlinks every node; the bucket array, the hasher, the equality and `max_load_factor` stay.
 
 ```cpp
-sgcl::unordered_multiset<std::string> s = {"a", "a"};
+gc::unordered_multiset<std::string> s = {"a", "a"};
 s.clear();                     // both strings are destroyed here
 bool gone = s.empty();         // true
 ```
@@ -155,12 +157,12 @@ iterator insert(const_iterator hint, node_type&& nh);
 Always inserts, and returns the new element; an element already present gets the new one in front of its equivalents. The `P&&` forms build the element through `emplace`. The hint is ignored. The table grows before the node is linked when the size has reached the threshold. The node-handle forms link the node of `nh` without copying the element and leave `nh` empty; an empty handle inserts nothing and returns `end()`.
 
 ```cpp
-sgcl::unordered_multiset<std::string> s;
+gc::unordered_multiset<std::string> s;
 s.insert("a");
 auto it = s.insert("a");                              // in front of the first "a"
 s.insert(s.end(), "z");                               // the hint is ignored
 s.insert({"b", "b"});
-sgcl::unordered_multiset<std::string> other = {"q"};
+gc::unordered_multiset<std::string> other = {"q"};
 s.insert(other.extract("q"));                         // relinked, no copy
 bool front = s.find("a") == it;                       // true
 ```
@@ -175,7 +177,7 @@ template<class... A> iterator emplace_hint(const_iterator hint, A&&... a);
 Builds the key from `a...` in a new node and links it in front of its equivalents. The hint is ignored. A hasher or equality that throws destroys the new element and leaves the container as it was.
 
 ```cpp
-sgcl::unordered_multiset<std::string> s;
+gc::unordered_multiset<std::string> s;
 s.emplace(3, 'x');                          // "xxx"
 s.emplace(3, 'x');                          // a second "xxx"
 s.emplace_hint(s.end(), "zzz");
@@ -194,7 +196,7 @@ template<class K> size_type erase(K&& key);   // when Hash and KeyEqual are tran
 Destroys the element at once, unlinks the node (the collector reclaims it later) and returns the iterator after it. The key forms erase every equal element and return how many.
 
 ```cpp
-sgcl::unordered_multiset<int> s = {1, 1, 2, 3};
+gc::unordered_multiset<int> s = {1, 1, 2, 3};
 auto erased = s.erase(1);                          // 2
 s.erase(s.find(2));                                // one element: 3 is left
 ```
@@ -209,7 +211,7 @@ friend void swap(unordered_multiset& lhs, unordered_multiset& rhs) noexcept(noex
 Exchanges the tables, counts, load factors, hashers and equalities; no element is touched, and every iterator keeps pointing at its element, now in the other container.
 
 ```cpp
-sgcl::unordered_multiset<int> a = {1}, b = {2};
+gc::unordered_multiset<int> a = {1}, b = {2};
 auto it = a.begin();
 swap(a, b);                       // it still points at 1, which is in b now
 bool moved = it == b.find(1);     // true
@@ -226,7 +228,7 @@ template<class K> node_type extract(K&& key);   // when Hash and KeyEqual are tr
 Unlinks the node and hands it over in a node handle, the element untouched; the handle destroys the element if it dies unused. The key forms extract the first equal element, or return an empty handle. This is the way to change a key. See [node_type](#node_type-the-node-handle).
 
 ```cpp
-sgcl::unordered_multiset<std::string> s = {"a", "a"};
+gc::unordered_multiset<std::string> s = {"a", "a"};
 auto nh = s.extract("a");         // s holds one "a"
 nh.value() = "b";
 s.insert(std::move(nh));          // "a" and "b"
@@ -235,15 +237,15 @@ s.insert(std::move(nh));          // "a" and "b"
 ### merge
 
 ```cpp
-template<class Traits2> void merge(detail::HashTable<Traits2>& source);    // any sgcl::unordered_set or unordered_multiset<Key, H2, E2>
+template<class Traits2> void merge(detail::HashTable<Traits2>& source);    // any gc::unordered_set or unordered_multiset<Key, H2, E2>
 template<class Traits2> void merge(detail::HashTable<Traits2>&& source);
 ```
 
 Relinks every node of `source` into this container (a multi table takes them all), rehashing with this container's hasher, and leaves `source` empty. No element is copied or destroyed; iterators follow their nodes. `source` may be a `sgcl::unordered_set` or `sgcl::unordered_multiset` with the same `Key` and any hasher and equality.
 
 ```cpp
-sgcl::unordered_multiset<int> a = {1, 3};
-sgcl::unordered_set<int> b = {2, 3};
+gc::unordered_multiset<int> a = {1, 3};
+gc::unordered_set<int> b = {2, 3};
 a.merge(b);                       // a: 1 2 3 3;  b is empty
 ```
 
@@ -270,7 +272,7 @@ struct StringHash {
     using is_transparent = void;
     size_t operator()(std::string_view s) const { return std::hash<std::string_view>{}(s); }
 };
-sgcl::unordered_multiset<std::string, StringHash, std::equal_to<>> s = {"a", "a"};
+gc::unordered_multiset<std::string, StringHash, std::equal_to<>> s = {"a", "a"};
 std::string_view key = "a";
 auto n = s.count(key);             // 2, no std::string built
 ```
@@ -290,7 +292,7 @@ local_iterator end(size_type n);                const_local_iterator end(size_ty
 As in `std`. `bucket_count()` is 0 or a power of two; `bucket(key)` is the hash masked by `bucket_count() - 1` (0 while there are no buckets). A local iterator walks the nodes of one bucket, equal elements adjacent, and stops at its end; for an `n` beyond `bucket_count()` the range is empty.
 
 ```cpp
-sgcl::unordered_multiset<int> s = {1, 1, 2};
+gc::unordered_multiset<int> s = {1, 1, 2};
 size_t n = s.bucket(1);
 size_t in_bucket = 0;
 for (auto it = s.begin(n); it != s.end(n); ++it) {
@@ -312,7 +314,7 @@ void reserve(size_type count);
 `load_factor()` is `size() / bucket_count()` (0 with no buckets); `max_load_factor()` defaults to 1.0. `max_load_factor(z)` takes effect on the next insertion (a value that is not positive, or not a number, is ignored). `rehash(count)` makes the bucket count the smallest power of two not below `count` and not below `size() / max_load_factor()`; `reserve(count)` is `rehash` for `count` elements. A rehash relinks the nodes in chain order, so runs of equal elements stay together and in order, hashes nothing and invalidates no iterator.
 
 ```cpp
-sgcl::unordered_multiset<int> s;
+gc::unordered_multiset<int> s;
 s.reserve(1000);                                  // 1024 buckets
 for (int i = 0; i < 1000; ++i) {
     s.insert(i % 10);                             // ten runs of a hundred
@@ -338,7 +340,7 @@ friend bool operator==(const unordered_multiset& lhs, const unordered_multiset& 
 Equal sizes and, for every run of equal elements in `lhs`, a run of the same length in `rhs` that is a permutation of it, whatever the bucket counts and orders. `!=` follows; there is no ordering.
 
 ```cpp
-sgcl::unordered_multiset<int> a = {1, 1, 2}, b = {2, 1, 1};
+gc::unordered_multiset<int> a = {1, 1, 2}, b = {2, 1, 1};
 bool same = a == b;                               // true
 ```
 
@@ -378,7 +380,7 @@ namespace std { using sgcl::erase_if; }
 Erases every element for which `pred(*it)` is true and returns how many.
 
 ```cpp
-sgcl::unordered_multiset<int> s = {1, 2, 2, 3};
+gc::unordered_multiset<int> s = {1, 2, 2, 3};
 auto n = std::erase_if(s, [](int x) { return x == 2; });   // 2; s holds 1 and 3
 ```
 
@@ -393,25 +395,25 @@ unordered_multiset(std::initializer_list<Key>, size_t = 0, Hash = Hash(), KeyEqu
 
 ```cpp
 std::vector<std::string> src = {"a", "a"};
-sgcl::unordered_multiset from_range(src.begin(), src.end());    // unordered_multiset<std::string>
-sgcl::unordered_multiset from_list = {1, 1, 2};                 // unordered_multiset<int>
+gc::unordered_multiset from_range(src.begin(), src.end());      // unordered_multiset<std::string>
+gc::unordered_multiset from_list = {1, 1, 2};                   // unordered_multiset<int>
 ```
 
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "gc/gc.h"
 #include <iostream>
 #include <string>
 
 struct Sample {
     std::string source;
-    sgcl::tracked_ptr<Sample> previous;   // traced through the node that holds the Sample
+    gc::tracked_ptr<Sample> previous;     // traced through the node that holds the Sample
 };
 
 int main() {
     // A bag of readings keyed by value: several samples may read the same
-    sgcl::unordered_multiset<int> readings;
+    gc::unordered_multiset<int> readings;
     for (int r : {3, 7, 3, 3, 9, 7}) {
         readings.insert(r);
     }
@@ -420,13 +422,13 @@ int main() {
     // A bag of traced pointers inside a managed object: the samples live as
     // long as the bag's owner does
     struct Owner {
-        sgcl::unordered_multiset<sgcl::tracked_ptr<Sample>> bag;
+        gc::unordered_multiset<gc::tracked_ptr<Sample>> bag;
     };
-    sgcl::tracked_ptr owner = sgcl::make_tracked<Owner>();
-    sgcl::tracked_ptr first = sgcl::make_tracked<Sample>("a");
+    gc::tracked_ptr owner = gc::make_tracked<Owner>();
+    gc::tracked_ptr first = gc::make_tracked<Sample>("a");
     owner->bag.insert(first);
     owner->bag.insert(first);                                   // the same pointer twice: a multiset allows it
-    owner->bag.insert(sgcl::make_tracked<Sample>("b", first));
+    owner->bag.insert(gc::make_tracked<Sample>("b", first));
     auto duplicates = owner->bag.count(first);                  // 2
 
     // Erasing every copy of the pointer destroys those elements; the Sample
@@ -436,8 +438,8 @@ int main() {
     owner = nullptr;                                            // the bag, "b" and then "a" are garbage
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
-    sgcl::collector::force_collect(true);
-    std::cout << sgcl::collector::get_live_object_count() << " live objects\n";   // the nodes, buckets and sentinel of `readings`
+    gc::collector::force_collect(true);
+    std::cout << gc::collector::get_live_object_count() << " live objects\n";     // the nodes, buckets and sentinel of `readings`
     return readings.count(3) == 3 && duplicates == 2 ? 0 : 1;
 }
 ```

@@ -6,14 +6,16 @@
 namespace sgcl {
     using std::dynamic_extent;
 
-    template<class T, size_t N = dynamic_extent>
-    struct array;                        // array<T, N>: the elements inline, an aggregate
-    template<class T>
-    struct array<T, dynamic_extent>;     // array<T>: a managed buffer sized at creation
+    template<class T, size_t N = dynamic_extent, template<class> class Ptr = tracked_ptr>
+    struct array;                             // array<T, N>: the elements inline, an aggregate (Ptr unused)
+    template<class T, template<class> class Ptr>
+    struct array<T, dynamic_extent, Ptr>;     // array<T>: a managed buffer sized at creation, held by a Ptr
 }
 ```
 
 `sgcl::array` is two containers under one name, told apart by `N`.
+
+`Ptr`, the last parameter, is the kind of the word by which `array<T>` holds its buffer: `tracked_ptr` by default, so that the array lives where a `tracked_ptr` may, or [`gc::tracked_ptr`](gc/tracked_ptr.md), so that it lives anywhere (`gc::array`, [gc/gc.h](README.md#the-gc-namespace)); the inline `array<T, N>` has no such word and ignores it. In `array<T>` an element type that names a `tracked_type` (`gc::tracked_ptr<T>` names `sgcl::tracked_ptr<T>`) is stored as that type and handed out as the type it was given ([the gc namespace](README.md#the-gc-namespace)).
 
 `sgcl::array<T, N>` is `std::array`: an aggregate with the `N` elements inline, the tuple interface (`std::tuple_size`, `std::tuple_element`, `sgcl::get<I>`, structured bindings), `constexpr` throughout, and no memory of its own. It exists so that a fixed set of `tracked_ptr`s can be written as one object, `sgcl::array<sgcl::tracked_ptr<T>, 4> roots = {}`, that lives wherever its elements may and costs nothing beyond them. `array<T, 0>` is an empty aggregate with the same interface.
 
@@ -56,10 +58,10 @@ T elems[N];   // public, so that aggregate initialization applies
 The only member of `array<T, N>`; `array<T, 0>` has none. Being public makes the class an aggregate: `sgcl::array<int, 3> a = {1, 2, 3}` and `sgcl::array<sgcl::tracked_ptr<Node>, 4> roots = {}` (four null pointers) are its constructors, and `sizeof(array<T, N>) == N * sizeof(T)`.
 
 ```cpp
-sgcl::array<int, 3> a = {1, 2, 3};                         // aggregate initialization
-sgcl::array<sgcl::tracked_ptr<int>, 2> roots = {};         // two null pointers, on the stack
-roots[0] = sgcl::make_tracked<int>(5);
-constexpr sgcl::array<int, 2> c = {4, 5};                  // constexpr: everything is
+gc::array<int, 3> a = {1, 2, 3};                           // aggregate initialization
+gc::array<gc::tracked_ptr<int>, 2> roots = {};             // two null pointers, on the stack
+roots[0] = gc::make_tracked<int>(5);
+constexpr gc::array<int, 2> c = {4, 5};                    // constexpr: everything is
 static_assert(c[1] == 5 && c.size() == 2);
 ```
 
@@ -78,13 +80,13 @@ array(array&& other) noexcept;
 The default constructor holds no buffer. `array(count)` holds `count` value-initialized elements; for `tracked_ptr` elements the buffer is already zeroed, so they are null pointers without a constructor run. The range constructor takes the count from a forward range in advance; a single-pass range is collected into a `vector` first. A copy has a buffer of its own; a move takes the buffer over and leaves `other` empty. A `count` above `max_size()` throws `std::length_error`.
 
 ```cpp
-sgcl::array<int> zeros(5);                             // 0 0 0 0 0
-sgcl::array<std::string> names(3, "n");                // "n" "n" "n"
-sgcl::array<int> digits = {1, 2, 3};
+gc::array<int> zeros(5);                               // 0 0 0 0 0
+gc::array<std::string> names(3, "n");                  // "n" "n" "n"
+gc::array<int> digits = {1, 2, 3};
 std::vector<int> src = {4, 5, 6, 7};
-sgcl::array from(src.begin(), src.end());              // deduced: sgcl::array<int>
-sgcl::array<int> taken = std::move(digits);            // digits is empty now
-sgcl::array<sgcl::tracked_ptr<int>> ptrs(10);          // ten null pointers, in a managed buffer
+gc::array from(src.begin(), src.end());                // deduced: gc::array<int>
+gc::array<int> taken = std::move(digits);              // digits is empty now
+gc::array<gc::tracked_ptr<int>> ptrs(10);              // ten null pointers, in a managed buffer
 ```
 
 ### array<T>: destructor
@@ -106,8 +108,8 @@ array& operator=(std::initializer_list<T> ilist);
 Copy assignment assigns the elements in place when the sizes are equal, else builds a copy and swaps it in. Move assignment destroys the current elements and takes the other buffer over. Assignment from an initializer list builds a fresh array and swaps it in.
 
 ```cpp
-sgcl::array<int> a = {1, 2, 3};
-sgcl::array<int> b(3);
+gc::array<int> a = {1, 2, 3};
+gc::array<int> b(3);
 b = a;                  // same size: assigned in place, b keeps its buffer
 b = {7, 8};             // a new buffer of two
 a = std::move(b);       // a holds 7 8, b is empty
@@ -132,7 +134,7 @@ const_reference operator[](size_type pos) const noexcept;
 `at` throws `std::out_of_range` for `pos >= size()` (always, for `array<T, 0>`); `operator[]` does not check. `array<T, 0>` has no `operator[]`.
 
 ```cpp
-sgcl::array<int> a = {10, 20, 30};
+gc::array<int> a = {10, 20, 30};
 a[1] = 25;
 try { a.at(3); } catch (const std::out_of_range&) { /* 3 >= size() */ }
 ```
@@ -158,7 +160,7 @@ const T* data() const noexcept;
 `front` and `back` require an element; `array<T, 0>` does not have them. `data()` is the buffer as a plain pointer, valid under the same conditions as any pointer to an element.
 
 ```cpp
-sgcl::array<int> a(4, 1);
+gc::array<int> a(4, 1);
 a.front() = 0;
 a.back() = 9;
 std::span<int> view(a.data(), a.size());   // 0 1 1 9
@@ -180,9 +182,9 @@ const_reverse_iterator crend() const noexcept;
 All `constexpr` in `array<T, N>`. Contiguous iterators over the elements, raw pointers: `std::ranges` algorithms work on both forms. An iterator keeps nothing alive; an iterator dying in a frame nulls its word, so a temporary left behind does not root the buffer under the conservative stack scan. `array<T, 0>` has no `crbegin`/`crend`.
 
 ```cpp
-sgcl::array<int> a = {3, 1, 2};
+gc::array<int> a = {3, 1, 2};
 std::ranges::sort(a);                          // 1 2 3
-sgcl::array<int, 3> b = {3, 1, 2};
+gc::array<int, 3> b = {3, 1, 2};
 std::ranges::sort(b);                          // 1 2 3
 int last = *a.rbegin();                        // 3
 ```
@@ -209,8 +211,8 @@ void fill(const T& value);                      // array<T>
 Assigns `value` to every element.
 
 ```cpp
-sgcl::array<sgcl::tracked_ptr<int>, 4> roots = {};
-roots[2] = sgcl::make_tracked<int>(1);
+gc::array<gc::tracked_ptr<int>, 4> roots = {};
+roots[2] = gc::make_tracked<int>(1);
 roots.fill(nullptr);                            // the int is unreachable now
 ```
 
@@ -225,7 +227,7 @@ friend void swap(array& l, array& r) noexcept;
 ```
 
 ```cpp
-sgcl::array<int> a = {1, 2}, b = {3, 4, 5};
+gc::array<int> a = {1, 2}, b = {3, 4, 5};
 swap(a, b);                                     // a is 3 4 5, b is 1 2; no element moved
 ```
 
@@ -241,7 +243,7 @@ friend auto operator<=>(const array& l, const array& r);
 Element-wise, as for `std::array`: `<=>` is lexicographical with the synthesized three-way comparison (`<=>` of `T` when it has one, else a `std::weak_ordering` built from `<`). Two `array<T, 0>` are always equal.
 
 ```cpp
-sgcl::array<double> e = {1.0, 2.0}, f = {1.0, 3.0};
+gc::array<double> e = {1.0, 2.0}, f = {1.0, 3.0};
 bool less = e < f;                                    // true
 bool equal = (e <=> f) == std::partial_ordering::less;   // true: double's ordering
 ```
@@ -257,9 +259,9 @@ array(InputIt, InputIt) -> array<std::iter_value_t<InputIt>>;  // array<T>
 ```
 
 ```cpp
-sgcl::array fixed = {1.5, 2.5};                       // sgcl::array<double, 2>
+gc::array fixed = {1.5, 2.5};                         // gc::array<double, 2>
 std::vector<int> src = {1, 2};
-sgcl::array dynamic(src.begin(), src.end());          // sgcl::array<int>
+gc::array dynamic(src.begin(), src.end());            // gc::array<int>
 ```
 
 ### get, to_array, the tuple interface
@@ -281,35 +283,35 @@ namespace std {
 For `array<T, N>` only: `get<I>` is the `I`-th element with a `static_assert` on the range, `to_array` builds an array from a built-in array (copying or moving the elements), and the `std` specializations make structured bindings work.
 
 ```cpp
-sgcl::array<int, 3> a = {1, 2, 3};
+gc::array<int, 3> a = {1, 2, 3};
 auto [x, y, z] = a;                          // structured bindings
-sgcl::get<1>(a) = 20;
-auto b = sgcl::to_array({3, 2, 1});          // sgcl::array<int, 3>
+gc::get<1>(a) = 20;
+auto b = gc::to_array({3, 2, 1});            // gc::array<int, 3>
 ```
 
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "gc/gc.h"
 #include <algorithm>
 #include <iostream>
 #include <numeric>
 
 struct Node {
     int value = 0;
-    sgcl::tracked_ptr<Node> next;
+    gc::tracked_ptr<Node> next;
 };
 
 struct Holder {
-    sgcl::array<int> values;                        // a managed buffer, one handle inside the object
-    sgcl::array<sgcl::tracked_ptr<Node>, 3> nodes;  // three pointers inline, traced with the object
+    gc::array<int> values;                          // a managed buffer, one handle inside the object
+    gc::array<gc::tracked_ptr<Node>, 3> nodes;      // three pointers inline, traced with the object
 };
 
 int main() {
     // A fixed set of roots on the stack, as one aggregate
-    sgcl::array<sgcl::tracked_ptr<Node>, 8> roots = {};
+    gc::array<gc::tracked_ptr<Node>, 8> roots = {};
     for (int i = 0; i < 8; ++i) {
-        roots[i] = sgcl::make_tracked<Node>();
+        roots[i] = gc::make_tracked<Node>();
         roots[i]->value = i;
         if (i) {
             roots[i]->next = roots[i - 1];          // a chain, rooted through the array
@@ -317,23 +319,23 @@ int main() {
     }
 
     // A buffer sized at creation: the elements are on the managed heap
-    sgcl::array<int> squares(8);
+    gc::array<int> squares(8);
     for (size_t i = 0; i < squares.size(); ++i) {
         squares[i] = int(i * i);
     }
-    sgcl::array copy = squares;                     // a deep copy, a buffer of its own
+    gc::array copy = squares;                       // a deep copy, a buffer of its own
     std::ranges::reverse(copy);
 
     // Inside a managed object: the buffer and the pointers go with the object
-    sgcl::tracked_ptr h = sgcl::make_tracked<Holder>();
+    gc::tracked_ptr h = gc::make_tracked<Holder>();
     h->values = std::move(squares);                 // the buffer is handed over, squares is empty
     h->nodes[2] = roots[7];
 
-    sgcl::tracked_ptr<Node> keep = roots[3];
+    gc::tracked_ptr<Node> keep = roots[3];
     roots.fill(nullptr);                            // the chain lives on behind keep and h->nodes[2]
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
-    sgcl::collector::force_collect(true);
+    gc::collector::force_collect(true);
     std::cout << "sum of squares " << std::accumulate(h->values.begin(), h->values.end(), 0)
               << ", reversed copy starts with " << copy.front()
               << ", node behind keep " << keep->next->value << "\n";

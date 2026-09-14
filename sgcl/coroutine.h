@@ -48,8 +48,9 @@ namespace sgcl {
     // a tracked_ptr to the frame and the coroutine handle. Move-only;
     // destroys the coroutine when destroyed, which runs the destructors of
     // its locals and promise. Lives where a tracked_ptr may: in a managed
-    // object, on a stack, or in another managed frame.
-    template<class Promise>
+    // object, on a stack, or in another managed frame; or anywhere, with
+    // Ptr = gc::tracked_ptr (gc::task, gc::generator).
+    template<class Promise, template<class> class Ptr = tracked_ptr>
     class frame_ptr {
     public:
         using promise_type = Promise;
@@ -123,7 +124,7 @@ namespace sgcl {
             return unique_ptr<detail::FrameWord>(detail::UniquePtr<detail::FrameWord>((detail::FrameWord*)address));
         }
 
-        tracked_ptr<detail::FrameWord> _frame;
+        Ptr<detail::FrameWord> _frame;
         handle_type _handle;
     };
 
@@ -132,7 +133,7 @@ namespace sgcl {
     // co_returned, or rethrows what it threw. A building block with the
     // managed frame; a scheduler brings its own promise types, derived
     // from managed_frame the same way.
-    template<class T = void>
+    template<class T = void, template<class> class Ptr = tracked_ptr>
     class task {
     public:
         struct promise_type : managed_frame {
@@ -187,11 +188,11 @@ namespace sgcl {
         : _frame(h) {
         }
 
-        frame_ptr<promise_type> _frame;
+        frame_ptr<promise_type, Ptr> _frame;
     };
 
-    template<>
-    class task<void> {
+    template<template<class> class Ptr>
+    class task<void, Ptr> {
     public:
         struct promise_type : managed_frame {
             std::exception_ptr error;
@@ -242,13 +243,13 @@ namespace sgcl {
         : _frame(h) {
         }
 
-        frame_ptr<promise_type> _frame;
+        frame_ptr<promise_type, Ptr> _frame;
     };
 
     // A coroutine that co_yields values, consumed with a range-for or
     // next()/value(); an exception it throws comes out of next() (or the
     // iterator's ++).
-    template<class T>
+    template<class T, template<class> class Ptr = tracked_ptr>
     class generator {
     public:
         struct promise_type : managed_frame {
@@ -363,6 +364,6 @@ namespace sgcl {
         : _frame(h) {
         }
 
-        frame_ptr<promise_type> _frame;
+        frame_ptr<promise_type, Ptr> _frame;
     };
 }

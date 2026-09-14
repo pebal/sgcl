@@ -20,6 +20,17 @@
 namespace sgcl::detail {
     // Set by the constructor of Thread; see ensure_thread_registered().
     inline thread_local bool thread_registered = false;
+    // The stack of the thread, [begin, begin + size), set at registration
+    // and zero before it: one thread-local for an address test without the
+    // guard of current_thread() (ptr.h).
+    struct ThreadStack {
+        uintptr_t begin = 0;
+        uintptr_t size = 0;
+        bool holds(const void* p) const noexcept {
+            return (uintptr_t)p - begin < size;
+        }
+    };
+    inline thread_local ThreadStack thread_stack;
     // True on a thread while it sweeps garbage: the destructors it runs are
     // those of objects that die together with everything reachable only
     // from them, in no order (containers.h: a container inside such an
@@ -64,6 +75,7 @@ namespace sgcl::detail {
                 std::fprintf(stderr, "[sgcl] cannot determine the stack range of a thread\n");
                 std::terminate();
             }
+            thread_stack = {_data->stack_begin, _data->stack_end - _data->stack_begin};
             thread_registered = true;   // stays set: no re-registration from thread_local destructors
             _data->next = threads_data.load(std::memory_order_acquire);
             while(!threads_data.compare_exchange_weak(_data->next, _data, std::memory_order_release, std::memory_order_relaxed));

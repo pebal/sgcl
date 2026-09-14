@@ -28,13 +28,18 @@ namespace sgcl {
     // many watch() calls, as many as it has entries (a pass costs less
     // than the calls that paid for it); a thread that watches little and
     // wants its cleanups on time calls drain() in its loop, and an object
-    // found unreachable waits for that call. Lives where a tracked_ptr
-    // may; shared between threads with the program's own synchronization.
-    template<class T>
+    // found unreachable waits for that call. Ptr is the kind of the queue's
+    // pointers: what watch() takes and hands out and what f receives, and
+    // the word by which the queue holds its entries, so where it lives: a
+    // tracked_ptr, on a stack or in a managed object; a gc::tracked_ptr
+    // (gc::expiry_queue), anywhere. Shared between threads with the
+    // program's own synchronization.
+    template<class T, template<class> class Ptr>
     class expiry_queue {
     public:
-        using value_type = tracked_ptr<T>;
-        using function_type = std::function<void(tracked_ptr<T>)>;
+        using value_type = Ptr<T>;
+        using weak_type = weak_ptr<T, Ptr>;
+        using function_type = std::function<void(value_type)>;
         using size_type = size_t;
 
         expiry_queue() = default;
@@ -42,11 +47,11 @@ namespace sgcl {
         // A weak_ptr to the object, with f kept for the day the object is
         // found unreachable; a null object gets no entry
         template<class F>
-        weak_ptr<T> watch(const tracked_ptr<T>& object, F&& on_expire) {
+        weak_type watch(const value_type& object, F&& on_expire) {
             if (!object) {
                 return {};
             }
-            weak_ptr<T> w(weak_ptr<T>::_make_cell(object.get(), detail::WeakCell::Watched));
+            weak_type w(weak_type::_make_cell(object.get(), detail::WeakCell::Watched));
             _entries.push_back(Entry{w._cell, function_type(std::forward<F>(on_expire))});
             if (++_watched > _threshold) {
                 drain();
@@ -61,7 +66,7 @@ namespace sgcl {
             for (size_type i = 0; i < _entries.size();) {
                 auto cell = _entries[i].cell.get();
                 if (cell->flags.load(std::memory_order_acquire) & detail::WeakCell::Expired) {
-                    tracked_ptr<T> object = weak_ptr<T>(_entries[i].cell).lock();
+                    value_type object = weak_type(_entries[i].cell).lock();
                     auto on_expire = std::move(_entries[i].on_expire);
                     _release(cell);
                     _entries[i] = std::move(_entries.back());
@@ -118,7 +123,7 @@ namespace sgcl {
             cell->flags.fetch_or(detail::WeakCell::Drained, std::memory_order_acq_rel);
         }
 
-        vector<Entry> _entries;
+        vector<Entry, Ptr> _entries;
         size_type _watched = 0;
         size_type _threshold = 16;
     };

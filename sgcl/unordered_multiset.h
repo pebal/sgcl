@@ -15,9 +15,9 @@ namespace sgcl {
     // node pointer and may live anywhere (a std::vector of iterators is
     // fine): its node is rooted by the set while the element is in it, and
     // an iterator to an erased element is invalid as in std.
-    template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
-    class unordered_multiset : public detail::HashTable<detail::HashSetTraits<Key, Hash, KeyEqual, false>> {
-        using Base = detail::HashTable<detail::HashSetTraits<Key, Hash, KeyEqual, false>>;
+    template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>, template<class> class Ptr = tracked_ptr>
+    class unordered_multiset : public detail::HashTable<detail::HashSetTraits<Key, Hash, KeyEqual, false, Ptr>> {
+        using Base = detail::HashTable<detail::HashSetTraits<Key, Hash, KeyEqual, false, Ptr>>;
 
     public:
         using key_type = Key;
@@ -49,16 +49,16 @@ namespace sgcl {
 
     template<std::input_iterator InputIt,
              class Hash = std::hash<typename std::iterator_traits<InputIt>::value_type>,
-             class KeyEqual = std::equal_to<typename std::iterator_traits<InputIt>::value_type>>
+             class KeyEqual = std::equal_to<typename std::iterator_traits<InputIt>::value_type>, template<class> class Ptr = tracked_ptr>
     unordered_multiset(InputIt, InputIt, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual())
-        -> unordered_multiset<typename std::iterator_traits<InputIt>::value_type, Hash, KeyEqual>;
+        -> unordered_multiset<typename std::iterator_traits<InputIt>::value_type, Hash, KeyEqual, Ptr>;
 
-    template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
+    template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>, template<class> class Ptr = tracked_ptr>
     unordered_multiset(std::initializer_list<Key>, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual())
-        -> unordered_multiset<Key, Hash, KeyEqual>;
+        -> unordered_multiset<Key, Hash, KeyEqual, Ptr>;
 
-    template<class Key, class Hash, class KeyEqual, class Pred>
-    size_t erase_if(unordered_multiset<Key, Hash, KeyEqual>& c, Pred pred) {
+    template<class Key, class Hash, class KeyEqual, template<class> class Ptr, class Pred>
+    size_t erase_if(unordered_multiset<Key, Hash, KeyEqual, Ptr>& c, Pred pred) {
         return c.erase_if_impl(pred);
     }
 }

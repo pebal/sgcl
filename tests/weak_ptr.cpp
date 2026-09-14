@@ -20,7 +20,7 @@ namespace {
     };
 }
 
-TEST(WeakPtr_Tests, LocksWhileTheObjectIsStronglyHeld) {
+TEST(WeakGcTrackedPtr_Tests, LocksWhileTheObjectIsStronglyHeld) {
     tracked_ptr<Node> strong = make_tracked<Node>(7);
     weak_ptr<Node> weak = strong;
     EXPECT_FALSE(weak.expired());
@@ -32,7 +32,7 @@ TEST(WeakPtr_Tests, LocksWhileTheObjectIsStronglyHeld) {
     EXPECT_EQ(p->value, 7);
 }
 
-TEST(WeakPtr_Tests, ClearedOnceTheObjectIsUnreachable) {
+TEST(WeakGcTrackedPtr_Tests, ClearedOnceTheObjectIsUnreachable) {
     weak_ptr<Node> weak;
     off_frame([&] {
         tracked_ptr<Node> strong = make_tracked<Node>(7);
@@ -44,7 +44,7 @@ TEST(WeakPtr_Tests, ClearedOnceTheObjectIsUnreachable) {
     EXPECT_FALSE(weak.lock());
 }
 
-TEST(WeakPtr_Tests, EmptyAndNullBehaveAsExpired) {
+TEST(WeakGcTrackedPtr_Tests, EmptyAndNullBehaveAsExpired) {
     weak_ptr<Node> empty;
     EXPECT_TRUE(empty.expired());
     EXPECT_FALSE(empty.lock());
@@ -56,7 +56,7 @@ TEST(WeakPtr_Tests, EmptyAndNullBehaveAsExpired) {
     EXPECT_FALSE(from_null.lock());
 }
 
-TEST(WeakPtr_Tests, CopiesShareTheCellAndAssignmentReplacesIt) {
+TEST(WeakGcTrackedPtr_Tests, CopiesShareTheCellAndAssignmentReplacesIt) {
     tracked_ptr<Node> a = make_tracked<Node>(1);
     tracked_ptr<Node> b = make_tracked<Node>(2);
     weak_ptr<Node> w = a;
@@ -75,7 +75,7 @@ TEST(WeakPtr_Tests, CopiesShareTheCellAndAssignmentReplacesIt) {
     EXPECT_TRUE(moved.expired());
 }
 
-TEST(WeakPtr_Tests, ConvertsToABaseClass) {
+TEST(WeakGcTrackedPtr_Tests, ConvertsToABaseClass) {
     tracked_ptr<Baz> baz = make_tracked<Baz>();
     baz->value = 5;
     weak_ptr<Bar> base = baz;
@@ -85,7 +85,7 @@ TEST(WeakPtr_Tests, ConvertsToABaseClass) {
     EXPECT_EQ(from_weak.lock().get(), baz.get());
 }
 
-TEST(WeakPtr_Tests, InsideAManagedObject) {
+TEST(WeakGcTrackedPtr_Tests, InsideAManagedObject) {
     tracked_ptr<Node> head = make_tracked<Node>(1);
     head->next = make_tracked<Node>(2);
     head->next->back = head;             // a back pointer that keeps nothing
@@ -101,7 +101,7 @@ TEST(WeakPtr_Tests, InsideAManagedObject) {
     EXPECT_EQ(tail->value, 2);
 }
 
-TEST(WeakPtr_Tests, WeakPointersDoNotKeepACycle) {
+TEST(WeakGcTrackedPtr_Tests, WeakPointersDoNotKeepACycle) {
     const size_t before = collector::get_live_object_count();
     off_frame([&] {
         tracked_ptr<Node> a = make_tracked<Node>(1);
@@ -115,7 +115,7 @@ TEST(WeakPtr_Tests, WeakPointersDoNotKeepACycle) {
 
 // A cell made during a cycle, from a strong pointer dropped in the same
 // cycle: cleared all the same, never a pointer into a reused slot.
-TEST(WeakPtr_Tests, ATargetThatDiesInTheCycleTheCellWasMadeIn) {
+TEST(WeakGcTrackedPtr_Tests, ATargetThatDiesInTheCycleTheCellWasMadeIn) {
     for (int round = 0; round < 50; ++round) {
         weak_ptr<Node> weak;
         off_frame([&] {
@@ -135,7 +135,7 @@ TEST(WeakPtr_Tests, ATargetThatDiesInTheCycleTheCellWasMadeIn) {
 // pointer is published under a mutex (rule 6: a tracked_ptr shared
 // between threads needs synchronization); the race under test is between
 // lock() and the collector clearing the cell.
-TEST(WeakPtr_Tests, LockRacesWithTheClearing) {
+TEST(WeakGcTrackedPtr_Tests, LockRacesWithTheClearing) {
     struct Shared {
         std::mutex mutex;
         weak_ptr<Node> weak;
