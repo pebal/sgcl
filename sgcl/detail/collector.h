@@ -960,35 +960,52 @@ namespace sgcl::detail {
         // the cycle marks alone, dealt out to the workers by _mark_parallel
         // otherwise (the parallel pass takes them before the reachable
         // pages, each object traced at once and its finds drained).
+        // The objects to retrace are the ones marked before the pass, and
+        // they are taken down here, before it starts: the marks of every
+        // dirty page as words (_dirty_marks, the page's run at its
+        // index). Read when the page's turn came, the marks included the
+        // young objects marked meanwhile, by the drains of this thread
+        // (a marked object on a page being filled leads to the young
+        // subtree next to it) and of the others (the young objects of one
+        // cycle are one connected structure over all the dirty pages),
+        // and those were traced a second time: 7% of the CPU of the young
+        // cycles on the pool of binary-trees at depth 21.
         // Returns the objects to trace, for the decision on the workers.
         size_t _collect_dirty_pages() noexcept {
             _dirty_pages.clear();
+            _dirty_marks.clear();
             size_t objects = 0;
             for (auto page : _pages) {
                 if (page->is_used && page->dirty_since(_epoch)) {
 #ifdef SGCL_TRACE_STACK
                     std::fprintf(stderr, "[dirty] page %p epoch %u\n", (void*)page->data, _epoch);
 #endif
-                    _dirty_pages.push_back(page);
+                    _dirty_pages.push_back({page, _dirty_marks.size()});
                     auto flags = page->flags();
                     auto count = page->flags_count();
                     for (unsigned i = 0; i < count; ++i) {
-                        objects += std::popcount(flags[i].registered & flags[i].marked);
+                        auto marked = flags[i].registered & flags[i].marked;
+                        _dirty_marks.push_back(marked);
+                        objects += std::popcount(marked);
                     }
                 }
             }
             return objects;
         }
 
+        struct DirtyPage {
+            Page* page;
+            size_t first;   // its marks' first word in _dirty_marks
+        };
+
         template<bool Parallel>
-        void _trace_dirty_page(Page* page, Marker& m) noexcept {
-            auto flags = page->flags();
+        void _trace_dirty_page(const DirtyPage& dirty, Marker& m) noexcept {
+            auto page = dirty.page;
             auto is_array = page->is_array;
             auto count = page->flags_count();
+            auto marked = _dirty_marks.data() + dirty.first;   // the marks before the pass (_collect_dirty_pages)
             for (unsigned i = 0; i < count; ++i) {
-                // the marks are being set by the other helpers meanwhile
-                // (an object marked twice over is traced twice, no worse)
-                auto old = flags[i].registered & std::atomic_ref<Page::Flag>(flags[i].marked).load(std::memory_order_relaxed);
+                auto old = marked[i];
                 auto offset = i * Page::FlagBitCount;
                 while (old) {
                     auto index = offset + std::countr_zero(old);
@@ -1002,8 +1019,8 @@ namespace sgcl::detail {
         }
 
         void _trace_dirty_pages() noexcept {
-            for (auto page : _dirty_pages) {
-                _trace_dirty_page<false>(page, _markers[0]);
+            for (auto& dirty : _dirty_pages) {
+                _trace_dirty_page<false>(dirty, _markers[0]);
             }
             _dirty_pages.clear();
         }
@@ -2682,7 +2699,8 @@ namespace sgcl::detail {
         std::atomic<double> _stats_phase_ms[PhaseCount] = {};
         std::vector<Marker> _markers = std::vector<Marker>(1);
         std::vector<Page*> _mark_pages;
-        std::vector<Page*> _dirty_pages;   // the young cycle's, traced by the marking pass
+        std::vector<DirtyPage> _dirty_pages;   // the young cycle's, traced by the marking pass
+        std::vector<Page::Flag> _dirty_marks;  // their marks before the pass, registered & marked per flag word
         MarkQueue _mark_queue;
         unsigned _mark_workers = 0;
 #ifdef SGCL_MARK_STATS

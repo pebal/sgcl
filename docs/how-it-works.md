@@ -152,7 +152,7 @@ The gates of [`collector::stepper`](collector.md#stepper) sit at these boundarie
 
 **The registration** takes what was created before the flip: every thread that registered itself, every page those threads published, every slot on a page whose `object_created` flag is up whose state says created, except the ones `Reachable|Fresh` with the current parity, which were allocated and handed to their first pointer after the flip (below). A registered slot is one the sweep may free; an unregistered one is never swept and never traced from the roots, so an object created during the cycle costs the cycle nothing.
 
-**The stack scan** marks what the stacks hold. In a young cycle the dirty pages are traced here too: every marked object on a page whose card holds this epoch or the last has its pointers followed again, since the objects marked in earlier cycles are not traced from the roots.
+**The stack scan** marks what the stacks hold. In a young cycle the dirty pages are traced here too: every object marked before this cycle on a page whose card holds this epoch or the last has its pointers followed again, since the objects marked in earlier cycles are not traced from the roots (the marks of the dirty pages are taken down before the pass, so that the young objects the pass marks meanwhile are traced once).
 
 **The marking** runs in rounds until it converges. A round traces every object found reachable and everything those lead to, by the type's pointer map; then the states pass looks at the unmarked registered slots of the pages the barrier touched since (`state_updated`) and finds the ones whose state is `Reachable` of the current parity, or `UniqueLock`, or `UniqueReleased`: objects a mutator stored a pointer to while the round ran, and roots by state. They are queued and the next round traces them. The pass over all the pages, in the round that starts with an empty queue, also registers late the objects released after the flip with an allocation parity that was not the current one (below). The rounds end when a pass finds nothing new. The states of the old parity are left as they are through the marking (they say nothing in this cycle) and turned to `Used` after the sweep, on the survivors only: the parity has two values, so a state left from two cycles ago would read as current again, and the dead had their states cleared by the sweep anyway, which spares an allocation-heavy program a compare-exchange per eight of them.
 
@@ -236,7 +236,7 @@ A `gc::tracked_ptr` is the same word where the word may live, and elsewhere the 
 | a store into it | the word and the barrier, 1.5 ns | plus a test of the sign, 1.6 ns |
 | a read through it | a load, 0.43 ns | plus a test of the sign, 0.47 ns |
 | `weak_ptr::lock()` | 1.9 ns | 2.7 ns: the result is a `gc::tracked_ptr` built where the caller puts it |
-| a lock-free stack, one thread | 10 ns per operation | 13 ns: the loaded head and the new node are constructions on the stack |
+| a lock-free stack, one thread | 10 ns per operation | 14 ns: the loaded head and the new node are constructions on the stack |
 | binary-trees, a node of two pointers | 1× | 1.25×: every node is two members and three temporaries |
 | the containers | the same nodes and buffers; a `gc::` container pays the test on its root word, within the run-to-run spread | |
 
