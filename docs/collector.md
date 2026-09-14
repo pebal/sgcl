@@ -223,6 +223,7 @@ struct referrer {
     const void* holder;           // the object, buffer or block that holds the word; the word itself on a stack
     const std::type_info* type;   // the holder's type; a buffer's element type (typeid(T[])); null for a stack word
     size_t offset;                // the word's byte offset in the holder
+    std::thread::id thread;       // a stack word: the thread whose stack it is on
 };
 
 struct retained {
@@ -238,7 +239,7 @@ static void explain(const void* p, std::ostream& out);
 
 What holds an object. Both run a full cycle first and keep the collector paused while the `pause_guard` lives, as `get_live_objects()` does, so that the live objects are exactly the marked ones and no page moves under the walk (the mutators run on; a word is read as the scan reads it). `p` may point into the object. One guard at a time: a call made while a guard lives waits for a cycle the paused collector cannot run.
 
-`get_referrers` lists every word that points at the object: the members of objects (`object`, with the holder's type and the word's offset), the elements of buffers (`buffer`, the element type as `typeid(T[])`, the offset from the buffer's start, header included), the cells of `gc::tracked_ptr`s in unmanaged memory (`cell`: the block and the cell's offset; the `gc::tracked_ptr` that owns the cell is not known to the collector), the words of every thread's stack (`stack`: the word's address; on the calling thread, the frames above the call, so a local that holds the object is listed), the object itself when a `unique_ptr` owns it (`unique`), and the cells of `weak_ptr`s (`weak`), which hold nothing.
+`get_referrers` lists every word that points at the object: the members of objects (`object`, with the holder's type and the word's offset), the elements of buffers (`buffer`, the element type as `typeid(T[])`, the offset from the buffer's start, header included), the cells of `gc::tracked_ptr`s in unmanaged memory (`cell`: the block and the cell's offset; the `gc::tracked_ptr` that owns the cell is not known to the collector), the words of every thread's stack (`stack`: the word's address and the thread's id; on the calling thread, the frames above the call, so a local that holds the object is listed), the object itself when a `unique_ptr` owns it (`unique`), and the cells of `weak_ptr`s (`weak`), which hold nothing.
 
 `get_path_to_root` is a chain from the object up to a root: `[0]` holds the object, `[1]` holds that holder, and so on to a root: an object a `unique_ptr` owns, a block of cells (a `unique` link with `typeid(detail::CellBlock)`, a root by its state), a word on a stack. A search from the roots down, breadth first, the roots by state first, then the other threads' stacks, and the calling thread's frames above the call only when nothing else reaches the object: the caller holds the pointer it asks about and asks what else does, so a chain that ends on its own stack says that nothing else does. Empty: `p` is not into a live managed object, or only the frames of the call hold it.
 
@@ -270,11 +271,14 @@ public:
     phase advance_to(phase p) noexcept;    // gates until the collector stands at the next `p`
     void finish_cycle() noexcept;          // to `released`
     void full(bool full) noexcept;         // the kind of the cycles from the next one on
+    void helpers(unsigned n) noexcept;     // this many helper threads for every pass, whatever the work; 0 the policy
     phase current() const noexcept;
 };
 ```
 
 The collector one gate at a time, for the tests of the engine. While a `stepper` exists no cycle runs by itself: the collector stands at a gate, a boundary between the phases of a cycle, until `step()` lets it through to the next, and the calling thread, the mutator of the test, does its work in between, in the window a race would otherwise have to land in by luck. The gates: `start` (a cycle about to begin), `flipped` (the epoch flipped, nothing registered yet: an object made now stays unregistered for this cycle), `registered` (the pages, objects and threads of before the flip registered, the blocks of cells released), `roots` (the stacks scanned, the dirty pages of a young cycle traced), `marked` (the marking converged, the weak cells cleared), `swept` (the garbage destroyed and freed), `released` (the empty pages back in the heap: the cycle is over). The cycles are full unless the stepper is made with `full = false` or `full(false)` is called; `settle`-like sequences in the tests run two full cycles to clear what the previous test left. A cycle in flight when the stepper is made runs to its end unstepped; the destructor lets the collector run on by itself.
+
+`helpers(n)` forces `n` helper threads on every pass of the cycles from here on, however small the heap: the parallel marking with its work stealing, the sweep, the stack scan and the states pass, which the policy starts only from a million objects or 256 pages. The library's own scenarios run twice, alone and with two helpers.
 
 The stepper's thread must not wait for the collector between gates: `force_collect`, `get_live_object_count`, `get_live_objects` and `get_type_statistics` would deadlock. `get_statistics()` reads the counters of the last completed cycle and is fine. What the tests of the engine assert with it (`tests/stepping.cpp`): an object made after the flip and released into an old object is neither swept this cycle nor lost by the next; one made before the flip and released after the roots were traced is reachable by the state of its release alone; a store into an old, marked object after its page was traced is found by the next young cycle through the card; a `weak_ptr` locked before the weak phase holds its object through the cycle and reads null after it; a pointer loaded from an `atomic` after the stacks were scanned, its only other reference dropped, is a root by the state of the copy; a thread exiting before the scan takes its objects with it, one exiting after keeps them for the cycle; an object watched by an `expiry_queue` is kept for the drain; a block of cells is freed by the cycle after the one that saw its last cell go.
 

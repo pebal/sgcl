@@ -1586,11 +1586,11 @@ namespace sgcl::detail {
             // `regardless`: the work does not come from allocation (stack
             // scanning), so the growth policy does not apply to it.
             unsigned workers(size_t units, size_t threshold, bool regardless = false) {
-                if (units < threshold || (!_enabled && !regardless)) {
+                if (!_forced && (units < threshold || (!_enabled && !regardless))) {
                     return 0;
                 }
                 auto max = config::SweepThreadsMax ? config::SweepThreadsMax : std::min<size_t>(8, std::max<size_t>(1, std::thread::hardware_concurrency() / 2));
-                auto wanted = (unsigned)std::min<size_t>(max, units / (threshold / 4));
+                auto wanted = _forced ? std::min<unsigned>(_forced, (unsigned)std::max<size_t>(1, max)) : (unsigned)std::min<size_t>(max, units / (threshold / 4));
                 _last = std::max(_last, wanted);
                 if (wanted > _threads.size()) {
                     while (_threads.size() < wanted) {
@@ -1708,6 +1708,15 @@ namespace sgcl::detail {
             uint64_t _generation = 0;
             unsigned _last = 0;
             bool _enabled = false;
+            unsigned _forced = 0;   // stepping: this many helpers for every pass, whatever the work (step_helpers)
+
+        public:
+            // The helpers for every pass regardless of the thresholds, or 0
+            // for the policy; for the tests of the parallel paths on a
+            // small heap (collector.h: stepper::helpers)
+            void force(unsigned n) noexcept {
+                _forced = n;
+            }
             int64_t _live_floor = 0;
             double _level = 0;
             std::chrono::steady_clock::time_point _decided = std::chrono::steady_clock::now();
@@ -1926,6 +1935,7 @@ namespace sgcl::detail {
             const void* holder;           // the object, buffer or block that holds the word; the word itself on a stack
             const std::type_info* type;   // the holder's type; a buffer's element type; null for a stack
             size_t offset;                // the word's byte offset in the holder
+            std::thread::id thread;       // a stack word: whose stack
         };
 
         // The object `p` points at or into: its first byte and the one past
@@ -1974,9 +1984,9 @@ namespace sgcl::detail {
                     });
                 });
             }
-            _for_each_stack_word(boundary, false, [&](const void* word) {
+            _for_each_stack_word(boundary, false, [&](const void* word, Thread::Data* thread) {
                 if (hit(word)) {
-                    found.push_back({Referrer::Kind::Stack, word, nullptr, 0});
+                    found.push_back({Referrer::Kind::Stack, word, nullptr, 0, thread->id});
                 }
             });
             return found;
@@ -2021,7 +2031,7 @@ namespace sgcl::detail {
                     }
                 });
             }
-            _for_each_stack_word(boundary, true, [&](const void* word) { reach(word, {Referrer::Kind::Stack, word, nullptr, 0}); });
+            _for_each_stack_word(boundary, true, [&](const void* word, Thread::Data* thread) { reach(word, {Referrer::Kind::Stack, word, nullptr, 0, thread->id}); });
             auto search = [&] {
                 for (size_t i = 0; i < queue.size() && !parent.count(target); ++i) {
                     auto object = queue[i];
@@ -2034,7 +2044,7 @@ namespace sgcl::detail {
             search();
             if (!parent.count(target)) {
                 // the calling thread's own frames above the call, last
-                _for_each_own_stack_word(boundary, [&](const void* word) { reach(word, {Referrer::Kind::Stack, word, nullptr, 0}); });
+                _for_each_own_stack_word(boundary, [&](const void* word, Thread::Data* thread) { reach(word, {Referrer::Kind::Stack, word, nullptr, 0, thread->id}); });
                 search();
             }
             for (auto at = parent.find(target); at != parent.end(); ) {
@@ -2088,7 +2098,7 @@ namespace sgcl::detail {
                     }
                 });
             }
-            _for_each_stack_word(boundary, false, reach);
+            _for_each_stack_word(boundary, false, [&](const void* word, Thread::Data*) { reach(word); });
             for (size_t i = 0; i < queue.size(); ++i) {
                 follow(queue[i]);
             }
@@ -2212,19 +2222,19 @@ namespace sgcl::detail {
         void _for_each_own_stack_word(uintptr_t boundary, F&& f) noexcept {
             for (auto thread = _registered_threads; thread; thread = thread->next_registered) {
                 if (boundary >= thread->stack_begin && boundary < thread->stack_end) {
-                    _for_each_word_of(boundary, thread->stack_end, f);
+                    _for_each_word_of(boundary, thread->stack_end, thread, f);
                     return;
                 }
             }
         }
 
         template<class F>
-        void _for_each_word_of(uintptr_t begin, uintptr_t end, F&& f) noexcept {
+        void _for_each_word_of(uintptr_t begin, uintptr_t end, Thread::Data* thread, F&& f) noexcept {
             _stack_segments.clear();
             _stack_segments_of(begin, end);
             for (auto& segment : _stack_segments) {
                 for (auto word = segment.begin; word < segment.end; word += sizeof(uintptr_t)) {
-                    f((const void*)word);
+                    f((const void*)word, thread);
                 }
             }
         }
@@ -2246,7 +2256,7 @@ namespace sgcl::detail {
                     }
                     begin = boundary;
                 }
-                _for_each_word_of(begin, end, f);
+                _for_each_word_of(begin, end, thread, f);
             }
         }
 
@@ -2271,12 +2281,18 @@ namespace sgcl::detail {
             _step_full = full;
         }
 
+        // Read by the collector at the start of a pass: set it while it stands at a gate
+        void step_helpers(unsigned n) noexcept {
+            _pool.force(n);
+        }
+
         void step_end() noexcept {
             {
                 std::unique_lock<std::mutex> lock(_step_mutex);
                 _stepping.store(false, std::memory_order_release);
                 _step_cv.notify_all();
             }
+            _pool.force(0);
         }
 
         // One gate more: returns the gate the collector stands at then

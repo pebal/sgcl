@@ -96,6 +96,7 @@ TEST(Referrers_Tests, HeldByThisThreadOnly) {
     ASSERT_EQ(path.size(), 1u);
     EXPECT_EQ(path[0].from, kind::stack);
     EXPECT_TRUE(detail::thread_stack.holds(path[0].holder));   // a word of this stack: `node`, or a temporary of this frame that holds the same
+    EXPECT_EQ(path[0].thread, std::this_thread::get_id());
 }
 
 TEST(Referrers_Tests, HeldByABufferAndByAUniquePtr) {
@@ -148,6 +149,8 @@ TEST(Referrers_Tests, AnotherThreadsStackIsARoot) {
         auto [guard, path] = collector::get_path_to_root(shared.load());
         ASSERT_EQ(path.size(), 1u);
         EXPECT_EQ(path[0].from, kind::stack);
+        EXPECT_EQ(path[0].thread, other.get_id());        // named: whose stack
+        EXPECT_NE(path[0].thread, std::this_thread::get_id());
     }
     done = true;
     other.join();
@@ -176,7 +179,7 @@ TEST(Referrers_Tests, ExplainAndTheEdges) {
     tracked_ptr local = make_tracked<Leaf>();
     std::ostringstream mine;
     collector::explain(local.get(), mine);
-    EXPECT_NE(mine.str().find("this thread's, above the call"), std::string::npos);
+    EXPECT_NE(mine.str().find("this thread, above the call"), std::string::npos);
     int plain = 0;
     std::ostringstream none;
     collector::explain(&plain, none);                    // not managed

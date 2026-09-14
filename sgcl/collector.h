@@ -173,6 +173,7 @@ namespace sgcl {
             const void* holder;
             const std::type_info* type;   // the holder's type, a buffer's element type (typeid(T[])); null for a stack word
             size_t offset;                // the word's byte offset in the holder
+            std::thread::id thread;       // a stack word: the thread whose stack it is on
         };
 
         SGCL_NOINLINE static std::tuple<pause_guard, std::vector<referrer>> get_referrers(const void* p) {
@@ -222,7 +223,7 @@ namespace sgcl {
                     case referrer::kind::object: out << "  a " << r.type->name() << " at " << r.holder << ", the word at byte " << r.offset << '\n'; break;
                     case referrer::kind::buffer: out << "  a buffer of " << r.type->name() << " at " << r.holder << ", the word at byte " << r.offset << '\n'; break;
                     case referrer::kind::cell: out << "  a cell of a gc::tracked_ptr in unmanaged memory (block " << r.holder << ", cell " << r.offset / sizeof(void*) << ")\n"; break;
-                    case referrer::kind::stack: out << "  a word on a stack, at " << r.holder << (_own_stack(r.holder, boundary) ? " (this thread's, above the call)\n" : "\n"); break;
+                    case referrer::kind::stack: out << "  a word on the stack of thread " << r.thread << ", at " << r.holder << (_own_stack(r.holder, boundary) ? " (this thread, above the call)\n" : "\n"); break;
                     case referrer::kind::unique:
                         if (*r.type == typeid(detail::CellBlock)) {
                             out << "  the block of cells, a root while a cell of it is in use\n";
@@ -245,7 +246,7 @@ namespace sgcl {
             std::vector<referrer> result;
             result.reserve(found.size());
             for (auto& r : found) {
-                result.push_back({referrer::kind(int(r.kind)), r.holder, r.type, r.offset});
+                result.push_back({referrer::kind(int(r.kind)), r.holder, r.type, r.offset, r.thread});
             }
             return result;
         }
@@ -306,6 +307,14 @@ namespace sgcl {
             // The kind of the cycles from the next one on
             void full(bool full) noexcept {
                 detail::collector_instance().step_full(full);
+            }
+
+            // This many helper threads for every pass of the cycles from
+            // here on, whatever the amount of work: the parallel marking,
+            // sweep, stack scan and states pass on a heap of any size; 0
+            // is the policy again. Set while the collector stands at a gate.
+            void helpers(unsigned n) noexcept {
+                detail::collector_instance().step_helpers(n);
             }
 
             phase current() const noexcept {

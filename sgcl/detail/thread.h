@@ -51,6 +51,7 @@ namespace sgcl::detail {
             // collector scans its used pages for roots.
             uintptr_t stack_begin = 0;
             uintptr_t stack_end = 0;
+            std::thread::id id;   // the thread, for the diagnostics that name a stack (collector.h: referrers)
             // Handshake at thread exit: the collector raises stack_scan for
             // the time it reads the stack and skips a thread that is exiting;
             // the thread raises exiting and waits for stack_scan to drop
@@ -76,6 +77,7 @@ namespace sgcl::detail {
                 std::terminate();
             }
             thread_stack = {_data->stack_begin, _data->stack_end - _data->stack_begin};
+            _data->id = std::this_thread::get_id();
             thread_registered = true;   // stays set: no re-registration from thread_local destructors
             _data->next = threads_data.load(std::memory_order_acquire);
             while(!threads_data.compare_exchange_weak(_data->next, _data, std::memory_order_release, std::memory_order_relaxed));

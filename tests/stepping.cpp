@@ -16,8 +16,18 @@
 // The objects count their destructors, so that alive or dead is a fact of
 // the sweep, not of a scan of this frame; what must not be found on the
 // frame is made and dropped in off_frame and the frames below are zeroed.
+// Every scenario runs twice: with the collector's thread alone, and with
+// two helpers forced on every pass (the parallel marking, sweep, stack
+// scan and states pass on a heap of a few objects).
 namespace {
     using phase = collector::stepper::phase;
+
+    class Stepping : public testing::TestWithParam<unsigned> {
+    protected:
+        void arm(collector::stepper& s) {
+            s.helpers(GetParam());
+        }
+    };
 
     struct Counted {
         static inline std::atomic<int> alive = 0;
@@ -41,8 +51,9 @@ namespace {
     }
 }
 
-TEST(Stepping_Tests, TheGatesOfACycleInOrder) {
+TEST_P(Stepping, TheGatesOfACycleInOrder) {
     collector::stepper s;
+    arm(s);
     EXPECT_EQ(s.current(), phase::start);
     EXPECT_EQ(s.step(), phase::flipped);
     EXPECT_EQ(s.step(), phase::registered);
@@ -56,8 +67,9 @@ TEST(Stepping_Tests, TheGatesOfACycleInOrder) {
     EXPECT_EQ(s.current(), phase::released);
 }
 
-TEST(Stepping_Tests, GarbageDiesAtTheSweepAndNotBefore) {
+TEST_P(Stepping, GarbageDiesAtTheSweepAndNotBefore) {
     collector::stepper s;
+    arm(s);
     settle(s);
     Counted::alive = 0;
     off_frame([] { tracked_ptr<Counted> t = make_tracked<Counted>(); });   // made and dropped: garbage from the start
@@ -77,8 +89,9 @@ TEST(Stepping_Tests, GarbageDiesAtTheSweepAndNotBefore) {
 // traced through the card the store stamped on the old object's page.
 // The marks are sticky through the young cycles: what died shows at the
 // next full cycle.
-TEST(Stepping_Tests, ReleasedAfterTheFlipIntoAnOldObject) {
-    collector::stepper s(false);                        // young cycles
+TEST_P(Stepping, ReleasedAfterTheFlipIntoAnOldObject) {
+    collector::stepper s(false);
+    arm(s);                        // young cycles
     tracked_ptr holder = make_tracked<Counted>();
     settle(s, true);                                    // holder is old and marked
     Counted::alive = 1;
@@ -103,8 +116,9 @@ TEST(Stepping_Tests, ReleasedAfterTheFlipIntoAnOldObject) {
 // A young object stored into an old, already marked object after the
 // dirty pages of this cycle were traced: the card stamped by the store
 // has the next young cycle retrace the old object.
-TEST(Stepping_Tests, StoredIntoAnOldObjectAfterItsPageWasTraced) {
+TEST_P(Stepping, StoredIntoAnOldObjectAfterItsPageWasTraced) {
     collector::stepper s(false);
+    arm(s);
     tracked_ptr holder = make_tracked<Counted>();
     settle(s, true);
     Counted::alive = 1;
@@ -125,8 +139,9 @@ TEST(Stepping_Tests, StoredIntoAnOldObjectAfterItsPageWasTraced) {
 // converged returns the object and holds it for the cycle (the state of
 // the copy is a root the states pass sees), lock() after the weak phase
 // returns null.
-TEST(Stepping_Tests, LockBeforeAndAfterTheWeakPhase) {
+TEST_P(Stepping, LockBeforeAndAfterTheWeakPhase) {
     collector::stepper s;
+    arm(s);
     weak_ptr<Counted> w;
     settle(s);
     Counted::alive = 0;
@@ -152,8 +167,9 @@ TEST(Stepping_Tests, LockBeforeAndAfterTheWeakPhase) {
 // The cells of gc::tracked_ptrs in unmanaged memory: a block let go of by
 // its allocator is freed by the cycle whose registration finds every cell
 // of it given back, not by the cycle in flight when the last cell goes.
-TEST(Stepping_Tests, ABlockOfCellsGoesWithTheNextRegistration) {
+TEST_P(Stepping, ABlockOfCellsGoesWithTheNextRegistration) {
     collector::stepper s;
+    arm(s);
     settle(s);
     auto live0 = collector::get_statistics().live_objects;
     auto cells = std::make_unique<std::vector<gc::tracked_ptr<Counted>>>();
@@ -180,8 +196,9 @@ TEST(Stepping_Tests, ABlockOfCellsGoesWithTheNextRegistration) {
 // nothing else, die at the sweep of the same cycle. Before the exit the
 // handshake of the thread with a scan in progress is the thread's wait
 // for stack_scan to drop (thread.h).
-TEST(Stepping_Tests, AThreadExitingBeforeTheScanFreesItsObjects) {
+TEST_P(Stepping, AThreadExitingBeforeTheScanFreesItsObjects) {
     collector::stepper s;
+    arm(s);
     settle(s);
     Counted::alive = 0;
     std::atomic<bool> go = false;
@@ -207,8 +224,9 @@ TEST(Stepping_Tests, AThreadExitingBeforeTheScanFreesItsObjects) {
 
 // A thread that exits after the scan: its object, found on its stack,
 // lives through the cycle and dies with the next full one.
-TEST(Stepping_Tests, AThreadExitingAfterTheScanKeepsItsObjectsForTheCycle) {
+TEST_P(Stepping, AThreadExitingAfterTheScanKeepsItsObjectsForTheCycle) {
     collector::stepper s;
+    arm(s);
     settle(s);
     Counted::alive = 0;
     std::atomic<bool> go = false;
@@ -236,9 +254,10 @@ TEST(Stepping_Tests, AThreadExitingAfterTheScanKeepsItsObjectsForTheCycle) {
 // other reference dropped at once: the copy made by the load is a root by
 // its state (the barrier of the copy) although its frame was scanned
 // before it existed, and the states pass of the marking finds it.
-TEST(Stepping_Tests, LoadedAfterTheStackScanIsReachableByItsState) {
+TEST_P(Stepping, LoadedAfterTheStackScanIsReachableByItsState) {
     struct Holder { atomic<tracked_ptr<Counted>> slot; };
     collector::stepper s;
+    arm(s);
     tracked_ptr holder = make_tracked<Holder>();
     settle(s);
     Counted::alive = 0;
@@ -262,8 +281,9 @@ TEST(Stepping_Tests, LoadedAfterTheStackScanIsReachableByItsState) {
 // from its unique_ptr into an old, marked object after the dirty pages
 // were traced: neither the scan nor the card of this cycle sees it; the
 // state of the release, with the current parity and without Fresh, does.
-TEST(Stepping_Tests, ReleasedAfterTheRootsIsReachableByItsState) {
+TEST_P(Stepping, ReleasedAfterTheRootsIsReachableByItsState) {
     collector::stepper s(false);
+    arm(s);
     tracked_ptr holder = make_tracked<Counted>();
     settle(s, true);
     Counted::alive = 1;
@@ -287,8 +307,9 @@ TEST(Stepping_Tests, ReleasedAfterTheRootsIsReachableByItsState) {
 // reachable) instead of clearing the cell, and drain() hands it to the
 // function alive; a function that keeps it keeps it, otherwise it dies
 // with the next cycle.
-TEST(Stepping_Tests, AWatchedObjectIsKeptForTheDrain) {
+TEST_P(Stepping, AWatchedObjectIsKeptForTheDrain) {
     collector::stepper s;
+    arm(s);
     expiry_queue<Counted> queue;
     settle(s);
     Counted::alive = 0;
@@ -313,3 +334,7 @@ TEST(Stepping_Tests, AWatchedObjectIsKeptForTheDrain) {
     settle(s);
     EXPECT_EQ(Counted::alive, 0);                       // an ordinary object now: gone
 }
+
+INSTANTIATE_TEST_SUITE_P(Helpers, Stepping, testing::Values(0u, 2u), [](const testing::TestParamInfo<unsigned>& info) {
+    return info.param ? "TwoHelpers" : "Alone";
+});
