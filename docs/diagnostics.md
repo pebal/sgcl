@@ -16,6 +16,7 @@ What the library gives a program to find out what the collector is doing, what i
 | `collector::clear_stack()` | zeroes the dead frames below the caller: what a conservative scan would otherwise still find | a `memset` of the stack below |
 | `collector::stepper` | the collector one gate at a time, for the tests of the engine | the cycle held by the test |
 | `tracked_ptr::type()`, `is<U>()`, `as<U>()` | the dynamic type of an object without virtual functions | a page lookup |
+| `lldb/sgcl.py` | the debugger's view: a pointer with its address, mode and slot state, its object as a child; a container with its size and elements | `command script import` once |
 | debug builds (no `-DNDEBUG`) | the rules asserted where they are broken: a `tracked_ptr` in unmanaged memory, an alias into a buffer, a `weak_ptr` to an object a `unique_ptr` owns | the assertions |
 | `-DSGCL_LOG_PRINT_LEVEL=n` | the collector's log on `std::cout`: threads, forced collections, one line per cycle, the pauses | a line per event |
 | `-DSGCL_TRACE_STACK` | every marking decision on `std::cerr`: which stack word retained what, which state was still reachable, which page was dirty | a line per object per cycle: for a small program |
@@ -115,6 +116,23 @@ s.finish_cycle();                                      // registered now, found 
 ```
 
 The gates and the scenarios the library's own tests assert with them are in [collector: stepper](collector.md#stepper). What a program's tests would use it for: a data structure of its own that stores pointers across threads, checked at every gate rather than under a loop that hopes to hit the window.
+
+### In the debugger
+
+`lldb/sgcl.py` is a set of LLDB formatters for the pointers and containers of both namespaces. Loaded once (`command script import <sgcl>/lldb/sgcl.py`, in `~/.lldbinit` for every session; Xcode and the VS Code extension pick it up from there), `frame variable` and the variables view show:
+
+```
+(gc::tracked_ptr<Node>) node = 0x10000270000 (tracked, Reachable Fresh) {
+  object = { v = 7, next = 0x10000270010 (tracked, Reachable Fresh) { ... } }
+}
+(gc::tracked_ptr<Node>) kept = 0x10000270010 (cell 0 of block 0x10000260000, Reachable Fresh) { ... }
+(sgcl::unique_ptr<Node>) owned = 0x10000270020 (UniqueLock) { object = { v = 7, next = null } }
+(sgcl::weak_ptr<Node, gc::tracked_ptr>) weak = 0x10000270000 { object = { ... } }
+(gc::vector<int>) v = size=3 capacity=4 { [0] = 1, [1] = 2, [2] = 3 }
+(gc::map<int, std::string>) m = size=2 { [0] = (first = 1, second = "one"), [1] = (first = 2, second = "two") }
+```
+
+A pointer shows its address, for a `gc::tracked_ptr` its mode (`tracked`, or the cell and the block that holds it), and, when the collector's types are in the debug info, the state of the object's slot (`Reachable` with the parity, `UniqueLock`, `Destroyed`: [how it works](how-it-works.md#an-objects-slot)); its one child is the object. A `weak_ptr` shows its target while the cell holds it, `expired` after. A container shows its size and its elements, read from the managed buffer or walked node by node, whatever the namespace and the kind of its root word. The expression evaluator does not know the inline operators (`p node->v` fails); `frame variable node.object.v` reads through the formatter, and `p node.get()->v` calls what is compiled in. `lldb/check.sh` builds `lldb/example.cpp` and checks the output; GDB has no counterpart yet.
 
 ### Reading the log
 
