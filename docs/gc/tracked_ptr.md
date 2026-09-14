@@ -90,18 +90,20 @@ template<class U> tracked_ptr& operator=(sgcl::unique_ptr<U>&& u) noexcept;
 
 The assignments of `tracked_ptr`, each with `U*` convertible to `T*`. Every store goes into the pointer's own word, the cell's in unmanaged memory; a move assignment is a copy.
 
-### operator sgcl::tracked_ptr<T>
+### operator sgcl::tracked_ptr<T>&
 
 ```cpp
-operator sgcl::tracked_ptr<element_type>() const noexcept;
+operator sgcl::tracked_ptr<T>&() noexcept;
+operator const sgcl::tracked_ptr<T>&() const noexcept;
 ```
 
-The pointer as a `tracked_ptr`: a copy, which the caller puts where a `tracked_ptr` may live. Lets a `gc::tracked_ptr` go wherever a `tracked_ptr<T>` is expected; a function template deducing `U` from a `tracked_ptr<U>` (the constructor of [`weak_ptr`](../weak_ptr.md), for one) needs the conversion spelled out.
+The pointer as the `sgcl::tracked_ptr` it holds its object by: the word itself inside a managed object or on a stack, the cell's word in any other memory. A reference, not a copy, so nothing is checked or stored: this is what the [atomics](../atomic.md) operate on and take, what binds a `gc::tracked_ptr` to a `tracked_ptr<T>&` parameter (the expected value of a compare-exchange, wherever the pointer is), and what an `sgcl::tracked_ptr<T>` of the same type is copied from (`sgcl::tracked_ptr<T> t = node;`); a `tracked_ptr<U>` of a base type is built by the constructor of `tracked_ptr` from a `gc::tracked_ptr<T>`. A function template deducing `U` from a `tracked_ptr<U>` (the constructor of [`weak_ptr`](../weak_ptr.md), for one) needs the conversion spelled out.
 
 ```cpp
 gc::tracked_ptr node = sgcl::make_tracked<Node>();
-sgcl::tracked_ptr<Node> t = node;
-sgcl::weak_ptr<Node> w(t);                     // not w(node): U is deduced from the argument
+sgcl::tracked_ptr<Node> t = node;              // a copy of the word node holds its object by
+sgcl::tracked_ptr<Node>& w = node;             // that word itself
+sgcl::weak_ptr<Node> weak(t);                  // not weak(node): U is deduced from the argument
 ```
 
 ### get, operator*, operator->, operator bool

@@ -15,6 +15,8 @@
 
 namespace sgcl {
     namespace detail {
+        template<class, class, class> class AtomicWord;   // detail/atomic_word.h: the operations of the atomics
+
         // Tag of the callers that hold a reference to current_thread():
         // the thread is registered, the constructor need not check.
         struct OnRegisteredThread {};
@@ -94,10 +96,13 @@ namespace sgcl {
             _init();
         }
 
-        // From a gc::tracked_ptr: the copy of its word, wherever it holds
-        // it (gc/tracked_ptr.h), unchecked, as a copy of a tracked_ptr is.
-        // What a container stores a gc element as (detail/managed.h).
-        template<class U, std::enable_if_t<std::is_convertible_v<typename gc::tracked_ptr<U>::element_type*, element_type*>, int> = 0>
+        // From a gc::tracked_ptr of another type: the copy of its word,
+        // wherever it holds it (gc/tracked_ptr.h), unchecked, as a copy of
+        // a tracked_ptr is. One of the same type comes through its
+        // conversion to sgcl::tracked_ptr<T>& and the copy constructor
+        // (the two would be ambiguous). What a container stores a gc
+        // element as (detail/managed.h).
+        template<class U, std::enable_if_t<!std::is_same_v<U, T> && std::is_convertible_v<typename gc::tracked_ptr<U>::element_type*, element_type*>, int> = 0>
         tracked_ptr(const gc::tracked_ptr<U>& p) noexcept
         : _raw_ptr(_registered(static_cast<element_type*>(p.get()))) {
             _init();
@@ -140,7 +145,7 @@ namespace sgcl {
             return *this;
         }
 
-        template<class U, std::enable_if_t<std::is_convertible_v<typename gc::tracked_ptr<U>::element_type*, element_type*>, int> = 0>
+        template<class U, std::enable_if_t<!std::is_same_v<U, T> && std::is_convertible_v<typename gc::tracked_ptr<U>::element_type*, element_type*>, int> = 0>
         tracked_ptr& operator=(const gc::tracked_ptr<U>& p) noexcept {
             _ptr()->store(static_cast<element_type*>(p.get()));
             return *this;
@@ -315,6 +320,7 @@ namespace sgcl {
 
         template<class> friend class atomic;
         template<class> friend class atomic_ref;
+        template<class, class, class> friend class detail::AtomicWord;
         template<class> friend class tracked_ptr;
         template<class> friend class gc::tracked_ptr;
         template<class, template<class> class> friend class vector;

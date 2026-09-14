@@ -402,14 +402,25 @@ TEST(GcTrackedPtr_Tests, AtomicInEveryPlace) {
     auto current = std::make_unique<atomic<gc::tracked_ptr<Config>>>();    // unmanaged memory: the cell, allocated at once
     EXPECT_EQ(live_after_collect(), live0 + 1);
     off_frame([&] {
+        static_assert(sizeof(atomic<gc::tracked_ptr<Config>>) == sizeof(void*));   // one word: the gc::tracked_ptr
+        static_assert(std::is_same_v<decltype(current->load()), gc::tracked_ptr<Config>>);   // outside, gc::tracked_ptr
         current->store(make_tracked<Config>(1));
         gc::tracked_ptr<Config> seen = current->load();
         EXPECT_EQ(seen->version, 1);
-        gc::tracked_ptr<Config> expected = seen;
+        gc::tracked_ptr<Config> expected = seen;                             // a gc expected binds as the word it holds its object by
         EXPECT_TRUE(current->compare_exchange_strong(expected, make_tracked<Config>(2)));
         EXPECT_EQ(current->load()->version, 2);
-        EXPECT_FALSE(current->compare_exchange_strong(expected, nullptr));   // stale: expected is refreshed
+        EXPECT_FALSE(current->compare_exchange_strong(expected, nullptr));   // stale: expected is refreshed, through its word
         EXPECT_EQ(expected->version, 2);
+        tracked_ptr<Config> local = seen;                                    // an sgcl expected likewise; inside, the atomic works with these
+        EXPECT_FALSE(current->compare_exchange_strong(local, seen));
+        EXPECT_EQ(local->version, 2);
+        auto* heap_expected = new gc::tracked_ptr<Config>(local);            // a gc expected in unmanaged memory: its cell's word
+        EXPECT_TRUE(current->compare_exchange_strong(*heap_expected, make_tracked<Config>(3)));
+        EXPECT_FALSE(current->compare_exchange_strong(*heap_expected, nullptr));
+        EXPECT_EQ((*heap_expected)->version, 3);
+        delete heap_expected;
+        current->store(local);
     });
     EXPECT_EQ(live_after_collect(), live0 + 2);                   // the Config(2) and the cell
     off_frame([&] {

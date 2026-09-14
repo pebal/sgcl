@@ -11,7 +11,7 @@ namespace sgcl {
 }
 ```
 
-`atomic_ref<tracked_ptr<T>>` is `std::atomic_ref` for a [`tracked_ptr`](tracked_ptr.md): the operations of [`atomic<tracked_ptr<T>>`](atomic.md) (`load`, `store`, `compare_exchange_weak`, `compare_exchange_strong`, `wait`, `notify`, with a `std::memory_order`) applied to a plain `tracked_ptr` that lives somewhere already: a member of a node, an element of an `sgcl::vector<tracked_ptr<T>>`, a local. The word of a `tracked_ptr` is a `std::atomic` of a pointer in any case, so nothing changes in the pointer's layout; the `atomic_ref` is a reference to it and the operations are the atomic ones, with the hazard pointer of `atomic::load` and the same freedom from ABA. `atomic_ref<gc::tracked_ptr<T>>` is the same for a [`gc::tracked_ptr`](gc/tracked_ptr.md), with `gc::tracked_ptr<T>` as its `value_type`: the constructor resolves the word once, the `tracked_ptr` itself inside a managed object or on a stack, the cell's word in any other memory (a null `gc::tracked_ptr` there gets its cell at that moment), and the operations are those of `atomic_ref<tracked_ptr<T>>` on that word; the `gc::tracked_ptr` must not be moved or destroyed while a view of it exists, as with any `atomic_ref`. Only these two specializations exist.
+`atomic_ref<tracked_ptr<T>>` is `std::atomic_ref` for a [`tracked_ptr`](tracked_ptr.md): the operations of [`atomic<tracked_ptr<T>>`](atomic.md) (`load`, `store`, `compare_exchange_weak`, `compare_exchange_strong`, `wait`, `notify`, with a `std::memory_order`) applied to a plain `tracked_ptr` that lives somewhere already: a member of a node, an element of an `sgcl::vector<tracked_ptr<T>>`, a local. The word of a `tracked_ptr` is a `std::atomic` of a pointer in any case, so nothing changes in the pointer's layout; the `atomic_ref` is a reference to it and the operations are the atomic ones, with the hazard pointer of `atomic::load` and the same freedom from ABA. `atomic_ref<gc::tracked_ptr<T>>` is the same for a [`gc::tracked_ptr`](gc/tracked_ptr.md), with `gc::tracked_ptr<T>` as its `value_type`: the constructor binds the word the `gc::tracked_ptr` holds its object by, the `tracked_ptr` itself inside a managed object or on a stack, the cell's word in any other memory, and the operations are those of `atomic_ref<tracked_ptr<T>>` on that word, with `tracked_ptr<T>` parameters as in [`atomic`](atomic.md) and the `value_type` coming out; the `gc::tracked_ptr` must not be moved or destroyed while a view of it exists, as with any `atomic_ref`. Only these two specializations exist.
 
 ## Rules
 
@@ -51,17 +51,17 @@ assert(same.load() == node);
 ### ref
 
 ```cpp
-value_type& ref;
+tracked_ptr<T>& ref;
 ```
 
-The `tracked_ptr` referred to, a public member.
+The `tracked_ptr` referred to, a public member: for `atomic_ref<gc::tracked_ptr<T>>` the word the `gc::tracked_ptr` holds its object by.
 
 ### operator=, operator value_type
 
 ```cpp
 std::nullptr_t operator=(std::nullptr_t) noexcept;
 void operator=(unique_ptr<T>&& p) noexcept;
-value_type operator=(value_type p) noexcept;
+value_type operator=(tracked_ptr<T> p) noexcept;
 operator value_type() const noexcept;
 ```
 
@@ -105,7 +105,7 @@ assert(*p == 1);
 ```cpp
 void store(std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept;
 void store(unique_ptr<T>&& p, const std::memory_order m = std::memory_order_seq_cst) noexcept;
-void store(value_type p, const std::memory_order m = std::memory_order_seq_cst) noexcept;
+void store(tracked_ptr<T> p, const std::memory_order m = std::memory_order_seq_cst) noexcept;
 ```
 
 Replaces the pointer: with null, with the object of a `unique_ptr` (released to the collector), or with a copy of a `tracked_ptr`. The old object lives on for whoever holds it. The store carries the write barrier.
@@ -121,15 +121,15 @@ gc::atomic_ref(word).store(nullptr);
 ### compare_exchange_strong, compare_exchange_weak
 
 ```cpp
-bool compare_exchange_strong(value_type& e, std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept;
-bool compare_exchange_strong(value_type& e, value_type n, const std::memory_order m = std::memory_order_seq_cst) noexcept;
-bool compare_exchange_strong(value_type& e, std::nullptr_t, const std::memory_order s, const std::memory_order f) noexcept;
-bool compare_exchange_strong(value_type& e, value_type n, const std::memory_order s, const std::memory_order f) noexcept;
+bool compare_exchange_strong(tracked_ptr<T>& e, std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept;
+bool compare_exchange_strong(tracked_ptr<T>& e, tracked_ptr<T> n, const std::memory_order m = std::memory_order_seq_cst) noexcept;
+bool compare_exchange_strong(tracked_ptr<T>& e, std::nullptr_t, const std::memory_order s, const std::memory_order f) noexcept;
+bool compare_exchange_strong(tracked_ptr<T>& e, tracked_ptr<T> n, const std::memory_order s, const std::memory_order f) noexcept;
 
-bool compare_exchange_weak(value_type& e, std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept;
-bool compare_exchange_weak(value_type& e, value_type n, const std::memory_order m = std::memory_order_seq_cst) noexcept;
-bool compare_exchange_weak(value_type& e, std::nullptr_t, const std::memory_order s, const std::memory_order f) noexcept;
-bool compare_exchange_weak(value_type& e, value_type n, const std::memory_order s, const std::memory_order f) noexcept;
+bool compare_exchange_weak(tracked_ptr<T>& e, std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept;
+bool compare_exchange_weak(tracked_ptr<T>& e, tracked_ptr<T> n, const std::memory_order m = std::memory_order_seq_cst) noexcept;
+bool compare_exchange_weak(tracked_ptr<T>& e, std::nullptr_t, const std::memory_order s, const std::memory_order f) noexcept;
+bool compare_exchange_weak(tracked_ptr<T>& e, tracked_ptr<T> n, const std::memory_order s, const std::memory_order f) noexcept;
 ```
 
 The compare-exchange of `std::atomic_ref`: when the word equals `e`, it is replaced by `n` (or null) and `true` is returned; otherwise `e` is set to the current value, loaded with `acquire` and held, and `false` is returned. The `weak` form may fail spuriously and belongs in a loop. With one order `m`, the failure order is derived from it as `std::atomic` does; with two, `s` is the order of the success and `f` of the failure. No ABA: the object `e` holds cannot be reused while `e` holds it.
@@ -153,7 +153,7 @@ assert(top && top->value == 1 && !head.load());
 
 ```cpp
 void wait(std::nullptr_t, std::memory_order m = std::memory_order_seq_cst) const noexcept;
-void wait(value_type p, std::memory_order m = std::memory_order_seq_cst) const noexcept;
+void wait(tracked_ptr<T> p, std::memory_order m = std::memory_order_seq_cst) const noexcept;
 void notify_one() noexcept;
 void notify_all() noexcept;
 ```

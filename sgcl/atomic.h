@@ -6,11 +6,15 @@
 #pragma once
 
 #include "../gc/tracked_ptr.h"
+#include "detail/atomic_word.h"
 #include "tracked_ptr.h"
 
 namespace sgcl {
+    // The atomic of a tracked_ptr: the operations of detail::AtomicWord on
+    // the word it holds, one word, as a tracked_ptr is. It lives where a
+    // tracked_ptr may: on a stack or inside a managed object.
     template<class T>
-    class atomic<tracked_ptr<T>> {
+    class atomic<tracked_ptr<T>> : public detail::AtomicWord<atomic<tracked_ptr<T>>, T, tracked_ptr<T>> {
     public:
         using value_type = tracked_ptr<T>;
 
@@ -32,145 +36,22 @@ namespace sgcl {
         }
 
         std::nullptr_t operator=(std::nullptr_t) noexcept {
-            store(nullptr);
+            this->store(nullptr);
             return nullptr;
         }
 
         void operator=(unique_ptr<T>&& p) noexcept {
-            store(std::move(p));
+            this->store(std::move(p));
         }
 
         value_type operator=(value_type p) noexcept {
-            _ptr().store(p.get(), std::memory_order_seq_cst);
+            this->store(p);
             return p;
-        }
-
-        operator value_type() const noexcept {
-            return load();
-        }
-
-        static constexpr bool is_always_lock_free = detail::RawPointer::is_always_lock_free;
-
-        bool is_lock_free() const noexcept {
-            return _ptr().is_lock_free();
-        }
-
-        value_type load(const std::memory_order m = std::memory_order_seq_cst) const noexcept {
-            auto& thread = detail::current_thread();
-            std::memory_order order = m > std::memory_order::acquire ? m : std::memory_order::acquire;
-            auto l = (T*)_ptr().load(order);
-            T* t;
-            do {
-                t = l;
-                thread.set_hazard_pointer(l);
-                l = (T*)_ptr().load(order);
-            } while(l != t);
-            value_type p(l, detail::OnRegisteredThread{});
-            thread.clear_hazard_pointer();
-            return p;
-        }
-
-        void store(std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept {
-            _ptr().store(nullptr, m);
-        }
-
-        void store(unique_ptr<T>&& p, const std::memory_order m = std::memory_order_seq_cst) noexcept {
-            _ptr().store_released(p.release(), m);   // the barrier that takes the object out of the unique state
-        }
-
-        void store(value_type p, const std::memory_order m = std::memory_order_seq_cst) noexcept {
-            _ptr().store(p.get(), m);
-        }
-
-        bool compare_exchange_strong(value_type& e, std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept {
-            void* l = e.get();
-            if (!_ptr().compare_exchange_strong(l, nullptr, m)) {
-                e = load(std::memory_order_acquire);
-                return false;
-            }
-            return true;
-        }
-
-        bool compare_exchange_strong(value_type& e, value_type n, const std::memory_order m = std::memory_order_seq_cst) noexcept {
-            void* l = e.get();
-            if (!_ptr().compare_exchange_strong(l, n.get(), m)) {
-                e = load(std::memory_order_acquire);
-                return false;
-            }
-            return true;
-        }
-
-        bool compare_exchange_strong(value_type& e, std::nullptr_t, const std::memory_order s, const std::memory_order f) noexcept {
-            void* l = e.get();
-            if (!_ptr().compare_exchange_strong(l, nullptr, s, f)) {
-                e = load(std::memory_order_acquire);
-                return false;
-            }
-            return true;
-        }
-
-        bool compare_exchange_strong(value_type& e, value_type n, const std::memory_order s, const std::memory_order f) noexcept {
-            void* l = e.get();
-            if (!_ptr().compare_exchange_strong(l, n.get(), s, f)) {
-                e = load(std::memory_order_acquire);
-                return false;
-            }
-            return true;
-        }
-
-        bool compare_exchange_weak(value_type& e, std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept {
-            void* l = e.get();
-            if (!_ptr().compare_exchange_weak(l, nullptr, m)) {
-                e = load(std::memory_order_acquire);
-                return false;
-            }
-            return true;
-        }
-
-        bool compare_exchange_weak(value_type& e, value_type n, const std::memory_order m = std::memory_order_seq_cst) noexcept {
-            void* l = e.get();
-            if (!_ptr().compare_exchange_weak(l, n.get(), m)) {
-                e = load(std::memory_order_acquire);
-                return false;
-            }
-            return true;
-        }
-
-        bool compare_exchange_weak(value_type& e, std::nullptr_t, const std::memory_order s, const std::memory_order f) noexcept {
-            void* l = e.get();
-            if (!_ptr().compare_exchange_weak(l, nullptr, s, f)) {
-                e = load(std::memory_order_acquire);
-                return false;
-            }
-            return true;
-        }
-
-        bool compare_exchange_weak(value_type& e, value_type n, const std::memory_order s, const std::memory_order f) noexcept {
-            void* l = e.get();
-            if (!_ptr().compare_exchange_weak(l, n.get(), s, f)) {
-                e = load(std::memory_order_acquire);
-                return false;
-            }
-            return true;
-        }
-
-        void notify_one() noexcept {
-            _ptr().notify_one();
-        }
-
-        void notify_all() noexcept {
-            _ptr().notify_all();
-        }
-
-        void wait(std::nullptr_t, std::memory_order m = std::memory_order_seq_cst) const noexcept {
-            _ptr().wait(nullptr, m);
-        }
-
-        void wait(value_type p, std::memory_order m = std::memory_order_seq_cst) const noexcept {
-            _ptr().wait(p.get(), m);
         }
 
     private:
+        friend detail::AtomicWord<atomic, T, value_type>;
+
         detail::Pointer& _ptr() noexcept {
             return *_val._ptr();
         }
@@ -182,191 +63,64 @@ namespace sgcl {
         value_type _val;
     };
 
-    // The atomic of a gc::tracked_ptr: the operations of atomic<tracked_ptr<T>> on
-    // the word the gc::tracked_ptr resolves to (ptr.h: _word), the tracked_ptr
-    // itself inside a managed object or on a stack, the cell's word in any
-    // other memory (a gc::tracked_ptr makes its cell in its constructor,
-    // so no store allocates under a concurrent load). A global holding an object
-    // that other threads share and that is replaced at run time is
-    // `static sgcl::atomic<gc::tracked_ptr<T>>` (README, "The rules"). A load
-    // returns a gc::tracked_ptr built on the stack: a tracked_ptr with the location
-    // check of a gc::tracked_ptr constructor.
+    // The atomic of a gc::tracked_ptr: the same operations on the word the
+    // gc::tracked_ptr holds its object by (gc/tracked_ptr.h: the conversion
+    // to sgcl::tracked_ptr<T>&), the tracked_ptr itself inside a managed
+    // object or on a stack, the cell's word in any other memory (a
+    // gc::tracked_ptr takes its cell in its constructor, so no store
+    // allocates under a concurrent load), so that it lives anywhere: a
+    // global holding an object that other threads share and that is
+    // replaced at run time is `static sgcl::atomic<gc::tracked_ptr<T>>`
+    // (README, "The rules"). Inside, sgcl::tracked_ptr (detail::AtomicWord);
+    // outside, gc::tracked_ptr: what load(), the conversion and the
+    // assignment return.
     template<class T>
-    class atomic<gc::tracked_ptr<T>> {
+    class atomic<gc::tracked_ptr<T>> : public detail::AtomicWord<atomic<gc::tracked_ptr<T>>, T, gc::tracked_ptr<T>> {
     public:
         using value_type = gc::tracked_ptr<T>;
 
         atomic(const atomic&) = delete;
         atomic& operator=(const atomic&) = delete;
 
-        atomic() noexcept
-        : _word(_val._word()) {
-        }
+        atomic() noexcept = default;
 
         atomic(std::nullptr_t) noexcept
-        : _val(nullptr)
-        , _word(_val._word()) {
+        : _val(nullptr) {
         }
 
         atomic(unique_ptr<T>&& p) noexcept
-        : _val(std::move(p))
-        , _word(_val._word()) {
+        : _val(std::move(p)) {
         }
 
-        atomic(value_type p) noexcept
-        : _val(p)
-        , _word(_val._word()) {
+        atomic(tracked_ptr<T> p) noexcept
+        : _val(p) {
         }
 
         std::nullptr_t operator=(std::nullptr_t) noexcept {
-            store(nullptr);
+            this->store(nullptr);
             return nullptr;
         }
 
         void operator=(unique_ptr<T>&& p) noexcept {
-            store(std::move(p));
+            this->store(std::move(p));
         }
 
-        value_type operator=(value_type p) noexcept {
-            _ptr().store(p.get(), std::memory_order_seq_cst);
+        value_type operator=(tracked_ptr<T> p) noexcept {
+            this->store(p);
             return p;
-        }
-
-        operator value_type() const noexcept {
-            return load();
-        }
-
-        static constexpr bool is_always_lock_free = detail::RawPointer::is_always_lock_free;
-
-        bool is_lock_free() const noexcept {
-            return _ptr().is_lock_free();
-        }
-
-        value_type load(const std::memory_order m = std::memory_order_seq_cst) const noexcept {
-            auto& thread = detail::current_thread();
-            std::memory_order order = m > std::memory_order::acquire ? m : std::memory_order::acquire;
-            auto l = (T*)_ptr().load(order);
-            T* t;
-            do {
-                t = l;
-                thread.set_hazard_pointer(l);
-                l = (T*)_ptr().load(order);
-            } while(l != t);
-            value_type p(l, detail::OnRegisteredThread{});
-            thread.clear_hazard_pointer();
-            return p;
-        }
-
-        void store(std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept {
-            _ptr().store(nullptr, m);
-        }
-
-        void store(unique_ptr<T>&& p, const std::memory_order m = std::memory_order_seq_cst) noexcept {
-            _ptr().store_released(p.release(), m);   // the barrier that takes the object out of the unique state
-        }
-
-        void store(value_type p, const std::memory_order m = std::memory_order_seq_cst) noexcept {
-            _ptr().store(p.get(), m);
-        }
-
-        bool compare_exchange_strong(value_type& e, std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept {
-            void* l = e.get();
-            if (!_ptr().compare_exchange_strong(l, nullptr, m)) {
-                e = load(std::memory_order_acquire);
-                return false;
-            }
-            return true;
-        }
-
-        bool compare_exchange_strong(value_type& e, value_type n, const std::memory_order m = std::memory_order_seq_cst) noexcept {
-            void* l = e.get();
-            if (!_ptr().compare_exchange_strong(l, n.get(), m)) {
-                e = load(std::memory_order_acquire);
-                return false;
-            }
-            return true;
-        }
-
-        bool compare_exchange_strong(value_type& e, std::nullptr_t, const std::memory_order s, const std::memory_order f) noexcept {
-            void* l = e.get();
-            if (!_ptr().compare_exchange_strong(l, nullptr, s, f)) {
-                e = load(std::memory_order_acquire);
-                return false;
-            }
-            return true;
-        }
-
-        bool compare_exchange_strong(value_type& e, value_type n, const std::memory_order s, const std::memory_order f) noexcept {
-            void* l = e.get();
-            if (!_ptr().compare_exchange_strong(l, n.get(), s, f)) {
-                e = load(std::memory_order_acquire);
-                return false;
-            }
-            return true;
-        }
-
-        bool compare_exchange_weak(value_type& e, std::nullptr_t, const std::memory_order m = std::memory_order_seq_cst) noexcept {
-            void* l = e.get();
-            if (!_ptr().compare_exchange_weak(l, nullptr, m)) {
-                e = load(std::memory_order_acquire);
-                return false;
-            }
-            return true;
-        }
-
-        bool compare_exchange_weak(value_type& e, value_type n, const std::memory_order m = std::memory_order_seq_cst) noexcept {
-            void* l = e.get();
-            if (!_ptr().compare_exchange_weak(l, n.get(), m)) {
-                e = load(std::memory_order_acquire);
-                return false;
-            }
-            return true;
-        }
-
-        bool compare_exchange_weak(value_type& e, std::nullptr_t, const std::memory_order s, const std::memory_order f) noexcept {
-            void* l = e.get();
-            if (!_ptr().compare_exchange_weak(l, nullptr, s, f)) {
-                e = load(std::memory_order_acquire);
-                return false;
-            }
-            return true;
-        }
-
-        bool compare_exchange_weak(value_type& e, value_type n, const std::memory_order s, const std::memory_order f) noexcept {
-            void* l = e.get();
-            if (!_ptr().compare_exchange_weak(l, n.get(), s, f)) {
-                e = load(std::memory_order_acquire);
-                return false;
-            }
-            return true;
-        }
-
-        void notify_one() noexcept {
-            _ptr().notify_one();
-        }
-
-        void notify_all() noexcept {
-            _ptr().notify_all();
-        }
-
-        void wait(std::nullptr_t, std::memory_order m = std::memory_order_seq_cst) const noexcept {
-            _ptr().wait(nullptr, m);
-        }
-
-        void wait(value_type p, std::memory_order m = std::memory_order_seq_cst) const noexcept {
-            _ptr().wait(p.get(), m);
         }
 
     private:
+        friend detail::AtomicWord<atomic, T, value_type>;
+
         detail::Pointer& _ptr() noexcept {
-            return *_word._ptr();
+            return *static_cast<tracked_ptr<T>&>(_val)._ptr();
         }
 
         const detail::Pointer& _ptr() const noexcept {
-            return *_word._ptr();
+            return *static_cast<const tracked_ptr<T>&>(_val)._ptr();
         }
 
         value_type _val;
-        tracked_ptr<T>& _word;   // resolved once: the cell never moves, and neither does an atomic
     };
 }

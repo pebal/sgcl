@@ -231,6 +231,20 @@ namespace gc {
             return get() != nullptr;
         }
 
+        // The pointer as the sgcl::tracked_ptr it holds its object by: the
+        // word itself inside a managed object or on a stack, the cell's
+        // word elsewhere (_word). A reference, not a copy: what the
+        // atomics operate on and take (atomic.h, atomic_ref.h), and what
+        // an sgcl::tracked_ptr of the same type is copied from, with no
+        // check of a location on the way.
+        operator sgcl::tracked_ptr<T>&() noexcept {
+            return _word();
+        }
+
+        operator const sgcl::tracked_ptr<T>&() const noexcept {
+            return const_cast<tracked_ptr*>(this)->_word();
+        }
+
         template <class U = element_type, std::enable_if_t<!std::is_void_v<U>, int> = 0>
         U& operator*() const noexcept {
             assert(get() != nullptr);
@@ -389,7 +403,8 @@ namespace gc {
             return (element_type*)_cell_of()->load_plain();
         }
 
-        // The word the atomics operate on (atomic.h, atomic_ref.h): the
+        // The word this pointer holds its object by (the conversion to
+        // sgcl::tracked_ptr<T>& above, the atomics through it): the
         // tracked_ptr itself, or the cell's. A tracked_ptr<T> and a
         // tracked_ptr<void> are one word (tracked_ptr.h).
         sgcl::tracked_ptr<T>& _word() noexcept {
@@ -402,6 +417,7 @@ namespace gc {
         template<class> friend class tracked_ptr;
         template<class> friend class sgcl::atomic;
         template<class> friend class sgcl::atomic_ref;
+        template<class, class, class> friend class sgcl::detail::AtomicWord;
         template<class, template<class> class> friend class sgcl::vector;
         template<class, size_t, template<class> class> friend struct sgcl::array;
 
