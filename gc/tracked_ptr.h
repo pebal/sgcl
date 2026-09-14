@@ -120,7 +120,7 @@ namespace gc {
         // loaded, which is never an element of a buffer and never a unique
         // object (the released state is set before the word is stored).
         tracked_ptr(element_type* p, sgcl::detail::OnRegisteredThread) noexcept {
-            assert(sgcl::detail::thread_registered);
+            assert(sgcl::detail::thread_registered());
             assert(!p || sgcl::detail::Page::is_object(p));
             if (_tracked_here()) {
                 new (&_ptr) sgcl::tracked_ptr<T>(p, sgcl::detail::OnRegisteredThread{});

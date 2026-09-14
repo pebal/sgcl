@@ -71,7 +71,7 @@ stateDiagram-v2
     UniqueLock --> UniqueReleased: a block of cells let go of by its allocator
     ReachableFresh --> Reachable: the next flip and a copy
     Reachable --> Reachable: a copy of a pointer to it (the barrier, the current parity)
-    Reachable --> Used: the flip retires the other parity
+    Reachable --> Used: the other parity, after the sweep of the next cycle
     Used --> Reachable: a copy
     Reachable --> Unused: unmarked at a full cycle: swept
     Used --> Unused: unmarked: swept
@@ -154,11 +154,11 @@ The gates of [`collector::stepper`](collector.md#stepper) sit at these boundarie
 
 **The stack scan** marks what the stacks hold. In a young cycle the dirty pages are traced here too: every marked object on a page whose card holds this epoch or the last has its pointers followed again, since the objects marked in earlier cycles are not traced from the roots.
 
-**The marking** runs in rounds until it converges. A round traces every object found reachable and everything those lead to, by the type's pointer map; then the states pass looks at the unmarked registered slots of the pages the barrier touched since (`state_updated`) and finds the ones whose state is `Reachable` of the current parity, or `UniqueLock`, or `UniqueReleased`: objects a mutator stored a pointer to while the round ran, and roots by state. They are queued and the next round traces them. The pass over all the pages, in the round that starts with an empty queue, also retires the states of the old parity to `Used` and registers late the objects released after the flip with an allocation parity that was not the current one (below). The rounds end when a pass finds nothing new.
+**The marking** runs in rounds until it converges. A round traces every object found reachable and everything those lead to, by the type's pointer map; then the states pass looks at the unmarked registered slots of the pages the barrier touched since (`state_updated`) and finds the ones whose state is `Reachable` of the current parity, or `UniqueLock`, or `UniqueReleased`: objects a mutator stored a pointer to while the round ran, and roots by state. They are queued and the next round traces them. The pass over all the pages, in the round that starts with an empty queue, also registers late the objects released after the flip with an allocation parity that was not the current one (below). The rounds end when a pass finds nothing new. The states of the old parity are left as they are through the marking (they say nothing in this cycle) and turned to `Used` after the sweep, on the survivors only: the parity has two values, so a state left from two cycles ago would read as current again, and the dead had their states cleared by the sweep anyway, which spares an allocation-heavy program a compare-exchange per eight of them.
 
 **The weak phase** runs after convergence: the cells of the `weak_ptr`s whose target is unmarked are cleared, except the ones an `expiry_queue` watches, whose targets are marked instead and kept for one round more. A cleared cell may have raced with a `lock()`: the locks publish a hazard pointer, so the hazards are marked and one more states pass runs.
 
-**The sweep** goes over the pages with unmarked registered slots: the destructor of each (on the pool when there are `SweepPageThreshold` pages or more, so that destructors of many objects run in parallel, in no order), the slot to `Unused`, the free bitmap of the page rebuilt for its allocator. A page with nothing left goes back to the heap, zeroed, and a chunk with no page in use is decommitted.
+**The sweep** goes over the pages with unmarked registered slots: the destructor of each (on the pool when there are `SweepPageThreshold` pages or more, so that destructors of many objects run in parallel, in no order), the slot to `Unused`, the free bitmap of the page rebuilt for its allocator; then the states of the old parity on the survivors of the pages the barrier touched before the registration go to `Used`. A page with nothing left goes back to the heap, zeroed, and a chunk with no page in use is decommitted.
 
 The counting for the statistics happens between the marking and the sweep: the objects marked by this cycle are the live ones.
 
@@ -230,15 +230,15 @@ A `gc::tracked_ptr` is the same word where the word may live, and elsewhere the 
 
 | | `sgcl::` | `gc::` |
 |---|---|---|
-| construction on the stack | a store with the barrier, 1.3 ns | the same, after the check of the address: the heap's range, then the thread's stack bounds from a thread-local, 1.8 to 2.0 ns (a thread-local read costs more on Apple silicon than on Linux) |
+| construction on the stack | a store with the barrier, 1.2 ns | the same, after the check of the address: the heap's range, then the thread's stack bounds from a thread-local, 1.8 ns (a thread-local read costs more on Apple silicon than on Linux) |
 | construction as a member of a managed object | the same | the same after the heap's range check, a few tenths |
 | construction in unmanaged memory | not allowed | a cell taken from the thread's block, 7 ns with its release |
-| a store into it | the word and the barrier, 1.7 ns | plus a test of the sign, 1.8 ns |
-| a read through it | a load, 0.44 ns | plus a test of the sign, 0.48 ns |
-| `weak_ptr::lock()` | 2.2 ns | 3.2 ns: the result is a `gc::tracked_ptr` built where the caller puts it |
-| a lock-free stack, one thread | 13 ns per operation | 19 ns: the loaded head and the new node are constructions on the stack |
-| binary-trees, a node of two pointers | 1× | 1.7×: every node is two members and three temporaries |
-| the containers | the same nodes and buffers; a `gc::` container pays the test on its root word, a few percent | |
+| a store into it | the word and the barrier, 1.5 ns | plus a test of the sign, 1.6 ns |
+| a read through it | a load, 0.43 ns | plus a test of the sign, 0.47 ns |
+| `weak_ptr::lock()` | 1.9 ns | 2.7 ns: the result is a `gc::tracked_ptr` built where the caller puts it |
+| a lock-free stack, one thread | 10 ns per operation | 13 ns: the loaded head and the new node are constructions on the stack |
+| binary-trees, a node of two pointers | 1× | 1.25×: every node is two members and three temporaries |
+| the containers | the same nodes and buffers; a `gc::` container pays the test on its root word, within the run-to-run spread | |
 
 The cost of `gc::` is concentrated in one place: the constructions on the stack, the temporaries, the values returned and the arguments passed, because each decides its mode with a thread-local read that the compiler cannot hoist out of a function call. Members of managed objects and the elements of containers cost almost nothing more, and a store or a read through either kind is within a tenth of a nanosecond.
 

@@ -277,7 +277,7 @@ namespace sgcl {
         tracked_ptr(element_type* p, detail::OnRegisteredThread) noexcept
         : _raw_ptr(p) {
             detail::os::escape(this);
-            assert(detail::thread_registered);
+            assert(detail::thread_registered());
             assert(!p || detail::Page::is_object(p));
         }
 

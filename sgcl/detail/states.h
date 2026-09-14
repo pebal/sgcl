@@ -53,18 +53,42 @@ namespace sgcl::detail {
         // parity (Fresh or not: a registered Fresh object of the current
         // parity was UniqueLock when registered and handed to a tracked_ptr
         // since), UniqueLock of either parity, or a released block of cells
-        // (types.h: UniqueReleased), a root until the collector frees it
+        // (types.h: UniqueReleased), a root until the collector frees it.
+        // Three matches on the word with the bit that does not matter
+        // cleared, the three combined, one gathering of the bits.
         static unsigned reachable(uint64_t w, State current) noexcept {
-            return equal(w, current) | equal(w, State(current | State::Fresh))
-                 | equal(w, State::UniqueLock) | equal(w, State(State::UniqueLock | State::Parity))
-                 | equal(w, State::UniqueReleased);
+            return bits((match(w & ~spread(State::Fresh), current)
+                       | match(w & ~spread(State::Parity), State::UniqueLock)
+                       | match(w, State::UniqueReleased)) >> 7);
+        }
+
+        // UniqueLock of either parity
+        static unsigned unique_lock(uint64_t w) noexcept {
+            return bits(match(w & ~spread(State::Parity), State::UniqueLock) >> 7);
         }
 
         // the bytes equal to v
         static unsigned equal(uint64_t w, State v) noexcept {
-            auto x = w ^ (uint64_t(v) * Ones);
-            auto zero = ~(((x & (0x7F * Ones)) + (0x7F * Ones)) | x | (0x7F * Ones));   // 0x80 in every zero byte
-            return bits(zero >> 7);
+            return bits(match(w, v) >> 7);
+        }
+
+        // the bytes equal to v with the bit `ignored` cleared first: v or
+        // v | ignored
+        static unsigned equal(uint64_t w, State v, State ignored) noexcept {
+            return bits(match(w & ~spread(ignored), v) >> 7);
+        }
+
+        // v in every byte
+        static constexpr uint64_t spread(State v) noexcept {
+            return uint64_t(v) * Ones;
+        }
+
+        // 0x80 in every byte equal to v, 0 in the others: the zero bytes of
+        // w ^ v, exactly (the 0x7F carry trick, no false positive), in a
+        // form that combines with other matches before one gathering
+        static uint64_t match(uint64_t w, State v) noexcept {
+            auto x = w ^ spread(v);
+            return ~(((x & (0x7F * Ones)) + (0x7F * Ones)) | x | (0x7F * Ones));
         }
     };
 }

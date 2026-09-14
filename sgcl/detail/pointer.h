@@ -173,7 +173,7 @@ namespace sgcl::detail {
         inline static void* data_base_address_of(const void* p) noexcept {
             auto page = Page::page_of(p);
             auto data = page->pointer_of(page->index_of(p));
-            return page->metadata->is_array ? ((ArrayBase*)data) + 1 : data;
+            return page->is_array ? ((ArrayBase*)data) + 1 : data;
         }
 
         void* data_base_address() const noexcept {

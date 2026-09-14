@@ -328,13 +328,13 @@ namespace sgcl::detail {
             if (page->is_used) {
                 if (page->state_updated.load(std::memory_order_relaxed)) {
                     page->state_updated.exchange(false, std::memory_order_acq_rel);
-                    page->retire = true;   // states of the other parity to retire (_update_page_marks<true>)
+                    page->retire = true;   // states of the other parity to retire after the sweep (_retire_states)
                 }
                 if (page->object_created.load(std::memory_order_relaxed) && page->object_created.exchange(false, std::memory_order_acq_rel)) {
                     auto states = page->states();
                     auto flags = page->flags();
                     auto count = page->flags_count();
-                    auto object_count = page->metadata->object_count;
+                    auto object_count = page->object_count;
                     auto tail = object_count % Page::FlagBitCount;
                     auto last_valid = tail ? (Page::Flag(1) << tail) - 1 : ~Page::Flag(0);
                     auto after_flip_state = State(Page::reachable_state() | State::Fresh);
@@ -361,7 +361,7 @@ namespace sgcl::detail {
                             auto fresh = created & ~after_flip;
                             skipped |= after_flip != 0;
                             registered |= Page::Flag(fresh) << g;
-                            updated |= ((States8::equal(w, State::UniqueLock) | States8::equal(w, State(State::UniqueLock | State::Parity))) & fresh) != 0;   // a root by state: the pass over the states must look here
+                            updated |= (States8::unique_lock(w) & fresh) != 0;   // a root by state: the pass over the states must look here
                             objects_created += std::popcount(fresh);
                         }
                         flag.registered = registered;
@@ -435,7 +435,7 @@ namespace sgcl::detail {
                 return false;
             }
             auto index = page->index_of(p);
-            if (index >= page->metadata->object_count) {
+            if (index >= page->object_count) {
                 return false;
             }
             auto& flag = page->flags()[Page::flag_index_of(index)];
@@ -463,7 +463,7 @@ namespace sgcl::detail {
                 return false;
             }
             auto index = page->index_of(p);
-            if (index >= page->metadata->object_count) {
+            if (index >= page->object_count) {
                 return false;
             }
             auto& flag = page->flags()[Page::flag_index_of(index)];
@@ -526,7 +526,7 @@ namespace sgcl::detail {
                 }
                 auto states = page->states();
                 auto flags = page->flags();
-                auto count = page->metadata->object_count;
+                auto count = page->object_count;
                 for (unsigned i = 0; i < count; ++i) {
                     if (states[i].load(std::memory_order_relaxed) & State::FreeMask) {   // a free slot
                         continue;
@@ -788,11 +788,16 @@ namespace sgcl::detail {
             if (!page) {
                 return;
             }
+            _mark_conservative<Parallel>(page, ptr, m);
+        }
+
+        template<bool Parallel>
+        void _mark_conservative(Page* page, const void* ptr, Marker& m) noexcept {
             auto index = page->index_of(ptr);
-            if (index >= page->metadata->object_count) {
+            if (index >= page->object_count) {
                 return;
             }
-            if (page->metadata->is_array && !_is_array_start(page, index, ptr)) {
+            if (page->is_array && !_is_array_start(page, index, ptr)) {
                 return;
             }
             _mark_slot<Parallel>(page, index, m);
@@ -815,9 +820,9 @@ namespace sgcl::detail {
                     if (!word) {
                         continue;
                     }
-                    if (Heap::contains((const void*)word)) {
-                        _mark_conservative<Parallel>((const void*)word, m);
-                    } else if (!childs.conservative) {
+                    if (auto page = Heap::page_of_checked((const void*)word)) {
+                        _mark_conservative<Parallel>(page, (const void*)word, m);
+                    } else if (!childs.conservative && !Heap::contains((const void*)word)) {   // in the heap's range without a page: a pointer still (a freed page)
                         childs.remove(offset);
                     }
                 }
@@ -857,7 +862,7 @@ namespace sgcl::detail {
         // Slot state of the object a word points at.
         static bool _is_registered(Page* page, const void* p) noexcept {
             auto index = page->index_of(p);
-            if (index >= page->metadata->object_count) {
+            if (index >= page->object_count) {
                 return false;
             }
             return page->flags()[Page::flag_index_of(index)].registered & Page::flag_mask_of(index);
@@ -978,7 +983,7 @@ namespace sgcl::detail {
         template<bool Parallel>
         void _trace_dirty_page(Page* page, Marker& m) noexcept {
             auto flags = page->flags();
-            auto is_array = page->metadata->is_array;
+            auto is_array = page->is_array;
             auto count = page->flags_count();
             for (unsigned i = 0; i < count; ++i) {
                 // the marks are being set by the other helpers meanwhile
@@ -1027,7 +1032,7 @@ namespace sgcl::detail {
             _reachable_pages = nullptr;
             while(page) {
                 auto metadata = page->metadata;
-                const bool is_array = metadata->is_array;
+                const bool is_array = page->is_array;
                 auto flags = page->flags();
                 auto count = page->flags_count();
                 bool marked;
@@ -1154,7 +1159,7 @@ namespace sgcl::detail {
         void _mark_page(Marker& m, Page* page) noexcept {
             auto flags = page->flags();
             auto count = page->flags_count();
-            const bool is_array = page->metadata->is_array;
+            const bool is_array = page->is_array;
             for (unsigned i = 0; i < count; ++i) {
                 auto bits = flags[i].reachable;
                 if (!bits) {
@@ -1200,7 +1205,7 @@ namespace sgcl::detail {
                 while (!m.work.empty()) {
                     auto item = m.work.back();
                     m.work.pop_back();
-                    _trace<true>(item.page, item.ptr, item.page->metadata->is_array, m);
+                    _trace<true>(item.page, item.ptr, item.page->is_array, m);
                     if (m.work.size() >= 2 && q.idle.load(std::memory_order_relaxed)) {
                         _spill(m);
                     }
@@ -1224,7 +1229,7 @@ namespace sgcl::detail {
                     }
                     auto& item = window[out & (PrefetchWindow - 1)];
                     ++out;
-                    _trace<true>(item.page, item.ptr, item.page->metadata->is_array, m);
+                    _trace<true>(item.page, item.ptr, item.page->is_array, m);
                     if (m.work.size() >= 2 && q.idle.load(std::memory_order_relaxed)) {
                         _spill(m);
                     }
@@ -1305,29 +1310,18 @@ namespace sgcl::detail {
             }
         };
 
-        // The pass over all the pages (All) also retires the states of the
-        // other parity on registered slots, to Used: the parity has two
-        // values, so a state set two cycles ago would read as current
-        // again. Safe, since such a state was set before the flip, by a
-        // store into an object that existed before it, which this cycle
-        // registers and traces if it is reachable; the states set after
-        // the flip have the current parity and are left alone (the
-        // check-then-act race of the old demotion, a barrier reading a
-        // state the collector then demoted, cannot happen: the barrier
-        // reads and stores the current parity only). A compare-exchange,
-        // since the barrier may promote the state meanwhile.
+        // The states of the unmarked registered slots of a page, eight at
+        // a time: the ones reachable in this cycle (states.h) get the
+        // page's reachable bit and the page goes on the list to trace. The
+        // states of the other parity are left as they are here: they say
+        // nothing in this cycle, and _retire_states turns them to Used
+        // after the sweep, on the survivors only.
         template<bool All>
         void _update_page_marks(Page* page, PageLists& lists) noexcept {
             bool reachable_page = false;
             [[maybe_unused]] bool unreachable_page = false;
             if (All || page->state_updated.load(std::memory_order_acquire)) {
                 auto current = Page::reachable_state();
-                [[maybe_unused]] auto stale = State(current ^ State::Parity);   // Reachable of the other parity
-                [[maybe_unused]] bool retire = false;
-                if constexpr(All) {
-                    retire = page->retire;
-                    page->retire = false;
-                }
                 auto states = page->states();
                 auto flags = page->flags();
                 auto count = page->flags_count();
@@ -1339,35 +1333,10 @@ namespace sgcl::detail {
                     // whose state the barrier set, as bits
                     for (unsigned g = 0; g < Page::FlagBitCount; g += 8) {
                         auto group = (unreachable >> g) & 0xFF;
-                        [[maybe_unused]] auto registered = retire ? (flag.registered >> g) & 0xFF : 0;
-                        if (!group && !registered) {
+                        if (!group) {
                             continue;
                         }
                         auto w = States8::load(states + offset + g);
-                        if constexpr(All) {
-                            // the stale bytes of the word to Used in one
-                            // compare-exchange of the word (eight slots): a
-                            // barrier storing into any of the eight meanwhile
-                            // fails it, and the word is read again
-                            std::atomic_ref<uint64_t> word(*reinterpret_cast<uint64_t*>(states + offset + g));
-                            for (;;) {
-                                auto old = (States8::equal(w, stale) | States8::equal(w, State(stale | State::Fresh))) & registered;
-                                if (!old) {
-                                    break;
-                                }
-                                uint64_t desired = w;
-                                for (auto bits = old; bits; bits &= bits - 1) {
-                                    desired &= ~(uint64_t(0xFF) << (8 * std::countr_zero(bits)));   // Used
-                                }
-                                if (word.compare_exchange_weak(w, desired, std::memory_order_relaxed, std::memory_order_relaxed)) {
-                                    w = desired;
-                                    break;
-                                }
-                            }
-                            if (!group) {
-                                continue;
-                            }
-                        }
                         auto found = States8::reachable(w, current) & group;
 #ifdef SGCL_TRACE_STACK
                         for (auto f = found; f; f &= f - 1) {
@@ -1392,6 +1361,61 @@ namespace sgcl::detail {
             }
         }
 
+        // Retires the states of the other parity to Used, after the sweep,
+        // on the pages whose states the barrier set before this cycle
+        // registered them (Page::retire): the parity has two values, so a
+        // state set two cycles ago would read as current again. Only the
+        // survivors are looked at (registered is folded to marked by the
+        // sweep): the dead had their states set to Unused by the sweep, so
+        // an allocation-heavy program pays no compare-exchange for them.
+        // Safe to leave until here: a state of the other parity says
+        // nothing in this cycle, and the next flip is after this pass. A
+        // compare-exchange of the word of eight, since the barrier may set
+        // any of the eight to the current parity meanwhile.
+        void _retire_states() noexcept {
+            auto stale = State(Page::reachable_state() ^ State::Parity);
+            _parallel_array<int>(_pages.size(), [this, stale](size_t begin, size_t end) {
+                std::atomic_thread_fence(std::memory_order_acquire);
+                for (auto i = begin; i < end; ++i) {
+                    auto page = _pages[i];
+                    if (!page->retire || !page->is_used) {
+                        page->retire = false;
+                        continue;
+                    }
+                    page->retire = false;
+                    auto states = page->states();
+                    auto flags = page->flags();
+                    auto count = page->flags_count();
+                    for (unsigned w = 0; w < count; ++w) {
+                        auto registered = flags[w].registered;
+                        auto offset = w * Page::FlagBitCount;
+                        for (unsigned g = 0; g < Page::FlagBitCount; g += 8) {
+                            auto group = (registered >> g) & 0xFF;
+                            if (!group) {
+                                continue;
+                            }
+                            std::atomic_ref<uint64_t> word(*reinterpret_cast<uint64_t*>(states + offset + g));
+                            auto v = States8::load(states + offset + g);
+                            for (;;) {
+                                auto old = States8::equal(v, stale, State::Fresh) & group;
+                                if (!old) {
+                                    break;
+                                }
+                                uint64_t desired = v;
+                                for (auto bits = old; bits; bits &= bits - 1) {
+                                    desired &= ~(uint64_t(0xFF) << (8 * std::countr_zero(bits)));   // Used
+                                }
+                                if (word.compare_exchange_weak(v, desired, std::memory_order_relaxed, std::memory_order_relaxed)) {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                return 0;
+            });
+        }
+
         // Objects created after this cycle registered their page (the page's
         // object_created flag is up again) and released from their
         // unique_ptr with an allocation parity that was not the current one
@@ -1411,7 +1435,7 @@ namespace sgcl::detail {
                 auto states = page->states();
                 auto flags = page->flags();
                 auto count = page->flags_count();
-                auto object_count = page->metadata->object_count;
+                auto object_count = page->object_count;
                 auto tail = object_count % Page::FlagBitCount;
                 auto last_valid = tail ? (Page::Flag(1) << tail) - 1 : ~Page::Flag(0);
                 bool late = false;
@@ -1767,7 +1791,7 @@ namespace sgcl::detail {
         // dead frames of those destructors would keep whatever they pointed
         // to alive. Zeroed after every task and every cycle.
         static void _clear_own_stack() noexcept {
-            if (!thread_registered) {
+            if (!thread_registered()) {
                 return;
             }
             os::hidden_call([](void*) {}, nullptr, stack_clear_limit(config::StackClearSize));
@@ -1852,7 +1876,7 @@ namespace sgcl::detail {
                     // other way round, so a page it just took from the buffer
                     // is never seen as loose
                     if (!page->on_empty_list.load(std::memory_order_acquire) && !page->owned.load(std::memory_order_acquire)) {
-                        auto count = page->metadata->object_count;
+                        auto count = page->object_count;
                         auto unused = page->unused_counter_gc;
                         if (unused > count / 2) {
                             page->unused_occur.store(false, std::memory_order_relaxed);
@@ -1970,7 +1994,7 @@ namespace sgcl::detail {
                 return {nullptr, nullptr};
             }
             auto index = page->index_of(p);
-            if (index >= page->metadata->object_count) {
+            if (index >= page->object_count) {
                 return {nullptr, nullptr};
             }
             auto& flag = page->flags()[Page::flag_index_of(index)];
@@ -2467,6 +2491,7 @@ namespace sgcl::detail {
                 _live_total = _full ? marked : _live_total + marked;
                 _last_live_object_count.store(_live_total, std::memory_order_relaxed);
                 size_t last_objects_removed = _remove_garbage();
+                _retire_states();
                 phase(5);
                 _gate(Gate::Swept);
                 _release_unused_pages();

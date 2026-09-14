@@ -18,8 +18,19 @@
 #endif
 
 namespace sgcl::detail {
-    // Set by the constructor of Thread; see ensure_thread_registered().
-    inline thread_local bool thread_registered = false;
+    class Thread;
+    // This thread's Thread, set by its constructor, null before: the one
+    // thread-local of the hot paths (current_thread, the registration test
+    // of every tracked_ptr constructor). A pointer with a constant
+    // initializer and no destructor is read without the guard a
+    // thread_local with a constructor carries; the Thread itself is a
+    // function-local thread_local (current_thread), destroyed at thread
+    // exit like before. Stays set after that: no re-registration from
+    // thread_local destructors.
+    inline thread_local Thread* current_thread_ptr = nullptr;
+    inline bool thread_registered() noexcept {
+        return current_thread_ptr != nullptr;
+    }
     // The stack of the thread, [begin, begin + size), set at registration
     // and zero before it: one thread-local for an address test without the
     // guard of current_thread() (ptr.h).
@@ -78,7 +89,7 @@ namespace sgcl::detail {
             }
             thread_stack = {_data->stack_begin, _data->stack_end - _data->stack_begin};
             _data->id = std::this_thread::get_id();
-            thread_registered = true;   // stays set: no re-registration from thread_local destructors
+            current_thread_ptr = this;   // stays set: no re-registration from thread_local destructors
             _data->next = threads_data.load(std::memory_order_acquire);
             while(!threads_data.compare_exchange_weak(_data->next, _data, std::memory_order_release, std::memory_order_relaxed));
         }
@@ -177,9 +188,17 @@ namespace sgcl::detail {
 
     inline static MainThreadDetector main_thread_detector;
 
-    inline Thread& current_thread() noexcept {
+    inline Thread& register_thread() noexcept {
         static thread_local Thread instance;
         return instance;
+    }
+
+    inline Thread& current_thread() noexcept {
+        auto thread = current_thread_ptr;
+        if (thread) [[likely]] {
+            return *thread;
+        }
+        return register_thread();
     }
 
     // Lowest address to zero when clearing the stack below the caller:
@@ -202,8 +221,8 @@ namespace sgcl::detail {
     // tracked_ptr on the stack registers the thread. One thread-local flag:
     // the check is a load and a predictable branch.
     inline void ensure_thread_registered() noexcept {
-        if (!thread_registered) [[unlikely]] {
-            current_thread();
+        if (!current_thread_ptr) [[unlikely]] {
+            register_thread();
         }
     }
 }

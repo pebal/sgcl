@@ -37,10 +37,14 @@ namespace sgcl::detail {
         , data((uintptr_t)data)
         // A page with a single object (large objects included) maps every
         // interior pointer to index 0: multiplier 0 does that for free.
-        , multiplier(metadata->object_count == 1 ? 0 : (1ull << 32 | 0x10000) / metadata->object_size) {
+        , multiplier(metadata->object_count == 1 ? 0 : (1ull << 32 | 0x10000) / metadata->object_size)
+        , object_size(metadata->object_size)
+        , object_count(metadata->object_count)
+        , is_array(metadata->is_array)
+        , flags_ptr((Flags*)((uintptr_t)states() + ((sizeof(std::atomic<State>) * metadata->object_count + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1)))) {
             assert(metadata != nullptr);
             assert(data != nullptr);
-            std::memset(this->states(), State::Reserved, metadata->object_count);
+            std::memset(this->states(), State::Reserved, object_count);
             std::memset(this->flags(), 0, sizeof(Flags) * this->flags_count());
             set_all_free();
         }
@@ -49,7 +53,7 @@ namespace sgcl::detail {
         void set_all_free() noexcept {
             auto free = this->free_bits();
             auto count = flags_count();
-            auto objects = metadata->object_count;
+            auto objects = object_count;
             for (unsigned i = 0; i < count; ++i) {
                 auto valid = (i == count - 1 && objects % FlagBitCount) ? (Flag(1) << (objects % FlagBitCount)) - 1 : ~Flag(0);
                 free[i] = valid;
@@ -91,12 +95,11 @@ namespace sgcl::detail {
         }
 
         Flags* flags() const noexcept {
-            auto states_size = (sizeof(std::atomic<State>) * metadata->object_count + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1);
-            return (Flags*)((uintptr_t)states() + states_size);
+            return flags_ptr;
         }
 
         unsigned flags_count() const noexcept {
-            return (metadata->object_count + FlagBitCount - 1) / FlagBitCount;
+            return (object_count + FlagBitCount - 1) / FlagBitCount;
         }
 
         // Start of a cycle. A full cycle forgets every mark; a young cycle
@@ -105,10 +108,19 @@ namespace sgcl::detail {
         void clear_flags(bool full) noexcept {
             auto flags = this->flags();
             auto count = flags_count();
-            for (unsigned i = 0; i < count; ++i) {
-                flags[i].reachable = 0;
-                if (full) {
+            // the reachable bits are clear already on most pages (the
+            // marking clears them as it goes): a load, no store into a
+            // line that is clean
+            if (full) {
+                for (unsigned i = 0; i < count; ++i) {
+                    flags[i].reachable = 0;
                     flags[i].marked = 0;
+                }
+            } else {
+                for (unsigned i = 0; i < count; ++i) {
+                    if (flags[i].reachable) {
+                        flags[i].reachable = 0;
+                    }
                 }
             }
         }
@@ -161,7 +173,7 @@ namespace sgcl::detail {
         }
 
         void* pointer_of(unsigned index) noexcept {
-            return (void*)(data + index * metadata->object_size);
+            return (void*)(data + index * object_size);
         }
 
         static Page* page_of(const void* p) noexcept {
@@ -290,11 +302,11 @@ namespace sgcl::detail {
         // target a tracked_ptr may be made from a raw pointer (tracked_ptr.h).
         static bool is_object(const void* p) noexcept {
             auto page = Heap::page_of_checked(p);
-            if (!page || page->metadata->is_array) {
+            if (!page || page->is_array) {
                 return false;
             }
             auto index = page->index_of(p);
-            return index < page->metadata->object_count && !(page->states()[index].load(std::memory_order_acquire) & State::FreeMask);
+            return index < page->object_count && !(page->states()[index].load(std::memory_order_acquire) & State::FreeMask);
         }
 
         static bool is_unique(const void* p) noexcept {
@@ -315,6 +327,12 @@ namespace sgcl::detail {
         Metadata* const metadata;
         const uintptr_t data;
         const uint64_t multiplier;
+        // copies of the metadata's constants the passes read at every slot
+        // (index_of, pointer_of, flags): on this line, one hop less
+        const size_t object_size;
+        const uint32_t object_count;
+        const bool is_array;
+        Flags* const flags_ptr;
         size_t page_count = 1;   // > 1 for objects larger than a page
         std::atomic_bool object_created = {false};
         std::atomic_bool state_updated = {false};
@@ -362,7 +380,7 @@ namespace sgcl::detail {
         alignas(64) uint16_t unused_counter_gc = {0};   // at most the objects of one page
         bool reachable = {false};
         bool unreachable = {false};
-        bool retire = {false};   // collector: states of the other parity to retire, set where state_updated is lowered
+        bool retire = {false};   // collector: states of the other parity to retire after the sweep, set where state_updated is lowered
         bool is_used = {true};
         // result of the last rebuild of the free bitmap (object_pool_allocator_base.h)
         bool all_free = {false};

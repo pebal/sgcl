@@ -35,7 +35,7 @@ namespace sgcl::detail {
             auto states = page->states();
             auto free_bits = page->free_bits();
             auto count = page->flags_count();
-            auto objects = page->metadata->object_count;
+            auto objects = page->object_count;
             auto summary = page->summary();
             std::memset(summary, 0, sizeof(uint64_t) * page->summary_count());
             unsigned free_count = 0;
