@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../sgcl/detail/cell_block.h"
 #include "../sgcl/detail/heap.h"
 #include "../sgcl/detail/thread.h"
 #include "../sgcl/detail/unique_ptr.h"
@@ -15,17 +16,63 @@
 #include <cstdint>
 #include <memory>
 
+namespace sgcl::detail {
+    // The thread's source of cells for the gc::tracked_ptrs in unmanaged
+    // memory (cell_block.h): a block of a cache line of slots, handed out
+    // in order, each zeroed as it goes. The block is a root by its unique
+    // state while any slot of it may still be handed out; the last slot
+    // handed out, or the thread ending, sets the block UniqueReleased (types.h),
+    // with release after the last zeroing, and the collector frees it in
+    // the cycle that finds every slot free again. The pointer's
+    // destructor frees its slot on whatever thread it runs, so a slot
+    // handed out here may be freed by another thread, and a block is held
+    // by nothing but its slots. take() is called by a thread that is
+    // registered (gc::tracked_ptr checks its stack first, which registers
+    // it), on the tagged path only.
+    struct CellAllocator {
+        CellBlock* block = nullptr;
+        unsigned index = 0;
+
+        ~CellAllocator() noexcept {
+            release();
+        }
+
+        Pointer* take() noexcept {
+            if (!block) [[unlikely]] {
+                block = make_tracked<CellBlock>().release();
+                index = 0;
+            }
+            auto slot = &block->slots[index];
+            slot->store(nullptr);
+            if (++index == CellBlock::Slots) [[unlikely]] {
+                release();
+            }
+            return slot;
+        }
+
+        // The block let go of: its state, after the slots handed out so far
+        void release() noexcept {
+            if (block) {
+                Page::set_state<State::UniqueReleased>(block);
+                block = nullptr;
+            }
+        }
+    };
+
+    inline thread_local CellAllocator cell_allocator;
+}
+
 namespace gc {
     // The sgcl::tracked_ptr that may live anywhere: one word. Inside a
     // managed object or on a stack it is an sgcl::tracked_ptr<T>, and
     // costs what one costs; in any other memory (new/malloc, a std
     // container, a global, a thread_local, a lambda copied to the heap,
     // the frame of a plain coroutine) it is the address of a cell, a
-    // managed detail::SharedHolder (the holder of to_shared, one pool of
-    // pages for both) owned like the object of a unique_ptr (a root),
-    // with the sign bit set. The cell is made by the constructor and
-    // released by the destructor, and belongs to this pointer for the
-    // whole time between: no store ever allocates, so two threads storing
+    // word of a managed block of a cache line of them (detail/cell_block.h)
+    // that is a root by state, with the sign bit set. The cell is taken by the
+    // constructor from the thread's allocator (detail::CellAllocator
+    // below) and given back by the destructor, and belongs to this pointer
+    // for the whole time between: no store ever allocates, so two threads storing
     // into the same pointer race on one atomic word, as they do on an
     // sgcl::tracked_ptr, and never on the making of a cell; no move ever
     // takes a cell from another pointer, so a thread reading through the
@@ -36,8 +83,8 @@ namespace gc {
     // and read back from the sign of the word, so no memory the collector
     // reads ever holds the tagged form: the pointer maps and the stack
     // scan see plain words. A read is a load and a test of the sign; a
-    // construction in unmanaged memory is one managed allocation, 16
-    // bytes, a null included.
+    // construction in unmanaged memory is a slot from the thread's
+    // allocator, one managed allocation per block, a null included.
     template<class T>
     class tracked_ptr {
     public:
@@ -87,29 +134,32 @@ namespace gc {
 
         // Copies take the source's word as it is, unchecked: it is a
         // tracked word already, and may address a container's buffer,
-        // which the raw constructor would not accept.
-        tracked_ptr(const tracked_ptr& p) noexcept {
+        // which the raw constructor would not accept. Always inline, the
+        // copies and the moves: the compiler's own threshold leaves the
+        // constructor out of line by the size of the caller (measured: a
+        // copy onto the stack 2.0 or 3.6 ns, by the code beside the loop).
+        SGCL_ALWAYS_INLINE tracked_ptr(const tracked_ptr& p) noexcept {
             _construct(p.get());
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        tracked_ptr(const tracked_ptr<U>& p) noexcept {
+        SGCL_ALWAYS_INLINE tracked_ptr(const tracked_ptr<U>& p) noexcept {
             _construct(static_cast<element_type*>(p.get()));
         }
 
         // A move is a copy, as for sgcl::tracked_ptr: the source keeps its
         // value and, in unmanaged memory, its cell (see above).
-        tracked_ptr(tracked_ptr&& p) noexcept {
+        SGCL_ALWAYS_INLINE tracked_ptr(tracked_ptr&& p) noexcept {
             _construct(p.get());
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        tracked_ptr(tracked_ptr<U>&& p) noexcept {
+        SGCL_ALWAYS_INLINE tracked_ptr(tracked_ptr<U>&& p) noexcept {
             _construct(static_cast<element_type*>(p.get()));
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename sgcl::tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        tracked_ptr(const sgcl::tracked_ptr<U>& p) noexcept {
+        SGCL_ALWAYS_INLINE tracked_ptr(const sgcl::tracked_ptr<U>& p) noexcept {
             _construct(static_cast<element_type*>(p.get()));
         }
 
@@ -121,7 +171,7 @@ namespace gc {
                 new (&_ptr) sgcl::tracked_ptr<T>(std::move(u));
             } else {
                 _make_cell();
-                _cell_of()->ptr = sgcl::unique_ptr<element_type>(std::move(u));
+                _cell_of()->store_released(u.release());
             }
         }
 
@@ -172,7 +222,7 @@ namespace gc {
             if (!_is_cell()) [[likely]] {
                 _ptr = std::move(u);
             } else {
-                _cell_of()->ptr = sgcl::unique_ptr<element_type>(std::move(u));
+                _cell_of()->store_released(u.release());
             }
             return *this;
         }
@@ -198,7 +248,7 @@ namespace gc {
             if (!_is_cell(w)) [[likely]] {
                 return w;
             }
-            return (element_type*)_cell_of()->ptr.get();
+            return (element_type*)_cell_of()->load();
         }
 
         // For destructors, as tracked_ptr::if_alive: a copy of the pointer,
@@ -215,7 +265,7 @@ namespace gc {
             if (!_is_cell()) [[likely]] {
                 _ptr.reset();
             } else {
-                _cell_of()->ptr.reset();
+                _cell_of()->store(nullptr);
             }
         }
 
@@ -271,24 +321,26 @@ namespace gc {
             return (intptr_t)_cell < 0;
         }
 
-        // The cell of a pointer in unmanaged memory, made by _make_cell and
-        // there for the life of the pointer
-        sgcl::detail::SharedHolder* _cell_of() const noexcept {
+        // The cell of a pointer in unmanaged memory, taken by _make_cell and
+        // there for the life of the pointer: a word of a block (detail/cell_block.h)
+        sgcl::detail::Pointer* _cell_of() const noexcept {
             assert(_is_cell());
-            return (sgcl::detail::SharedHolder*)(_cell & ~SignBit);
+            return (sgcl::detail::Pointer*)(_cell & ~SignBit);
         }
 
-        // Out of line, both: inlined, the allocation and the release in
+        // Out of line, both: inlined, the allocator and the release in
         // the cell branches of the constructors and the destructor cost
         // the other branch, the one of a tracked word (measured: a copy
-        // onto the stack 1.8 -> 3.6 ns), and next to the allocation the
-        // call is nothing.
+        // onto the stack 1.8 -> 3.6 ns), and next to them the call is
+        // nothing.
         SGCL_NOINLINE void _make_cell() noexcept {
-            _cell = (uintptr_t)sgcl::make_tracked<sgcl::detail::SharedHolder>().release() | SignBit;
+            _cell = (uintptr_t)sgcl::detail::cell_allocator.take() | SignBit;
         }
 
         SGCL_NOINLINE void _release_cell() noexcept {
-            sgcl::detail::UniquePtr<sgcl::detail::SharedHolder>(_cell_of()).reset();
+            auto cell = _cell_of();
+            assert(!sgcl::detail::CellBlock::is_free(*cell));
+            cell->store_no_update(cell);   // free: its own address (detail/cell_block.h)
         }
 
         // The word stored, unchecked: the value is a tracked word already,
@@ -316,7 +368,7 @@ namespace gc {
         // tracked already (the public raw constructor and reset(T*) check
         // theirs first).
         void _store_cell(element_type* p) noexcept {
-            _cell_of()->ptr._ptr()->store(p);
+            _cell_of()->store(p);
         }
 
         SGCL_ALWAYS_INLINE void _store(element_type* p) noexcept {
@@ -334,7 +386,7 @@ namespace gc {
             if (!_is_cell(w)) [[likely]] {
                 return w;
             }
-            return (element_type*)_cell_of()->ptr.get_plain();
+            return (element_type*)_cell_of()->load_plain();
         }
 
         // The word the atomics operate on (atomic.h, atomic_ref.h): the
@@ -344,7 +396,7 @@ namespace gc {
             if (!_is_cell()) {
                 return _ptr;
             }
-            return *(sgcl::tracked_ptr<T>*)&_cell_of()->ptr;
+            return *(sgcl::tracked_ptr<T>*)_cell_of();
         }
 
         template<class> friend class tracked_ptr;
@@ -355,7 +407,7 @@ namespace gc {
 
         union {
             sgcl::tracked_ptr<T> _ptr;   // inside a managed object or on a stack
-            uintptr_t _cell;       // elsewhere: a managed detail::SharedHolder, tagged
+            uintptr_t _cell;       // elsewhere: a word of a managed detail::CellBlock, tagged
         };
     };
 

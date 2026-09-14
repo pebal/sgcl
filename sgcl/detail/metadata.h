@@ -22,6 +22,7 @@ namespace sgcl::detail {
         , is_array(TypeInfo<T>::IsArray)
         , pool_allocated(TypeInfo<T>::Allocator::IsPoolAllocator::value)
         , is_weak_cell(std::is_same_v<std::remove_cv_t<T>, WeakCell>)
+        , is_cell_block(std::is_same_v<std::remove_cv_t<T>, CellBlock>)
         , type_info(typeid(T)) {
         }
 
@@ -34,6 +35,7 @@ namespace sgcl::detail {
         const bool is_array;
         const bool pool_allocated;   // slots with a free bitmap, not page ranges
         const bool is_weak_cell;     // weak_cell.h: the pages the weak phase visits
+        const bool is_cell_block;    // cell_block.h: the pages of the blocks of cells, traced without a map and released by state
         const std::type_info& type_info;
         Page* empty_page = {nullptr};
         Metadata* next = {nullptr};

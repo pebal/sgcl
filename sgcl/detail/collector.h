@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "cell_block.h"
 #include "child_pointers.h"
 #include "states.h"
 #include "thread.h"
@@ -294,6 +295,9 @@ namespace sgcl::detail {
                 _pages.push_back(page);
                 if (page->metadata->is_weak_cell) {
                     _weak_pages.push_back(page);
+                }
+                if (page->metadata->is_cell_block) {
+                    _cell_block_pages.push_back(page);
                 }
                 page = next;
             }
@@ -881,6 +885,56 @@ namespace sgcl::detail {
             }
         }
 
+        // A block of cells (cell_block.h) is nothing but pointers: its
+        // words without the map, a free slot (its own address) skipped
+        template<bool Parallel>
+        void _mark_cell_block(CellBlock* block, Marker& m) noexcept {
+            for (auto& slot : block->slots) {
+                auto word = slot.load();
+                if (word && word != &slot) {
+                    _mark_conservative<Parallel>(word, m);
+                }
+            }
+        }
+
+        // The blocks of cells their allocators have let go of (types.h:
+        // UniqueReleased): the ones with every slot free are Destroyed here,
+        // their marks cleared, so that the sweep of this cycle, young or
+        // full, frees them; the others stay roots by state. Once per cycle,
+        // after the registration and before the marking, on this thread:
+        // the pages are few and the states are read eight at a time.
+        void _release_cell_blocks() noexcept {
+            std::atomic_thread_fence(std::memory_order_acquire);
+            for (auto page : _cell_block_pages) {
+                if (!page->is_used) {
+                    continue;
+                }
+                auto states = page->states();
+                auto flags = page->flags();
+                auto count = page->flags_count();
+                for (unsigned i = 0; i < count; ++i) {
+                    auto& flag = flags[i];
+                    auto offset = i * Page::FlagBitCount;
+                    for (unsigned g = 0; g < Page::FlagBitCount; g += 8) {
+                        auto group = (flag.registered >> g) & 0xFF;
+                        if (!group) {
+                            continue;
+                        }
+                        auto released = States8::equal(States8::load(states + offset + g), State::UniqueReleased) & group;
+                        while (released) {
+                            auto index = offset + g + std::countr_zero(released);
+                            released &= released - 1;
+                            auto block = (CellBlock*)page->pointer_of(index);
+                            if (block->all_free()) {
+                                states[index].store(State::Destroyed, std::memory_order_relaxed);
+                                flag.marked &= ~(Page::Flag(1) << (index - offset));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Follows the children of one object. A child that is not registered
         // yet (created during this cycle, or a store the registration has not
         // seen) will be registered and demoted in the next cycle with this
@@ -891,6 +945,8 @@ namespace sgcl::detail {
             m.unregistered_hit = false;
             if (is_array) {
                 _mark_array_childs<Parallel>(ptr, m);
+            } else if (page->metadata->is_cell_block) {
+                _mark_cell_block<Parallel>((CellBlock*)ptr, m);
             } else {
                 _mark_childs<Parallel>(page->metadata->child_pointers, ptr, m);
             }
@@ -1803,6 +1859,9 @@ namespace sgcl::detail {
             if (!_weak_pages.empty()) {
                 std::erase_if(_weak_pages, [](Page* page) { return !page->is_used; });
             }
+            if (!_cell_block_pages.empty()) {
+                std::erase_if(_cell_block_pages, [](Page* page) { return !page->is_used; });
+            }
             std::erase_if(_pages, [](Page* page) {
                 if (!page->is_used) {
                     Page::release(page);
@@ -1859,6 +1918,7 @@ namespace sgcl::detail {
                 _register_threads();
                 _register_pages();
                 [[maybe_unused]] size_t last_objects_created = _register_objects();
+                _release_cell_blocks();
                 phase(0);
                 phase(1);
                 _register_threads();
@@ -2107,6 +2167,7 @@ namespace sgcl::detail {
         Page* _unreachable_pages = {nullptr};
         std::vector<Page*> _pages;   // the registered pages
         std::vector<Page*> _weak_pages;   // of them, the pages of weak cells (weak_cell.h)
+        std::vector<Page*> _cell_block_pages;   // and of the blocks of cells (cell_block.h)
         std::atomic<int> _forced_collect_count = {0};
         std::atomic<int> _young_collect_count = {0};
         std::mutex _mutex;

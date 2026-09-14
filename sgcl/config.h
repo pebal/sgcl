@@ -20,6 +20,14 @@ namespace sgcl::config {
     // Structures written by different threads are kept on lines of this
     // size: 128 bytes covers Apple silicon; x86 uses 64.
                      static constexpr size_t CacheLineSize = 128;
+    // The line of the platform's L1 cache: a block of cells
+    // (detail/cell_block.h) is one line, so that the pointers it holds
+    // share one line and no more.
+#if defined(__APPLE__) && defined(__aarch64__)
+                     static constexpr size_t L1LineSize = 128;
+#else
+                     static constexpr size_t L1LineSize = 64;
+#endif
     // The managed heap is one virtual range reserved at first use and backed
     // lazily; the reservation costs no physical memory. Pages come from 2 MB
     // chunks aligned to 2 MB (commit/decommit unit, huge-page friendly).

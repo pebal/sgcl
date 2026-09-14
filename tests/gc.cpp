@@ -22,7 +22,9 @@ namespace {
         gc::tracked_ptr<Item> next;
     };
 
+    // The thread's block of cells let go of first (gc_tracked_ptr.cpp)
     SGCL_ALWAYS_INLINE size_t live_after_collect() {
+        sgcl::detail::cell_allocator.release();
         collector::clear_stack(SIZE_MAX);
         collector::force_collect(true);
         return collector::get_live_object_count();
@@ -62,7 +64,7 @@ TEST(Gc_Tests, VectorInAStdVector) {
         outer.emplace_back(std::move(outer[0]));                 // a move: the buffer taken over, the vector's cell stays
         EXPECT_EQ(outer[0].size(), 0u);
     });
-    EXPECT_EQ(live_after_collect(), live0 + 100 + 2 + 3);        // the items, two buffers, the three vectors' cells (the moved-from one keeps its cell)
+    EXPECT_EQ(live_after_collect(), live0 + 100 + 2 + 1);        // the items, two buffers, the block of the three vectors' cells (the moved-from one keeps its cell)
     off_frame([&] {
         EXPECT_EQ(outer[1].size(), 100u);
         EXPECT_EQ(outer[2][42]->value, 42);

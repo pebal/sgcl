@@ -52,10 +52,12 @@ namespace sgcl::detail {
         // Reachable in the current cycle: Reachable with the current
         // parity (Fresh or not: a registered Fresh object of the current
         // parity was UniqueLock when registered and handed to a tracked_ptr
-        // since), or UniqueLock of either parity
+        // since), UniqueLock of either parity, or a released block of cells
+        // (types.h: UniqueReleased), a root until the collector frees it
         static unsigned reachable(uint64_t w, State current) noexcept {
             return equal(w, current) | equal(w, State(current | State::Fresh))
-                 | equal(w, State::UniqueLock) | equal(w, State(State::UniqueLock | State::Parity));
+                 | equal(w, State::UniqueLock) | equal(w, State(State::UniqueLock | State::Parity))
+                 | equal(w, State::UniqueReleased);
         }
 
         // the bytes equal to v

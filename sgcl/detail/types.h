@@ -49,6 +49,7 @@ namespace sgcl::detail {
     struct TypeInfo;
     struct UniqueDeleter;
     struct WeakCell;
+    struct CellBlock;
 
     // The state of a slot. Reachable carries the parity of the epoch the
     // barrier read when it set it (Page::reachable_state): the state of the
@@ -58,12 +59,17 @@ namespace sgcl::detail {
     // out of date at once. Fresh marks an object handed to its first
     // tracked_ptr and not registered yet; with the current parity it says
     // "created after the flip", and the cycle leaves such an object alone
-    // (page.h: set_state, collector.h: _register_page).
+    // (page.h: set_state, collector.h: _register_page). UniqueReleased is
+    // the state of a block of cells (cell_block.h) its allocator has let
+    // go of: a root still, freed by the collector once every word of the
+    // block is free (collector.h: _release_cell_blocks), the way Destroyed
+    // is freed without a condition.
     enum State : uint8_t {
         Used = 0,
         Reachable = 1,
         UniqueLock = 2,
         Destroyed = 4,
+        UniqueReleased = UniqueLock | Destroyed,
         BadAlloc = 8,
         Reserved = 16,
         Unused = 32,

@@ -45,11 +45,22 @@ namespace {
 
     // Inlined into the test: clear_stack clears the stack below its caller,
     // and a frame of its own between the test and the cleared region would
-    // keep the words a sanitizer build leaves in its red zones.
+    // keep the words a sanitizer build leaves in its red zones. The
+    // thread's block of cells is let go of first (detail::CellAllocator),
+    // so that the count holds the blocks pinned by live pointers only, and
+    // the next cell starts a block of its own: a test that takes fewer
+    // than eight cells pins one block.
     SGCL_ALWAYS_INLINE size_t live_after_collect() {
+        sgcl::detail::cell_allocator.release();
         collector::clear_stack(SIZE_MAX);
         collector::force_collect(true);
         return collector::get_live_object_count();
+    }
+
+    // The blocks that n cells taken one after another occupy (the slots
+    // of a block are handed out in order: detail::CellAllocator)
+    constexpr size_t blocks(size_t cells) {
+        return (cells + sgcl::detail::CellBlock::Slots - 1) / sgcl::detail::CellBlock::Slots;
     }
 }
 
@@ -78,7 +89,7 @@ TEST(GcTrackedPtr_Tests, NullInEveryPlace) {
         v.resize(100);
         EXPECT_EQ(v[99], nullptr);
     });
-    EXPECT_EQ(live_after_collect(), live0 + 100);
+    EXPECT_EQ(live_after_collect(), live0 + blocks(101));        // the blocks of 101 cells: the one given back shares the first with v[0]
     v.clear();
     EXPECT_EQ(live_after_collect(), live0);
 }
@@ -147,7 +158,9 @@ TEST(GcTrackedPtr_Tests, AMoveIsACopyAndNoCellChangesHands) {
         }
         EXPECT_EQ(v[0]->value, 7);
     });
-    EXPECT_EQ(live_after_collect(), live0 + 2 + 1000);
+    auto live1 = live_after_collect();                           // the object; the cells of the final buffer, taken in a row by its reallocation, from wherever its block stood
+    EXPECT_GE(live1, live0 + 1 + blocks(1001));
+    EXPECT_LE(live1, live0 + 1 + blocks(1001) + 1);
     off_frame([&] {
         gc::tracked_ptr<Node> moved = std::move(v[0]);               // onto the stack: a copy, the source keeps its value
         EXPECT_EQ(moved->value, 7);
@@ -160,7 +173,7 @@ TEST(GcTrackedPtr_Tests, AMoveIsACopyAndNoCellChangesHands) {
         EXPECT_EQ(*p, v[1]);
         delete p;
     });
-    EXPECT_EQ(live_after_collect(), live0 + 2 + 1000);
+    EXPECT_EQ(live_after_collect(), live1);                      // the cells of the stack copy and of p are given back
     v.clear();
     EXPECT_EQ(live_after_collect(), live0);
 }
@@ -168,15 +181,16 @@ TEST(GcTrackedPtr_Tests, AMoveIsACopyAndNoCellChangesHands) {
 TEST(GcTrackedPtr_Tests, ACopyIntoUnmanagedMemoryIsOneCell) {
     auto live0 = live_after_collect();
     std::vector<gc::tracked_ptr<Node>> v;
+    v.reserve(10);                                               // no reallocation: ten cells in a row
     off_frame([&] {
         gc::tracked_ptr node = make_tracked<Node>();
         for (int i = 0; i < 10; ++i) {
             v.push_back(node);
         }
     });
-    EXPECT_EQ(live_after_collect(), live0 + 11);                 // the node and ten cells
+    EXPECT_EQ(live_after_collect(), live0 + 1 + blocks(10));     // the node and the blocks of ten cells
     v.resize(5);
-    EXPECT_EQ(live_after_collect(), live0 + 6);
+    EXPECT_EQ(live_after_collect(), live0 + 1 + blocks(5));      // the blocks past the fifth cell given back whole
     v.clear();
     EXPECT_EQ(live_after_collect(), live0);
 }
@@ -233,7 +247,7 @@ TEST(GcTrackedPtr_Tests, ABaseAtAnOffsetInACell) {
         gc::tracked_ptr<A> a = v[0].as<C>();
         EXPECT_EQ(a->a, 1);
     });
-    EXPECT_EQ(live_after_collect(), live0 + 3);                  // the C and two cells
+    EXPECT_EQ(live_after_collect(), live0 + 2);                  // the C and the block of the two cells
     off_frame([&] {
         EXPECT_EQ(v[0]->b, 2);
         EXPECT_EQ(v[1]->b, 2);
@@ -253,14 +267,14 @@ TEST(GcTrackedPtr_Tests, InAGlobalAndAThreadLocal) {
     auto live0 = live_after_collect();
     auto& global = *new (global_storage) gc::tracked_ptr<Node>();
     auto& local = *new (local_storage) gc::tracked_ptr<Node>();
-    EXPECT_EQ(live_after_collect(), live0 + 2);                  // two cells, from the constructors
+    EXPECT_EQ(live_after_collect(), live0 + 1);                  // the block of the two cells, from the constructors
     off_frame([&] {
         global = make_tracked<Node>();
         global->value = 1;
         local = make_tracked<Node>();
         local->value = 2;
     });
-    EXPECT_EQ(live_after_collect(), live0 + 4);                  // two nodes, two cells
+    EXPECT_EQ(live_after_collect(), live0 + 3);                  // two nodes, the block
     off_frame([&] {
         EXPECT_EQ(global->value, 1);
         EXPECT_EQ(local->value, 2);
@@ -273,7 +287,7 @@ TEST(GcTrackedPtr_Tests, InAGlobalAndAThreadLocal) {
     }).join();
     global = nullptr;
     local = nullptr;
-    EXPECT_EQ(live_after_collect(), live0 + 2);                  // the cells stay
+    EXPECT_EQ(live_after_collect(), live0 + 1);                  // the cells stay, so does their block; the other thread's block went with its cell
     std::destroy_at(&global);
     std::destroy_at(&local);
     EXPECT_EQ(live_after_collect(), live0);
@@ -305,7 +319,7 @@ TEST(GcTrackedPtr_Tests, DestructorsRunOnceWhateverThePlace) {
         auto m = make_tracked<gc::tracked_ptr<Counted>>(v[0]);
         EXPECT_EQ(Counted::alive, 1);
     });
-    EXPECT_EQ(live_after_collect(), live0 + 3);
+    EXPECT_EQ(live_after_collect(), live0 + 2);                  // the Counted and the block of the two cells
     EXPECT_EQ(Counted::alive, 1);
     v.clear();
     EXPECT_EQ(live_after_collect(), live0);
@@ -456,7 +470,7 @@ TEST(GcTrackedPtr_Tests, AtomicRefOnAGcPtrAnywhere) {
         EXPECT_EQ(local, v[0]);
         EXPECT_EQ(v[1], nullptr);
     });
-    EXPECT_EQ(live_after_collect(), live0 + 3);                   // the Node and the two cells
+    EXPECT_EQ(live_after_collect(), live0 + 2);                   // the Node and the block of the two cells
     v.clear();
     EXPECT_EQ(live_after_collect(), live0);
 }
@@ -480,9 +494,61 @@ TEST(GcTrackedPtr_Tests, WeakPtrOfBothKinds) {
         weak.push_back(node);
         EXPECT_EQ(weak[2].lock()->value, 7);
     });
-    EXPECT_EQ(live_after_collect(), live0 + 6);                   // no node: three weak cells (w; t, shared by g and back; the third push) and three gc cells
+    EXPECT_EQ(live_after_collect(), live0 + 4);                   // no node: three weak cells (w; t, shared by g and back; the third push) and the block of the three gc cells
     EXPECT_TRUE(weak[0].expired());
     EXPECT_EQ(weak[1].lock(), nullptr);
     weak.clear();
+    EXPECT_EQ(live_after_collect(), live0);
+}
+
+// The cells come from blocks of a cache line (detail/cell_block.h), one
+// managed object per block, handed out by the thread's allocator in
+// order; a block is freed by the cycle that finds every cell of it given
+// back, once the allocator has let go of it (the last cell handed out, or
+// the thread gone). A cell is given back by the destructor of its
+// pointer on whatever thread that runs.
+TEST(GcTrackedPtr_Tests, BlocksOfCells) {
+    constexpr auto Slots = sgcl::detail::CellBlock::Slots;
+    auto live0 = live_after_collect();
+    std::vector<gc::tracked_ptr<Node>> v;
+    v.reserve(Slots + 1);
+    off_frame([&] {
+        for (unsigned i = 0; i < Slots + 1; ++i) {
+            v.push_back(make_tracked<Node>());
+        }
+    });
+    EXPECT_EQ(live_after_collect(), live0 + Slots + 1 + 2);       // the nodes, a full block and the one of the last cell
+    v.erase(v.begin(), v.begin() + Slots);                       // the full block's cells given back: freed, the last one's stays
+    EXPECT_EQ(live_after_collect(), live0 + 1 + 1);
+    v.clear();
+    EXPECT_EQ(live_after_collect(), live0);
+    // A block pinned by one cell: the cells taken and given back around
+    // it cost nothing, and the block goes when the one cell does
+    auto pin = std::make_unique<gc::tracked_ptr<Node>>(make_tracked<Node>());
+    off_frame([&] {
+        for (int i = 0; i < 1000; ++i) {
+            gc::tracked_ptr<Node> temporary(*pin);
+            EXPECT_EQ(temporary->value, 7);
+        }
+        std::vector<gc::tracked_ptr<Node>> churn(1000, *pin);
+    });
+    EXPECT_EQ(live_after_collect(), live0 + 1 + 1);              // the node and the block of the pin
+    pin.reset();
+    EXPECT_EQ(live_after_collect(), live0);
+    // Cells taken on one thread and given back on another: the thread
+    // lets go of its block when it ends, and the block is freed once
+    // the other thread has given the cells back
+    std::vector<gc::tracked_ptr<Node>> shared;
+    shared.reserve(3);
+    std::thread([&shared] {
+        for (int i = 0; i < 3; ++i) {
+            shared.push_back(make_tracked<Node>());
+        }
+    }).join();
+    EXPECT_EQ(live_after_collect(), live0 + 3 + 1);              // the nodes and the other thread's block
+    off_frame([&] {
+        EXPECT_EQ(shared[2]->value, 7);
+    });
+    shared.clear();
     EXPECT_EQ(live_after_collect(), live0);
 }

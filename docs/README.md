@@ -8,7 +8,7 @@ One page per public class or function of the library, each with every public mem
 |---|---|---|
 | [tracked_ptr](tracked_ptr.md) | `sgcl/tracked_ptr.h` | the pointer the collector follows: one word, a write barrier, no count; aliases, `type()`, `is<U>()`, `as<U>()`, `if_alive()` |
 | [unique_ptr](unique_ptr.md) | `sgcl/unique_ptr.h` | what `make_tracked` returns: a `std::unique_ptr` to a managed object, deterministic until moved into a `tracked_ptr` |
-| [gc::tracked_ptr](gc/tracked_ptr.md) | `gc/tracked_ptr.h` | a `tracked_ptr` that may live anywhere: the same word in managed objects and on stacks, a managed cell as its root elsewhere (a `std` container, a global, a lambda on the heap); the pointer of [the gc namespace](#the-gc-namespace) |
+| [gc::tracked_ptr](gc/tracked_ptr.md) | `gc/tracked_ptr.h` | a `tracked_ptr` that may live anywhere: the same word in managed objects and on stacks, a cell of a managed block as its root elsewhere (a `std` container, a global, a lambda on the heap); the pointer of [the gc namespace](#the-gc-namespace) |
 | [make_tracked](make_tracked.md) | `sgcl/make_tracked.h` | creates an object on the managed heap |
 | [weak_ptr](weak_ptr.md) | `sgcl/weak_ptr.h` | a pointer that does not keep its object alive, cleared by the cycle that finds the object unreachable |
 | [atomic, atomic_ref](atomic.md) | `sgcl/atomic.h`, `sgcl/atomic_ref.h` | lock-free atomic `tracked_ptr`: `load`, `store`, compare-exchange, `wait`/`notify`, no ABA ([atomic_ref](atomic_ref.md) on its own page) |
