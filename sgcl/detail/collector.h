@@ -10,6 +10,7 @@
 #include "states.h"
 #include "thread.h"
 #include "types.h"
+#include "weak_cell.h"
 
 #include <algorithm>
 #include <condition_variable>
@@ -1878,6 +1879,341 @@ namespace sgcl::detail {
 #if SGCL_LOG_PRINT_LEVEL >= 2
         double total_time = 0;
 #endif
+        // Stepping (collector.h: stepper), for the tests of the engine: a
+        // test takes the collector and lets it through one gate at a time,
+        // doing a mutator's work in between, where a race would have to be
+        // lucky to land. The gates sit at the phase boundaries of a cycle;
+        // the collector, arriving at one, records it and waits until the
+        // test has allowed that many gates; between cycles it parks at the
+        // Start gate instead of sleeping. Outside stepping a gate is one
+        // relaxed load. The test's own thread is the mutator, so nothing
+        // the test does between two gates can wait for the collector
+        // (force_collect and the live-object queries would).
+        enum class Gate : int { Start, Flipped, Registered, Roots, Marked, Swept, Released, Count };
+
+        void _gate(Gate g) noexcept {
+            if (!_stepping.load(std::memory_order_relaxed)) [[likely]] {
+                return;
+            }
+            std::unique_lock<std::mutex> lock(_step_mutex);
+            if (!_stepping.load(std::memory_order_relaxed)) {
+                return;
+            }
+            // the first gate of stepping is Start: a cycle in flight when
+            // the stepper arrived runs to its end unstepped
+            if (!_step_armed) {
+                if (g != Gate::Start) {
+                    return;
+                }
+                _step_armed = true;
+            }
+            auto index = _step_reached + 1;
+            assert(Gate(index % int(Gate::Count)) == g);
+            _step_reached = index;
+            _step_cv.notify_all();
+            _step_cv.wait(lock, [this, index] { return _step_allowed > index || !_stepping.load(std::memory_order_relaxed); });
+        }
+
+    public:
+        // What holds an object (collector.h: get_referrers, get_path_to_root),
+        // under the pause of get_live_objects: the collector stands after a
+        // full cycle, so the marked objects are the live ones and nothing
+        // moves the pages; the mutators run on, so a word is read as the
+        // scan reads it and may have changed by the time it is reported.
+        struct Referrer {
+            enum class Kind : int { Object, Buffer, Stack, Cell, Unique, Weak };
+            Kind kind;
+            const void* holder;           // the object, buffer or block that holds the word; the word itself on a stack
+            const std::type_info* type;   // the holder's type; a buffer's element type; null for a stack
+            size_t offset;                // the word's byte offset in the holder
+        };
+
+        // The object `p` points at or into: its first byte and the one past
+        // it, or nothing for a pointer that is not into a live managed object
+        std::pair<const char*, const char*> object_of(const void* p) noexcept {
+            auto page = Heap::page_of_checked(p);
+            if (!page || !page->is_used) {
+                return {nullptr, nullptr};
+            }
+            auto index = page->index_of(p);
+            if (index >= page->metadata->object_count) {
+                return {nullptr, nullptr};
+            }
+            auto& flag = page->flags()[Page::flag_index_of(index)];
+            if (!(flag.registered & Page::flag_mask_of(index))) {
+                return {nullptr, nullptr};
+            }
+            auto base = (const char*)page->pointer_of(index);
+            auto size = page->metadata->pool_allocated ? page->metadata->object_size : page->data_size();
+            return {base, base + size};
+        }
+
+        // `boundary`: the frame of the public function on the calling
+        // thread; that thread's words below it (the diagnostic's own) are
+        // left out of referrers(), its whole stack out of path_to_root()
+        std::vector<Referrer> referrers(const void* p, uintptr_t boundary) noexcept {
+            std::vector<Referrer> found;
+            auto [begin, end] = object_of(p);
+            if (!begin) {
+                return found;
+            }
+            auto hit = [&](const void* word) {
+                auto v = os::load_word(word);
+                return v >= (uintptr_t)begin && v < (uintptr_t)end;
+            };
+            auto self = Page::state_of(begin);
+            if (Page::is_unique_state(self) || self == State::UniqueReleased) {
+                found.push_back({Referrer::Kind::Unique, begin, &Page::page_of(begin)->metadata->type_info, 0});
+            }
+            for (auto page : _pages) {
+                _for_each_live_object(page, [&](const void* object) {
+                    _for_each_word(page, object, [&](const void* word) {
+                        if (hit(word)) {
+                            found.push_back({_kind_of(page), object, &_type_of(page, object), (size_t)((const char*)word - (const char*)object)});
+                        }
+                    });
+                });
+            }
+            _for_each_stack_word(boundary, false, [&](const void* word) {
+                if (hit(word)) {
+                    found.push_back({Referrer::Kind::Stack, word, nullptr, 0});
+                }
+            });
+            return found;
+        }
+
+        // A chain from `p` up to a root: [0] holds p, [1] holds [0]'s
+        // holder, ..., the last is a root (an object a unique_ptr owns, a
+        // released block of cells, a word on a stack). Empty for a pointer
+        // that is not into a live object, or for an object nothing reaches
+        // but the diagnostic's own frames. A search from the roots down,
+        // breadth first, the roots by state first, then the other threads'
+        // stacks, and the calling thread's frames above the call only when
+        // nothing else reaches the object: the caller holds the pointer it
+        // asks about and asks what else does, and a chain that ends on its
+        // own stack says that nothing else does.
+        std::vector<Referrer> path_to_root(const void* p, uintptr_t boundary) noexcept {
+            std::vector<Referrer> path;
+            auto [begin, end] = object_of(p);
+            if (!begin) {
+                return path;
+            }
+            auto target = (const void*)begin;
+            std::unordered_map<const void*, Referrer> parent;   // object -> what holds it, the first found
+            std::vector<const void*> queue;
+            auto reach = [&](const void* word, Referrer r) {
+                auto [b, e] = object_of((const void*)os::load_word(word));
+                if (b && !parent.count(b)) {
+                    parent.emplace(b, r);
+                    queue.push_back(b);
+                }
+            };
+            // the roots: the objects a unique_ptr owns and the blocks of
+            // cells (a root by state either), then the other threads' stacks
+            for (auto page : _pages) {
+                _for_each_live_object(page, [&](const void* object) {
+                    auto s = Page::state_of(object);
+                    if (Page::is_unique_state(s) || s == State::UniqueReleased) {
+                        if (!parent.count(object)) {
+                            parent.emplace(object, Referrer{Referrer::Kind::Unique, object, &_type_of(page, object), 0});
+                            queue.push_back(object);
+                        }
+                    }
+                });
+            }
+            _for_each_stack_word(boundary, true, [&](const void* word) { reach(word, {Referrer::Kind::Stack, word, nullptr, 0}); });
+            auto search = [&] {
+                for (size_t i = 0; i < queue.size() && !parent.count(target); ++i) {
+                    auto object = queue[i];
+                    auto page = Page::page_of(object);
+                    _for_each_word(page, object, [&](const void* word) {
+                        reach(word, {_kind_of(page), object, &_type_of(page, object), (size_t)((const char*)word - (const char*)object)});
+                    });
+                }
+            };
+            search();
+            if (!parent.count(target)) {
+                // the calling thread's own frames above the call, last
+                _for_each_own_stack_word(boundary, [&](const void* word) { reach(word, {Referrer::Kind::Stack, word, nullptr, 0}); });
+                search();
+            }
+            for (auto at = parent.find(target); at != parent.end(); ) {
+                auto r = at->second;
+                path.push_back(r);
+                if (r.kind == Referrer::Kind::Stack || r.kind == Referrer::Kind::Unique) {
+                    break;
+                }
+                at = parent.find(r.holder);
+            }
+            return path;
+        }
+
+    private:
+        static Referrer::Kind _kind_of(Page* page) noexcept {
+            return page->metadata->is_cell_block ? Referrer::Kind::Cell
+                 : page->metadata->is_weak_cell ? Referrer::Kind::Weak
+                 : page->metadata->is_array ? Referrer::Kind::Buffer
+                 : Referrer::Kind::Object;
+        }
+
+        static const std::type_info& _type_of(Page* page, const void* object) noexcept {
+            if (page->metadata->is_array) {
+                auto metadata = ((const ArrayBase*)object)->metadata;
+                return metadata ? metadata->type_info : page->metadata->type_info;
+            }
+            return page->metadata->type_info;
+        }
+
+        // The registered, marked objects of a page: after a full cycle, the live ones
+        template<class F>
+        void _for_each_live_object(Page* page, F&& f) noexcept {
+            if (!page->is_used) {
+                return;
+            }
+            auto flags = page->flags();
+            auto count = page->flags_count();
+            for (unsigned i = 0; i < count; ++i) {
+                auto live = flags[i].registered & flags[i].marked;
+                while (live) {
+                    auto index = i * Page::FlagBitCount + std::countr_zero(live);
+                    live &= live - 1;
+                    if (index < page->metadata->object_count) {
+                        f(page->pointer_of(index));
+                    }
+                }
+            }
+        }
+
+        // The words of an object that may hold pointers, as the marking
+        // reads them: by the type's map, by the element type's map over a
+        // buffer's capacity, every word of a block of cells (the free ones
+        // hold their own address, never an object), the target of a weak cell
+        template<class F>
+        void _for_each_word(Page* page, const void* object, F&& f) noexcept {
+            auto metadata = page->metadata;
+            if (metadata->is_cell_block) {
+                for (auto& slot : ((const CellBlock*)object)->slots) {
+                    f(&slot);
+                }
+            } else if (metadata->is_weak_cell) {
+                f(&((const WeakCell*)object)->target);
+            } else if (metadata->is_array) {
+                auto array = (const ArrayBase*)object;
+                if (!array->metadata) {
+                    return;
+                }
+                auto& map = array->metadata->child_pointers;
+                auto size = array->metadata->object_size;
+                auto data = (const char*)object + sizeof(ArrayBase);
+                for (size_t k = 0; k < array->capacity; ++k, data += size) {
+                    _for_each_mapped_word(map, data, f);
+                }
+            } else {
+                _for_each_mapped_word(metadata->child_pointers, object, f);
+            }
+        }
+
+        template<class F>
+        static void _for_each_mapped_word(ChildPointers& map, const void* object, F&& f) noexcept {
+            for (size_t w = 0; w < map.map.size(); ++w) {
+                auto bits = map.word(w);
+                while (bits) {
+                    auto offset = w * 64 + std::countr_zero(bits);
+                    bits &= bits - 1;
+                    f((const RawPointer*)object + offset);
+                }
+            }
+        }
+
+        // The words of the calling thread's stack from `boundary` up: the
+        // caller's frames, not the diagnostic's below, which hold the
+        // pointer asked about
+        template<class F>
+        void _for_each_own_stack_word(uintptr_t boundary, F&& f) noexcept {
+            for (auto thread = _registered_threads; thread; thread = thread->next_registered) {
+                if (boundary >= thread->stack_begin && boundary < thread->stack_end) {
+                    _for_each_word_of(boundary, thread->stack_end, f);
+                    return;
+                }
+            }
+        }
+
+        template<class F>
+        void _for_each_word_of(uintptr_t begin, uintptr_t end, F&& f) noexcept {
+            _stack_segments.clear();
+            _stack_segments_of(begin, end);
+            for (auto& segment : _stack_segments) {
+                for (auto word = segment.begin; word < segment.end; word += sizeof(uintptr_t)) {
+                    f((const void*)word);
+                }
+            }
+        }
+
+        // The words of the used part of every registered thread's stack;
+        // the calling thread's from `boundary` up (its frames below hold the
+        // pointer asked about), or not at all
+        template<class F>
+        void _for_each_stack_word(uintptr_t boundary, bool skip_own, F&& f) noexcept {
+            for (auto thread = _registered_threads; thread; thread = thread->next_registered) {
+                if (thread->is_deleted.load(std::memory_order_acquire) || thread->exiting.load(std::memory_order_acquire)) {
+                    continue;
+                }
+                auto begin = thread->stack_begin;
+                auto end = thread->stack_end;
+                if (boundary >= begin && boundary < end) {
+                    if (skip_own) {
+                        continue;
+                    }
+                    begin = boundary;
+                }
+                _for_each_word_of(begin, end, f);
+            }
+        }
+
+    public:
+        // The test side (collector.h: stepper)
+        void step_begin(bool full) noexcept {
+            {
+                std::unique_lock<std::mutex> lock(_step_mutex);
+                _step_full = full;
+                _step_armed = false;
+                _step_reached = -1;
+                _step_allowed = 0;
+                _stepping.store(true, std::memory_order_release);
+            }
+            waking_up();   // out of the sleep between cycles, to the Start gate
+            std::unique_lock<std::mutex> lock(_step_mutex);
+            _step_cv.wait(lock, [this] { return _step_reached == 0; });
+        }
+
+        void step_full(bool full) noexcept {
+            std::unique_lock<std::mutex> lock(_step_mutex);
+            _step_full = full;
+        }
+
+        void step_end() noexcept {
+            {
+                std::unique_lock<std::mutex> lock(_step_mutex);
+                _stepping.store(false, std::memory_order_release);
+                _step_cv.notify_all();
+            }
+        }
+
+        // One gate more: returns the gate the collector stands at then
+        Gate step() noexcept {
+            std::unique_lock<std::mutex> lock(_step_mutex);
+            auto target = _step_allowed++;   // the gate the collector may now pass is `target`; it arrives at target + 1
+            _step_cv.notify_all();
+            _step_cv.wait(lock, [this, target] { return _step_reached == target + 1; });
+            return Gate(_step_reached % int(Gate::Count));
+        }
+
+        Gate step_gate() noexcept {
+            std::unique_lock<std::mutex> lock(_step_mutex);
+            return Gate(_step_reached % int(Gate::Count));
+        }
+
+    private:
         void _main_loop() noexcept {
 #if SGCL_LOG_PRINT_LEVEL > 0
             std::cout << "[sgcl] start collector id: " << std::this_thread::get_id() << std::endl;
@@ -1904,7 +2240,9 @@ namespace sgcl::detail {
 #ifdef SGCL_TRACE_STACK
                 std::fprintf(stderr, "[cycle] %s epoch %u\n", _full ? "full" : "young", _epoch + 1);
 #endif
+                _gate(Gate::Start);
                 Page::flip_epoch(++_epoch);
+                _gate(Gate::Flipped);
                 // the phases timed always (eight clock reads a cycle): statistics()
                 auto phase_t = std::chrono::steady_clock::now();
                 double phase_ms[PhaseCount] = {};
@@ -1925,6 +2263,7 @@ namespace sgcl::detail {
                 _release_cell_blocks();
                 phase(0);
                 phase(1);
+                _gate(Gate::Registered);
                 _register_threads();
                 _mark_stack_roots();
                 if (!_full) {
@@ -1937,6 +2276,7 @@ namespace sgcl::detail {
                     }
                 }
                 phase(2);
+                _gate(Gate::Roots);
                 for (auto& m : _markers) {
                     m.live = 0;
                     m.objects.clear();
@@ -1981,6 +2321,7 @@ namespace sgcl::detail {
                         _mark_hazard_pointers();
                     }
                 } while(_reachable_pages);
+                _gate(Gate::Marked);
                 // a young cycle counts the objects marked for the first time;
                 // the marked ones from before are live until a full cycle says otherwise
                 size_t marked = 0;
@@ -1999,12 +2340,14 @@ namespace sgcl::detail {
                 _last_live_object_count.store(_live_total, std::memory_order_relaxed);
                 size_t last_objects_removed = _remove_garbage();
                 phase(5);
+                _gate(Gate::Swept);
                 _release_unused_pages();
                 phase(6);
                 Heap::instance().trim();
                 MemoryCounters::end_cycle();
                 _clear_own_stack();
                 phase(7);
+                _gate(Gate::Released);
 #ifdef SGCL_MARK_STATS
                 std::fprintf(stderr, "[cycle] %s register %.1f states %.1f roots %.1f mark %.1f updated %.1f sweep %.1f release %.1f trim %.1f ms, removed %zu\n", _full ? "full" : "young", phase_ms[0], phase_ms[1], phase_ms[2], phase_ms[3], phase_ms[4], phase_ms[5], phase_ms[6], phase_ms[7], last_objects_removed);
 #endif
@@ -2087,7 +2430,7 @@ namespace sgcl::detail {
                         can_sleep = false;
                     }
                 }
-                if (!_terminating && can_sleep) {
+                if (!_terminating && can_sleep && !_stepping.load(std::memory_order_acquire)) {
                     sleep_flag.store(true, std::memory_order_relaxed);
                     std::unique_lock<std::mutex> lock(_mutex);
                     std::chrono::nanoseconds sleep_time = _short_sleep ? config::ShortSleepTime : config::LongSleepTime;
@@ -2126,6 +2469,9 @@ namespace sgcl::detail {
         bool _choose_full_cycle(size_t live_size) const noexcept {
             if constexpr(!config::Generational) {
                 return true;
+            }
+            if (_stepping.load(std::memory_order_acquire)) {
+                return _step_full;
             }
             if (_forced_collect_count.load(std::memory_order_acquire) || _terminating || Heap::instance().under_pressure()) {
                 return true;
@@ -2175,6 +2521,13 @@ namespace sgcl::detail {
         std::vector<Page*> _pages;   // the registered pages
         std::vector<Page*> _weak_pages;   // of them, the pages of weak cells (weak_cell.h)
         std::vector<Page*> _cell_block_pages;   // and of the blocks of cells (cell_block.h)
+        std::atomic<bool> _stepping = {false};   // stepping (Gate): the test holds the cycle
+        std::mutex _step_mutex;
+        std::condition_variable _step_cv;
+        bool _step_full = true;
+        bool _step_armed = false;
+        long _step_reached = -1;   // gates arrived at since the stepper began, Start of the first cycle being 0
+        long _step_allowed = 0;    // gates the collector may pass
         std::atomic<int> _forced_collect_count = {0};
         std::atomic<int> _young_collect_count = {0};
         std::mutex _mutex;

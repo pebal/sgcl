@@ -47,6 +47,7 @@ The interfaces of `std`, the nodes and buffers on the managed heap: a container 
 | [expiry_queue](expiry_queue.md) | `sgcl/expiry_queue.h` | a callback for an object the collector found unreachable, with the object alive again for the call |
 | [collector](collector.md) | `sgcl/collector.h` | `force_collect`, `terminate`, statistics and phase times, live objects and bytes by type, the memory limit |
 | [config](config.md) | `sgcl/config.h` | the compile-time constants and the `-D` macros that set them |
+| [diagnostics](diagnostics.md) | | the tools and the cases: what is alive and why, what a rule broken looks like, what a cycle costs, a race with the collector |
 
 ## Reading the pages
 

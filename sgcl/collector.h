@@ -7,6 +7,10 @@
 
 #include "detail/collector.h"
 
+#include <ostream>
+#include <tuple>
+#include <vector>
+
 namespace sgcl {
     class collector {
     public:
@@ -139,5 +143,155 @@ namespace sgcl {
         inline static void set_memory_limit(size_t bytes) noexcept {
             detail::Heap::instance().set_memory_limit(bytes);
         }
+
+        // What holds an object: the words that point at it, wherever they
+        // are, and a chain from it up to a root. Both run a full cycle first
+        // and keep the collector paused while the pause_guard lives (as
+        // get_live_objects), so that the live objects are exactly the
+        // marked ones and no page moves under the walk; the mutators run
+        // on, so a word is read as the scan reads it. `p` may point into
+        // the object. A chain is [0] what holds the object, [1] what holds
+        // that holder, ..., the last a root: a word on a stack (`holder` is
+        // the word's address, the thread unnamed), an object a unique_ptr
+        // owns (`unique`: `holder` is the object itself), a released block
+        // of cells of gc::tracked_ptrs in unmanaged memory (`cell`: the
+        // block, `offset` the cell; the gc::tracked_ptr that owns the cell
+        // is not known to the collector; the block itself follows as a
+        // `unique` link, a root by its state). The calling thread's own
+        // frames are searched last, and only when nothing else reaches the
+        // object: the caller holds the pointer it asks about and asks what
+        // else does, so a chain that ends on its own stack says that
+        // nothing else does (a local, or a word a dead frame left: garbage
+        // once the frame is gone). Empty: `p` is not into a live managed
+        // object, or only the diagnostic's own frames hold it. get_referrers
+        // lists every word, the calling thread's frames above the call
+        // included, and the `weak` cells, which hold nothing and are never
+        // in a chain.
+        struct referrer {
+            enum class kind : int { object, buffer, stack, cell, unique, weak };
+            kind from;
+            const void* holder;
+            const std::type_info* type;   // the holder's type, a buffer's element type (typeid(T[])); null for a stack word
+            size_t offset;                // the word's byte offset in the holder
+        };
+
+        SGCL_NOINLINE static std::tuple<pause_guard, std::vector<referrer>> get_referrers(const void* p) {
+            auto boundary = (uintptr_t)__builtin_frame_address(0);
+            auto [guard, objects] = get_live_objects();
+            return {std::move(guard), _referrers(detail::collector_instance().referrers(p, boundary))};
+        }
+
+        SGCL_NOINLINE static std::tuple<pause_guard, std::vector<referrer>> get_path_to_root(const void* p) {
+            auto boundary = (uintptr_t)__builtin_frame_address(0);
+            auto [guard, objects] = get_live_objects();
+            return {std::move(guard), _referrers(detail::collector_instance().path_to_root(p, boundary))};
+        }
+
+        // The chain of get_path_to_root as text, a line per link, or why
+        // there is none
+        SGCL_NOINLINE static void explain(const void* p, std::ostream& out) {
+            auto boundary = (uintptr_t)__builtin_frame_address(0);
+            auto [guard, objects] = get_live_objects();
+            auto& c = detail::collector_instance();
+            auto path = _referrers(c.path_to_root(p, boundary));
+            if (path.empty()) {
+                out << p << (c.object_of(p).first ? ": held by nothing but the frames of this call: garbage once they are gone\n" : ": not a live managed object\n");
+                return;
+            }
+            out << p << " is held by\n";
+            for (auto& r : path) {
+                switch (r.from) {
+                    case referrer::kind::object: out << "  a " << r.type->name() << " at " << r.holder << ", the word at byte " << r.offset << '\n'; break;
+                    case referrer::kind::buffer: out << "  a buffer of " << r.type->name() << " at " << r.holder << ", the word at byte " << r.offset << '\n'; break;
+                    case referrer::kind::cell: out << "  a cell of a gc::tracked_ptr in unmanaged memory (block " << r.holder << ", cell " << r.offset / sizeof(void*) << ")\n"; break;
+                    case referrer::kind::stack: out << "  a word on a stack, at " << r.holder << (_own_stack(r.holder, boundary) ? " (this thread's, above the call)\n" : "\n"); break;
+                    case referrer::kind::unique:
+                        if (*r.type == typeid(detail::CellBlock)) {
+                            out << "  the block of cells, a root while a cell of it is in use\n";
+                        } else {
+                            out << "  a unique_ptr: the " << r.type->name() << " at " << r.holder << " is its object\n";
+                        }
+                        break;
+                    case referrer::kind::weak: out << "  a weak_ptr's cell at " << r.holder << " (holds nothing)\n"; break;
+                }
+            }
+        }
+
+    private:
+        static bool _own_stack(const void* word, uintptr_t boundary) noexcept {
+            return (uintptr_t)word >= boundary && detail::thread_stack.holds(word);
+        }
+
+        static std::vector<referrer> _referrers(const std::vector<detail::Collector::Referrer>& found) {
+            std::vector<referrer> result;
+            result.reserve(found.size());
+            for (auto& r : found) {
+                result.push_back({referrer::kind(int(r.kind)), r.holder, r.type, r.offset});
+            }
+            return result;
+        }
+
+    public:
+        // The collector one gate at a time, for the tests of the engine.
+        // While a stepper exists no cycle runs on its own: the collector
+        // stands at a gate, a boundary between the phases of a cycle, until
+        // step() lets it through to the next one, and the test does a
+        // mutator's work in between, in the window a race would have to
+        // land in. The gates: `start` (a cycle about to begin), `flipped`
+        // (the epoch flipped, nothing registered yet), `registered` (the
+        // pages, objects and threads of before the flip registered),
+        // `roots` (the stacks scanned, the dirty pages traced), `marked`
+        // (the marking converged, the weak cells cleared), `swept` (the
+        // garbage destroyed and freed), `released` (the empty pages back
+        // in the heap: the cycle is over). The cycles are full unless the
+        // stepper is made with `full = false`. The stepper's thread is the
+        // mutator; between gates it must not wait for the collector
+        // (force_collect, get_live_objects and the other queries that
+        // wait for a cycle would deadlock). A cycle in flight when the
+        // stepper is made runs to its end first; the destructor lets the
+        // collector run on by itself.
+        class stepper {
+        public:
+            enum class phase : int { start, flipped, registered, roots, marked, swept, released };
+
+            explicit stepper(bool full = true) {
+                detail::collector_instance().step_begin(full);
+            }
+
+            ~stepper() {
+                detail::collector_instance().step_end();
+            }
+
+            stepper(const stepper&) = delete;
+            stepper& operator=(const stepper&) = delete;
+
+            // One gate: the phase the collector stands at then
+            phase step() noexcept {
+                return phase(int(detail::collector_instance().step()));
+            }
+
+            // Gates until the collector stands at `p`, the next one of that name
+            phase advance_to(phase p) noexcept {
+                phase s;
+                do {
+                    s = step();
+                } while (s != p);
+                return s;
+            }
+
+            // The rest of the current cycle, to `released`
+            void finish_cycle() noexcept {
+                advance_to(phase::released);
+            }
+
+            // The kind of the cycles from the next one on
+            void full(bool full) noexcept {
+                detail::collector_instance().step_full(full);
+            }
+
+            phase current() const noexcept {
+                return phase(int(detail::collector_instance().step_gate()));
+            }
+        };
     };
 }
