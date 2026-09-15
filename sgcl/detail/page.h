@@ -389,7 +389,11 @@ namespace sgcl::detail {
 
         // slots freed by the collector since the page was last handed out
         alignas(64) uint16_t unused_counter_gc = {0};   // at most the objects of one page
-        bool reachable = {false};
+        // The marking's listing of the page: 0 not listed, Listed (for the
+        // pass, by the roots), else the number of the marking thread that
+        // holds it (collector.h: Marker::id, _mark_page)
+        static constexpr uint8_t Listed = 255;
+        uint8_t reachable = {0};
         bool unreachable = {false};
         bool retire = {false};   // collector: states of the other parity to retire after the sweep, set where state_updated is lowered
         bool is_used = {true};

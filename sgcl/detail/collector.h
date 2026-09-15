@@ -610,11 +610,11 @@ namespace sgcl::detail {
             std::vector<void*> objects;   // the live objects, when requested
             size_t live = 0;              // objects marked for the first time
             bool unregistered_hit = false;
-            // The page whose object is being traced, whether this thread
-            // holds it (its page loop is running), the pages this thread
-            // listed and has to trace (_mark_page)
+            // The page whose object is being traced, this thread's number
+            // as the holder of a page (page.h: reachable), the pages this
+            // thread listed and has to trace (_mark_page)
             Page* current = nullptr;
-            bool owns_current = false;
+            uint8_t id = 0;
             std::vector<Page*> pages;
 #ifdef SGCL_MARK_STATS
             size_t via_bits = 0, via_stack = 0, page_visits = 0, passes = 0, listed = 0;
@@ -639,7 +639,7 @@ namespace sgcl::detail {
         // already costs no atomic operation, then fetch_or, whose old value
         // says which thread got the object and traces it.
         template<bool Parallel>
-        void _mark_slot(Page* page, unsigned index, Marker& m) noexcept {
+        SGCL_ALWAYS_INLINE void _mark_slot(Page* page, unsigned index, Marker& m) noexcept {
             auto flag_index = Page::flag_index_of(index);
             auto mask = Page::flag_mask_of(index);
             auto& flag = page->flags()[flag_index];
@@ -655,30 +655,28 @@ namespace sgcl::detail {
                 if (marked.load(std::memory_order_relaxed) & mask) {
                     return;
                 }
-                // a child on the page being traced: a reachable bit, for the
-                // page loop to take in slot order (_mark_page). On a page
-                // this thread holds a relaxed bit: the loop rescans after
-                // every pass that found something, and rechecks once it lets
-                // go. On a page it does not hold (a drain): the bit, then
-                // the page listed unless it is, both seq_cst against the
-                // holder's letting go.
-                {
-                    if (page == m.current) {
+                // A child on the page being traced: a reachable bit, for the
+                // page loop to take in slot order (_mark_page), when the page
+                // is this thread's (page.h: reachable holds the thread that
+                // listed it, and only that thread sets its bits, so the bit
+                // is a plain store) or nobody's (claimed with a CAS, listed,
+                // then the bit); a page another thread holds gets nothing:
+                // the object goes on this thread's stack like a child on
+                // any other page.
+                if (page == m.current) {
+                    std::atomic_ref<uint8_t> owner(page->reachable);
+                    auto o = owner.load(std::memory_order_relaxed);
+                    if (o == m.id || (o == 0 && owner.compare_exchange_strong(o, m.id, std::memory_order_acq_rel, std::memory_order_relaxed))) {
+                        if (o == 0) {
+                            m.pages.push_back(page);
+#ifdef SGCL_MARK_STATS
+                            ++m.listed;
+#endif
+                        }
+                        flag.reachable |= mask;
 #ifdef SGCL_MARK_STATS
                         ++m.via_bits;
 #endif
-                        std::atomic_ref<Page::Flag> reachable(flag.reachable);
-                        if (m.owns_current) {
-                            reachable.fetch_or(mask, std::memory_order_relaxed);
-                        } else {
-                            reachable.fetch_or(mask, std::memory_order_seq_cst);
-                            if (!std::atomic_ref<bool>(page->reachable).exchange(true, std::memory_order_seq_cst)) {
-                                m.pages.push_back(page);
-#ifdef SGCL_MARK_STATS
-                                ++m.listed;
-#endif
-                            }
-                        }
                         return;
                     }
                 }
@@ -842,7 +840,7 @@ namespace sgcl::detail {
         }
 
         template<bool Parallel>
-        void _mark_conservative(Page* page, const void* ptr, Marker& m) noexcept {
+        SGCL_ALWAYS_INLINE void _mark_conservative(Page* page, const void* ptr, Marker& m) noexcept {
             auto index = page->index_of(ptr);
             if (index >= page->object_count) {
                 return;
@@ -1106,6 +1104,9 @@ namespace sgcl::detail {
             if (_markers.size() < workers + 1) {
                 _markers.resize(workers + 1);
             }
+            for (size_t i = 0; i < _markers.size(); ++i) {
+                _markers[i].id = (uint8_t)(i + 1);   // never 0 (unlisted) or Listed
+            }
             auto& q = _mark_queue;
             q.shared.clear();
             q.shared_pages.clear();
@@ -1184,30 +1185,33 @@ namespace sgcl::detail {
             }
         }
 
-        // One of the listed pages, traced in page order: the page is held by
-        // this thread (page->reachable) while its loop runs: the words' bits
-        // taken with an exchange (the other threads set bits on the page
-        // meanwhile), each object marked and traced in slot order, its
-        // children on this page as bits the loop takes next, the others on
-        // the stack, drained once the page is exhausted; then the page let
-        // go of and its bits checked once more (a thread that set a bit
-        // before the letting go saw the page held and did not list it, so
-        // the holder takes the bit; one that set it after lists the page
-        // itself). The objects of a word are prefetched a few slots ahead
-        // of the trace. On a tree laid out by its allocation this reads the
+        // One of the listed pages, traced in page order. The page is this
+        // thread's (page.h: reachable) while its loop runs, and only the
+        // thread a page belongs to sets its reachable bits (_mark_slot), so
+        // the words are plain: each taken and cleared, its objects marked
+        // (the mark bit is shared with the other threads, which may reach
+        // the object through their stacks) and traced in slot order, their
+        // children on this page as bits the loop takes next, a word again
+        // until it has none, the page again until a pass finds none; the
+        // children on other pages go on the stack, drained once the page is
+        // done. The objects of a word are prefetched a few slots ahead of
+        // the trace. On a tree laid out by its allocation this reads the
         // pages in address order, which a stack of objects traced depth
-        // first does not: the 8 M tree marks in 48 ms on one thread against
-        // 88, 8.6 ms with eight helpers against 10.9.
+        // first does not (the 8 M tree: 72 ms on one thread against 88,
+        // 8.7 ms with eight helpers against 11.0; the sequential marker it
+        // replaced, the same loop with the other pages' children as bits
+        // of their pages, gathered in a later batch, did 66 on the tree and
+        // 37 ns an object on a random graph against 20 here).
         void _mark_page(Marker& m, Page* page) noexcept {
             auto flags = page->flags();
             auto count = page->flags_count();
             const bool is_array = page->is_array;
             m.current = page;
-            m.owns_current = true;
+            std::atomic_ref<uint8_t>(page->reachable).store(m.id, std::memory_order_relaxed);   // a dealt page is Listed until here
 #ifdef SGCL_MARK_STATS
             ++m.page_visits;
 #endif
-            for (;;) {
+            {
                 bool any;
                 do {
                     any = false;
@@ -1218,46 +1222,42 @@ namespace sgcl::detail {
                         // the word again until it has no bit: a child of a
                         // traced object in the same word is taken at once
                         for (;;) {
-                            auto bits = std::atomic_ref<Page::Flag>(flags[i].reachable).exchange(0, std::memory_order_relaxed);
+                            auto bits = flags[i].reachable;
                             if (!bits) {
                                 break;
                             }
+                            flags[i].reachable = 0;
                             any = true;
                             std::atomic_ref<Page::Flag> marked(flags[i].marked);
                             auto offset = i * Page::FlagBitCount;
-                            unsigned index[Page::FlagBitCount];
-                            unsigned n = 0;
-                            for (auto b = bits; b; b &= b - 1) {
-                                index[n++] = offset + std::countr_zero(b);
+                            // a second cursor PrefetchAhead bits ahead prefetches its object
+                            auto ahead = bits;
+                            for (unsigned k = 0; k < PrefetchAhead && ahead; ++k) {
+                                ahead &= ahead - 1;
                             }
-                            for (unsigned k = 0; k < n; ++k) {
-                                if (k + PrefetchAhead < n) {
-                                    __builtin_prefetch(page->pointer_of(index[k + PrefetchAhead]));
+                            for (auto b = bits; b; b &= b - 1) {
+                                if (ahead) {
+                                    __builtin_prefetch(page->pointer_of(offset + std::countr_zero(ahead)));
+                                    ahead &= ahead - 1;
                                 }
-                                auto mask = Page::Flag(1) << (index[k] - offset);
+                                auto mask = b & -b;
                                 if (marked.load(std::memory_order_relaxed) & mask) {
                                     continue;
                                 }
                                 if (marked.fetch_or(mask, std::memory_order_relaxed) & mask) {
                                     continue;
                                 }
-                                auto ptr = page->pointer_of(index[k]);
+                                auto ptr = page->pointer_of(offset + std::countr_zero(b));
                                 _found(m, ptr);
                                 _trace<true>(page, ptr, is_array, m);
                             }
                         }
                     }
                 } while (any);
-                std::atomic_ref<bool>(page->reachable).store(false, std::memory_order_seq_cst);
-                bool left = false;
-                for (unsigned i = 0; i < count && !left; ++i) {
-                    left = std::atomic_ref<Page::Flag>(flags[i].reachable).load(std::memory_order_seq_cst) != 0;
-                }
-                if (!left || std::atomic_ref<bool>(page->reachable).exchange(true, std::memory_order_seq_cst)) {
-                    break;   // nothing left, or another thread listed the page and will trace it
-                }
             }
-            m.owns_current = false;
+            // let go of: the next thread to reach an object on it claims it
+            // (the release orders the cleared words before its claim)
+            std::atomic_ref<uint8_t>(page->reachable).store(0, std::memory_order_release);
             m.current = nullptr;
             _drain(m);
         }
@@ -1308,7 +1308,7 @@ namespace sgcl::detail {
                     }
                     auto& item = window[out & (PrefetchWindow - 1)];
                     ++out;
-                    m.current = item.page;   // not held: a child on it lists the page (_mark_slot)
+                    m.current = item.page;   // a child on it claims the page unless a thread holds it (_mark_slot)
                     _trace<true>(item.page, item.ptr, item.page->is_array, m);
                     if (m.work.size() >= 2 && q.idle.load(std::memory_order_relaxed)) {
                         _spill(m);
@@ -1387,7 +1387,7 @@ namespace sgcl::detail {
             std::vector<Page*> unreachable;
 
             void push_reachable(Page* page) noexcept {
-                page->reachable = true;
+                page->reachable = Page::Listed;
                 reachable.push_back(page);
             }
 
@@ -1406,7 +1406,7 @@ namespace sgcl::detail {
         }
 
         SGCL_NOINLINE void _push_reachable(Page* page) noexcept {
-            page->reachable = true;
+            page->reachable = Page::Listed;
             _reachable_pages.push_back(page);
         }
 
