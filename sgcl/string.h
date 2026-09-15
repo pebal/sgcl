@@ -17,8 +17,8 @@
 
 namespace sgcl {
     // An immutable string on the managed heap, one word: a pointer to an
-    // object holding the length, the characters and a terminator, of
-    // exactly that size (detail/string_data.h).
+    // object holding the length, the characters and a terminator, and the
+    // hash once asked for, of exactly that size (detail/string_data.h).
     // What a string is in Java and Go rather than in C++: made once,
     // never modified, shared by copying the word, compared and hashed by
     // its contents, reclaimed by the collector, no destructor (the sweep
@@ -35,8 +35,8 @@ namespace sgcl {
     // std::string_view): size, data, c_str, [], at, front, back, the
     // iterators, compare, starts_with, ends_with, contains, the finds,
     // substr (a new string), the comparisons and <=> with a string, a
-    // string_view or a literal, operator+ (a new string), std::hash (of
-    // the characters, as for a std::string), operator<<, conversions to string_view and to
+    // string_view or a literal, operator+ (a new string), std::hash
+    // (computed once, kept in the object), operator<<, conversions to string_view and to
     // std::string; the constructors from a literal, a string_view, a
     // std::string, a range, (n, ch); no mutation, no capacity. Ptr is the
     // kind of the word, and so where the string lives: tracked_ptr on a
@@ -264,11 +264,40 @@ namespace sgcl {
             std::swap(_word, o._word);
         }
 
-        // The same object, or the same characters: the lengths first.
-        // Between strings of either kind (the free operators below).
+        // The same object, or the same characters: the lengths first,
+        // the hashes when both are known, the characters last. Between
+        // strings of either kind (the free operators below).
         template<template<class> class P>
         bool equals(const basic_string<CharT, Traits, P>& o) const noexcept {
-            return object() == o.object() || (size() == o.size() && view() == o.view());
+            if (object() == o.object()) {
+                return true;
+            }
+            if (size() != o.size()) {
+                return false;
+            }
+            if (object() && o.object()) {
+                auto h = _header()->hash.load(std::memory_order_relaxed);
+                auto oh = o._header()->hash.load(std::memory_order_relaxed);
+                if (h && oh && h != oh) {
+                    return false;
+                }
+            }
+            return view() == o.view();
+        }
+
+        // The hash of the characters, computed the first time and kept in
+        // the string's object (0 is "not yet"); the empty string's is a constant
+        size_t hash() const noexcept {
+            if (!_word) {
+                return 0x9E3779B97F4A7C15ull;
+            }
+            auto header = _header();
+            auto h = header->hash.load(std::memory_order_relaxed);
+            if (!h) {
+                h = _compute_hash();
+                header->hash.store(h, std::memory_order_relaxed);
+            }
+            return (size_t)h * 0x9E3779B97F4A7C15ull;
         }
 
         // The address of the string's object: its identity (two strings
@@ -294,8 +323,16 @@ namespace sgcl {
         }
 
     private:
-        const detail::StringHeader* _header() const noexcept {
-            return static_cast<const detail::StringHeader*>(_word.get());
+        detail::StringHeader* _header() const noexcept {
+            return const_cast<detail::StringHeader*>(static_cast<const detail::StringHeader*>(_word.get()));
+        }
+
+        // The standard library's hash of the characters, folded to the 32
+        // bits the header keeps; never 0
+        uint32_t _compute_hash() const noexcept {
+            auto h = std::hash<view_type>()(view());
+            auto r = (uint32_t)(h ^ (h >> 32));
+            return r ? r : 1;
         }
 
         const CharT* _chars() const noexcept {
@@ -387,7 +424,7 @@ namespace std {
     template<class CharT, class Traits, template<class> class Ptr>
     struct hash<sgcl::basic_string<CharT, Traits, Ptr>> {
         size_t operator()(const sgcl::basic_string<CharT, Traits, Ptr>& s) const noexcept {
-            return hash<basic_string_view<CharT, Traits>>()(s.view());
+            return s.hash();
         }
     };
 }

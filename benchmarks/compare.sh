@@ -18,8 +18,8 @@ T=$(mktemp -d)
 "$JBIN/javac" -d "$T/jout" benchmarks/java/*.java
 JAVA=("$JBIN/java" -XX:+UseZGC -Duser.language=en -Duser.country=US -cp "$T/jout")
 CORES=$(getconf _NPROCESSORS_ONLN)
-VARIANTS=${VARIANTS:-sgcl gc unique shared go java-zgc}
-CASES=${CASES:-alloc copy weak stack bt graph lt}
+VARIANTS=${VARIANTS:-sgcl gc unique shared std go java-zgc}
+CASES=${CASES:-alloc copy weak stack bt graph lt string}
 want() { [[ " $VARIANTS " == *" $1 "* ]]; }
 case_() { [[ " $CASES " == *" $1 "* ]]; }
 
@@ -70,6 +70,16 @@ for op in lock expired copy make; do for t in 1 4; do
     for v in sgcl gc shared; do want $v && { run "$BIN/bench_weak_ptr" $v $t $op; echo "weak|$op|$t|$v|$(field ns/op)"; }; done
     want go && { run "$T/weak_ptr" $t $op; echo "weak|$op|$t|go|$(field ns/op)"; }
     want java-zgc && { run "${JAVA[@]}" -Xmx256m WeakPtr $t $op; echo "weak|$op|$t|java-zgc|$(field ns/op)"; }
+done; done
+fi
+
+if case_ string; then
+KEY=ns/op
+echo "# string, 2 M in nodes: string|op|len|variant|ns per op"
+for op in make copy hash1 hashn; do for len in 10 100; do
+    for v in sgcl gc std; do want $v && { run "$BIN/bench_string" $v $op $len; echo "string|$op|$len|$v|$(field ns/op)"; }; done
+    want go && { run "$T/string" $op $len; echo "string|$op|$len|go|$(field ns/op)"; }
+    want java-zgc && { run "${JAVA[@]}" -Xmx2g Strings $op $len; echo "string|$op|$len|java-zgc|$(field ns/op)"; }
 done; done
 fi
 

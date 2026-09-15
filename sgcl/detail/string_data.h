@@ -10,25 +10,29 @@
 #include "../make_tracked.h"
 #include "../unique_ptr.h"
 
+#include <atomic>
 #include <cstring>
 #include <string_view>
 
 namespace sgcl::detail {
-    // The bytes behind a string (string.h): a header of four bytes, the
-    // length, then the characters and a terminator, in one managed object
-    // of exactly that size, rounded to four, pointed at by the string's
-    // one word. Nothing else: no hash kept (four bytes on every string
-    // for a few nanoseconds per lookup of a key), no count.
+    // The bytes behind a string (string.h): a header of eight bytes, the
+    // length and the hash, then the characters and a terminator, in one
+    // managed object of exactly that size, rounded to four, pointed at by
+    // the string's one word. The hash is 0 until something asks for it
+    // (as Java's String keeps its hashCode): the object is immutable, so
+    // the first thread to compute it stores it, relaxed, and any other
+    // computes the same value.
     struct StringHeader {
         uint32_t size;
+        std::atomic<uint32_t> hash;
     };
 
-    static_assert(sizeof(StringHeader) == 4);
+    static_assert(sizeof(StringHeader) == 8);
 
     // The header, the characters and the terminator written into the bytes
     template<class CharT>
     inline void string_fill(unsigned char* bytes, std::basic_string_view<CharT> s) noexcept {
-        ::new(bytes) StringHeader{(uint32_t)s.size()};
+        ::new(bytes) StringHeader{(uint32_t)s.size(), {0}};
         std::memcpy(bytes + sizeof(StringHeader), s.data(), s.size() * sizeof(CharT));
         std::memset(bytes + sizeof(StringHeader) + s.size() * sizeof(CharT), 0, sizeof(CharT));
     }

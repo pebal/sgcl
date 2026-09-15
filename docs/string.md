@@ -14,9 +14,9 @@ namespace sgcl {
 }
 ```
 
-`sgcl::string` is an immutable string on the managed heap: one word, a pointer to an object holding the length (four bytes), the characters and a terminator, of exactly that size rounded to four: a string of ten characters is an object of 16 bytes. What a string is in Java or Go rather than in C++: made once, never modified, shared by copying the word, compared and hashed by its contents, reclaimed by the collector when nothing holds it, with no destructor (the sweep frees the slot and runs nothing) and no reference count. The empty string is null and allocates nothing. There is no small-string optimization: the word is the whole of the string, and a string of any length costs the same to copy.
+`sgcl::string` is an immutable string on the managed heap: one word, a pointer to an object holding the length, the hash once something has asked for it (eight bytes together), the characters and a terminator, of exactly that size rounded to four: a string of ten characters is an object of 20 bytes. What a string is in Java or Go rather than in C++: made once, never modified, shared by copying the word, compared and hashed by its contents, reclaimed by the collector when nothing holds it, with no destructor (the sweep frees the slot and runs nothing) and no reference count. The empty string is null and allocates nothing. There is no small-string optimization: the word is the whole of the string, and a string of any length costs the same to copy.
 
-What it is for: text that is kept, shared and compared. Copying one between managed objects costs a word and the write barrier; a `std::string` past its small buffer costs an allocation per copy and a `free` per destruction, in the sweep. Hashing one as a map key costs what hashing a `std::string_view` does: the same function, so a `std::string_view` finds the key. What it is not for: a scratch buffer, or text of a few characters made and dropped at once, where `std::string` costs no allocation at all; `std::string` remains the right member for those, in a managed object as anywhere ([README: string](../README.md#string) has the numbers).
+What it is for: text that is kept, shared and compared. Copying one between managed objects costs a word and the write barrier; a `std::string` past its small buffer costs an allocation per copy and a `free` per destruction, in the sweep. Hashing one as a map key costs a load after the first time: the hash (`std::hash` of the characters) is computed once and kept in the string's object, as Java's `String` keeps its `hashCode`. What it is not for: a scratch buffer, or text of a few characters made and dropped at once, where `std::string` costs no allocation at all; `std::string` remains the right member for those, in a managed object as anywhere ([README: string](../README.md#string) has the numbers).
 
 The interface is the read side of `std::string` and all of `std::string_view`: `size`, `data`, `c_str`, `[]`, `at`, `front`, `back`, the iterators, `compare`, `starts_with`, `ends_with`, `contains`, the six `find`s, `substr` (a new string, or the same object for the whole), the comparisons and `<=>` with a string of either kind, a `string_view` or a literal, `operator+` (a new string), `std::hash`, `operator<<`, the conversions to `string_view` and to `std::string` (`str()`); the constructors from a literal, `(s, n)`, a `string_view`, a `std::string` or anything a `string_view` is made of, `(n, ch)`, a range, an initializer list. No mutation, no `capacity`: a string is built as a `std::string` or a `string_view` and made once. The length is kept in 32 bits.
 
@@ -25,7 +25,7 @@ The interface is the read side of `std::string` and all of `std::string_view`: `
 ## Rules
 
 - A `string` is a tracked pointer, so it lives where one may: on a stack or inside a managed object; a `gc::string` anywhere ([The rules](../README.md#the-rules), 1).
-- Threads share a `string` the way they share a `tracked_ptr` ([The rules](../README.md#the-rules), 6); the object itself is immutable and read from any thread without synchronization.
+- Threads share a `string` the way they share a `tracked_ptr` ([The rules](../README.md#the-rules), 6); the object itself is immutable and read from any thread without synchronization. The hash is computed by the first thread that asks and stored relaxed: every thread computes the same value.
 - `data()` and the iterators are valid while some string holds the object: a `string_view` taken from a temporary dangles as it would from a `std::string`.
 - A string's object is never traced and never zeroed: its bytes are characters and nothing else.
 
@@ -60,6 +60,7 @@ int compare(...) const;  bool starts_with(...) const;  bool ends_with(...) const
 size_type find(...) const;  rfind, find_first_of, find_last_of, find_first_not_of, find_last_not_of         // the overloads of string_view
 basic_string substr(size_type pos = 0, size_type n = npos) const;   // a new string; the same object for the whole
 void swap(basic_string&) noexcept;
+size_t hash() const noexcept;                             // std::hash of the characters, computed once, kept in the object
 const void* object() const noexcept;                      // the object's address: the identity; null when empty
 template<class P> bool equals(const basic_string<CharT, Traits, P>&) const noexcept;   // what == does
 bool operator==(view_type) const noexcept;  bool operator==(const CharT*) const noexcept;
@@ -74,18 +75,18 @@ std::strong_ordering operator<=>(const basic_string<CharT, Traits, P1>&, const b
 basic_string operator+(string, string);  (string, view);  (view, string);  (string, const CharT*);  (const CharT*, string);  (string, CharT);  (CharT, string);
 std::basic_ostream& operator<<(std::basic_ostream&, const basic_string&);
 void swap(basic_string&, basic_string&) noexcept;
-template<...> struct std::hash<sgcl::basic_string<...>>;   // std::hash of the view: the same value as for a std::string_view of the characters
+template<...> struct std::hash<sgcl::basic_string<...>>;   // the cached hash
 ```
 
-The equality compares the words first (a copy is the same object), then the lengths, then the characters.
+The equality compares the words first (a copy is the same object), then the lengths, then the hashes when both have been computed (different hashes: unequal, without reading the characters), then the characters.
 
 ```cpp
-sgcl::string name = "alice";                  // one object: 4 bytes of length, six characters, in a slot of 12
+sgcl::string name = "alice";                  // one object: 8 bytes of length and hash, six characters, in a slot of 16
 sgcl::string same = name;                     // the same object
 sgcl::string other("alice");                  // another object, equal contents
 assert(same.object() == name.object() && other == name && other.object() != name.object());
 assert(name.starts_with("al") && name.substr(1, 3) == "lic" && name + "!" == "alice!");
-std::unordered_map<gc::string, int> ages;     // gc::string in a std container
+std::unordered_map<gc::string, int> ages;     // gc::string in a std container, the hash kept in the string's object
 ages[gc::string(name)] = 30;
 assert(ages[gc::string("alice")] == 30);
 ```

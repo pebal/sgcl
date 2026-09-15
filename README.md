@@ -104,7 +104,7 @@ std::cout << f() << " " << r.error() << "\n";
 ```
 
 ## string
-`sgcl::string` is an immutable string on the managed heap: one word, a pointer to an object holding the length, the characters and a terminator, of exactly that size (a string of ten characters is an object of 16 bytes). What a string is in Java or Go rather than in C++: made once, never modified, shared by copying the word, compared and hashed by its contents, reclaimed by the collector, with no destructor and no reference count. The empty string is null. There is no small-string optimization, and the string is not a buffer to build in: text is built as a `std::string` or a `string_view` and made a `string` once; the read side of `std::string` and all of `std::string_view` are there (`size`, `[]`, the `find`s, `starts_with`, `substr` as a new string, `+` as a new string, the comparisons and `<=>`, `std::hash`, `operator<<`, the conversions), and so are `wstring`, `u8string`, `u16string`, `u32string`. `gc::string` lives anywhere; the two kinds convert into each other and share the object ([docs/string.md](docs/string.md)).
+`sgcl::string` is an immutable string on the managed heap: one word, a pointer to an object holding the length, the characters and a terminator, and the hash once something has asked for it, of exactly that size (a string of ten characters is an object of 20 bytes). What a string is in Java or Go rather than in C++: made once, never modified, shared by copying the word, compared and hashed by its contents, reclaimed by the collector, with no destructor and no reference count. The empty string is null. There is no small-string optimization, and the string is not a buffer to build in: text is built as a `std::string` or a `string_view` and made a `string` once; the read side of `std::string` and all of `std::string_view` are there (`size`, `[]`, the `find`s, `starts_with`, `substr` as a new string, `+` as a new string, the comparisons and `<=>`, `std::hash`, `operator<<`, the conversions), and so are `wstring`, `u8string`, `u16string`, `u32string`. `gc::string` lives anywhere; the two kinds convert into each other and share the object ([docs/string.md](docs/string.md)).
 
 ```cpp
 struct Element { gc::string name; gc::vector<gc::tracked_ptr<Element>> children; };
@@ -112,19 +112,24 @@ gc::string p = "p";                                // one object, made once
 gc::tracked_ptr e = gc::make_tracked<Element>();
 e->name = p;                                       // a word copied: the object shared
 assert(e->name == p && e->name.object() == p.object() && e->name == "p");
-std::unordered_map<gc::string, int> counts;        // hashed by the characters, as a std::string_view
+std::unordered_map<gc::string, int> counts;        // the hash computed once, kept in the string's object
 ++counts[p];
 ```
 
-What it costs against a `std::string` member (`benchmarks/string.cpp`: 2 M strings in managed nodes, one thread; the strings made from a text buffer, copied from scattered nodes, and the sweep that frees the nodes; hashing costs the same, the characters read either way):
+What it costs, in nanoseconds per operation, against a `std::string` member, Go's string and Java's `String` (`benchmarks/string.cpp` and its Go and Java counterparts, the setup of the "Benchmarks" section, one thread): 2 M strings of 10 and of 100 characters made from a text buffer and stored in nodes, copied from node to node, hashed once each as a map key would be, and hashed eight times in a row (a key used again and again); `gc::string` in the same managed nodes:
 
-| length | make, `std::string` | make, `string` | copy, `std::string` | copy, `string` | sweep, `std::string` | sweep, `string` |
-|---|---|---|---|---|---|---|
-| 10 | 2.8 ns | 9.7 ns | 12.0 ns | 12.6 ns | 16.9 ms | 24.3 ms |
-| 40 | 18.3 ns | 13.9 ns | 84 ns | 14.3 ns | 43.6 ms | 25.9 ms |
-| 100 | 20.2 ns | 18.0 ns | 111 ns | 12.9 ns | 45.5 ms | 30.7 ms |
+| operation, length | `sgcl::string` | `gc::string` | `std::string` | Go string | Java `String` |
+|---|---|---|---|---|---|
+| make, 10 | 10.2 | 12.7 | 2.9 | 10.1 | 23.3 |
+| make, 100 | 18.0 | 19.8 | 20.6 | 22.3 | 32.4 |
+| copy, 10 | 1.9 | 2.1 | 1.9 | 1.3 | 1.1 |
+| copy, 100 | 1.9 | 2.2 | 24.0 | 1.4 | 6.6 |
+| hash once, 10 | 2.8 | 3.6 | 1.8 | 5.4 | 5.0 |
+| hash once, 100 | 12.3 | 12.8 | 11.4 | 8.7 | 14.6 |
+| hash 8 times, 10 | 0.9 | 1.7 | 1.8 | 5.5 | 0.9 |
+| hash 8 times, 100 | 2.3 | 2.6 | 9.4 | 7.3 | 1.9 |
 
-Below its small buffer (22 characters in libc++, 15 in libstdc++ and MSVC) a `std::string` costs no allocation, and no type that allocates can match that: a `string` of a few characters costs a managed allocation to make (README: "Allocation") and an object of its own for the sweep to free. Past the buffer, a `std::string` costs an allocation to make, an allocation per copy, and a `free` in the sweep for each; a `string` costs the same allocation once, a word per copy, and nothing in the sweep (the sweep of the ten-character case is slower for the `string`: two million more objects to free, where the `std::string`s lay inside their nodes). So `std::string` remains the member for text of a few characters made and dropped, and `string` is the member for text that is kept, shared and compared: names, keys, symbols, the leaves of a document.
+Below its small buffer (22 characters in libc++, 15 in libstdc++ and MSVC) a `std::string` costs no allocation, and no type that allocates can match that: a `string` of a few characters costs a managed allocation to make (README: "Allocation"), as a Go string does. Past the buffer, a `std::string` costs an allocation to make, an allocation and a copy per copy (24 ns for 100 characters), and a `free` in the sweep for each; a `string` costs the same allocation once, a word and the barrier per copy (1.9 ns, whatever the length, the same as a small `std::string`'s 24 bytes), and nothing in the sweep. A copy in Go is two words without a barrier while the collector is idle; in Java a reference through ZGC's store barrier. The first hash reads the characters everywhere (the `string`'s is `std::hash` of the characters, plus the store that keeps it: a nanosecond over `std::string`'s); the `string` and Java's `String` keep it in the object and pay a load from then on (the eight-times row: one computation and seven loads), where `std::string` and Go read the characters every time. What the table does not show is the sweep: two million nodes with 100-character strings freed in 31 ms with `string`s and 46 ms with `std::string`s, whose buffers `free` returns one by one, and the other way round for ten characters (24 ms against 17: two million more objects, where the `std::string`s lay inside their nodes). So `std::string` remains the member for text of a few characters made and dropped, and `string` is the member for text that is kept, shared and compared: names, keys, symbols, the leaves of a document.
 
 ## Pointer aliases
 A `tracked_ptr` may point into the middle of a managed object: to a member or to a base subobject. Such an alias behaves like the aliasing constructor of `std::shared_ptr`: the object it points into stays alive for as long as the alias does.

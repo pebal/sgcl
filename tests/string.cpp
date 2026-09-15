@@ -136,17 +136,20 @@ TEST(String_Tests, ConcatenationMakesANewString) {
     EXPECT_EQ(a, "hello");                       // untouched
 }
 
-TEST(String_Tests, HashedAndComparedByTheCharacters) {
+TEST(String_Tests, TheHashIsComputedOnceAndKept) {
     string a = "some text to hash";
     string b = "some text to hash";
     string c = "some text to hasH";
     std::hash<string> h;
     EXPECT_EQ(h(a), h(b));
-    EXPECT_EQ(h(a), std::hash<std::string_view>()("some text to hash"));   // the hash of a std::string_view: a key looked up by either
     EXPECT_NE(h(a), h(c));
-    EXPECT_EQ(h(string()), h(std::string_view()));
-    EXPECT_TRUE(a == b);
-    EXPECT_FALSE(a == c);
+    EXPECT_EQ(h(a), h(a));                       // the second time from the object
+    EXPECT_EQ(h(string()), h(string()));
+    EXPECT_NE(h(string()), h(a));
+    EXPECT_TRUE(a == b);                         // equal after both hashes are known
+    EXPECT_FALSE(a == c);                        // unequal by the hash, without the characters
+    string d = "different length";
+    EXPECT_FALSE(a == d);
     unordered_map<string, int> counts;
     ++counts[a];
     ++counts[b];
@@ -167,7 +170,7 @@ TEST(String_Tests, HashedAndComparedByTheCharacters) {
 }
 
 TEST(String_Tests, EverySizeClassAndPastThem) {
-    // one object of exactly the class: 4 bytes of header, the characters,
+    // one object of exactly the class: 8 bytes of header, the characters,
     // a terminator, rounded up to 4 up to 256 bytes; by half again to a
     // page; a buffer past it
     settle();
