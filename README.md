@@ -115,12 +115,12 @@ Nanoseconds per operation against `std::weak_ptr`, Go's `weak.Pointer` and Java'
 
 | operation, threads | `sgcl::weak_ptr` | `gc::weak_ptr` | `std::weak_ptr` | Go `weak.Pointer` | Java `WeakReference` |
 |---|---|---|---|---|---|
-| lock, 1 | 1.9 | 2.7 (1.38×) | 12.1 | 6.1 | 1.0 |
-| lock, 4 | 1.9 | 2.8 (1.46×) | 12.7 | 6.2 | 1.1 |
-| copy, 1 | 1.4 | 2.1 (1.50×) | 8.6 | 6.3 | 0.8 |
-| copy, 4 | 1.4 | 2.2 (1.50×) | 8.8 | 6.4 | 0.9 |
-| make from a strong pointer, 1 | 7.2 | 8.9 (1.23×) | 8.5 | 18.4 | 3.6 |
-| make from a strong pointer, 4 | 7.8 | 9.4 (1.20×) | 8.8 | 18.7 | 7.2 |
+| lock, 1 | 1.9 | 2.6 (1.39×) | 12.1 | 6.1 | 1.0 |
+| lock, 4 | 1.9 | 2.6 (1.38×) | 12.7 | 6.2 | 1.1 |
+| copy, 1 | 1.4 | 2.0 (1.50×) | 8.6 | 6.3 | 0.8 |
+| copy, 4 | 1.4 | 2.2 (1.53×) | 8.8 | 6.4 | 0.9 |
+| make from a strong pointer, 1 | 7.5 | 8.9 (1.20×) | 8.5 | 18.4 | 3.6 |
+| make from a strong pointer, 4 | 7.8 | 9.2 (1.19×) | 8.8 | 18.7 | 7.2 |
 
 A lock is the cell read twice around a hazard store and a `tracked_ptr` built; a copy is a `tracked_ptr` copy; making one is a 16-byte allocation. A `gc::weak_ptr` is the same word as a `gc::tracked_ptr` and pays the same: the location check when it is built or copied (the copy here is a copy onto the stack, then `expired()`, which reads the cell through the test of the sign), the test of the sign when its cell is read; the gap of the copy is that check. `std::weak_ptr` pays two atomic count updates per lock and per copy, and contended ones when threads share an object. Go's `weak.Pointer` is a handle the runtime hands out and resolves in a call (`Value`), and making one allocates the handle; Java's `WeakReference` is an object whose referent is read through ZGC's load barrier, the cheapest lock of the four, and making one is an allocation the collector has to discover.
 
@@ -513,7 +513,7 @@ The Boehm–Demers–Weiser collector, the one C++ has had for three decades, is
 
 The environments are not the same size: a Java object carries a 12-byte header and the graph's node holds its links in a separate array, Go's runtime scans its stacks precisely, and the JVM's numbers include its warm-up. The scripts are in the tree to rerun with other versions and sizes.
 
-Every column of every table comes from one run (`compare.sh`, `bench_containers` and `bench_marking`, the best of three), and the ratio in parentheses is `gc::` against `sgcl::`, the two columns of a table where the families differ. The memory-bound container cases (the maps) move by a tenth or more from run to run; the rest within their rounding.
+The SGCL columns (the two of a table where the families differ, and the ratio in parentheses is `gc::` against `sgcl::`) and the `std` column of the container table come from one run (`compare.sh` with `VARIANTS="sgcl gc"` and `bench_containers`, the best of three), the other columns from a run of every variant the day before; the marking table from its own run. The memory-bound container cases (the maps) move by a tenth or more from run to run; the rest within their rounding.
 
 The current version has been tested on Apple Silicon only. The code has no dependency on the architecture beyond what the standard library and the system calls in `detail/os.h` provide, but no number below has been reproduced on x86-64 or on Linux and Windows yet.
 
@@ -523,23 +523,23 @@ Nanoseconds per object; each allocation retires the previous one, so the collect
 | size, threads | SGCL | `unique_ptr` | `shared_ptr` | Go | Java ZGC |
 |---|---|---|---|---|---|
 | 32 B, 1 | 5.0 | 22.1 | 22.5 | 7.2 | 3.6 |
-| 32 B, 4 | 5.4 | 35.9 | 41.4 | 33.3 | 7.0 |
-| 32 B, 24 | 11.1 | 81.2 | 133.0 | 294.7 | 25.7 |
-| 256 B, 1 | 5.4 | 20.9 | 23.7 | 98.3 | 9.5 |
-| 256 B, 4 | 7.5 | 33.3 | 48.5 | 293.7 | 25.5 |
-| 256 B, 24 | 48.7 | 100.0 | 124.1 | 2192.2 | 100.6 |
+| 32 B, 4 | 5.5 | 35.9 | 41.4 | 33.3 | 7.0 |
+| 32 B, 24 | 9.6 | 81.2 | 133.0 | 294.7 | 25.7 |
+| 256 B, 1 | 5.5 | 20.9 | 23.7 | 98.3 | 9.5 |
+| 256 B, 4 | 7.2 | 33.3 | 48.5 | 293.7 | 25.5 |
+| 256 B, 24 | 49.5 | 100.0 | 124.1 | 2192.2 | 100.6 |
 
-On one thread Java's bump allocation in a thread-local buffer is the fastest (3.6 ns for 32 bytes against SGCL's 5.0); from four threads up SGCL is (5.4 ns against Java's 7.0 and Go's 33 at four, 11 against 26 and 295 at 24), because its mutators never wait for the collector and its per-thread page allocator hands out slots without a lock or a barrier. Go's allocator pays for 256-byte objects with its size classes and assists (98 ns on one thread, 2.2 µs on 24), Java's ZGC with its allocation barriers and, under its ceiling, the collections it has to run (26 ns at 24 threads, 101 ns for 256-byte objects), `unique_ptr` and `shared_ptr` with malloc (21 to 23 ns on one thread, 81 to 133 on 24) and the second with its control block. The allocation does not depend on the kind of the pointer that takes the object: the `gc::` variant of this benchmark measures the same within its rounding (the pointer is a local, an `sgcl::tracked_ptr` word once its constructor has checked the address), so the table has one SGCL column.
+On one thread Java's bump allocation in a thread-local buffer is the fastest (3.6 ns for 32 bytes against SGCL's 5.0); from four threads up SGCL is (5.5 ns against Java's 7.0 and Go's 33 at four, 9.6 against 26 and 295 at 24), because its mutators never wait for the collector and its per-thread page allocator hands out slots without a lock or a barrier. Go's allocator pays for 256-byte objects with its size classes and assists (98 ns on one thread, 2.2 µs on 24), Java's ZGC with its allocation barriers and, under its ceiling, the collections it has to run (26 ns at 24 threads, 101 ns for 256-byte objects), `unique_ptr` and `shared_ptr` with malloc (21 to 23 ns on one thread, 81 to 133 on 24) and the second with its control block. The allocation does not depend on the kind of the pointer that takes the object: the `gc::` variant of this benchmark measures the same within its rounding (the pointer is a local, an `sgcl::tracked_ptr` word once its constructor has checked the address), so the table has one SGCL column.
 
 ### Pointer copy
 Nanoseconds per copy of a pointer to a live object, 50 million per thread: for SGCL the write barrier, for `shared_ptr` the reference count, for Go and Java the store with their barriers. `unique_ptr` has no copy: the column is the raw pointer a program built on `unique_ptr` hands around instead, the plain store every other column adds its bookkeeping to. "local" is a store into a variable on the stack, "field" into a member of a heap object; with four threads every thread copies pointers to the same object.
 
 | threads, store | SGCL `sgcl::` | SGCL `gc::` | `unique_ptr` (raw pointer) | `shared_ptr` | Go | Java ZGC |
 |---|---|---|---|---|---|---|
-| 1, local | 1.4 | 1.5 (1.08×) | 0.6 | 4.7 | 0.6 | 0.9 |
-| 1, field | 1.8 | 1.9 (1.05×) | 0.6 | 4.7 | 0.6 | 1.0 |
-| 4, local, shared target | 1.4 | 1.5 (1.06×) | 0.6 | 124.1 | 0.6 | 0.9 |
-| 4, field, shared target | 2.0 | 2.0 (0.98×) | 0.6 | 232.4 | 0.7 | 1.1 |
+| 1, local | 1.4 | 1.4 (1.04×) | 0.6 | 4.7 | 0.6 | 0.9 |
+| 1, field | 1.8 | 1.9 (1.06×) | 0.6 | 4.7 | 0.6 | 1.0 |
+| 4, local, shared target | 1.4 | 1.5 (1.09×) | 0.6 | 124.1 | 0.6 | 0.9 |
+| 4, field, shared target | 1.8 | 1.9 (1.05×) | 0.6 | 232.4 | 0.7 | 1.1 |
 
 The raw pointer is the floor, 0.6 ns for the load and the store. SGCL adds a byte of state written on every copy (1.4 ns), and half a nanosecond more into a field for the card ("Generations" above). Go's write barrier is a flag test while no cycle is marking, and nothing allocates in this loop, so none is; a local costs Go nothing beyond the store, as its stacks are scanned precisely. Java pays ZGC's load barrier on the read of the pointer and its store barrier on the field. `shared_ptr` pays two atomic count updates, and a contended cache line when threads share the object: a hundred times SGCL's cost. A `gc::` store adds the test of the mode, 0.1 ns; it is the construction of a `gc::tracked_ptr` that costs, the check of its address (the range of the heap, then the thread's stack bounds from a thread-local), 0.6 ns on the stack and a cell taken from the thread's block in unmanaged memory.
 
@@ -548,27 +548,27 @@ A Treiber stack (the shape of `examples/lock_free_stack.cpp`): a compare-exchang
 
 | threads | SGCL `sgcl::` | SGCL `gc::` | `unique_ptr` | `shared_ptr` | Go | Java ZGC |
 |---|---|---|---|---|---|---|
-| 1 | 10.4 | 13.5 (1.30×) | 18.4 | 39.3 | 11.1 | 12.9 |
-| 4 | 86.8 | 101.4 (1.17×) | 51.1 | 140.7 | 60.3 | 62.6 |
-| 16 | 594.1 | 585.8 (0.99×) | 35.3 | 89.8 | 606.0 | 602.8 |
+| 1 | 9.5 | 12.5 (1.32×) | 18.4 | 39.3 | 11.1 | 12.9 |
+| 4 | 90.0 | 96.0 (1.07×) | 51.1 | 140.7 | 60.3 | 62.6 |
+| 16 | 602.9 | 595.4 (0.99×) | 35.3 | 89.8 | 606.0 | 602.8 |
 
-On one thread SGCL is the fastest of the three collectors (10.4 ns against Go's 11.1 and Java's 12.9). At four threads Go is (60 ns against Java's 63 and SGCL's 87): an operation costs SGCL a few `tracked_ptr` temporaries (the loaded head, the arguments of the compare-exchange, taken by value so that the target is held for the length of the call, as `std::atomic<shared_ptr>` does), each a write barrier with its card, and a hazard pointer on every load, and the cards on the stores into the shared nodes add to the retries. At sixteen threads every compare-exchange variant drowns in retries and the locks win, the mutex of the `unique_ptr` variant first; that is the algorithm, not the collector. In a second mode, "pairs" (half the threads push a million nodes each, the other half pop them), SGCL takes 60, 138 and 658 ns at two, four and sixteen threads, and the `shared_ptr` variant does not survive sixteen: a consumer descheduled while holding a popped node keeps every node popped after it alive through the `next` links, and releases the whole chain at once, recursively, off the end of its stack. A collector has no such chain to release. The `gc::` stack (its head a `gc::atomic`, its nodes linked by `gc::tracked_ptr`) pays the location check on the `gc::tracked_ptr`s the operation builds, the loaded head and the new node; the arguments of the compare-exchange are `sgcl::tracked_ptr`s inside the atomic, copied from the word a `gc::tracked_ptr` holds without a check: 3 ns on one thread, 15 at four with the retries, nothing at sixteen where the retries are everything.
+On one thread SGCL is the fastest of the three collectors (9.5 ns against Go's 11.1 and Java's 12.9). At four threads Go is (60 ns against Java's 63 and SGCL's 90): an operation costs SGCL a few `tracked_ptr` temporaries (the loaded head, the arguments of the compare-exchange, taken by value so that the target is held for the length of the call, as `std::atomic<shared_ptr>` does), each a write barrier with its card, and a hazard pointer on every load, and the cards on the stores into the shared nodes add to the retries. At sixteen threads every compare-exchange variant drowns in retries and the locks win, the mutex of the `unique_ptr` variant first; that is the algorithm, not the collector. In a second mode, "pairs" (half the threads push a million nodes each, the other half pop them), SGCL takes 60, 138 and 658 ns at two, four and sixteen threads, and the `shared_ptr` variant does not survive sixteen: a consumer descheduled while holding a popped node keeps every node popped after it alive through the `next` links, and releases the whole chain at once, recursively, off the end of its stack. A collector has no such chain to release. The `gc::` stack (its head a `gc::atomic`, its nodes linked by `gc::tracked_ptr`) pays the location check on the `gc::tracked_ptr`s the operation builds, the loaded head and the new node; the arguments of the compare-exchange are `sgcl::tracked_ptr`s inside the atomic, copied from the word a `gc::tracked_ptr` holds without a check: 3 ns on one thread, 6 at four with the retries, nothing at sixteen where the retries are everything.
 
 ### binary-trees
 The benchmarks-game program: a long-lived tree of the maximum depth held for the whole run while trees of every smaller depth are built and dropped, on one thread or on four in parallel. Wall time / process CPU time in seconds / peak resident memory; for SGCL the destruction runs on the collector's thread, so it moves from the wall time into the CPU time:
 
 | depth, threads | SGCL `sgcl::` | SGCL `gc::` | `unique_ptr` | `shared_ptr` | Go | Java ZGC |
 |---|---|---|---|---|---|---|
-| 16, 1 | 0.11 / 0.19 / 28 MB | 0.14 / 0.23 / 22 MB (1.27× / 1.21×) | 0.38 / 0.39 / 6 MB | 0.42 / 0.42 / 18 MB | 0.16 / 0.40 / 18 MB | 0.09 / 0.21 / 243 MB |
-| 16, 4 | 0.04 / 0.19 / 57 MB | 0.05 / 0.22 / 48 MB (1.25× / 1.16×) | 0.21 / 0.70 / 7 MB | 0.22 / 0.77 / 24 MB | 0.10 / 0.55 / 23 MB | 0.05 / 0.29 / 220 MB |
-| 18, 1 | 0.52 / 0.93 / 74 MB | 0.65 / 1.09 / 74 MB (1.25× / 1.17×) | 1.77 / 1.77 / 18 MB | 1.94 / 1.94 / 66 MB | 0.70 / 2.13 / 42 MB | 0.31 / 0.62 / 437 MB |
-| 18, 4 | 0.15 / 0.87 / 214 MB | 0.19 / 1.03 / 180 MB (1.27× / 1.18×) | 0.88 / 3.22 / 24 MB | 0.98 / 3.49 / 116 MB | 0.37 / 2.73 / 51 MB | 0.16 / 1.05 / 582 MB |
-| 21, 1 | 4.74 / 10.84 / 402 MB | 5.93 / 12.33 / 288 MB (1.25× / 1.14×) | 15.95 / 15.90 / 130 MB | 17.70 / 17.68 / 516 MB | 6.25 / 22.83 / 219 MB | 2.51 / 5.59 / 1.1 GB |
-| 21, 4 | 1.71 / 9.69 / 452 MB | 2.11 / 11.49 / 328 MB (1.23× / 1.19×) | 6.97 / 22.40 / 150 MB | 7.69 / 23.81 / 645 MB | 3.35 / 26.63 / 232 MB | 1.63 / 8.93 / 1.1 GB |
+| 16, 1 | 0.11 / 0.19 / 24 MB | 0.13 / 0.21 / 27 MB (1.18× / 1.11×) | 0.38 / 0.39 / 6 MB | 0.42 / 0.42 / 18 MB | 0.16 / 0.40 / 18 MB | 0.09 / 0.21 / 243 MB |
+| 16, 4 | 0.04 / 0.18 / 57 MB | 0.04 / 0.20 / 44 MB (1.00× / 1.11×) | 0.21 / 0.70 / 7 MB | 0.22 / 0.77 / 24 MB | 0.10 / 0.55 / 23 MB | 0.05 / 0.29 / 220 MB |
+| 18, 1 | 0.50 / 0.93 / 92 MB | 0.59 / 1.03 / 91 MB (1.18× / 1.11×) | 1.77 / 1.77 / 18 MB | 1.94 / 1.94 / 66 MB | 0.70 / 2.13 / 42 MB | 0.31 / 0.62 / 437 MB |
+| 18, 4 | 0.14 / 0.83 / 191 MB | 0.17 / 0.96 / 191 MB (1.21× / 1.16×) | 0.88 / 3.22 / 24 MB | 0.98 / 3.49 / 116 MB | 0.37 / 2.73 / 51 MB | 0.16 / 1.05 / 582 MB |
+| 21, 1 | 4.50 / 10.69 / 301 MB | 5.35 / 11.71 / 297 MB (1.19× / 1.10×) | 15.95 / 15.90 / 130 MB | 17.70 / 17.68 / 516 MB | 6.25 / 22.83 / 219 MB | 2.51 / 5.59 / 1.1 GB |
+| 21, 4 | 1.61 / 9.18 / 515 MB | 1.91 / 10.56 / 370 MB (1.19× / 1.15×) | 6.97 / 22.40 / 150 MB | 7.69 / 23.81 / 645 MB | 3.35 / 26.63 / 232 MB | 1.63 / 8.93 / 1.1 GB |
 
-Java is the fastest in wall time (2.5 s at depth 21 on one thread against SGCL's 4.7, 1.63 s on four against 1.71) and the cheapest in CPU (5.6 and 8.9 s against SGCL's 10.8 and 9.7); SGCL's CPU is the young cycles at work over the four million nodes of the long-lived tree, which they leave alone, and the sweep of everything else. Go's loop is a third slower than SGCL's in wall time and pays twice the CPU (23 s on one thread), its assists throttling the mutator to what the collector traces. Memory: `unique_ptr` holds only the live trees (130 and 150 MB), SGCL 402 and 452 MB (the garbage among the old objects waits for a full cycle), Go 219 and 232 MB, `shared_ptr` 516 and 645 MB (malloc keeps what the cascades free), Java at its ceiling, 1.1 GB. At depth 16 the runs are too short to mean much (the Java ones include the JIT's warm-up). The `gc::` tree is the case the family pays most for: a node is two `gc::tracked_ptr` members, each constructed with the location check, linked through two stores that test the mode, and read through the test of the sign, and the program does nothing else; 1.25 times the wall time of `sgcl::`, still faster than `unique_ptr`'s frees.
+Java is the fastest in wall time on one thread (2.5 s at depth 21 against SGCL's 4.5) and the cheapest in CPU (5.6 and 8.9 s against SGCL's 10.7 and 9.2); on four threads the two are level (1.63 s against SGCL's 1.61). SGCL's CPU is the young cycles at work over the four million nodes of the long-lived tree, which they leave alone, and the sweep of everything else. Go's loop is 40% slower than SGCL's in wall time and pays twice the CPU (23 s on one thread), its assists throttling the mutator to what the collector traces. Memory: `unique_ptr` holds only the live trees (130 and 150 MB), SGCL 301 and 515 MB (the garbage among the old objects waits for a full cycle), Go 219 and 232 MB, `shared_ptr` 516 and 645 MB (malloc keeps what the cascades free), Java at its ceiling, 1.1 GB. At depth 16 the runs are too short to mean much (the Java ones include the JIT's warm-up). The `gc::` tree is the case the family pays most for: a node is two `gc::tracked_ptr` members, each constructed with the location check, linked through two stores that test the mode, and read through the test of the sign, and the program does nothing else; 1.2 times the wall time of `sgcl::`, still faster than `unique_ptr`'s frees.
 
-The price of SGCL's wall time is CPU: at depth 18 the program allocates 126 million objects per second on one thread, and keeping up takes the collector's thread plus helpers. A cycle starts once the pages allocated since the last one reach a quarter of what it left in use (4 MB at least), so the garbage waiting for a sweep is bounded by the live heap, not by the collector's speed. The passes over pages are shared with a pool of helpers only while the collector is behind (the memory in use grew by 16 MB and the mutators keep allocating), and marking joins them once a cycle marks a million objects (`config::MarkObjectThreshold`): at depth 18 one mutator marks on one thread and peaks at 74 MB, four mutators push the cycle onto the pool and peak at 214 MB.
+The price of SGCL's wall time is CPU: at depth 18 the program allocates 131 million objects per second on one thread, and keeping up takes the collector's thread plus helpers. A cycle starts once the pages allocated since the last one reach a quarter of what it left in use (4 MB at least), so the garbage waiting for a sweep is bounded by the live heap, not by the collector's speed. The passes over pages are shared with a pool of helpers only while the collector is behind (the memory in use grew by 16 MB and the mutators keep allocating), and marking joins them once a cycle marks a million objects (`config::MarkObjectThreshold`): at depth 18 one mutator marks on one thread and peaks at 92 MB, four mutators push the cycle onto the pool and peak at 191 MB.
 
 Marking on the pool. Every thread traces from a stack of its own: an object whose mark bit it sets (one relaxed `fetch_or`, after a plain test that spares the objects marked already) goes on the stack, and half of that stack, the older half, goes to a shared pile whenever another thread is parked for want of work. The objects popped from the stack are traced through a window of eight, each prefetched as it enters and traced as it leaves: the depth-first order over a graph laid out by allocation misses the cache at every object, and the window lets the misses overlap (`config::MarkPrefetchWindow`; on the random graph of the next section it halves the marking, 9.5 to 5.3 ns per object; on this tree, laid out by its own construction in the order it is traced, the hardware prefetcher does the same and the window changes nothing). The pass ends when every thread is parked. `bench_marking` builds a binary tree of 2 million or 8 million nodes and forces cycles on the stable heap; the marking pass alone, in milliseconds, by the number of helpers (a build with `-DSGCL_MARK_STATS` reports it, see the file):
 
@@ -584,16 +584,16 @@ Latency of single operations on a graph shared by 16 threads for 3 seconds, nano
 
 | roots per thread | variant | insert p50 / p99 / p99.9 | walk p50 / p99 / p99.9 | drop-all | ops/s | RSS |
 |---|---|---|---|---|---|---|
-| 4096 | SGCL | 42 / 333 / 2917 | 1125 / 2875 / 6292 | 1 µs | 17.9 M | 1.4 GB |
+| 4096 | SGCL | 42 / 333 / 2875 | 1125 / 2917 / 6333 | 4 µs | 18.0 M | 1.6 GB |
 | 4096 | `shared_ptr` | 167 / 2084 / 3792 | 1750 / 3375 / 8042 | 71.7 ms | 11.9 M | 1.3 GB |
 | 4096 | Go | 42 / 959 / 4958 | 1167 / 2792 / 6583 | 6 µs | 16.2 M | 1.3 GB |
 | 4096 | Java ZGC | 333 / 3292 / 6625 | 1625 / 4916 / 11916 | 212 µs | 11.1 M | 1.5 GB |
-| 65536 | SGCL | 83 / 584 / 3125 | 833 / 2750 / 5084 | 28 µs | 21.1 M | 1.9 GB |
+| 65536 | SGCL | 83 / 583 / 3084 | 834 / 2708 / 4708 | 29 µs | 21.1 M | 1.8 GB |
 | 65536 | `shared_ptr` | 292 / 2458 / 4458 | 834 / 2708 / 4625 | 169.1 ms | 18.1 M | 2.3 GB |
 | 65536 | Go | 42 / 1042 / 5125 | 708 / 2292 / 4125 | 15 µs | 18.4 M | 1.2 GB |
 | 65536 | Java ZGC | 458 / 3292 / 8666 | 1083 / 3625 / 24875 | 11.7 ms | 13.9 M | 1.9 GB |
 
-The medians are close; the tails and the throughput tell the story. With the live set large and shared, SGCL has the highest throughput (17.9 to 21.1 million operations per second against Go's 16.2 to 18.4 and Java's 11.1 to 13.9), the lowest insert latency at the median and p99 (42 and 333 ns with 4096 roots against Go's 42 and 959), and Go the lowest walk latency with 65536 roots (708 ns against 833). Java's insert is two allocations (a node and its array of links) with ZGC's barriers on every reference load, which is what its p50 of 333 ns is, and its walk tail (12 to 25 µs at p99.9) is where the mutators wait for the collector under the ceiling; its numbers time one insert and one walk in eight, since `System.nanoTime()` on macOS serializes the threads when called twice per operation. `shared_ptr` pays the destructor cascade in the mutator thread the moment a large graph is dropped: 72 and 169 ms for a drop-all that costs the collectors microseconds. What a collector does cost is cores: SGCL's thread and, on this graph, its marking helpers compete with sixteen mutators for sixteen performance cores, which is where its p99.9 comes from; the CPU time of every variant is close to the 49 to 64 s of sixteen threads for three seconds. Memory is even, 1.2 to 2.3 GB across the board. The table has one SGCL row per size: on this graph the `gc::` variant measures within the run-to-run spread of `sgcl::` (the walk is a chain of loads whose pointer test is hidden under the cache misses, and an insert is an allocation).
+The medians are close; the tails and the throughput tell the story. With the live set large and shared, SGCL has the highest throughput (18.0 to 21.1 million operations per second against Go's 16.2 to 18.4 and Java's 11.1 to 13.9), the lowest insert latency at the median and p99 (42 and 333 ns with 4096 roots against Go's 42 and 959), and Go the lowest walk latency with 65536 roots (708 ns against 834). Java's insert is two allocations (a node and its array of links) with ZGC's barriers on every reference load, which is what its p50 of 333 ns is, and its walk tail (12 to 25 µs at p99.9) is where the mutators wait for the collector under the ceiling; its numbers time one insert and one walk in eight, since `System.nanoTime()` on macOS serializes the threads when called twice per operation. `shared_ptr` pays the destructor cascade in the mutator thread the moment a large graph is dropped: 72 and 169 ms for a drop-all that costs the collectors microseconds. What a collector does cost is cores: SGCL's thread and, on this graph, its marking helpers compete with sixteen mutators for sixteen performance cores, which is where its p99.9 comes from; the CPU time of every variant is close to the 49 to 64 s of sixteen threads for three seconds. Memory is even, 1.2 to 2.3 GB across the board. The table has one SGCL row per size: on this graph the `gc::` variant measures within the run-to-run spread of `sgcl::` (the walk is a chain of loads whose pointer test is hidden under the cache misses, and an insert is an allocation).
 
 ### Containers
 `benchmarks/containers.sh` runs each container case in a process of its own against the `std` counterpart: one million elements, nanoseconds per operation, the footprint of the built container and the peak resident size of the run. The footprint is what the container occupies once the garbage of building it is gone: for SGCL the pages holding live managed objects after a full collection (free slots left in a page by erasures stay counted, they are reusable by objects of that type), for `std` the bytes malloc reports in use (blocks freed and kept by malloc are not counted). The peak RSS adds what waits for a collection on one side and what malloc keeps on the other.
@@ -602,32 +602,32 @@ The node containers cost what `std`'s do or less, the maps within their spread: 
 
 | case | SGCL ns | `std` ns | SGCL footprint | `std` footprint | SGCL peak | `std` peak |
 |---|---|---|---|---|---|---|
-| vector push_back | 2.8 | 1.5 | 8.8 MB | 8.0 MB | 18 MB | 17 MB |
-| vector of pointers, copy and walk | 2.9 | 9.3 (`shared_ptr`) | 16.4 MB | 31.3 MB | 28 MB | 64 MB |
-| deque push both ends | 1.8 | 1.4 | 8.9 MB | 7.7 MB | 11 MB | 9 MB |
-| list push_back / iterate | 17.2 / 1.9 | 26.3 / 2.0 | 23.0 MB | 30.5 MB | 27 MB | 32 MB |
-| list erase every other | 19.3 | 26.1 | 23.0 MB | 15.3 MB | 27 MB | 32 MB |
-| forward_list push_front | 13.1 | 21.6 | 15.4 MB | 15.3 MB | 19 MB | 17 MB |
-| map insert / find / iterate | 386 / 256 / 139 | 359 / 270 / 131 | 45.9 MB | 45.8 MB | 58 MB | 55 MB |
-| set insert | 337 | 354 | 38.2 MB | 45.8 MB | 50 MB | 55 MB |
-| unordered_map insert / find | 159 / 208 | 156 / 183 | 39.3 MB | 43.1 MB | 58 MB | 65 MB |
-| unordered_map erase half | 353 | 420 | 39.3 MB | 27.8 MB | 58 MB | 65 MB |
-| unordered_map of pointers | 91 | 131 (`shared_ptr`) | 47.0 MB | 88.9 MB | 68 MB | 111 MB |
+| vector push_back | 2.6 | 1.5 | 8.8 MB | 8.0 MB | 18 MB | 17 MB |
+| vector of pointers, copy and walk | 2.7 | 9.2 (`shared_ptr`) | 16.4 MB | 31.3 MB | 28 MB | 64 MB |
+| deque push both ends | 1.9 | 1.3 | 8.9 MB | 7.7 MB | 11 MB | 9 MB |
+| list push_back / iterate | 15.8 / 1.9 | 26.2 / 2.0 | 23.0 MB | 30.5 MB | 27 MB | 32 MB |
+| list erase every other | 17.7 | 26.0 | 23.0 MB | 15.3 MB | 27 MB | 32 MB |
+| forward_list push_front | 12.6 | 21.8 | 15.4 MB | 15.3 MB | 19 MB | 17 MB |
+| map insert / find / iterate | 396 / 263 / 133 | 338 / 267 / 111 | 45.9 MB | 45.8 MB | 58 MB | 55 MB |
+| set insert | 308 | 376 | 38.2 MB | 45.8 MB | 50 MB | 55 MB |
+| unordered_map insert / find | 166 / 224 | 163 / 212 | 39.3 MB | 43.1 MB | 58 MB | 65 MB |
+| unordered_map erase half | 339 | 375 | 39.3 MB | 27.8 MB | 58 MB | 65 MB |
+| unordered_map of pointers | 93 | 137 (`shared_ptr`) | 47.0 MB | 88.9 MB | 68 MB | 111 MB |
 
 ### A large live tree
 The case a tracing collector likes least: a tree of 4 or 16 million nodes (depth 22 or 24, 128 or 512 MB of nodes) held for the whole run while one or four threads make and drop 500,000 small trees each (depth 8, 511 nodes, 255 million allocations per thread). Every full cycle has to trace the large tree again; a young cycle ("Generations" above) traces the young objects and the old pages written since the last cycle instead. Java ZGC under `-Xmx1g` for the 4 million nodes and `-Xmx4g` for the 16 million. Wall time of the loop / process CPU time / peak resident memory:
 
 | nodes, threads | SGCL `sgcl::` | SGCL `gc::` | `unique_ptr` | `shared_ptr` | Go | Java ZGC |
 |---|---|---|---|---|---|---|
-| 4 M, 1 | 1.97 s / 4.4 s / 212 MB | 2.46 s / 4.9 s / 206 MB (1.25× / 1.12×) | 6.56 s / 6.7 s / 130 MB | 6.96 s / 7.1 s / 516 MB | 2.54 s / 9.8 s / 285 MB | 1.36 s / 4.1 s / 1.1 GB |
-| 4 M, 4 | 2.07 s / 16.2 s / 336 MB | 2.55 s / 18.6 s / 297 MB (1.23× / 1.15×) | 7.63 s / 30.4 s / 131 MB | 11.02 s / 44.1 s / 516 MB | 4.83 s / 45.4 s / 303 MB | 1.93 s / 8.2 s / 1.1 GB |
-| 16 M, 1 | 2.00 s / 5.1 s / 814 MB | 2.48 s / 6.0 s / 795 MB (1.24× / 1.17×) | 6.52 s / 7.1 s / 516 MB | 6.96 s / 7.7 s / 2.0 GB | 2.58 s / 11.5 s / 1.1 GB | 2.53 s / 12.4 s / 4.1 GB |
-| 16 M, 4 | 2.15 s / 17.4 s / 1.1 GB | 2.60 s / 19.5 s / 1.0 GB (1.21× / 1.12×) | 7.38 s / 29.7 s / 516 MB | 11.64 s / 47.0 s / 2.0 GB | 4.97 s / 47.4 s / 1.1 GB | 4.05 s / 20.5 s / 4.1 GB |
+| 4 M, 1 | 1.84 s / 4.3 s / 214 MB | 2.20 s / 4.6 s / 210 MB (1.20× / 1.08×) | 6.56 s / 6.7 s / 130 MB | 6.96 s / 7.1 s / 516 MB | 2.54 s / 9.8 s / 285 MB | 1.36 s / 4.1 s / 1.1 GB |
+| 4 M, 4 | 1.96 s / 15.6 s / 349 MB | 2.29 s / 17.3 s / 313 MB (1.17× / 1.11×) | 7.63 s / 30.4 s / 131 MB | 11.02 s / 44.1 s / 516 MB | 4.83 s / 45.4 s / 303 MB | 1.93 s / 8.2 s / 1.1 GB |
+| 16 M, 1 | 1.88 s / 5.0 s / 815 MB | 2.15 s / 5.6 s / 800 MB (1.14× / 1.12×) | 6.52 s / 7.1 s / 516 MB | 6.96 s / 7.7 s / 2.0 GB | 2.58 s / 11.5 s / 1.1 GB | 2.53 s / 12.4 s / 4.1 GB |
+| 16 M, 4 | 2.02 s / 16.7 s / 1.1 GB | 2.35 s / 18.0 s / 1.0 GB (1.16× / 1.08×) | 7.38 s / 29.7 s / 516 MB | 11.64 s / 47.0 s / 2.0 GB | 4.97 s / 47.4 s / 1.1 GB | 4.05 s / 20.5 s / 4.1 GB |
 
-- **The mutators do not feel the live set.** SGCL's loop takes the same 2.0 to 2.2 s over 4 million nodes as over 16 million, on one thread and on four (967 thousand small trees per second on four threads, 3.8 times one thread): no thread ever waits for a cycle, and a cycle only takes longer on the collector's cores. The loop took 99 young cycles and 13 full ones over the 4 million nodes on one thread, 290 and 37 on four; 26 and 3, 79 and 10 over the 16 million. Go's loop is a quarter slower on one thread and twice as slow on four, where the assists throttle the mutators to what the collector can trace (45 to 47 s of CPU for 4.8 to 5.0 s of wall). Java is faster than SGCL over the 4 million nodes (1.36 s on one thread, 1.93 s on four) and slower over the 16 million (2.5 and 4.1 s): at that size its collector no longer keeps up under the ceiling and the allocation stalls of ZGC show in the wall time, while its memory sits at the ceiling (1.1 and 4.1 GB).
-- **The young cycles leave the tree alone.** A full cycle traces the whole tree; a young cycle registers and sweeps what was allocated since the last one and traces the survivors and the cards, so its cost does not grow with the old heap: 4.4 s of CPU for the loop over 4 million nodes and 5.1 s over 16 million on one thread, 16.2 and 17.4 s on four. The mutators pay 6 to 8% of their speed for the card stamped by every store of a pointer into a heap object, and building a tree is nothing but such stores.
-- **Without a collector the mutator pays the frees.** `unique_ptr` and `shared_ptr` free each small tree on the thread that made it, 511 frees in a recursive destructor per tree, and through malloc's contention on four threads: 6.5 and 7.0 s of wall on one thread, 7.4 to 7.6 and 11.0 to 11.6 s on four, three to five times SGCL's. `unique_ptr` holds the least memory of the table, since nothing waits for a cycle; `shared_ptr` holds the most of the C++ variants (516 MB and 2.0 GB against SGCL's 212 MB and 814 MB on one thread): a node of two `shared_ptr`s with its control block is three times SGCL's node of two words, and malloc keeps what the cascades free.
-- **The `gc::` tree is the binary-trees case again**: two `gc::tracked_ptr` members per node, each constructed with the location check and linked with a store that tests the mode, 1.25 times the wall time of `sgcl::` and well under half of `unique_ptr`'s; the memory is the same, and the mutators still do not feel the live set (2.5 to 2.6 s over 4 million nodes, the same over 16 million).
+- **The mutators do not feel the live set.** SGCL's loop takes the same 1.8 to 2.0 s over 4 million nodes as over 16 million, on one thread and on four (a million small trees per second on four threads, 3.8 times one thread): no thread ever waits for a cycle, and a cycle only takes longer on the collector's cores. The loop took 98 young cycles and 13 full ones over the 4 million nodes on one thread, 287 and 36 on four; 26 and 3, 80 and 9 over the 16 million. Go's loop is 40% slower on one thread and two and a half times as slow on four, where the assists throttle the mutators to what the collector can trace (45 to 47 s of CPU for 4.8 to 5.0 s of wall). Java is faster than SGCL over the 4 million nodes on one thread (1.36 s), level on four (1.93 s), and slower over the 16 million (2.5 and 4.1 s): at that size its collector no longer keeps up under the ceiling and the allocation stalls of ZGC show in the wall time, while its memory sits at the ceiling (1.1 and 4.1 GB).
+- **The young cycles leave the tree alone.** A full cycle traces the whole tree; a young cycle registers and sweeps what was allocated since the last one and traces the survivors and the cards, so its cost does not grow with the old heap: 4.3 s of CPU for the loop over 4 million nodes and 5.0 s over 16 million on one thread, 15.6 and 16.7 s on four. The mutators pay 6 to 8% of their speed for the card stamped by every store of a pointer into a heap object, and building a tree is nothing but such stores.
+- **Without a collector the mutator pays the frees.** `unique_ptr` and `shared_ptr` free each small tree on the thread that made it, 511 frees in a recursive destructor per tree, and through malloc's contention on four threads: 6.5 and 7.0 s of wall on one thread, 7.4 to 7.6 and 11.0 to 11.6 s on four, three and a half to six times SGCL's. `unique_ptr` holds the least memory of the table, since nothing waits for a cycle; `shared_ptr` holds the most of the C++ variants (516 MB and 2.0 GB against SGCL's 214 MB and 815 MB on one thread): a node of two `shared_ptr`s with its control block is three times SGCL's node of two words, and malloc keeps what the cascades free.
+- **The `gc::` tree is the binary-trees case again**: two `gc::tracked_ptr` members per node, each constructed with the location check and linked with a store that tests the mode, 1.15 to 1.2 times the wall time of `sgcl::` and a third of `unique_ptr`'s; the memory is the same, and the mutators still do not feel the live set (2.2 to 2.3 s over 4 million nodes, the same over 16 million).
 
 ## Dependencies and usage
 C++20 and nothing else: no external library, no runtime to link. For LLDB, `command script import <sgcl>/lldb/sgcl.py` (in `~/.lldbinit`) shows the pointers and containers as they are ([docs/diagnostics.md](docs/diagnostics.md#in-the-debugger)). Copy the `sgcl` and `gc` directories into your include path and `#include "sgcl/sgcl.h"` (both namespaces; `"gc/gc.h"` is the same), or add this tree with CMake and link the `sgcl` interface target. The tests need googletest in `external/`; the benchmarks build with the tree, and their Go and Java counterparts need only a Go and a JDK to run `benchmarks/compare.sh`.

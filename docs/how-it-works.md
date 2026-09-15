@@ -235,9 +235,9 @@ A `gc::tracked_ptr` is the same word where the word may live, and elsewhere the 
 | construction in unmanaged memory | not allowed | a cell taken from the thread's block, 7 ns with its release |
 | a store into it | the word and the barrier, 1.5 ns | plus a test of the sign, 1.6 ns |
 | a read through it | a load, 0.43 ns | plus a test of the sign, 0.47 ns |
-| `weak_ptr::lock()` | 1.9 ns | 2.7 ns: the result is a `gc::tracked_ptr` built where the caller puts it |
-| a lock-free stack, one thread | 10 ns per operation | 14 ns: the loaded head and the new node are constructions on the stack |
-| binary-trees, a node of two pointers | 1× | 1.25×: every node is two members and three temporaries |
+| `weak_ptr::lock()` | 1.9 ns | 2.6 ns: the result is a `gc::tracked_ptr` built where the caller puts it |
+| a lock-free stack, one thread | 9.5 ns per operation | 12.5 ns: the loaded head and the new node are constructions on the stack |
+| binary-trees, a node of two pointers | 1× | 1.2×: every node is two members and three temporaries |
 | the containers | the same nodes and buffers; a `gc::` container pays the test on its root word, within the run-to-run spread | |
 
 The cost of `gc::` is concentrated in one place: the constructions on the stack, the temporaries, the values returned and the arguments passed, because each decides its mode with a thread-local read that the compiler cannot hoist out of a function call. Members of managed objects and the elements of containers cost almost nothing more, and a store or a read through either kind is within a tenth of a nanosecond.
