@@ -9,7 +9,7 @@ namespace sgcl {
 }
 ```
 
-An `expiry_queue<T>` decides what to do with an object once nothing else reaches it, by an observer rather than by the object's destructor. `watch(object, f)` hands out a `weak_ptr` to the object and keeps `f` next to the weak pointer's cell. When a cycle finds the object unreachable it does not destroy it: it keeps it alive for the queue, and `drain()` calls `f` with the object as a `tracked_ptr`, alive one last time, on the thread that calls `drain()`, at that moment, with the heap in a consistent state. `f` may read the object, release what it owns (a GPU handle, a file, a cache entry, a registry line), or keep the pointer, which is the object's return to life: it can be watched again. Then the entry is dropped and the object dies with the next cycle that finds it unreachable, its destructor as ever.
+An `expiry_queue<T>` decides what to do with an object once nothing else reaches it, by an observer rather than by the object's destructor. `watch(object, f)` makes a weak cell for the object and keeps `f` next to it. When a cycle finds the object unreachable it does not destroy it: it keeps it alive for the queue, and `drain()` calls `f` with the object as a `tracked_ptr`, alive one last time, on the thread that calls `drain()`, at that moment, with the heap in a consistent state. `f` may read the object, release what it owns (a GPU handle, a file, a cache entry, a registry line), or keep the pointer, which is the object's return to life: it can be watched again. Then the entry is dropped and the object dies with the next cycle that finds it unreachable, its destructor as ever.
 
 `Ptr`, the last parameter, is the kind of the word by which the container holds its memory: `tracked_ptr` by default, so that the container lives where a `tracked_ptr` may (on a stack or inside a managed object), or [`gc::tracked_ptr`](gc/tracked_ptr.md), so that it lives anywhere, at the cost of a `gc::tracked_ptr` on each access to that word; `gc::expiry_queue` ([gc/gc.h](README.md#the-gc-namespace)) names the latter. The nodes and buffers are the same managed objects either way, and the elements are a choice apart; an element type that names a `tracked_type` (`gc::tracked_ptr<T>` names `sgcl::tracked_ptr<T>`) is stored as that type, one word in the same mode, and handed out as the type it was given, so a container of `gc::tracked_ptr`s costs what one of `sgcl::tracked_ptr`s does ([the gc namespace](README.md#the-gc-namespace)).
 
@@ -35,7 +35,7 @@ using function_type = std::function<void(value_type)>;
 using size_type = size_t;
 ```
 
-`value_type` is the queue's pointer, `tracked_ptr<T>` by default and `gc::tracked_ptr<T>` in a `gc::expiry_queue`; `weak_type` the weak pointer of the same kind, what `watch()` returns. `function_type` is what an entry keeps: `watch()` converts its callable into it, so the callable takes a `value_type` by value (or anything a `value_type` converts to, a `tracked_ptr<T>` for a `gc::tracked_ptr<T>` included) and returns nothing.
+`value_type` is the queue's pointer, `tracked_ptr<T>` by default and `gc::tracked_ptr<T>` in a `gc::expiry_queue`; `weak_type` the weak pointer of the same kind, what `entry::weak()` returns; `entry` the handle `watch()` returns. `function_type` is what an entry keeps: `watch()` converts its callable into it, so the callable takes a `value_type` by value (or anything a `value_type` converts to, a `tracked_ptr<T>` for a `gc::tracked_ptr<T>` included) and returns nothing.
 
 ### Constructors, assignment, destructor
 
@@ -63,18 +63,40 @@ gc::expiry_queue<Entry> moved = std::move(local);
 
 ```cpp
 template<class F>
-weak_type watch(const value_type& object, F&& on_expire);
+entry watch(const value_type& object, F&& on_expire);
 ```
 
-Adds an entry for `object`: a fresh weak cell marked as watched, with `on_expire` stored as a `function_type`, and returns a `weak_type` sharing that cell, an ordinary weak pointer (`lock()`, `expired()`) that the caller may keep or discard; the pointer of the other kind converts to `value_type` on the way in. A null `object` gets no entry and an empty `weak_type` is returned. Once every so many calls (as many as the queue had entries after its last drain, at least 16) the call runs `drain()` itself, so `on_expire` functions of earlier entries may run inside `watch()`. An object may be watched by several entries or several queues; the cycle that finds it unreachable marks every one of them expired, and each function gets the object.
+Adds an entry for `object`: a fresh weak cell marked as watched, with `on_expire` stored as a `function_type`, and returns the entry's handle (below), which the caller may keep or discard; the pointer of the other kind converts to `value_type` on the way in. A null `object` gets no entry and an empty handle is returned. Once every so many calls (as many as the queue had entries after its last drain, at least 16) the call runs `drain()` itself, so `on_expire` functions of earlier entries may run inside `watch()`. An object may be watched by several entries or several queues; the cycle that finds it unreachable marks every one of them expired, and each function gets the object.
 
 ```cpp
 gc::expiry_queue<Texture> gone;
 gc::tracked_ptr texture = gc::make_tracked<Texture>(upload(pixels));
-gc::weak_ptr weak = gone.watch(texture, [](gc::tracked_ptr<Texture> t) {
+auto entry = gone.watch(texture, [](gc::tracked_ptr<Texture> t) {
     release(t->id);                      // the object, with its data, one last time
 });
-assert(weak.lock() == texture);          // the ordinary weak pointer to it
+assert(entry.weak().lock() == texture);  // the ordinary weak pointer to it
+```
+
+### entry
+
+```cpp
+class entry {
+public:
+    entry() noexcept;
+    bool cancel() noexcept;
+    bool expired() const noexcept;
+    weak_type weak() const noexcept;
+    explicit operator bool() const noexcept;
+};
+```
+
+The handle of one entry, sharing the entry's cell; copies share the entry, and it lives where the queue's pointers live. `cancel()` withdraws the entry: the object is no longer kept for the queue, its function will not be called, and the entry leaves the queue with the next `drain()` (until then `size()` counts it); true when the entry was still pending, false for an entry drained or cancelled before, or an empty handle. What `drain()` does to an entry after calling its function, and `clear()` to every entry, `cancel()` does to one without the call: for a resource the program released by hand, or an object another owner took over. From any thread, one atomic flag. `expired()` is true once a cycle has found the object unreachable (its function waits for `drain()`, or ran, or the entry was cancelled after). `weak()` is an ordinary `weak_type` to the object, sharing the cell, holding nothing; dropping it, or the handle, cancels nothing.
+
+```cpp
+auto entry = gone.watch(texture, [](gc::tracked_ptr<Texture> t) { release(t->id); });
+// ... the program releases the texture itself
+release(texture->id);
+entry.cancel();                          // no second release when nothing reaches the texture
 ```
 
 ### drain
@@ -203,11 +225,11 @@ int main() {
 }
 ```
 
-The key is the name, not the address. A raw address stored in a managed container is a word holding a heap address, and the pointer map the collector builds by elimination follows it like a `tracked_ptr`: a `gc::unordered_map<const Widget*, ...>` would keep every widget alive by its key, and the queue would never see one expire. The function gets the object alive one last time, which is when its name, or anything else the entry is keyed by, can still be read from it. The `weak_ptr` `watch()` returns is not needed here: it shares the entry's cell and is only a weak pointer, not a handle on the entry; dropping it cancels nothing.
+The key is the name, not the address. A raw address stored in a managed container is a word holding a heap address, and the pointer map the collector builds by elimination follows it like a `tracked_ptr`: a `gc::unordered_map<const Widget*, ...>` would keep every widget alive by its key, and the queue would never see one expire. The function gets the object alive one last time, which is when its name, or anything else the entry is keyed by, can still be read from it. The handle `watch()` returns is not needed here; had the registry a `remove(name)` that erases an entry by hand, it would keep the handle and `cancel()` it there, so that the widget is not kept for a function with nothing left to do.
 
 ## See also
 
-- [weak_ptr](weak_ptr.md): what `watch()` returns; [tracked_ptr](tracked_ptr.md): what the function gets.
+- [weak_ptr](weak_ptr.md): what `entry::weak()` returns; [tracked_ptr](tracked_ptr.md): what the function gets.
 - [collector](collector.md): `force_collect(true)`, used above to make the cycle happen at once.
 - README: [expiry_queue](../README.md#expiry_queue) under [Weak pointers](../README.md#weak-pointers), [The rules](../README.md#the-rules), [Stack roots](../README.md#stack-roots).
 - `tests/expiry_queue.cpp`: every behaviour above, checked.

@@ -30,11 +30,11 @@ TEST(ExpiryQueue_Tests, TheFunctionGetsTheObjectAliveOnceNothingElseReachesIt) {
     std::vector<int> released;
     expiry_queue<Texture> gone;
     tracked_ptr kept = make_tracked<Texture>(1);
-    weak_ptr weak_kept = gone.watch(kept, [&](tracked_ptr<Texture> t) { released.push_back(t->id); });
+    weak_ptr weak_kept = gone.watch(kept, [&](tracked_ptr<Texture> t) { released.push_back(t->id); }).weak();
     weak_ptr<Texture> weak_dropped;
     off_frame([&] {
         tracked_ptr dropped = make_tracked<Texture>(2);
-        weak_dropped = gone.watch(dropped, [&](tracked_ptr<Texture> t) { released.push_back(t->id); });
+        weak_dropped = gone.watch(dropped, [&](tracked_ptr<Texture> t) { released.push_back(t->id); }).weak();
     });
     EXPECT_EQ(gone.size(), 2u);
     EXPECT_EQ(gone.drain(), 0u);          // nothing found unreachable yet
@@ -98,7 +98,7 @@ TEST(ExpiryQueue_Tests, AnObjectWaitsForTheDrain) {
     weak_ptr<Texture> weak;
     off_frame([&] {
         tracked_ptr object = make_tracked<Texture>(4);
-        weak = gone.watch(object, [](tracked_ptr<Texture>) {});
+        weak = gone.watch(object, [](tracked_ptr<Texture>) {}).weak();
     });
     for (int i = 0; i < 5; ++i) {
         settle();                         // many cycles, no drain: kept through all of them
@@ -110,15 +110,49 @@ TEST(ExpiryQueue_Tests, AnObjectWaitsForTheDrain) {
     EXPECT_EQ(Texture::alive.load(), before);
 }
 
-TEST(ExpiryQueue_Tests, TheWeakPointerIsTheOrdinaryOne) {
+TEST(ExpiryQueue_Tests, TheEntryAndItsWeakPointer) {
     expiry_queue<Texture> gone;
     tracked_ptr object = make_tracked<Texture>(5);
-    weak_ptr w = gone.watch(object, [](tracked_ptr<Texture>) {});
+    auto e = gone.watch(object, [](tracked_ptr<Texture>) {});
+    ASSERT_TRUE(e);
+    EXPECT_FALSE(e.expired());
+    weak_ptr w = e.weak();                                  // the ordinary weak pointer, sharing the entry's cell
     ASSERT_TRUE(w.lock());
     EXPECT_EQ(w.lock()->id, 5);
-    weak_ptr none = gone.watch(tracked_ptr<Texture>(), [](tracked_ptr<Texture>) {});   // a null object: no entry
-    EXPECT_TRUE(none.expired());
+    auto none = gone.watch(tracked_ptr<Texture>(), [](tracked_ptr<Texture>) {});   // a null object: no entry
+    EXPECT_FALSE(none);
+    EXPECT_TRUE(none.weak().expired());
+    EXPECT_FALSE(none.cancel());
     EXPECT_EQ(gone.size(), 1u);
+}
+
+// A cancelled entry: the object is no longer kept, the function is not
+// called, the entry leaves with the next drain; a second cancel, or one
+// after the drain, withdraws nothing
+TEST(ExpiryQueue_Tests, CancelWithdrawsTheEntry) {
+    settle();
+    const int before = Texture::alive.load();
+    expiry_queue<Texture> gone;
+    int calls = 0;
+    expiry_queue<Texture>::entry kept_entry, dropped_entry;
+    off_frame([&] {
+        tracked_ptr a = make_tracked<Texture>(9);
+        tracked_ptr b = make_tracked<Texture>(10);
+        kept_entry = gone.watch(a, [&](tracked_ptr<Texture>) { ++calls; });
+        dropped_entry = gone.watch(b, [&](tracked_ptr<Texture>) { ++calls; });
+    });
+    EXPECT_TRUE(dropped_entry.cancel());                    // released by hand: no finalizer
+    EXPECT_FALSE(dropped_entry.cancel());                   // already
+    settle();
+    EXPECT_EQ(Texture::alive.load(), before + 1);           // b died with the cycle, a is kept for the queue
+    EXPECT_TRUE(kept_entry.expired());
+    EXPECT_EQ(gone.size(), 2u);                             // the cancelled entry counts until a drain
+    EXPECT_EQ(gone.drain(), 1u);                            // a's function; b's entry dropped without one
+    EXPECT_EQ(calls, 1);
+    EXPECT_TRUE(gone.empty());
+    EXPECT_FALSE(kept_entry.cancel());                      // drained: nothing to withdraw
+    settle();
+    EXPECT_EQ(Texture::alive.load(), before);
 }
 
 TEST(ExpiryQueue_Tests, DrainsByItselfEverySoManyWatches) {
@@ -155,8 +189,8 @@ TEST(ExpiryQueue_Tests, ClearAndDestructionLetTheObjectsGo) {
         off_frame([&] {
             tracked_ptr a = make_tracked<Texture>(6);
             tracked_ptr b = make_tracked<Texture>(7);
-            w1 = gone.watch(a, [&](tracked_ptr<Texture>) { ++calls; });
-            w2 = gone.watch(b, [&](tracked_ptr<Texture>) { ++calls; });
+            w1 = gone.watch(a, [&](tracked_ptr<Texture>) { ++calls; }).weak();
+            w2 = gone.watch(b, [&](tracked_ptr<Texture>) { ++calls; }).weak();
         });
         settle();
         EXPECT_EQ(Texture::alive.load(), before + 2);
@@ -167,7 +201,7 @@ TEST(ExpiryQueue_Tests, ClearAndDestructionLetTheObjectsGo) {
         EXPECT_TRUE(w1.expired());
         off_frame([&] {
             tracked_ptr c = make_tracked<Texture>(8);
-            w2 = gone.watch(c, [&](tracked_ptr<Texture>) { ++calls; });
+            w2 = gone.watch(c, [&](tracked_ptr<Texture>) { ++calls; }).weak();
         });
         settle();
         EXPECT_EQ(Texture::alive.load(), before + 1);

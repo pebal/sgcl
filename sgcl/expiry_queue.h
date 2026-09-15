@@ -13,8 +13,7 @@
 namespace sgcl {
     // What to do with an object once nothing else reaches it, decided by
     // an observer rather than by the object's destructor: watch(object, f)
-    // hands out a weak_ptr to the object and keeps f next to the weak
-    // pointer's cell. When a cycle finds the object unreachable it does not
+    // makes a weak cell for the object and keeps f next to it. When a cycle finds the object unreachable it does not
     // destroy it: it keeps it alive for the queue (detail/weak_cell.h:
     // Expired), and drain() calls f with the object, alive one last time,
     // as a tracked_ptr; f may use it, or keep it, which is the object's
@@ -28,12 +27,16 @@ namespace sgcl {
     // many watch() calls, as many as it has entries (a pass costs less
     // than the calls that paid for it); a thread that watches little and
     // wants its cleanups on time calls drain() in its loop, and an object
-    // found unreachable waits for that call. Ptr is the kind of the queue's
-    // pointers: what watch() takes and hands out and what f receives, and
-    // the word by which the queue holds its entries, so where it lives: a
-    // tracked_ptr, on a stack or in a managed object; a gc::tracked_ptr
-    // (gc::expiry_queue), anywhere. Shared between threads with the
-    // program's own synchronization.
+    // found unreachable waits for that call. watch() returns an entry
+    // handle: cancel() withdraws the entry (the object no longer kept,
+    // f never called: a resource released by hand), weak() is a weak_ptr
+    // to the object sharing the entry's cell. Ptr is the kind of the
+    // queue's pointers: what watch() takes and what f receives, the word
+    // by which the queue holds its entries and the handle its cell, so
+    // where they live: a tracked_ptr, on a stack or in a managed object;
+    // a gc::tracked_ptr (gc::expiry_queue), anywhere. Shared between
+    // threads with the program's own synchronization; cancel() alone is
+    // an atomic flag and may come from any thread.
     template<class T, template<class> class Ptr>
     class expiry_queue {
     public:
@@ -42,12 +45,58 @@ namespace sgcl {
         using function_type = std::function<void(value_type)>;
         using size_type = size_t;
 
+        // The handle of one entry: the entry's cell, which watch() made.
+        // Empty for a null object. Copies share the entry.
+        class entry {
+        public:
+            entry() noexcept = default;
+
+            // Withdraws the entry: the object is no longer kept for the
+            // queue and its function will not be called; the entry leaves
+            // the queue with the next drain(). True when the entry was
+            // still pending (not drained, not cancelled before).
+            bool cancel() noexcept {
+                auto cell = _cell.get();
+                if (!cell) {
+                    return false;
+                }
+                auto old = cell->flags.fetch_or(detail::WeakCell::Drained, std::memory_order_acq_rel);
+                return !(old & detail::WeakCell::Drained);
+            }
+
+            // The collector has found the object unreachable: its function
+            // waits for drain() (or was called, or the entry was cancelled)
+            bool expired() const noexcept {
+                auto cell = _cell.get();
+                return cell && (cell->flags.load(std::memory_order_acquire) & detail::WeakCell::Expired);
+            }
+
+            // A weak pointer to the object, sharing the entry's cell: an
+            // ordinary weak_ptr (lock(), expired()), holding nothing
+            weak_type weak() const noexcept {
+                return weak_type(_cell);
+            }
+
+            explicit operator bool() const noexcept {
+                return _cell.get() != nullptr;
+            }
+
+        private:
+            explicit entry(Ptr<detail::WeakCell> cell) noexcept
+            : _cell(std::move(cell)) {
+            }
+
+            Ptr<detail::WeakCell> _cell;
+
+            friend class expiry_queue;
+        };
+
         expiry_queue() = default;
 
-        // A weak_ptr to the object, with f kept for the day the object is
-        // found unreachable; a null object gets no entry
+        // An entry for the object, with f kept for the day the object is
+        // found unreachable; a null object gets no entry (an empty handle)
         template<class F>
-        weak_type watch(const value_type& object, F&& on_expire) {
+        entry watch(const value_type& object, F&& on_expire) {
             if (!object) {
                 return {};
             }
@@ -56,16 +105,21 @@ namespace sgcl {
             if (++_watched > _threshold) {
                 drain();
             }
-            return w;
+            return entry(w._cell);
         }
 
         // Calls f with the object of every entry whose object a cycle has
-        // found unreachable, and drops the entry. Returns how many.
+        // found unreachable, and drops the entry; drops the cancelled
+        // entries without a call. Returns how many functions were called.
         size_type drain() {
             size_type count = 0;
             for (size_type i = 0; i < _entries.size();) {
                 auto cell = _entries[i].cell.get();
-                if (cell->flags.load(std::memory_order_acquire) & detail::WeakCell::Expired) {
+                auto flags = cell->flags.load(std::memory_order_acquire);
+                if (flags & detail::WeakCell::Drained) {   // cancelled: no call
+                    _entries[i] = std::move(_entries.back());
+                    _entries.pop_back();
+                } else if (flags & detail::WeakCell::Expired) {
                     value_type object = weak_type(_entries[i].cell).lock();
                     auto on_expire = std::move(_entries[i].on_expire);
                     _release(cell);
@@ -82,7 +136,8 @@ namespace sgcl {
             return count;
         }
 
-        // The entries not drained yet, expired or not
+        // The entries not drained yet, expired or not (a cancelled one
+        // counts until the next drain)
         size_type size() const noexcept {
             return _entries.size();
         }

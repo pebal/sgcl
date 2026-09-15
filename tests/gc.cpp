@@ -197,7 +197,7 @@ TEST(Gc_Tests, ExpiryQueueInUnmanagedMemory) {
     off_frame([&] {
         gc::tracked_ptr item = gc::make_tracked<Item>();
         item->value = 3;
-        gc::weak_ptr<Item> w = gone->watch(item, [&](gc::tracked_ptr<Item> t) { released.push_back(t->value); });
+        gc::weak_ptr<Item> w = gone->watch(item, [&](gc::tracked_ptr<Item> t) { released.push_back(t->value); }).weak();
         static_assert(std::is_same_v<decltype(w), gc::weak_ptr<Item>>);
         EXPECT_FALSE(w.expired());
     });
