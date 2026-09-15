@@ -86,7 +86,7 @@ stateDiagram-v2
 - `Destroyed` is a slot whose destructor has run (a `unique_ptr` deleted the object, a container destroyed its element): the sweep frees it without running anything.
 - `UniqueReleased` is a block of cells of `gc::tracked_ptr`s (below) its allocator will not hand out any more: a root until the collector finds every cell of it free.
 
-The flags: `registered` says the collector knows the slot (it will be swept if not marked); `reachable` is the queue of the sequential marking (found, to be traced); `marked` is the mark bit, sticky through the young cycles, cleared by a full one.
+The flags: `registered` says the collector knows the slot (it will be swept if not marked); `reachable` is the marking's queue (found, to be traced, in slot order); `marked` is the mark bit, sticky through the young cycles, cleared by a full one.
 
 ## Pointers and the write barrier
 
@@ -186,7 +186,7 @@ The collector wakes for a cycle when the pages allocated since the last one exce
 
 (`collector.h`: `_mark_parallel`, `WorkerPool`)
 
-Once a cycle has `MarkObjectThreshold` objects to mark (a million), the marking goes to a pool of helper threads, one per quarter of that and up to the cores. Every helper traces from a stack of its own: an object whose mark bit it sets (a relaxed `fetch_or` after a plain test that spares the objects marked already) goes on the stack, and half of that stack, the older half, goes to a shared pile whenever another helper is parked for want of work. The objects popped from the stack pass through a window of eight (`config::MarkPrefetchWindow`), each prefetched as it enters and traced when it leaves: the depth-first order over a graph laid out by allocation misses the cache at every object, and the window lets the misses overlap instead of waiting one at a time, which halves the marking of a random graph. The pass ends when every helper is parked. The mark bit is the only word the helpers share; the states pass and the weak phase stay on the collector's thread. The sweep and the stack scan go to the pool by their own thresholds.
+The marking is one pass whether the collector's thread runs it alone or, once a cycle has `MarkObjectThreshold` objects to mark (a million), with a pool of helper threads, one per quarter of that and up to the cores. The pages the roots reached are dealt out one at a time and traced in page order: the thread holds the page while it loops over its words of reachable bits, marking (a relaxed `fetch_or` after a plain test that spares the objects marked already) and tracing the objects in slot order, a few prefetched ahead; a child on the same page becomes a bit the loop takes next, so that a structure laid out by its allocation is read in address order. A child on another page goes on the thread's stack, traced depth first once the page is done, through a window of eight (`config::MarkPrefetchWindow`), each object prefetched as it enters and traced when it leaves: the depth-first order over a graph laid out at random misses the cache at every object, and the window lets the misses overlap instead of waiting one at a time, which halves the marking of a random graph. A child found on the traced object's page during that drain gets a bit and lists the page for the thread (the page's holder, if there is one, takes the bit instead: it checks the bits once more after letting the page go). Half of a thread's stack and pages, the older half, goes to a shared pile whenever another thread is parked for want of work, and the pass ends when every thread is parked. The mark bit is the only word the helpers share; the states pass and the weak phase stay on the collector's thread. The sweep and the stack scan go to the pool by their own thresholds.
 
 ## Weak pointers, the expiry queue, atomics
 
@@ -230,13 +230,13 @@ A `gc::tracked_ptr` is the same word where the word may live, and elsewhere the 
 
 | | `sgcl::` | `gc::` |
 |---|---|---|
-| construction on the stack | a store with the barrier, 1.2 ns | the same, after the check of the address: the heap's range, then the thread's stack bounds from a thread-local, 1.8 ns (a thread-local read costs more on Apple silicon than on Linux) |
+| construction on the stack | a store with the barrier, 1.2 ns | the same, after the check of the address: the heap's range, then the thread's stack bounds from a thread-local, 1.7 ns (a thread-local read costs more on Apple silicon than on Linux) |
 | construction as a member of a managed object | the same | the same after the heap's range check, a few tenths |
 | construction in unmanaged memory | not allowed | a cell taken from the thread's block, 7 ns with its release |
-| a store into it | the word and the barrier, 1.5 ns | plus a test of the sign, 1.6 ns |
-| a read through it | a load, 0.43 ns | plus a test of the sign, 0.47 ns |
+| a store into it | the word and the barrier, 1.4 ns | plus a test of the sign, 1.6 ns |
+| a read through it | a load, 0.42 ns | plus a test of the sign, 0.45 ns |
 | `weak_ptr::lock()` | 1.9 ns | 2.6 ns: the result is a `gc::tracked_ptr` built where the caller puts it |
-| a lock-free stack, one thread | 9.5 ns per operation | 12.5 ns: the loaded head and the new node are constructions on the stack |
+| a lock-free stack, one thread | 9.7 ns per operation | 12.4 ns: the loaded head and the new node are constructions on the stack |
 | binary-trees, a node of two pointers | 1× | 1.2×: every node is two members and three temporaries |
 | the containers | the same nodes and buffers; a `gc::` container pays the test on its root word, within the run-to-run spread | |
 

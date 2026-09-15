@@ -593,11 +593,11 @@ namespace sgcl::detail {
             return (uintptr_t)ptr == (uintptr_t)page->pointer_of(index) + sizeof(ArrayBase);
         }
 
-        // The state of one marking thread. Sequential marking (this thread
-        // alone) uses _markers[0]; the parallel pass gives every helper one.
-        // `work` is the stack of objects found but not traced yet, in the
-        // parallel pass only: the sequential pass queues pages instead
-        // (reachable bits, _mark_reachable).
+        // The state of one marking thread: _markers[0] is this thread's,
+        // the pass gives every helper one. `work` is the stack of the
+        // objects found on other pages than the one being traced and not
+        // traced yet; the children on the page being traced are its
+        // reachable bits (_mark_page).
         struct MarkItem {
             Page* page;
             void* ptr;
@@ -610,6 +610,15 @@ namespace sgcl::detail {
             std::vector<void*> objects;   // the live objects, when requested
             size_t live = 0;              // objects marked for the first time
             bool unregistered_hit = false;
+            // The page whose object is being traced, whether this thread
+            // holds it (its page loop is running), the pages this thread
+            // listed and has to trace (_mark_page)
+            Page* current = nullptr;
+            bool owns_current = false;
+            std::vector<Page*> pages;
+#ifdef SGCL_MARK_STATS
+            size_t via_bits = 0, via_stack = 0, page_visits = 0, passes = 0, listed = 0;
+#endif
         };
 
         void _found(Marker& m, void* ptr) noexcept {
@@ -621,11 +630,14 @@ namespace sgcl::detail {
 
         // -DSGCL_TRACE_STACK prints every marking decision to stderr: which
         // stack word retained what, which states were still Reachable.
-        // Sequential: the slot gets its reachable bit and the page goes on
-        // the list for _mark_reachable to trace. Parallel: the marked bit is
-        // the only word the threads share; a relaxed load first, so that an
-        // object marked already costs no atomic operation, then fetch_or,
-        // whose old value says which thread got the object and traces it.
+        // From the roots (Parallel false: the stack scan, the states pass,
+        // the hazards, on this thread before the pass): the slot gets its
+        // reachable bit and the page goes on the list for the pass. In the
+        // pass (Parallel): a child on the page being traced gets its
+        // reachable bit too (below); otherwise the marked bit is the word
+        // the threads share: a relaxed load first, so that an object marked
+        // already costs no atomic operation, then fetch_or, whose old value
+        // says which thread got the object and traces it.
         template<bool Parallel>
         void _mark_slot(Page* page, unsigned index, Marker& m) noexcept {
             auto flag_index = Page::flag_index_of(index);
@@ -643,12 +655,42 @@ namespace sgcl::detail {
                 if (marked.load(std::memory_order_relaxed) & mask) {
                     return;
                 }
+                // a child on the page being traced: a reachable bit, for the
+                // page loop to take in slot order (_mark_page). On a page
+                // this thread holds a relaxed bit: the loop rescans after
+                // every pass that found something, and rechecks once it lets
+                // go. On a page it does not hold (a drain): the bit, then
+                // the page listed unless it is, both seq_cst against the
+                // holder's letting go.
+                {
+                    if (page == m.current) {
+#ifdef SGCL_MARK_STATS
+                        ++m.via_bits;
+#endif
+                        std::atomic_ref<Page::Flag> reachable(flag.reachable);
+                        if (m.owns_current) {
+                            reachable.fetch_or(mask, std::memory_order_relaxed);
+                        } else {
+                            reachable.fetch_or(mask, std::memory_order_seq_cst);
+                            if (!std::atomic_ref<bool>(page->reachable).exchange(true, std::memory_order_seq_cst)) {
+                                m.pages.push_back(page);
+#ifdef SGCL_MARK_STATS
+                                ++m.listed;
+#endif
+                            }
+                        }
+                        return;
+                    }
+                }
                 if (marked.fetch_or(mask, std::memory_order_relaxed) & mask) {
                     return;
                 }
                 auto ptr = page->pointer_of(index);
                 _found(m, ptr);
                 m.work.push_back({page, ptr});
+#ifdef SGCL_MARK_STATS
+                ++m.via_stack;
+#endif
             } else {
                 if ((~flag.marked & ~flag.reachable & mask)) {
                     flag.reachable |= mask;
@@ -1008,7 +1050,6 @@ namespace sgcl::detail {
             size_t first;   // its marks' first word in _dirty_marks
         };
 
-        template<bool Parallel>
         void _trace_dirty_page(const DirtyPage& dirty, Marker& m) noexcept {
             auto page = dirty.page;
             auto is_array = page->is_array;
@@ -1020,100 +1061,32 @@ namespace sgcl::detail {
                 while (old) {
                     auto index = offset + std::countr_zero(old);
                     old &= old - 1;
-                    _trace<Parallel>(page, page->pointer_of(index), is_array, m);
-                    if constexpr(Parallel) {
-                        _drain(m);
-                    }
+                    _trace<true>(page, page->pointer_of(index), is_array, m);
+                    _drain(m);
                 }
             }
         }
 
-        void _trace_dirty_pages() noexcept {
-            for (auto& dirty : _dirty_pages) {
-                _trace_dirty_page<false>(dirty, _markers[0]);
-            }
-            _dirty_pages.clear();
-        }
-
-        // Traces the objects whose reachable bit is set, on the pages listed
-        // in _reachable_pages, and everything they lead to.
-        void _mark_reachable() noexcept {
-#ifdef SGCL_MARK_STATS
-            if (_mark_workers || _mark_force) {
-#else
-            if (_mark_workers) {
-#endif
-                _mark_parallel();
-                return;
-            }
-            auto& m = _markers[0];
-#ifdef SGCL_MARK_STATS
-            auto t0 = std::chrono::steady_clock::now();
-            auto live0 = m.live;
-            struct Report {
-                std::chrono::steady_clock::time_point t0; size_t live0; Marker& m;
-                ~Report() { std::fprintf(stderr, "[mark] sequential time %.2fms live %zu\n", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(), m.live - live0); }
-            } report{t0, live0, m};
-#endif
-            // batch by batch, as the list was: the pages listed while a batch
-            // is traced wait for the next one, so that a page gathers the
-            // bits every page of the batch sets on it and is visited once
-            // for them (a stack, visiting a page as soon as it gets its first
-            // bit, was no faster on the 8 M tree; the order within a batch
-            // makes no difference)
-            auto& batch = _reachable_batch;
-            while (!_reachable_pages.empty()) {
-                batch.swap(_reachable_pages);
-                for (auto page : batch) {
-                    auto metadata = page->metadata;
-                    const bool is_array = page->is_array;
-                    auto flags = page->flags();
-                    auto count = page->flags_count();
-                    bool marked;
-                    do {
-                        marked = false;
-                        for (unsigned i = 0; i < count; ++i) {
-                            auto& flag = flags[i];
-                            while (flag.reachable) {
-                                auto reachable = flag.reachable;
-                                auto offset = i * Page::FlagBitCount;
-                                while(reachable) {
-                                    auto countr_zero = std::countr_zero(reachable);
-                                    auto mask = Page::Flag(1) << countr_zero;
-                                    // a large array is re-queued when more of its
-                                    // pages become live; count it once
-                                    bool first = !(flag.marked & mask);
-                                    flag.marked |= mask;
-                                    auto index = offset + countr_zero;
-                                    auto ptr = page->pointer_of(index);
-                                    _trace<false>(page, ptr, is_array, m);
-                                    if (first) {
-                                        _found(m, ptr);
-                                    }
-                                    reachable &= reachable - 1;
-                                }
-                                flag.reachable &= ~flag.marked;
-                                marked = true;
-                            }
-                        }
-                    } while(marked);
-                    page->reachable = false;
-                }
-                batch.clear();
-            }
-        }
-
-        // The same on the pool. The listed pages are dealt out one at a time;
-        // an object taken from one (its marked bit set here, atomically) is
-        // traced at once and what it leads to goes on the thread's own stack
-        // of work, traced depth first. A thread whose stack and the shared
-        // pile are both empty parks; a thread that has two or more items and
-        // sees a parked one moves half of its stack, the older half, to the
-        // pile. The pass ends when every thread is parked.
+        // The marking pass: the objects whose reachable bit is set, on the
+        // pages listed in _reachable_pages, and everything they lead to,
+        // on this thread alone or with _mark_workers helpers (the same code
+        // either way; a marker in page order on one thread, without the
+        // atomics, was slower on a tree and on a random graph both). The
+        // listed pages are dealt out one at a time and traced in page order
+        // (_mark_page): an object's children on the same page are bits the
+        // page loop takes in slot order, the others go on the thread's own
+        // stack of work, traced depth first once the page is done; a child
+        // found on the traced object's page during that drain gets a bit
+        // and lists its page for this thread. A thread whose pages, stack
+        // and the shared pile are all empty parks; a thread that has two or
+        // more items or pages and sees a parked one moves half of them, the
+        // older half, to the pile. The pass ends when every thread is
+        // parked.
         struct MarkQueue {
             std::mutex mutex;
             std::condition_variable cv;
             std::vector<MarkItem> shared;
+            std::vector<Page*> shared_pages;   // listed pages given to the pile
             std::atomic<size_t> next_page = {0};
             std::atomic<size_t> next_dirty = {0};
             unsigned total = 0;
@@ -1127,7 +1100,7 @@ namespace sgcl::detail {
 #endif
         };
 
-        void _mark_parallel() noexcept {
+        void _mark_reachable() noexcept {
             auto workers = _mark_workers;
             _parallel_mark_runs.fetch_add(1, std::memory_order_relaxed);
             if (_markers.size() < workers + 1) {
@@ -1135,6 +1108,7 @@ namespace sgcl::detail {
             }
             auto& q = _mark_queue;
             q.shared.clear();
+            q.shared_pages.clear();
             q.next_page.store(0, std::memory_order_relaxed);
             q.next_dirty.store(0, std::memory_order_relaxed);
             q.idle.store(0, std::memory_order_relaxed);
@@ -1156,6 +1130,11 @@ namespace sgcl::detail {
             auto ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
             std::fprintf(stderr, "[mark] workers %u pages %zu spills %zu takes %zu parks %zu time %.2fms live:", workers, _reachable_pages.size(), q.spills.load(), q.takes.load(), q.parks.load(), ms);
             for (auto& m : _markers) std::fprintf(stderr, " %zu", m.live);
+            {
+                size_t vb = 0, vs = 0, pv = 0, ps = 0, ls = 0;
+                for (auto& m : _markers) { vb += m.via_bits; vs += m.via_stack; pv += m.page_visits; ps += m.passes; ls += m.listed; m.via_bits = m.via_stack = m.page_visits = m.passes = m.listed = 0; }
+                std::fprintf(stderr, " | bits %zu stack %zu page_visits %zu passes %zu listed %zu", vb, vs, pv, ps, ls);
+            }
             std::fprintf(stderr, "\n");
 #endif
         }
@@ -1168,53 +1147,119 @@ namespace sgcl::detail {
             for (;;) {
                 auto d = q.next_dirty.fetch_add(1, std::memory_order_relaxed);
                 if (d < _dirty_pages.size()) {
-                    _trace_dirty_page<true>(_dirty_pages[d], m);
+                    _trace_dirty_page(_dirty_pages[d], m);
+                    _work_local(m);
                     continue;
                 }
                 auto i = q.next_page.fetch_add(1, std::memory_order_relaxed);
                 if (i < _reachable_pages.size()) {
                     _mark_page(m, _reachable_pages[i]);
+                    _work_local(m);
                     continue;
                 }
                 if (!_take_shared(m)) {
+                    return;
+                }
+                _work_local(m);
+            }
+        }
+
+        // What this thread has: its listed pages, each traced and its finds
+        // drained, and the stack, until both are empty
+        void _work_local(Marker& m) noexcept {
+            for (;;) {
+                if (!m.pages.empty()) {
+                    if (m.pages.size() >= 2 && _mark_queue.idle.load(std::memory_order_relaxed)) {
+                        _spill(m);
+                    }
+                    auto page = m.pages.back();
+                    m.pages.pop_back();
+                    _mark_page(m, page);
+                    continue;
+                }
+                if (m.work.empty()) {
                     return;
                 }
                 _drain(m);
             }
         }
 
-        // One of the listed pages: its reachable bits are read and cleared
-        // by this thread alone (the parallel pass sets none), the marked
-        // bits it shares with the others.
+        // One of the listed pages, traced in page order: the page is held by
+        // this thread (page->reachable) while its loop runs: the words' bits
+        // taken with an exchange (the other threads set bits on the page
+        // meanwhile), each object marked and traced in slot order, its
+        // children on this page as bits the loop takes next, the others on
+        // the stack, drained once the page is exhausted; then the page let
+        // go of and its bits checked once more (a thread that set a bit
+        // before the letting go saw the page held and did not list it, so
+        // the holder takes the bit; one that set it after lists the page
+        // itself). The objects of a word are prefetched a few slots ahead
+        // of the trace. On a tree laid out by its allocation this reads the
+        // pages in address order, which a stack of objects traced depth
+        // first does not: the 8 M tree marks in 48 ms on one thread against
+        // 88, 8.6 ms with eight helpers against 10.9.
         void _mark_page(Marker& m, Page* page) noexcept {
             auto flags = page->flags();
             auto count = page->flags_count();
             const bool is_array = page->is_array;
-            for (unsigned i = 0; i < count; ++i) {
-                auto bits = flags[i].reachable;
-                if (!bits) {
-                    continue;
+            m.current = page;
+            m.owns_current = true;
+#ifdef SGCL_MARK_STATS
+            ++m.page_visits;
+#endif
+            for (;;) {
+                bool any;
+                do {
+                    any = false;
+#ifdef SGCL_MARK_STATS
+                    ++m.passes;
+#endif
+                    for (unsigned i = 0; i < count; ++i) {
+                        // the word again until it has no bit: a child of a
+                        // traced object in the same word is taken at once
+                        for (;;) {
+                            auto bits = std::atomic_ref<Page::Flag>(flags[i].reachable).exchange(0, std::memory_order_relaxed);
+                            if (!bits) {
+                                break;
+                            }
+                            any = true;
+                            std::atomic_ref<Page::Flag> marked(flags[i].marked);
+                            auto offset = i * Page::FlagBitCount;
+                            unsigned index[Page::FlagBitCount];
+                            unsigned n = 0;
+                            for (auto b = bits; b; b &= b - 1) {
+                                index[n++] = offset + std::countr_zero(b);
+                            }
+                            for (unsigned k = 0; k < n; ++k) {
+                                if (k + PrefetchAhead < n) {
+                                    __builtin_prefetch(page->pointer_of(index[k + PrefetchAhead]));
+                                }
+                                auto mask = Page::Flag(1) << (index[k] - offset);
+                                if (marked.load(std::memory_order_relaxed) & mask) {
+                                    continue;
+                                }
+                                if (marked.fetch_or(mask, std::memory_order_relaxed) & mask) {
+                                    continue;
+                                }
+                                auto ptr = page->pointer_of(index[k]);
+                                _found(m, ptr);
+                                _trace<true>(page, ptr, is_array, m);
+                            }
+                        }
+                    }
+                } while (any);
+                std::atomic_ref<bool>(page->reachable).store(false, std::memory_order_seq_cst);
+                bool left = false;
+                for (unsigned i = 0; i < count && !left; ++i) {
+                    left = std::atomic_ref<Page::Flag>(flags[i].reachable).load(std::memory_order_seq_cst) != 0;
                 }
-                flags[i].reachable = 0;
-                std::atomic_ref<Page::Flag> marked(flags[i].marked);
-                auto offset = i * Page::FlagBitCount;
-                while (bits) {
-                    auto countr_zero = std::countr_zero(bits);
-                    bits &= bits - 1;
-                    auto mask = Page::Flag(1) << countr_zero;
-                    if (marked.load(std::memory_order_relaxed) & mask) {
-                        continue;
-                    }
-                    if (marked.fetch_or(mask, std::memory_order_relaxed) & mask) {
-                        continue;
-                    }
-                    auto ptr = page->pointer_of(offset + countr_zero);
-                    _found(m, ptr);
-                    _trace<true>(page, ptr, is_array, m);
-                    _drain(m);
+                if (!left || std::atomic_ref<bool>(page->reachable).exchange(true, std::memory_order_seq_cst)) {
+                    break;   // nothing left, or another thread listed the page and will trace it
                 }
             }
-            page->reachable = false;
+            m.owns_current = false;
+            m.current = nullptr;
+            _drain(m);
         }
 
         // The objects on the stack are traced through a window: an object
@@ -1227,6 +1272,9 @@ namespace sgcl::detail {
         // next object's can start (Cher, Hosking, Vitek: software
         // prefetching for mark-sweep).
         static constexpr unsigned PrefetchWindow = config::MarkPrefetchWindow;
+        // The page loop prefetches the objects of a word this many slots
+        // ahead of the trace
+        static constexpr unsigned PrefetchAhead = 4;
         static_assert((PrefetchWindow & (PrefetchWindow - 1)) == 0, "a power of two, or 0");
 
         void _drain(Marker& m) noexcept {
@@ -1235,6 +1283,7 @@ namespace sgcl::detail {
                 while (!m.work.empty()) {
                     auto item = m.work.back();
                     m.work.pop_back();
+                    m.current = item.page;
                     _trace<true>(item.page, item.ptr, item.page->is_array, m);
                     if (m.work.size() >= 2 && q.idle.load(std::memory_order_relaxed)) {
                         _spill(m);
@@ -1259,6 +1308,7 @@ namespace sgcl::detail {
                     }
                     auto& item = window[out & (PrefetchWindow - 1)];
                     ++out;
+                    m.current = item.page;   // not held: a child on it lists the page (_mark_slot)
                     _trace<true>(item.page, item.ptr, item.page->is_array, m);
                     if (m.work.size() >= 2 && q.idle.load(std::memory_order_relaxed)) {
                         _spill(m);
@@ -1275,6 +1325,11 @@ namespace sgcl::detail {
             {
                 std::lock_guard<std::mutex> lock(q.mutex);
                 q.shared.insert(q.shared.end(), m.work.begin(), half);
+                if (m.pages.size() >= 2) {
+                    auto half_pages = m.pages.begin() + m.pages.size() / 2;
+                    q.shared_pages.insert(q.shared_pages.end(), m.pages.begin(), half_pages);
+                    m.pages.erase(m.pages.begin(), half_pages);
+                }
             }
             m.work.erase(m.work.begin(), half);
             q.cv.notify_all();
@@ -1289,6 +1344,15 @@ namespace sgcl::detail {
             auto& q = _mark_queue;
             std::unique_lock<std::mutex> lock(q.mutex);
             for (;;) {
+                if (!q.shared_pages.empty()) {
+                    auto n = std::max<size_t>(1, q.shared_pages.size() / q.total);
+                    m.pages.insert(m.pages.end(), q.shared_pages.end() - n, q.shared_pages.end());
+                    q.shared_pages.resize(q.shared_pages.size() - n);
+#ifdef SGCL_MARK_STATS
+                    q.takes.fetch_add(1, std::memory_order_relaxed);
+#endif
+                    return true;
+                }
                 if (!q.shared.empty()) {
                     auto n = std::max<size_t>(1, q.shared.size() / q.total);
                     m.work.insert(m.work.end(), q.shared.end() - n, q.shared.end());
@@ -1307,7 +1371,7 @@ namespace sgcl::detail {
 #ifdef SGCL_MARK_STATS
                 q.parks.fetch_add(1, std::memory_order_relaxed);
 #endif
-                q.cv.wait(lock, [&q] { return !q.shared.empty() || q.done; });
+                q.cv.wait(lock, [&q] { return !q.shared.empty() || !q.shared_pages.empty() || q.done; });
                 if (q.done) {
                     return false;
                 }
@@ -1334,7 +1398,7 @@ namespace sgcl::detail {
         };
 
         // The listing out of line: a push_back inlined into _mark_slot (a
-        // call per child pointer) cost the sequential marking 10%.
+        // call per child pointer) cost the marking 10%.
         void _list_reachable(Page* page) noexcept {
             if (!page->reachable) [[unlikely]] {
                 _push_reachable(page);
@@ -2386,11 +2450,10 @@ namespace sgcl::detail {
                 // young cycle marks the young survivors, a full one the heap
                 _mark_workers = _pool.workers(_full ? _last_marked_full : _last_marked_young, config::MarkObjectThreshold);
 #ifdef SGCL_MARK_STATS
-                // SGCL_MARK_WORKERS: -1 sequential, 0 the parallel code on this thread alone, k helpers
+                // SGCL_MARK_WORKERS: 0 this thread alone, k helpers
                 if (auto e = std::getenv("SGCL_MARK_WORKERS")) {
                     auto w = std::atoi(e);
-                    _mark_workers = w < 0 ? 0 : std::min<unsigned>(w, _pool.workers(1u << 30, 4));
-                    _mark_force = w >= 0;
+                    _mark_workers = w <= 0 ? 0 : std::min<unsigned>(w, _pool.workers(1u << 30, 4));
                 }
 #endif
 #ifdef SGCL_TRACE_STACK
@@ -2427,9 +2490,6 @@ namespace sgcl::detail {
                     // previous cycle: enough of them and the pass goes to the pool
                     auto dirty = _collect_dirty_pages();
                     _mark_workers = std::max(_mark_workers, _pool.workers(dirty, config::MarkObjectThreshold));
-                    if (!_mark_workers) {
-                        _trace_dirty_pages();
-                    }
                 }
                 phase(2);
                 _gate(Gate::Roots);
@@ -2681,13 +2741,12 @@ namespace sgcl::detail {
         }
 
         Thread::Data* _registered_threads = {nullptr};
-        // The pages with reachable bits to trace (a stack for the sequential
-        // marker, dealt by index on the pool) and the pages left with
+        // The pages with reachable bits to trace (dealt by index to the
+        // marking threads) and the pages left with
         // unmarked registered objects by the first pass (the later rounds,
         // the sweep, the fold): arrays, like _pages, split by arithmetic and
         // read in order. A page is on one at most once (its flag says).
         std::vector<Page*> _reachable_pages;
-        std::vector<Page*> _reachable_batch;   // the sequential marker's batch in progress
         std::vector<Page*> _unreachable_pages;
         std::vector<Page*> _pages;   // the registered pages
         std::vector<Page*> _weak_pages;   // of them, the pages of weak cells (weak_cell.h)
@@ -2704,7 +2763,6 @@ namespace sgcl::detail {
         MarkQueue _mark_queue;
         unsigned _mark_workers = 0;
 #ifdef SGCL_MARK_STATS
-        bool _mark_force = false;
 #endif
         size_t _last_marked_full = 0;    // objects marked by the last full cycle
         size_t _last_marked_young = 0;   // by the last young one
