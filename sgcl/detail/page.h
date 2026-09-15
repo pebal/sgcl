@@ -341,10 +341,6 @@ namespace sgcl::detail {
         // it touches the free bitmap, and the collector leaves the page alone.
         // Pages of large objects are never owned.
         std::atomic_bool owned = {false};
-        inline static std::atomic<uint32_t> epoch = {1};
-        // Reachable with the parity of `epoch`, stored by the collector at
-        // every flip (collector.h: flip_epoch): one byte load for the barrier
-        inline static std::atomic<State> current_reachable = {State(State::Reachable | State::Parity)};
 
         // The state the barrier sets in the current epoch, and the collector
         // takes for reachable in the current cycle. A read of it just
@@ -354,7 +350,7 @@ namespace sgcl::detail {
         // after it, whose registration the allocation's parity decides
         // (unique_state, set_state<Reachable>).
         static State reachable_state() noexcept {
-            return current_reachable.load(std::memory_order_relaxed);
+            return Heap::globals.current_reachable.load(std::memory_order_relaxed);
         }
 
         // The state a slot is handed out in: UniqueLock with the parity of
@@ -363,7 +359,7 @@ namespace sgcl::detail {
         // creator publishes it with, and a thread that got the object from
         // there reads the new epoch in its stores (set_state<Reachable>).
         static State unique_state() noexcept {
-            return State(State::UniqueLock | (current_reachable.load(std::memory_order_acquire) & State::Parity));
+            return State(State::UniqueLock | (Heap::globals.current_reachable.load(std::memory_order_acquire) & State::Parity));
         }
 
         static bool is_unique_state(State s) noexcept {
@@ -371,9 +367,9 @@ namespace sgcl::detail {
         }
 
         static void flip_epoch(uint32_t e) noexcept {
-            epoch.store(e, std::memory_order_relaxed);
+            Heap::globals.epoch.store(e, std::memory_order_relaxed);
             Heap::set_epoch(e);
-            current_reachable.store(State(State::Reachable | ((e & 1) << 6)), std::memory_order_release);
+            Heap::globals.current_reachable.store(State(State::Reachable | ((e & 1) << 6)), std::memory_order_release);
         }
 
         // slots freed by the collector since the page was last handed out
@@ -385,12 +381,8 @@ namespace sgcl::detail {
         // result of the last rebuild of the free bitmap (object_pool_allocator_base.h)
         bool all_free = {false};
         std::atomic_bool unused_occur = {true};
-        Page* next_reachable = {nullptr};
-        Page* next_unreachable = {nullptr};
-        Page* next_empty = {nullptr};
-        Page* next_unused = {nullptr};
-        Page* next_atomic = {nullptr};
-        Page* next = {nullptr};
+        Page* next_empty = {nullptr};   // the lists of empty pages: a type's, then its allocators' buffer
+        Page* next = {nullptr};         // the list a thread publishes its new pages on (thread.h: Data::pages)
     };
     static_assert(sizeof(Page) == config::CacheLineSize, "the page header is one line of CacheLineSize; the states follow it");
 }

@@ -442,11 +442,7 @@ namespace sgcl::detail {
             auto mask = Page::flag_mask_of(index);
             if ((flag.registered & mask) && !(flag.marked & mask)) {
                 flag.reachable |= mask;
-                if (!page->reachable) {
-                    page->reachable = true;
-                    page->next_reachable = _reachable_pages;
-                    _reachable_pages = page;
-                }
+                _list_reachable(page);
                 return true;
             }
             return false;
@@ -640,11 +636,7 @@ namespace sgcl::detail {
             } else {
                 if ((~flag.marked & ~flag.reachable & mask)) {
                     flag.reachable |= mask;
-                    if (!page->reachable) {
-                        page->reachable = true;
-                        page->next_reachable = _reachable_pages;
-                        _reachable_pages = page;
-                    }
+                    _list_reachable(page);
                 }
             }
         }
@@ -1045,47 +1037,51 @@ namespace sgcl::detail {
                 ~Report() { std::fprintf(stderr, "[mark] sequential time %.2fms live %zu\n", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(), m.live - live0); }
             } report{t0, live0, m};
 #endif
-            auto page = _reachable_pages;
-            _reachable_pages = nullptr;
-            while(page) {
-                auto metadata = page->metadata;
-                const bool is_array = page->is_array;
-                auto flags = page->flags();
-                auto count = page->flags_count();
-                bool marked;
-                do {
-                    marked = false;
-                    for (unsigned i = 0; i < count; ++i) {
-                        auto& flag = flags[i];
-                        while (flag.reachable) {
-                            auto reachable = flag.reachable;
-                            auto offset = i * Page::FlagBitCount;
-                            while(reachable) {
-                                auto countr_zero = std::countr_zero(reachable);
-                                auto mask = Page::Flag(1) << countr_zero;
-                                // a large array is re-queued when more of its
-                                // pages become live; count it once
-                                bool first = !(flag.marked & mask);
-                                flag.marked |= mask;
-                                auto index = offset + countr_zero;
-                                auto ptr = page->pointer_of(index);
-                                _trace<false>(page, ptr, is_array, m);
-                                if (first) {
-                                    _found(m, ptr);
+            // batch by batch, as the list was: the pages listed while a batch
+            // is traced wait for the next one, so that a page gathers the
+            // bits every page of the batch sets on it and is visited once
+            // for them (a stack, visiting a page as soon as it gets its first
+            // bit, was no faster on the 8 M tree; the order within a batch
+            // makes no difference)
+            auto& batch = _reachable_batch;
+            while (!_reachable_pages.empty()) {
+                batch.swap(_reachable_pages);
+                for (auto page : batch) {
+                    auto metadata = page->metadata;
+                    const bool is_array = page->is_array;
+                    auto flags = page->flags();
+                    auto count = page->flags_count();
+                    bool marked;
+                    do {
+                        marked = false;
+                        for (unsigned i = 0; i < count; ++i) {
+                            auto& flag = flags[i];
+                            while (flag.reachable) {
+                                auto reachable = flag.reachable;
+                                auto offset = i * Page::FlagBitCount;
+                                while(reachable) {
+                                    auto countr_zero = std::countr_zero(reachable);
+                                    auto mask = Page::Flag(1) << countr_zero;
+                                    // a large array is re-queued when more of its
+                                    // pages become live; count it once
+                                    bool first = !(flag.marked & mask);
+                                    flag.marked |= mask;
+                                    auto index = offset + countr_zero;
+                                    auto ptr = page->pointer_of(index);
+                                    _trace<false>(page, ptr, is_array, m);
+                                    if (first) {
+                                        _found(m, ptr);
+                                    }
+                                    reachable &= reachable - 1;
                                 }
-                                reachable &= reachable - 1;
+                                flag.reachable &= ~flag.marked;
+                                marked = true;
                             }
-                            flag.reachable &= ~flag.marked;
-                            marked = true;
                         }
-                    }
-                } while(marked);
-                page->reachable = false;
-                page = page->next_reachable;
-                if (!page) {
-                    page = _reachable_pages;
-                    _reachable_pages = nullptr;
+                    } while(marked);
+                    page->reachable = false;
                 }
+                batch.clear();
             }
         }
 
@@ -1116,11 +1112,6 @@ namespace sgcl::detail {
         void _mark_parallel() noexcept {
             auto workers = _mark_workers;
             _parallel_mark_runs.fetch_add(1, std::memory_order_relaxed);
-            _mark_pages.clear();
-            for (auto page = _reachable_pages; page; page = page->next_reachable) {
-                _mark_pages.push_back(page);
-            }
-            _reachable_pages = nullptr;
             if (_markers.size() < workers + 1) {
                 _markers.resize(workers + 1);
             }
@@ -1141,10 +1132,11 @@ namespace sgcl::detail {
             _pool.start(workers, &fn);
             _mark_work(_markers[0]);
             _pool.wait();
+            _reachable_pages.clear();   // every listed page dealt (_mark_page lowers its flag)
             _dirty_pages.clear();
 #ifdef SGCL_MARK_STATS
             auto ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-            std::fprintf(stderr, "[mark] workers %u pages %zu spills %zu takes %zu parks %zu time %.2fms live:", workers, _mark_pages.size(), q.spills.load(), q.takes.load(), q.parks.load(), ms);
+            std::fprintf(stderr, "[mark] workers %u pages %zu spills %zu takes %zu parks %zu time %.2fms live:", workers, _reachable_pages.size(), q.spills.load(), q.takes.load(), q.parks.load(), ms);
             for (auto& m : _markers) std::fprintf(stderr, " %zu", m.live);
             std::fprintf(stderr, "\n");
 #endif
@@ -1159,8 +1151,8 @@ namespace sgcl::detail {
                     continue;
                 }
                 auto i = q.next_page.fetch_add(1, std::memory_order_relaxed);
-                if (i < _mark_pages.size()) {
-                    _mark_page(m, _mark_pages[i]);
+                if (i < _reachable_pages.size()) {
+                    _mark_page(m, _reachable_pages[i]);
                     continue;
                 }
                 if (!_take_shared(m)) {
@@ -1300,32 +1292,43 @@ namespace sgcl::detail {
             }
         }
 
-        // Pages found reachable / unreachable by one run of a pass; spliced
-        // into the collector's lists after the run.
+        // Pages found reachable / unreachable by one run of a pass;
+        // appended to the collector's arrays after the run. A page is
+        // listed once: its flag says it is.
         struct PageLists {
-            Page* reachable = nullptr;
-            Page* reachable_tail = nullptr;
-            Page* unreachable = nullptr;
-            Page* unreachable_tail = nullptr;
+            std::vector<Page*> reachable;
+            std::vector<Page*> unreachable;
 
             void push_reachable(Page* page) noexcept {
                 page->reachable = true;
-                page->next_reachable = reachable;
-                reachable = page;
-                if (!reachable_tail) {
-                    reachable_tail = page;
-                }
+                reachable.push_back(page);
             }
 
             void push_unreachable(Page* page) noexcept {
                 page->unreachable = true;
-                page->next_unreachable = unreachable;
-                unreachable = page;
-                if (!unreachable_tail) {
-                    unreachable_tail = page;
-                }
+                unreachable.push_back(page);
             }
         };
+
+        // The listing out of line: a push_back inlined into _mark_slot (a
+        // call per child pointer) cost the sequential marking 10%.
+        void _list_reachable(Page* page) noexcept {
+            if (!page->reachable) [[unlikely]] {
+                _push_reachable(page);
+            }
+        }
+
+        SGCL_NOINLINE void _push_reachable(Page* page) noexcept {
+            page->reachable = true;
+            _reachable_pages.push_back(page);
+        }
+
+        void _list_unreachable(Page* page) noexcept {
+            if (!page->unreachable) {
+                page->unreachable = true;
+                _unreachable_pages.push_back(page);
+            }
+        }
 
         // The states of the unmarked registered slots of a page, eight at
         // a time: the ones reachable in this cycle (states.h) get the
@@ -1478,11 +1481,7 @@ namespace sgcl::detail {
                 }
                 if (late) {
                     page->state_updated.store(true, std::memory_order_release);
-                    if (!page->unreachable) {
-                        page->unreachable = true;
-                        page->next_unreachable = _unreachable_pages;
-                        _unreachable_pages = page;
-                    }
+                    _list_unreachable(page);
                 }
             }
         }
@@ -1505,24 +1504,18 @@ namespace sgcl::detail {
                     return lists;
                 });
             } else {
-                results = _parallel_pages<&Page::next_unreachable, PageLists>(_unreachable_pages, [this](Page* page, size_t count) {
+                results = _parallel_array<PageLists>(_unreachable_pages.size(), [this](size_t begin, size_t end) {
                     std::atomic_thread_fence(std::memory_order_acquire);
                     PageLists lists;
-                    for (; count; --count, page = page->next_unreachable) {
-                        _update_page_marks<All>(page, lists);
+                    for (auto i = begin; i < end; ++i) {
+                        _update_page_marks<All>(_unreachable_pages[i], lists);
                     }
                     return lists;
                 });
             }
             for (auto& lists : results) {
-                if (lists.reachable) {
-                    lists.reachable_tail->next_reachable = _reachable_pages;
-                    _reachable_pages = lists.reachable;
-                }
-                if (lists.unreachable) {
-                    lists.unreachable_tail->next_unreachable = _unreachable_pages;
-                    _unreachable_pages = lists.unreachable;
-                }
+                _reachable_pages.insert(_reachable_pages.end(), lists.reachable.begin(), lists.reachable.end());
+                _unreachable_pages.insert(_unreachable_pages.end(), lists.unreachable.begin(), lists.unreachable.end());
             }
             if constexpr(All) {
                 _mark_hazard_pointers();
@@ -1546,14 +1539,15 @@ namespace sgcl::detail {
             }
         }
 
-        // Destroys the garbage of one run of unreachable pages and frees the
-        // slots; the page's registered bits are folded by _remove_garbage
-        // once every run is done.
-        static size_t _sweep(Page* page, size_t count) noexcept {
+        // Destroys the garbage of one range of the unreachable pages and
+        // frees the slots; the page's registered bits are folded by
+        // _remove_garbage once every range is done.
+        size_t _sweep(size_t begin, size_t end) noexcept {
             std::atomic_thread_fence(std::memory_order_acquire);
             sweeping = true;
             size_t removed = 0;
-            for (; count; --count, page = page->next_unreachable) {
+            for (auto i = begin; i < end; ++i) {
+                auto page = _unreachable_pages[i];
                 auto states = page->states();
                 auto flags = page->flags();
                 auto words = page->flags_count();
@@ -1607,29 +1601,30 @@ namespace sgcl::detail {
 
         // The sweep runs here while the garbage of a cycle is small, and on
         // the pool (config::SweepPageThreshold, SweepThreadsMax) when it is
-        // not: the unreachable pages are cut into equal runs, one per
-        // thread, this thread taking the last one.
+        // not: the array of unreachable pages is cut into equal ranges,
+        // one per thread, this thread taking the last one.
         size_t _remove_garbage() noexcept {
-            auto counts = _parallel_pages<&Page::next_unreachable, size_t>(_unreachable_pages, [](Page* first, size_t count) {
-                return _sweep(first, count);
+            auto counts = _parallel_array<size_t>(_unreachable_pages.size(), [this](size_t begin, size_t end) {
+                return _sweep(begin, end);
             });
             size_t removed = 0;
             for (auto c : counts) {
                 removed += c;
             }
             // the fold, once every run of the sweep is done, as a pass of its own
-            _parallel_pages<&Page::next_unreachable, int>(_unreachable_pages, [](Page* page, size_t count) {
-                for (; count; --count, page = page->next_unreachable) {
+            _parallel_array<int>(_unreachable_pages.size(), [this](size_t begin, size_t end) {
+                for (auto i = begin; i < end; ++i) {
+                    auto page = _unreachable_pages[i];
                     auto flags = page->flags();
                     auto words = page->flags_count();
-                    for (unsigned i = 0; i < words; ++i) {
-                        flags[i].registered &= flags[i].marked;
+                    for (unsigned w = 0; w < words; ++w) {
+                        flags[w].registered &= flags[w].marked;
                     }
                     page->unreachable = false;
                 }
                 return 0;
             });
-            _unreachable_pages = nullptr;
+            _unreachable_pages.clear();
             return removed;
         }
 
@@ -1814,41 +1809,9 @@ namespace sgcl::detail {
             os::hidden_call([](void*) {}, nullptr, stack_clear_limit(config::StackClearSize));
         }
 
-        // A pass over a page list, cut into equal runs shared with the pool
-        // (one run per helper, the last one here); per_run(first, count)
-        // returns this run's result, in list order.
-        template<Page* Page::*Next, class R, class F>
-        std::vector<R> _parallel_pages(Page* head, F per_run) {
-            size_t pages = 0;
-            for (auto page = head; page; page = page->*Next) {
-                ++pages;
-            }
-            auto workers = _pool.workers_for(pages);
-            std::vector<R> results(workers + 1);
-            if (!workers) {
-                results[0] = per_run(head, pages);
-                return results;
-            }
-            auto run = pages / (workers + 1);
-            std::vector<Page*> firsts(workers + 1);
-            auto page = head;
-            for (unsigned w = 0; w <= workers; ++w) {
-                firsts[w] = page;
-                for (size_t i = 0; i < run && w < workers; ++i) {
-                    page = page->*Next;
-                }
-            }
-            std::function<void(unsigned)> fn = [&](unsigned w) {
-                results[w] = per_run(firsts[w], run);
-            };
-            _pool.start(workers, &fn);
-            results[workers] = per_run(firsts[workers], pages - run * workers);
-            _pool.wait();
-            return results;
-        }
-
-        // The same over an index range [0, count), per_range(begin, end)
-        // returning its result.
+        // A pass over an index range [0, count), cut into equal ranges shared
+        // with the pool (one per helper, the last one here); per_range(begin,
+        // end) returns its result.
         template<class R, class F>
         std::vector<R> _parallel_array(size_t count, F per_range) {
             auto workers = _pool.workers_for(count);
@@ -2101,6 +2064,9 @@ namespace sgcl::detail {
                 for (size_t i = 0; i < queue.size() && !parent.count(target); ++i) {
                     auto object = queue[i];
                     auto page = Page::page_of(object);
+                    if (page->metadata->is_weak_cell) {   // a weak cell holds nothing: no path leads through it (a stale stack word may reach one)
+                        continue;
+                    }
                     _for_each_word(page, object, [&](const void* word) {
                         reach(word, {_kind_of(page), object, &_type_of(page, object), (size_t)((const char*)word - (const char*)object)});
                     });
@@ -2466,9 +2432,9 @@ namespace sgcl::detail {
                     phase(3);
 #ifdef SGCL_MARK_STATS
                     ++rounds;
-                    if (!_unreachable_pages) ++all_passes; else { for (auto p = _unreachable_pages; p; p = p->next_unreachable) ++list_pages; }
+                    if (_unreachable_pages.empty()) ++all_passes; else list_pages += _unreachable_pages.size();
 #endif
-                    if (!_unreachable_pages) {
+                    if (_unreachable_pages.empty()) {
                         _register_threads();
                         _update_hazard_pointers();
                         _mark_updated<true>();
@@ -2483,13 +2449,13 @@ namespace sgcl::detail {
                     // list (they hold unmarked registered objects), so the
                     // pass over that list sees the states; the hazards are
                     // resolved one by one.
-                    if (!_reachable_pages && !_weak_pages.empty() && _weak_phase() == WeakPhase::Cleared) {
+                    if (_reachable_pages.empty() && !_weak_pages.empty() && _weak_phase() == WeakPhase::Cleared) {
                         _register_threads();
                         _update_hazard_pointers();
                         _mark_updated<false>();
                         _mark_hazard_pointers();
                     }
-                } while(_reachable_pages);
+                } while(!_reachable_pages.empty());
                 _gate(Gate::Marked);
                 // a young cycle counts the objects marked for the first time;
                 // the marked ones from before are live until a full cycle says otherwise
@@ -2686,8 +2652,14 @@ namespace sgcl::detail {
         }
 
         Thread::Data* _registered_threads = {nullptr};
-        Page* _reachable_pages = {nullptr};
-        Page* _unreachable_pages = {nullptr};
+        // The pages with reachable bits to trace (a stack for the sequential
+        // marker, dealt by index on the pool) and the pages left with
+        // unmarked registered objects by the first pass (the later rounds,
+        // the sweep, the fold): arrays, like _pages, split by arithmetic and
+        // read in order. A page is on one at most once (its flag says).
+        std::vector<Page*> _reachable_pages;
+        std::vector<Page*> _reachable_batch;   // the sequential marker's batch in progress
+        std::vector<Page*> _unreachable_pages;
         std::vector<Page*> _pages;   // the registered pages
         std::vector<Page*> _weak_pages;   // of them, the pages of weak cells (weak_cell.h)
         std::vector<Page*> _cell_block_pages;   // and of the blocks of cells (cell_block.h)
@@ -2698,7 +2670,6 @@ namespace sgcl::detail {
         std::vector<TypeStatistics> _type_statistics;
         std::atomic<double> _stats_phase_ms[PhaseCount] = {};
         std::vector<Marker> _markers = std::vector<Marker>(1);
-        std::vector<Page*> _mark_pages;
         std::vector<DirtyPage> _dirty_pages;   // the young cycle's, traced by the marking pass
         std::vector<Page::Flag> _dirty_marks;  // their marks before the pass, registered & marked per flag word
         MarkQueue _mark_queue;

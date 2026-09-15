@@ -117,12 +117,15 @@ def state_of(valobj, object_addr):
     """'Reachable|P|Fresh' and so on for the slot of a managed object, or None."""
     try:
         target = valobj.GetTarget()
-        base = target.FindFirstGlobalVariable("sgcl::detail::Heap::_base")
-        table = target.FindFirstGlobalVariable("sgcl::detail::Heap::_biased_table")
+        globals_ = target.FindFirstGlobalVariable("sgcl::detail::Heap::globals")
+        if not globals_.IsValid():
+            return None
+        base = globals_.GetChildMemberWithName("base")
+        table = globals_.GetChildMemberWithName("biased_table")
         if not base.IsValid() or not table.IsValid():
             return None
         base = base.GetValueAsUnsigned(0)
-        size = target.FindFirstGlobalVariable("sgcl::detail::Heap::_size").GetValueAsUnsigned(0)
+        size = globals_.GetChildMemberWithName("size").GetValueAsUnsigned(0)
         if object_addr - base >= size:
             return None
         page = read_ptr(valobj, table.GetValueAsUnsigned(0) + (object_addr >> 16) * 8)

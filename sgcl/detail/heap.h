@@ -27,6 +27,25 @@ namespace sgcl::detail {
     //
     // Locating anything is shifts on (p - base): page index p >> 16, chunk
     // index p >> 21, page within chunk (p >> 16) & 31.
+    // What the barrier and the allocators read at every store and every
+    // slot, on a line of their own: the heap's range and tables, written
+    // once, and the epoch, written by the collector at every flip. As
+    // separate statics the linker laid them next to a mutex taken once per
+    // page and the page counters written once per cycle, whose writes took
+    // the line from every mutator (Heap::globals).
+    struct alignas(config::CacheLineSize) HeapGlobals {
+        uintptr_t base = 0;
+        size_t size = 0;
+        std::atomic<Page*>* table = nullptr;
+        std::atomic<Page*>* biased_table = nullptr;   // table - (base >> PageShift)
+        std::atomic<uint8_t>* cards = nullptr;         // CardCount cards, one per 64 KB of address space (card_of)
+        std::atomic<uint32_t> epoch = {1};             // the cycle number, advanced at the start of every cycle (page.h: flip_epoch)
+        std::atomic<uint8_t> epoch_byte = {1};         // its low byte, for the cards
+        // Reachable with the parity of the epoch, stored by the collector at
+        // every flip: one byte load for the barrier (page.h: reachable_state)
+        std::atomic<State> current_reachable = {State(State::Reachable | State::Parity)};
+    };
+
     class Heap {
     public:
         static constexpr size_t PageSize = config::PageSize;
@@ -48,27 +67,27 @@ namespace sgcl::detail {
         // pointer is pre-biased by base >> PageShift, so this is one global
         // load, a shift and one load from a hot table.
         static Page* page_of(const void* p) noexcept {
-            return _biased_table[(uintptr_t)p >> PageShift].load(std::memory_order_relaxed);
+            return globals.biased_table[(uintptr_t)p >> PageShift].load(std::memory_order_relaxed);
         }
 
         // For pointers of unknown origin (stack scanning): null when the
         // address is outside the heap or the page holds no object. Acquire
         // pairs with the release in set_pages: the header is complete.
         static Page* page_of_checked(const void* p) noexcept {
-            auto offset = (uintptr_t)p - _base;
-            return offset < _size ? _table[offset >> PageShift].load(std::memory_order_acquire) : nullptr;
+            auto offset = (uintptr_t)p - globals.base;
+            return offset < globals.size ? globals.table[offset >> PageShift].load(std::memory_order_acquire) : nullptr;
         }
 
         static bool contains(const void* p) noexcept {
-            return (uintptr_t)p - _base < _size;
+            return (uintptr_t)p - globals.base < globals.size;
         }
 
         static uintptr_t base() noexcept {
-            return _base;
+            return globals.base;
         }
 
         static size_t size() noexcept {
-            return _size;
+            return globals.size;
         }
 
         // Card marking for the young cycles (page.h: mark_card): one byte
@@ -90,7 +109,7 @@ namespace sgcl::detail {
         static constexpr size_t CardCount = size_t(1) << (47 - PageShift);
 
         static std::atomic<uint8_t>& card_of(const void* location) noexcept {
-            return _cards[((uintptr_t)location >> PageShift) & (CardCount - 1)];
+            return globals.cards[((uintptr_t)location >> PageShift) & (CardCount - 1)];
         }
 
         static void stamp_card(const void* location, uint32_t epoch) noexcept {
@@ -108,14 +127,14 @@ namespace sgcl::detail {
         // line of statics as the table's address
         static void mark_card(const void* location) noexcept {
             auto& card = card_of(location);
-            auto e = _epoch_byte.load(std::memory_order_relaxed);
+            auto e = globals.epoch_byte.load(std::memory_order_relaxed);
             if (card.load(std::memory_order_relaxed) != e) {
                 card.store(e, std::memory_order_release);
             }
         }
 
         static void set_epoch(uint32_t epoch) noexcept {
-            _epoch_byte.store((uint8_t)epoch, std::memory_order_relaxed);
+            globals.epoch_byte.store((uint8_t)epoch, std::memory_order_relaxed);
         }
 
         static bool dirty_since_last(const void* data, size_t pages, uint32_t epoch) noexcept {
@@ -133,11 +152,11 @@ namespace sgcl::detail {
 
         // Publishes the header of one page, or of every page of a range.
         static void set_pages(const void* data, size_t pages, Page* page) noexcept {
-            auto first = ((uintptr_t)data - _base) >> PageShift;
+            auto first = ((uintptr_t)data - globals.base) >> PageShift;
             // a release store per entry (a release fence and relaxed stores
             // would do, but the thread sanitizer does not follow fences)
             for (size_t i = 0; i < pages; ++i) {
-                _table[first + i].store(page, std::memory_order_release);
+                globals.table[first + i].store(page, std::memory_order_release);
             }
         }
 
@@ -170,7 +189,7 @@ namespace sgcl::detail {
 
         void free_range(const void* data, size_t pages) noexcept {
             std::lock_guard<std::mutex> lock(_mutex);
-            _free_range_locked(((uintptr_t)data - _base) >> PageShift, pages);
+            _free_range_locked(((uintptr_t)data - globals.base) >> PageShift, pages);
         }
 
         // Diagnostics: free page ranges outside the pool chunks.
@@ -203,7 +222,7 @@ namespace sgcl::detail {
         }
 
         size_t reserved_bytes() const noexcept {
-            return _size;
+            return globals.size;
         }
 
     private:
@@ -249,27 +268,27 @@ namespace sgcl::detail {
                 std::terminate();
             }
             _reservation = r;
-            _base = (((uintptr_t)r.base + ChunkSize - 1) & ~(uintptr_t)(ChunkSize - 1)) + ChunkSize;
-            _size = size & ~(uintptr_t)(ChunkSize - 1);
+            globals.base = (((uintptr_t)r.base + ChunkSize - 1) & ~(uintptr_t)(ChunkSize - 1)) + ChunkSize;
+            globals.size = size & ~(uintptr_t)(ChunkSize - 1);
             _needs_commit = r.needs_commit;
-            _page_count = _size >> PageShift;
-            _chunk_count = _size >> ChunkShift;
+            _page_count = globals.size >> PageShift;
+            _chunk_count = globals.size >> ChunkShift;
             _top_chunk = _chunk_count;
             // calloc: large allocations come from the OS as untouched zero
             // pages, so only the used part of these tables costs memory.
-            _table = (std::atomic<Page*>*)std::calloc(_page_count, sizeof(std::atomic<Page*>));
+            globals.table = (std::atomic<Page*>*)std::calloc(_page_count, sizeof(std::atomic<Page*>));
             _chunks = (Chunk*)std::calloc(_chunk_count, sizeof(Chunk));
             _tags = (Tag*)std::calloc(_page_count, sizeof(Tag));
             if constexpr(config::Generational) {
-                _cards = (std::atomic<uint8_t>*)os::map_lazy(CardCount);
+                globals.cards = (std::atomic<uint8_t>*)os::map_lazy(CardCount);
             }
-            _biased_table = _table - (_base >> PageShift);
-            if (!_table || !_chunks || !_tags || (config::Generational && !_cards)) {
+            globals.biased_table = globals.table - (globals.base >> PageShift);
+            if (!globals.table || !_chunks || !_tags || (config::Generational && !globals.cards)) {
                 std::fprintf(stderr, "[sgcl] cannot allocate the heap tables\n");
                 std::terminate();
             }
             _has_free.assign((_chunk_count + 63) / 64, 0);
-            os::advise_huge_pages((void*)_base, _size);
+            os::advise_huge_pages((void*)globals.base, globals.size);
             if (auto limit = os::memory_limit()) {
                 _limit.store(limit / 100 * config::HeapLimitPercent, std::memory_order_relaxed);
             }
@@ -278,7 +297,7 @@ namespace sgcl::detail {
         ~Heap() = default;   // the range lives as long as the process
 
         uintptr_t _chunk_address(size_t c) const noexcept {
-            return _base + (c << ChunkShift);
+            return globals.base + (c << ChunkShift);
         }
 
         bool _commit_chunk(size_t c) noexcept {
@@ -364,8 +383,8 @@ namespace sgcl::detail {
         }
 
         void _free_page_locked(void* p) noexcept {
-            auto index = ((uintptr_t)p - _base) >> PageShift;
-            _table[index].store(nullptr, std::memory_order_relaxed);
+            auto index = ((uintptr_t)p - globals.base) >> PageShift;
+            globals.table[index].store(nullptr, std::memory_order_relaxed);
             auto c = index / PagesPerChunk;
             auto& chunk = _chunks[c];
             chunk.free_mask |= uint32_t(1) << (index % PagesPerChunk);
@@ -430,12 +449,12 @@ namespace sgcl::detail {
                     return nullptr;
                 }
             }
-            return (void*)(_base + (first << PageShift));
+            return (void*)(globals.base + (first << PageShift));
         }
 
         void _free_range_locked(size_t first, size_t count) noexcept {
             for (size_t i = 0; i < count; ++i) {
-                _table[first + i].store(nullptr, std::memory_order_relaxed);
+                globals.table[first + i].store(nullptr, std::memory_order_relaxed);
             }
             auto merged = _insert_range(first, count);
             // Chunks now entirely free stay committed; trim() returns them to
@@ -544,12 +563,9 @@ namespace sgcl::detail {
             return merged;
         }
 
-        inline static uintptr_t _base = 0;
-        inline static size_t _size = 0;
-        inline static std::atomic<Page*>* _table = nullptr;
-        inline static std::atomic<Page*>* _biased_table = nullptr;   // _table - (_base >> PageShift)
-        inline static std::atomic<uint8_t>* _cards = nullptr;         // CardCount cards, one per 64 KB of address space (card_of)
-        inline static std::atomic<uint8_t> _epoch_byte = {1};         // the low byte of the current epoch, for the cards
+    public:
+        inline static HeapGlobals globals;
+    private:
 
         os::Reservation _reservation;
         bool _needs_commit = false;
