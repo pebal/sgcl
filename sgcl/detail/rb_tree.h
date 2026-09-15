@@ -65,6 +65,12 @@ namespace sgcl::detail {
 
     using RbPtr = tracked_ptr<RbNodeBase>;
 
+    // The red-black tree algorithms of the standard library's tree (the
+    // header node's left and right are the leftmost and rightmost nodes,
+    // its parent the root): the extremes of a subtree, the in-order
+    // neighbours, the rotations, and the rebalancing after an insertion
+    // and before an erase. The links are tracked pointers, relinked with
+    // reset (one store with its barrier).
     inline RbNodeBase* rb_minimum(RbNodeBase* x) noexcept {
         while (x->left) {
             x = x->left.get();
@@ -1181,6 +1187,7 @@ namespace sgcl::detail {
             return static_cast<Node*>(n);
         }
 
+        // The node an iterator stands on, and the key of a node
         static NodeBase* _raw(const const_iterator& it) noexcept {
             return it._node;
         }
@@ -1189,6 +1196,9 @@ namespace sgcl::detail {
             return Traits::key(_node(n)->slot.value);
         }
 
+        // The header node, made on the first insertion (an empty tree
+        // holds nothing): red, so that it is never taken for a black node
+        // by the rebalancing, its extremes itself
         void _ensure_header() {
             if (!_header) {
                 _header = make_tracked<NodeBase>();
@@ -1199,6 +1209,8 @@ namespace sgcl::detail {
             }
         }
 
+        // What insert returns: the iterator alone (a multi tree), or with
+        // whether the node was inserted
         static insert_result _result(iterator it, bool inserted) noexcept {
             if constexpr (Multi) {
                 return it;
@@ -1207,6 +1219,8 @@ namespace sgcl::detail {
             }
         }
 
+        // A range inserted into a fresh tree; the tree cleared if any
+        // insertion throws (the constructors from a range)
         template<std::input_iterator InputIt>
         void _guarded_insert(InputIt first, InputIt last) {
             try {
@@ -1237,12 +1251,15 @@ namespace sgcl::detail {
             }
         }
 
+        // The links of a node taken out nulled: a dead node holds nothing
         static void _unlink(NodeBase* n) noexcept {
             n->parent = nullptr;
             n->left = nullptr;
             n->right = nullptr;
         }
 
+        // One node out of the tree and its element destroyed; the node
+        // itself is the collector's
         void _erase_node(NodeBase* n) noexcept {
             Anchor keep(n);   // rooted while unlinked and cleared
             rb_rebalance_for_erase(n, _hdr());
@@ -1251,6 +1268,7 @@ namespace sgcl::detail {
             --_size;
         }
 
+        // A new node at its position
         void _link(const InsertPos& pos, NodeBase* n) noexcept {
             rb_insert_and_rebalance(pos.left, n, pos.parent, _hdr());
             ++_size;
@@ -1268,6 +1286,9 @@ namespace sgcl::detail {
             return iterator(n.release());
         }
 
+        // The insertions behind insert and emplace: the position found for
+        // the key (with the hint tried first, for the hinted forms), a node
+        // made and linked unless an equivalent key exists in a unique tree
         template<class Arg>
         insert_result _insert(Arg&& value) {
             _ensure_header();
@@ -1308,6 +1329,11 @@ namespace sgcl::detail {
             }
         }
 
+        // The positions, as the standard library's tree finds them: for a
+        // unique key the node with an equivalent key if there is one, else
+        // the leaf to hang the new node from; for a multi tree after the
+        // last equivalent key (_equal_lower_pos: before the first); with a
+        // hint, the hint's neighbourhood checked before a search
         template<class K>
         InsertPos _unique_pos(const K& key) const {
             NodeBase* x = _root();
@@ -1435,6 +1461,9 @@ namespace sgcl::detail {
             }
         }
 
+        // The searches: the first node not less than the key, the first
+        // greater, the node equal to it, the range of the equivalent ones,
+        // their count; from a subtree x with y the answer so far
         template<class K>
         NodeBase* _lower_bound_from(NodeBase* x, NodeBase* y, const K& key) const {
             while (x) {
@@ -1527,6 +1556,8 @@ namespace sgcl::detail {
             }
         }
 
+        // The invariants of a subtree (the tests: verify): no red node with
+        // a red child, the same black height on every path, the count
         static bool _check_subtree(NodeBase* x, int black, int& expected, size_t& count) {
             if (!x) {
                 if (expected < 0) {

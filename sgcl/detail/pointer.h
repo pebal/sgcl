@@ -11,6 +11,16 @@
 #include <cstring>
 
 namespace sgcl::detail {
+    // The word behind every tracked_ptr, atomic and containers' pointers:
+    // one atomic word holding the address of a managed object (or of an
+    // element of a container's buffer: base_address_of, data_base_address_of
+    // find the object or the buffer from it), stored through the write
+    // barrier (_update: the state on the target, the card of this word's
+    // page). The loads are relaxed: what a load reads is held by the
+    // barrier of whoever stored it. The compare-exchanges are the atomic's
+    // (atomic_word.h), with the barrier on success. What is asked of a
+    // pointer's target (its type, its size, whether it is a buffer) is
+    // answered from the page.
     class Pointer {
     public:
         Pointer() noexcept
@@ -49,7 +59,7 @@ namespace sgcl::detail {
             return *this;
         }
 
-        void* load() const noexcept {
+        void* load() const noexcept {   // relaxed: what it reads, its storer's barrier holds
             return _ptr.load(std::memory_order_relaxed);
         }
 
@@ -145,6 +155,7 @@ namespace sgcl::detail {
             return res;
         }
 
+        // The rest of std::atomic's interface on the word (atomic.h)
         bool is_lock_free() const noexcept {
             return _ptr.is_lock_free();
         }
@@ -161,6 +172,8 @@ namespace sgcl::detail {
             _ptr.wait(const_cast<void*>(p), m);
         }
 
+        // The managed object (its first byte) an address is into: a base
+        // subobject or a member of it, or an element of a buffer
         inline static void* base_address_of(const void* p) noexcept {
             return p ? Page::base_address_of(p) : nullptr;
         }
@@ -170,6 +183,7 @@ namespace sgcl::detail {
             return p ? base_address_of(p) : nullptr;
         }
 
+        // The same, past the header of a buffer: its first element
         inline static void* data_base_address_of(const void* p) noexcept {
             auto page = Page::page_of(p);
             auto data = page->pointer_of(page->index_of(p));
@@ -181,6 +195,8 @@ namespace sgcl::detail {
             return p ? data_base_address_of(p) : nullptr;
         }
 
+        // The dynamic type of the object at p (a buffer's: its element
+        // type's array), or T for a null pointer
         template<class T>
         inline static const std::type_info& type_info(const void* p) noexcept {
             if (p) {
@@ -203,6 +219,10 @@ namespace sgcl::detail {
             return type_info<T>(p);
         }
 
+        // Whether p is into a buffer (the storage of a container), and the
+        // size of one object or element, the number of elements, and the
+        // buffer's capacity word (null for an object): what a container
+        // asks about the storage it holds
         inline static bool is_array(const void* p) noexcept {
             return p ? Page::metadata_of(p).is_array : false;
         }

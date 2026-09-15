@@ -33,6 +33,8 @@ namespace sgcl::detail {
     public:
         static constexpr bool is_always_lock_free = RawPointer::is_always_lock_free;
 
+        // The interface of std::atomic<T*> on the word, the stores and the
+        // successful exchanges through the barrier (pointer.h)
         bool is_lock_free() const noexcept {
             return _ptr().is_lock_free();
         }

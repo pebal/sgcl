@@ -550,6 +550,8 @@ namespace sgcl {
         Ptr<T> _ptr;
         size_type _capacity = 0;
 
+        // The slow path of push_back and emplace_back, out of line: a larger
+        // buffer, the elements moved over, the new one constructed last
         template<class... A>
         SGCL_NOINLINE reference _emplace_back_grow(A... a) {
             auto s = size();
@@ -568,6 +570,7 @@ namespace sgcl {
         }
 
 
+        // The buffer's header lies before its first element (array_base.h)
         static Header* _header(const T* data) noexcept {
             return (Header*)data - 1;
         }
@@ -585,6 +588,8 @@ namespace sgcl {
             return _ptr.get_plain();   // this thread's own buffer: a plain load
         }
 
+        // Whether p is one of the elements: an insertion of a reference into
+        // the vector itself copies the value first
         bool _inside(const void* p) const noexcept {
             auto data = (uintptr_t)_data();
             return data && (uintptr_t)p - data < size() * sizeof(T);
@@ -604,6 +609,8 @@ namespace sgcl {
             return _allocate(wanted);
         }
 
+        // A fresh buffer for n elements (its capacity may be more: the size
+        // class), taken over from the maker's unique_ptr
         T* _allocate(size_type n) {
             _ptr = unique_ptr<T>(detail::Maker<T[]>::make_tracked_data(n));
             auto data = _data();
@@ -627,6 +634,7 @@ namespace sgcl {
             _relocate(lock, data, s, 0, s);
         }
 
+        // One more element, at p, the count raised after it is constructed
         template<class... A>
         void _construct(T* p, A&&... a) {
             detail::Maker<T>::construct(p, std::forward<A>(a)...);
@@ -741,6 +749,8 @@ namespace sgcl {
             }
         }
 
+        // The gap _open_gap made filled: assigned where old elements were,
+        // constructed where the storage is raw
         template<class Construct, class Assign>
         void _fill_gap(T* data, size_type s, size_type index, size_type count, Construct construct, Assign assign) {
             auto tail = s - index;
@@ -760,6 +770,8 @@ namespace sgcl {
             }
         }
 
+        // The constructors' bodies: count elements value-initialized, or
+        // copies of a value, or a range, into a buffer of the right size
         void _construct_default(size_type count) {
             if (!count) {
                 return;

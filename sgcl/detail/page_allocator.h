@@ -28,9 +28,12 @@ namespace sgcl::detail {
             }
         }
 
+        // One page from the cache, the cache refilled from the heap when
+        // empty. The collector is woken by the allocation that crosses the
+        // wake rule: a cycle once the pages allocated since the last one
+        // reach a quarter of what the last one left in use (at least 1 MB),
+        // or when the heap is near its ceiling.
         void* alloc() {
-            // a cycle once the pages allocated since the last one reach a
-            // quarter of what the last one left in use (at least 1 MB)
             auto since = MemoryCounters::add_alloc(1);
             auto& heap = Heap::instance();
             bool wake = since * 4 > MemoryCounters::live_after_cycle() + 64 || heap.under_pressure();

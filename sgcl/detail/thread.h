@@ -48,6 +48,12 @@ namespace sgcl::detail {
     // object leaves its nodes to the sweep).
     inline thread_local bool sweeping = false;
 
+    // A registered thread: its allocators, one per type it has allocated,
+    // its page cache, and the Data the collector reads (the stack range,
+    // the hazard pointer, the pages it published), which outlives the
+    // thread until the collector has picked it up. Made on the thread's
+    // first contact with the library (register_thread), destroyed when
+    // the thread exits.
     class Thread {
     public:
         // A line of its own: the hazard pointer is written at every atomic
@@ -116,11 +122,15 @@ namespace sgcl::detail {
 #endif
         }
 
+        // The thread's allocator for T (the pool's or the large objects',
+        // by the size of T), made on first use
         template<class T>
         auto& alocator() noexcept {
             return _allocator<typename TypeInfo<T>::Allocator>();
         }
 
+        // Whether p is on this thread's stack: the location check of the
+        // debug assertions and of gc::tracked_ptr
         bool on_stack(const void* p) const noexcept {
             return (uintptr_t)p - _data->stack_begin < _data->stack_end - _data->stack_begin;
         }
@@ -138,6 +148,7 @@ namespace sgcl::detail {
             _data->hazard_pointer.store(p, std::memory_order_seq_cst);
         }
 
+        // The object is held by its tracked_ptr now (or was not taken)
         void clear_hazard_pointer() {
             _data->hazard_pointer.store(nullptr, std::memory_order_release);
         }
@@ -150,6 +161,9 @@ namespace sgcl::detail {
         std::array<std::unique_ptr<ObjectAllocatorBase>, config::MaxTypesNumber> _allocators;
         Data* const _data;
 
+        // The allocators are an array indexed by the type's number, one
+        // number per type for the process (_type_index), at most
+        // config::MaxTypesNumber of them
         template<class Allocator>
         Allocator& _allocator() {
             auto& alocator = _allocators[_type_index<typename Allocator::ValueType>()];
@@ -162,11 +176,14 @@ namespace sgcl::detail {
             }
             return static_cast<Allocator&>(*alocator);
         }
+        // The type's number: taken from the counter on the first use of the
+        // type on any thread
         template<class T>
         inline static unsigned _type_index() {
             static const unsigned index = _next_type_index();
             return index;
         }
+
         static unsigned _next_type_index() {
             auto index = _type_counter++;
             if (index >= config::MaxTypesNumber) {
@@ -180,6 +197,8 @@ namespace sgcl::detail {
         inline static std::atomic<unsigned> _type_counter = {0};
     };
 
+    // The main thread's id, taken at static initialization: the Thread of
+    // the main thread terminates the collector when it exits (~Thread).
     struct MainThreadDetector {
         MainThreadDetector() noexcept {
             Thread::main_thread_id = std::this_thread::get_id();

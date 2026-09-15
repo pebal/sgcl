@@ -12,6 +12,11 @@
 #include <type_traits>
 
 namespace sgcl::detail {
+    // The construction of managed objects (make_tracked.h): a slot from
+    // the thread's allocator for the type, the object constructed in it,
+    // the slot handed to a UniquePtr. Value-initialized without
+    // arguments (`new T`, not `new T()`: a trivial type stays as the slot
+    // is, which is zero or a destroyed element's null words).
     class MakerBase {
     protected:
         template<class T, class ...A>
@@ -46,12 +51,15 @@ namespace sgcl::detail {
             _construct<typename TypeInfo<T>::Type>(p, std::forward<A>(a)...);
         }
 
+        // The element destroyed in place, by the container that owns it
         inline static void destroy(T* p) noexcept {
             if constexpr(!std::is_trivially_destructible_v<T> && std::is_destructible_v<T>) {
                 std::destroy_at(p);
             }
         }
 
+        // A new object of T, constructed from the arguments; a root through
+        // the UniquePtr until it is handed to a tracked_ptr
         template<class ...A>
         static UniquePtr<T> make_tracked(A&&... a) {
             return _make(std::forward<A>(a)...);
@@ -75,6 +83,8 @@ namespace sgcl::detail {
             return UniquePtr<T>((Type*)mem);
         }
 
+        // A slot for a T without a construction: raw storage the caller
+        // fills (a trivial type; the slot is zero or holds null words)
         template<class ...A>
         static UniquePtr<T> make_tracked_data() {
             return _make_data();
@@ -106,6 +116,9 @@ namespace sgcl::detail {
             }
         }
 
+        // The slot from the thread's allocator, zeroed if it is a page range
+        // (_init), the object constructed in it after the slot came out
+        // (in state UniqueLock: the constructor's stores are barrier stores)
         template<class ...A>
         static UniquePtr<T> _make(A&&... a) {
             auto& thread = current_thread();
@@ -115,6 +128,7 @@ namespace sgcl::detail {
             return UniquePtr<T>((Type*)mem);
         }
 
+        // A slot without a construction (make_tracked_data: raw storage)
         static UniquePtr<T> _make_data() {
             auto& thread = current_thread();
             auto& allocator = thread.alocator<Type>();
@@ -137,6 +151,7 @@ namespace sgcl::detail {
             size_t object_size;
             bool zero;
 
+            // the allocator's init: the header and the zeroing, before publication
             void operator()(void* p) const noexcept {
                 auto array = (Array<>*)p;
                 array->metadata = metadata;
@@ -147,6 +162,8 @@ namespace sgcl::detail {
             }
         };
 
+        // A buffer of the size class T (Array<N>, below) with `data_size`
+        // bytes past it, from the thread's allocator for that class
         template<class T>
         static UniquePtr<void> _make(size_t data_size, const Header& header) {
             using Info = TypeInfo<T>;
@@ -190,6 +207,7 @@ namespace sgcl::detail {
     class Maker<T[]> : ArrayMaker {
         static_assert(alignof(T) <= alignof(ArrayBase), "array elements aligned beyond 16 bytes are not supported");
     public:
+        // A buffer for `capacity` elements of T
         static UniquePtr<T> make_tracked_data(size_t capacity) {
             auto p = _make_array<>(capacity, sizeof(T), &Info::array_metadata(), Info::MayContainTracked);
             return UniquePtr<T>((T*)p.release());

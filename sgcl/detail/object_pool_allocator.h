@@ -26,6 +26,8 @@ namespace sgcl::detail {
             }
         }
 
+        // GC thread: the type's emptied pages to the buffer the allocators
+        // of every thread refill from, the entirely free ones to the heap
         static void free(Page* pages) noexcept {
             _free(pages, _pages_buffer);
         }
@@ -40,6 +42,8 @@ namespace sgcl::detail {
         void* _headers[HeaderCacheSize];
         unsigned _header_count = 0;
 
+        // The header of a fresh page, from a cache of headers taken from
+        // the type's slab a few at a time (one lock per batch)
         Page* _create_page_parameters(void* data) override {
             if (!_header_count) {
                 TypeInfo<T>::header_slab().alloc(_headers, HeaderCacheSize);

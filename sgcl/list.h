@@ -691,6 +691,8 @@ namespace sgcl {
             }
         };
 
+        // The nodes: the first, the end (the sentinel, made with the first
+        // insertion), the nth from whichever end is nearer
         NodeBase* _first() const noexcept {
             NodeBase* end = _sentinel.get();
             return end ? end->next.get() : nullptr;
@@ -728,12 +730,14 @@ namespace sgcl {
             return node;
         }
 
+        // A node with its element constructed, held by `node`
         template<class... A>
         static void _make_node(Link& node, A&&... a) {
             node = make_tracked<Node>();
             _slot(node.get()).construct(std::forward<A>(a)...);
         }
 
+        // A node linked before pos; a chain of nodes likewise
         void _link(NodeBase* pos, const Link& node) noexcept {
             NodeBase* n = node.get();
             NodeBase* before = pos->prev.get();
@@ -785,6 +789,8 @@ namespace sgcl {
             return first;
         }
 
+        // The insertions of several: the nodes made into a chain first,
+        // rooted by it, linked in at once
         NodeBase* _insert_n(NodeBase* pos, size_type count, const V& value) {
             Chain chain;
             for (; count; --count) {
@@ -802,6 +808,7 @@ namespace sgcl {
             return _link_chain(pos, chain);
         }
 
+        // [first, last) unlinked and their elements destroyed
         NodeBase* _erase(NodeBase* first, NodeBase* last) {
             if (first == last) {
                 return last;
@@ -832,6 +839,8 @@ namespace sgcl {
             }
         }
 
+        // Every element destroyed and every node let go of (clear, the
+        // destructor)
         void _destroy_all() noexcept {
             NodeBase* end = _sentinel.get();
             if (end) {

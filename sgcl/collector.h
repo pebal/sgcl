@@ -85,6 +85,8 @@ namespace sgcl {
 
         static constexpr const char* phase_names[8] = {"registration", "states", "roots", "marking", "updated", "sweep", "release", "trim"};
 
+        // The collector's counters as they are: a few atomic reads, never a
+        // wait (docs/collector.md: statistics)
         inline static statistics get_statistics() noexcept {
             auto& c = detail::collector_instance();
             auto s = c.statistics<statistics>();
@@ -238,10 +240,13 @@ namespace sgcl {
         }
 
     private:
+        // A word of the calling thread's stack above the boundary frame
+        // (the diagnostic's own frames lie below it)
         static bool _own_stack(const void* word, uintptr_t boundary) noexcept {
             return (uintptr_t)word >= boundary && detail::thread_stack.holds(word);
         }
 
+        // The engine's referrers as the public ones
         static std::vector<referrer> _referrers(const std::vector<detail::Collector::Referrer>& found) {
             std::vector<referrer> result;
             result.reserve(found.size());

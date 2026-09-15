@@ -79,7 +79,7 @@ namespace sgcl::detail {
             return (uint64_t*)(free_bits() + flags_count());
         }
 
-        unsigned summary_count() const noexcept {
+        unsigned summary_count() const noexcept {   // words of the summary
             return (flags_count() + 63) / 64;
         }
 
@@ -90,6 +90,8 @@ namespace sgcl::detail {
             }
         }
 
+        // What follows the header (page_info.h: HeaderSize): the states, one
+        // byte per slot, then the Flags, the free bitmap and its summary
         std::atomic<State>* states() const noexcept {
             return (std::atomic<State>*)(this + 1);
         }
@@ -159,6 +161,7 @@ namespace sgcl::detail {
             return Heap::dirty_since_last((const void*)data, page_count, e);
         }
 
+        // The Flags word of slot i, and its bit in the word
         static constexpr unsigned flag_index_of(unsigned i) noexcept {
             return i / FlagBitCount;
         }
@@ -167,6 +170,8 @@ namespace sgcl::detail {
             return Flag(1) << (i % FlagBitCount);
         }
 
+        // The slot of an address in the page (an interior one too): a
+        // multiply by the reciprocal of the object size, no division
         unsigned index_of(const void* p) noexcept {
             assert(p != nullptr);
             return ((uintptr_t)p - data) * multiplier >> 32;
@@ -176,6 +181,7 @@ namespace sgcl::detail {
             return (void*)(data + index * object_size);
         }
 
+        // The header of the page an address of the heap is in (heap.h)
         static Page* page_of(const void* p) noexcept {
             assert(p != nullptr);
             return Heap::page_of(p);
@@ -188,10 +194,12 @@ namespace sgcl::detail {
             slab->free(page);
         }
 
-        size_t data_size() const noexcept {
+        size_t data_size() const noexcept {   // the page, or the range of a large object
             return page_count * config::PageSize;
         }
 
+        // The type's metadata, and the object's first byte, of any address
+        // into a managed object
         static Metadata& metadata_of(const void* p) noexcept {
             assert(p != nullptr);
             auto page = Page::page_of(p);
@@ -205,6 +213,10 @@ namespace sgcl::detail {
             return page->pointer_of(index);
         }
 
+        // The state of the object at p: UniqueLock or BadAlloc from the
+        // makers (the page's object_created raised for the registration),
+        // Reachable from the write barrier, Destroyed from a unique_ptr's
+        // deleter and from a container's erase (slot.h).
         template<State S>
         static void set_state(const void* p) noexcept {
             assert(p != nullptr);
@@ -278,6 +290,7 @@ namespace sgcl::detail {
             }
         }
 
+        // The state of the object at p, as it is now
         static State state_of(const void* p) noexcept {
             assert(p != nullptr);
             auto page = Page::page_of(p);
@@ -309,6 +322,8 @@ namespace sgcl::detail {
             return index < page->object_count && !(page->states()[index].load(std::memory_order_acquire) & State::FreeMask);
         }
 
+        // Whether a unique_ptr owns the object at p (the debug assertions:
+        // no tracked_ptr or weak_ptr may address it)
         static bool is_unique(const void* p) noexcept {
             assert(p != nullptr);
             auto page = Page::page_of(p);
@@ -362,7 +377,7 @@ namespace sgcl::detail {
             return State(State::UniqueLock | (Heap::globals.current_reachable.load(std::memory_order_acquire) & State::Parity));
         }
 
-        static bool is_unique_state(State s) noexcept {
+        static bool is_unique_state(State s) noexcept {   // UniqueLock of either parity
             return State(s & ~State::Parity) == State::UniqueLock;
         }
 

@@ -86,6 +86,8 @@ namespace sgcl {
             destroy();
         }
 
+        // The handle's interface: whether there is a coroutine, its handle
+        // and promise, resume() and done()
         explicit operator bool() const noexcept {
             return (bool)_handle;
         }
@@ -136,6 +138,9 @@ namespace sgcl {
     template<class T = void, template<class> class Ptr = tracked_ptr>
     class task {
     public:
+        // The promise the compiler drives: a managed frame, suspended at
+        // the start and at the end, the value or the exception kept for
+        // result()
         struct promise_type : managed_frame {
             std::optional<T> value;
             std::exception_ptr error;

@@ -536,6 +536,7 @@ namespace sgcl {
             _slot(node.get()).construct(std::forward<A>(a)...);
         }
 
+        // The elements of the nodes from `node` on destroyed
         static void _destroy_chain(NodeBase* node) noexcept {
             for (; node; node = node->next.get()) {
                 _slot(node).destroy();
@@ -654,6 +655,7 @@ namespace sgcl {
             }
         }
 
+        // Bottom-up merge sort of the nodes, stable, as std::forward_list::sort
         template<class Compare>
         void _sort(Compare& comp) {
             size_type n = 0;

@@ -8,6 +8,11 @@
 #include "types.h"
 
 namespace sgcl::detail {
+    // What the two allocators of a thread's type share (object_allocator.h
+    // for large objects, object_pool_allocator.h for the pool): the
+    // thread's list of new pages, on which both publish theirs for the
+    // collector (thread.h: Data::pages). The collector exists from the
+    // first allocator on.
     class ObjectAllocatorBase {
     public:
         ObjectAllocatorBase(std::atomic<Page*>& pages)

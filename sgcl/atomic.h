@@ -21,6 +21,9 @@ namespace sgcl {
         atomic(const atomic&) = delete;
         atomic& operator=(const atomic&) = delete;
 
+        // The constructors and assignments of std::atomic: from a value, a
+        // null, or a unique_ptr (whose object leaves the unique state on
+        // the way in)
         atomic() noexcept {}
 
         atomic(std::nullptr_t) noexcept

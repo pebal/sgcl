@@ -32,6 +32,9 @@ namespace sgcl {
         using element_type = typename tracked_ptr<T>::element_type;
         using pointer_type = Ptr<T>;
 
+        // The constructors and assignments of std::weak_ptr, from a strong
+        // pointer of either kind and from a weak_ptr of either kind (a
+        // copy shares the cell; a weak_ptr from a strong pointer gets one)
         constexpr weak_ptr() noexcept = default;
 
         constexpr weak_ptr(std::nullptr_t) noexcept {

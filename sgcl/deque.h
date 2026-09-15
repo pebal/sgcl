@@ -778,6 +778,8 @@ namespace sgcl {
             return e;
         }
 
+        // The blocks the elements occupy, and the spare ones at either end
+        // of the map
         size_t _used_blocks() const noexcept {
             return _size ? (_start + _size - 1) / BlockSize - _start / BlockSize + 1 : 0;
         }
@@ -794,6 +796,8 @@ namespace sgcl {
             return (_start + _size + BlockSize - 1) / BlockSize;
         }
 
+        // A block let go of (its elements destroyed already): the map's
+        // word nulled, the block is the collector's
         void _drop_block(size_t block) noexcept {
             if (block < _map_size) {
                 _map.get()[block] = nullptr;
@@ -826,6 +830,8 @@ namespace sgcl {
             return _value(value);
         }
 
+        // The slow paths of the pushes, out of line: a block to make or the
+        // map to grow at that end
         template<class... A>
         SGCL_NOINLINE reference _emplace_front_slow(A&&... a) {
             if (!_start) {
@@ -913,6 +919,7 @@ namespace sgcl {
             _reallocate_map(count, (count - used) / 2);
         }
 
+        // The map regrown or re-centred so that a block fits at that end
         void _grow_front() {
             auto used = _used_blocks();
             auto count = _map_size >= 2 * (used + 1) ? _map_size : std::max(2 * _map_size, used + 3);
@@ -939,6 +946,8 @@ namespace sgcl {
             return begin() + index;
         }
 
+        // A batch of pushes at one end; what was pushed is popped again if
+        // one of them throws (the range and fill insertions at the ends)
         template<class F>
         void _guarded_back(F& push_all, size_type old_size) {
             try {

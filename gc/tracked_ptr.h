@@ -37,6 +37,8 @@ namespace sgcl::detail {
             release();
         }
 
+        // The next cell of the block, zeroed, a block made when there is
+        // none; the block let go of after its last cell
         Pointer* take() noexcept {
             if (!block) [[unlikely]] {
                 block = make_tracked<CellBlock>().release();
@@ -93,6 +95,10 @@ namespace gc {
         // type (detail/managed.h): the word itself
         using tracked_type = sgcl::tracked_ptr<T>;
 
+        // Every constructor decides the mode from its own address
+        // (_tracked_here): in a managed object or on a stack the word is
+        // an sgcl::tracked_ptr, elsewhere a cell is taken (a null needs one
+        // too: the pointer may be assigned to later)
         tracked_ptr() noexcept {
             if (_tracked_here()) {
                 new (&_ptr) sgcl::tracked_ptr<T>();
@@ -227,6 +233,8 @@ namespace gc {
             return *this;
         }
 
+        // The interface of sgcl::tracked_ptr, every read through the test
+        // of the sign (a cell or the word), every store through _store
         explicit operator bool() const noexcept {
             return get() != nullptr;
         }
@@ -327,6 +335,8 @@ namespace gc {
             return sgcl::detail::thread_stack.holds(this);
         }
 
+        // The mode, read back from the word: the sign bit marks a cell (a
+        // managed address never has it; SignBit)
         static bool _is_cell(const void* w) noexcept {
             return (intptr_t)w < 0;
         }
@@ -385,6 +395,7 @@ namespace gc {
             _cell_of()->store(p);
         }
 
+        // Every assignment: the word's barrier store, or the cell's
         SGCL_ALWAYS_INLINE void _store(element_type* p) noexcept {
             if (!_is_cell()) [[likely]] {
                 _ptr._ptr()->store(p);

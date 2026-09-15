@@ -83,6 +83,8 @@ namespace sgcl::detail::os {
     // with a message instead (fail_after_fork).
     inline std::atomic<bool> forked_child = {false};
 
+    // The child of a fork gets forked_child raised (POSIX only: Windows
+    // has no fork)
     inline void register_fork_handler() noexcept {
 #if !defined(_WIN32)
         ::pthread_atfork(nullptr, nullptr, [] { forked_child.store(true, std::memory_order_relaxed); });
@@ -130,6 +132,9 @@ namespace sgcl::detail::os {
 #endif
     }
 
+    // The heap's address range, reserved and not yet usable: committed
+    // chunk by chunk (commit) where the system needs it (Reservation::
+    // needs_commit), usable at once where it overcommits
     inline Reservation reserve(size_t size) noexcept {
 #if defined(_WIN32)
         auto p = ::VirtualAlloc((void*)ReserveHint, size, MEM_RESERVE, PAGE_NOACCESS);
@@ -157,6 +162,8 @@ namespace sgcl::detail::os {
 #endif
     }
 
+    // The range given back to the system (at exit only: the heap lives as
+    // long as the process)
     inline void release(const Reservation& r) noexcept {
         if (r.base) {
 #if defined(_WIN32)
@@ -167,6 +174,7 @@ namespace sgcl::detail::os {
         }
     }
 
+    // A chunk of the reservation made usable; false at the system's limit
     inline bool commit(void* p, size_t size) noexcept {
 #if defined(_WIN32)
         return ::VirtualAlloc(p, size, MEM_COMMIT, PAGE_READWRITE) != nullptr;
@@ -175,6 +183,9 @@ namespace sgcl::detail::os {
 #endif
     }
 
+    // A chunk's pages given back to the system, the addresses kept: the
+    // next commit (or the next touch, where nothing needs a commit) gets
+    // zero pages
     inline void decommit(void* p, size_t size, bool needs_commit) noexcept {
 #if defined(_WIN32)
         (void)needs_commit;
@@ -194,6 +205,8 @@ namespace sgcl::detail::os {
 #endif
     }
 
+    // Transparent huge pages for the range, where the system offers them
+    // (Linux): fewer TLB misses on a heap of many pages
     inline void advise_huge_pages([[maybe_unused]] void* p, [[maybe_unused]] size_t size) noexcept {
 #if defined(MADV_HUGEPAGE)
         ::madvise(p, size, MADV_HUGEPAGE);
@@ -234,6 +247,7 @@ namespace sgcl::detail::os {
 #endif
     }
 
+    // The system's page size: the unit of touched_pages
     inline size_t page_size() noexcept {
 #if defined(_WIN32)
         SYSTEM_INFO info;
@@ -419,6 +433,9 @@ namespace sgcl::detail::os {
             "ret\n");
     }
 #else
+    // Other platforms: the frames below this one are zeroed by a buffer of
+    // StackClearSize on a frame of its own, the callee then runs above it
+    // (config.h: StackClearSize; the limit is not used).
     SGCL_NOINLINE inline void _clear_stack_buffer() noexcept {
         volatile uintptr_t buffer[config::StackClearSize / sizeof(uintptr_t)];
         for (auto& w : buffer) {
@@ -534,6 +551,8 @@ namespace sgcl::detail::os {
         }
     }
 
+    // The machine's memory, for the default ceiling of the heap
+    // (collector.h: set_memory_limit); 0 when the system does not say
     inline size_t physical_memory() noexcept {
 #if defined(_WIN32)
         MEMORYSTATUSEX status;

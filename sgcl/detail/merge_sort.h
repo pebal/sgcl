@@ -6,6 +6,10 @@
 #pragma once
 
 namespace sgcl::detail {
+    // Merge sort of an intrusive list linked through the member `Next`, by
+    // address: the allocators keep their lists of empty pages sorted so
+    // that a thread refills from the lowest addresses first
+    // (object_pool_allocator_base.h). Two sorted lists into one:
     template<auto Next, class T>
     T* merge(T* left, T* right) {
         if (!left) {
@@ -38,6 +42,8 @@ namespace sgcl::detail {
         return result;
     }
 
+    // The list split in halves by a slow and a fast walk, each half sorted,
+    // the two merged.
     template<auto Next, class T>
     T* merge_sort(T* head) {
         if (!head || !(head->*Next)) {

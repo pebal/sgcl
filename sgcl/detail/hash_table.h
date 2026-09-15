@@ -844,11 +844,17 @@ namespace sgcl::detail {
             return iterator(node);
         }
 
+        // The first node of the one list every element is on (the buckets
+        // point before their first node, the sentinel before the first of
+        // all: libstdc++'s layout)
         HashNodeBase* _first() const noexcept {
             auto sentinel = _before_begin.get();
             return sentinel ? sentinel->next.get() : nullptr;
         }
 
+        // The lookups: the node with the key (the first with it, in a multi
+        // table), the run of the nodes with it, their count; nothing
+        // constructed, the walk reads the links
         template<class K>
         Node* _find(const K& key) const {
             if (!_bucket_count) {
@@ -894,6 +900,9 @@ namespace sgcl::detail {
             }
         }
 
+        // operator==: the same keys with the same values, in any order (a
+        // multi table: every run of equivalent keys a permutation of the
+        // other's)
         bool _equal_to(const HashTable& other) const {
             if (_size != other._size) {
                 return false;
@@ -919,6 +928,8 @@ namespace sgcl::detail {
         }
 
         template<class Pred>
+        // erase_if: one walk, the nodes the predicate takes unlinked and
+        // destroyed on the way
         size_type _erase_if(Pred& pred) {
             size_type count = 0;
             for (auto p = _first(); p;) {
@@ -945,6 +956,7 @@ namespace sgcl::detail {
         [[no_unique_address]] hasher _hash;
         [[no_unique_address]] key_equal _equal;
 
+        // Empty, with no array: the state of a moved-from table
         void _reset() noexcept {
             _buckets = nullptr;
             _before_begin = nullptr;
@@ -954,11 +966,13 @@ namespace sgcl::detail {
             _next_resize = 0;
         }
 
+        // The first node of bucket n, null for an empty one
         HashNodeBase* _bucket_first(size_type n) const noexcept {
             auto before = n < _bucket_count ? _buckets.get()[n].get() : nullptr;
             return before ? before->next.get() : nullptr;
         }
 
+        // The iterator of whatever an insertion returned
         static iterator _position(const std::pair<iterator, bool>& result) noexcept {
             return result.first;
         }
@@ -1016,6 +1030,8 @@ namespace sgcl::detail {
             return p;
         }
 
+        // A run of equivalent keys, [first, last): its length, and whether
+        // another run holds the same values in some order (_equal_to)
         static size_type _run_length(const HashNodeBase* first, const HashNodeBase* last) noexcept {
             size_type n = 0;
             for (auto p = first; p != last; p = p->next.get()) {
@@ -1062,6 +1078,10 @@ namespace sgcl::detail {
         }
 
         template<class V>
+        // The insertion behind insert and emplace: the node before an
+        // equivalent key found first (nothing inserted in a unique table,
+        // the new node next to it in a multi one), else a new node at the
+        // front of its bucket, the table grown first when it is full
         auto _insert(V&& value) {
             auto hash = _hash(Traits::key(value));
             auto prev = _find_before(hash, Traits::key(value));
@@ -1138,6 +1158,10 @@ namespace sgcl::detail {
             ++_size;
         }
 
+        // A node at the front of its bucket: after the bucket's before-node,
+        // or at the front of the whole list when the bucket was empty (the
+        // bucket then points at the sentinel, and the bucket of the node
+        // that was first is made to point at the new one)
         void _link_front(size_type bucket, const NodePtr& node) {
             auto buckets = _buckets.get();
             if (auto before = buckets[bucket].get()) {
@@ -1198,6 +1222,7 @@ namespace sgcl::detail {
             return next;
         }
 
+        // The node after prev unlinked and its element destroyed
         void _erase_after(HashNodeBase* prev, HashNodeBase* node) {
             Anchor keep(node);
             _unlink_after(prev, node);
@@ -1205,6 +1230,8 @@ namespace sgcl::detail {
         }
 
         template<class K>
+        // Every node with the key erased, or extracted into a node handle
+        // (the first one, for extract)
         size_type _erase_key(const K& key) {
             if (!_bucket_count) {
                 return 0;
@@ -1241,6 +1268,9 @@ namespace sgcl::detail {
             return nh;
         }
 
+        // The load factor's arithmetic: the buckets `count` elements need,
+        // the elements `bucket_count` buckets hold, the growth (to a power
+        // of two, at least double)
         size_type _buckets_for(size_type count) const noexcept {
             return (size_type)std::ceil((double)count / (double)_max_load_factor);
         }

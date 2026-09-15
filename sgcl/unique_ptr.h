@@ -41,6 +41,7 @@ namespace sgcl {
         : Base(static_cast<element_type*>(p.release())) {
         }
 
+        // The same word as a unique_ptr<void>, for the containers
         operator unique_ptr<void>&() noexcept {
             return *(unique_ptr<void>*)(this);
         }
@@ -49,6 +50,9 @@ namespace sgcl {
             return *(const unique_ptr<void>*)(this);
         }
 
+        // The dynamic type from the page, as for tracked_ptr; as<U>() moves
+        // the ownership into the result (null, and nothing moved, when the
+        // object is not a U)
         template<class U>
         bool is() const noexcept {
             return type() == typeid(U);
@@ -84,6 +88,7 @@ namespace sgcl {
     template<class T>
     class unique_ptr<T[]>;
 
+    // The casts, moving the ownership: a unique_ptr has one owner
     template<class T, class U>
     inline unique_ptr<T> static_pointer_cast(unique_ptr<U>&& r) noexcept {
         return unique_ptr<T>(static_cast<typename unique_ptr<T>::element_type*>(r.release()));

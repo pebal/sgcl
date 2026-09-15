@@ -10,6 +10,13 @@
 #include "header_slab.h"
 
 namespace sgcl::detail {
+    // What every page of one type shares, one per type (page_info.h:
+    // private_metadata): the type's pointer map, its destroy and free
+    // functions, the slab of its page headers, the size and count of its
+    // objects, and the kinds the collector treats apart. The last three
+    // fields are the collector's: the list of the type's pages emptied by
+    // a cycle, on the way back to the allocators (collector.h:
+    // _release_unused_pages).
     struct Metadata {
         template<class T>
         Metadata(T*) noexcept

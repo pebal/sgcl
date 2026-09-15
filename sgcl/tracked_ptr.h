@@ -162,6 +162,8 @@ namespace sgcl {
             return *this;
         }
 
+        // The same word as a tracked_ptr<void>: what the containers of
+        // pointers store (one type of node for every T)
         operator tracked_ptr<void>&() noexcept {
             return *(tracked_ptr<void>*)(this);
         }
@@ -170,6 +172,8 @@ namespace sgcl {
             return *(const tracked_ptr<void>*)(this);
         }
 
+        // The interface of a smart pointer: bool, *, ->, get(), reset(),
+        // swap(), the comparisons and casts below
         explicit operator bool() const noexcept {
             return (get() != nullptr);
         }
@@ -239,6 +243,9 @@ namespace sgcl {
         // the rules of destructors.
         std::shared_ptr<element_type> to_shared() const;   // below, after detail::SharedHolder
 
+        // The dynamic type of the object, from its page: is<U>() compares it
+        // with U, as<U>() is the pointer to the object as a U, null when it
+        // is not one, type() the type itself; no virtual functions needed
         template<class U>
         bool is() const noexcept {
             return type() == typeid(U);
@@ -395,6 +402,8 @@ namespace sgcl {
         return r.get() == nullptr;
     }
 
+    // The casts of std::shared_ptr; the result addresses a base or a
+    // derived subobject of the same object
     template<class T, class U>
     inline tracked_ptr<T> static_pointer_cast(const tracked_ptr<U>& p) noexcept {
         return tracked_ptr<T>(static_cast<typename tracked_ptr<T>::element_type*>(p.get()));

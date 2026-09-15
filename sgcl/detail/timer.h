@@ -8,6 +8,8 @@
 #include <chrono>
 
 namespace sgcl::detail {
+    // Milliseconds since the last reset(), on the steady clock: the
+    // collector's pacing and logging.
     class Timer {
     public:
         Timer() noexcept {

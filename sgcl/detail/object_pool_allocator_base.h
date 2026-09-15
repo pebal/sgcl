@@ -169,12 +169,18 @@ namespace sgcl::detail {
             return false;
         }
 
+        // The word at the cursor into the hot fields: its bits, the address
+        // of its first slot, its states
         void _load_word() noexcept {
             _free_word = _free_bits[_cursor];
             _word_base = _current_page->data + (uintptr_t)_cursor * Page::FlagBitCount * _object_size;
             _word_states = _current_page->states() + (size_t)_cursor * Page::FlagBitCount;
         }
 
+        // The next page to allocate from: one the collector emptied, from
+        // the type's buffer (the lowest address first), else a fresh one
+        // from the thread's page cache, its header made and published on
+        // the thread's list for the collector
         Page* _next_page() {
             if (os::forked_child.load(std::memory_order_relaxed)) [[unlikely]] {
                 os::fail_after_fork("a managed allocation");   // before the copied locks (os.h)

@@ -8,6 +8,10 @@
 #include "array_base.h"
 
 namespace sgcl::detail {
+    // What a buffer's header names about its elements (array_base.h): the
+    // element type's pointer map, for the marking of the elements, its
+    // type, for the statistics, and its size, for the stride. One per
+    // element type (page_info.h: array_metadata).
     struct ArrayMetadata {
         template<class T>
         ArrayMetadata(T*) noexcept
