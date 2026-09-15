@@ -178,6 +178,25 @@ TEST(Function_Tests, ClosuresInsideManagedObjectsAreFollowed) {
     EXPECT_EQ(Node::alive.load(), before);
 }
 
+TEST(Function_Tests, AClosureCapturingItsOwnerIsACycle) {
+    settle();
+    const int before = Node::alive.load();
+    struct Button {
+        explicit Button(int v) : node(make_tracked<Node>(v)) {}
+        tracked_ptr<Node> node;
+        function<int()> on_click;
+        move_only_function<int() const> once;
+    };
+    off_frame([&] {
+        tracked_ptr button = make_tracked<Button>(1);
+        button->on_click = [button] { return button->node->value; };   // the closure captures its owner
+        button->once = [button] { return button->node->value; };
+        EXPECT_EQ(button->on_click(), 1);
+    });
+    settle();
+    EXPECT_EQ(Node::alive.load(), before);                   // the cycle collected
+}
+
 TEST(Function_Tests, TheGcKindLivesAnywhere) {
     settle();
     const int before = Node::alive.load();

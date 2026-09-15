@@ -197,6 +197,26 @@ TEST(Any_Tests, ThePointerIsFollowedNextToInts) {
     EXPECT_EQ(Node::alive.load(), before);
 }
 
+TEST(Any_Tests, AValuePointingBackAtItsOwnerIsACycle) {
+    settle();
+    const int before = Node::alive.load();
+    struct Owner {
+        explicit Owner(int v) : node(make_tracked<Node>(v)) {}
+        tracked_ptr<Node> node;
+        any payload;
+    };
+    off_frame([&] {
+        tracked_ptr owner = make_tracked<Owner>(1);
+        owner->payload = owner;                              // a pointer in the word: the cycle owner -> any -> owner
+        tracked_ptr other = make_tracked<Owner>(2);
+        other->payload = Pair{other->node, 0x10000};         // a value in a node: the cycle other -> node -> node object
+        struct Back { tracked_ptr<Owner> owner; int count; };
+        other->payload = Back{other, 0x20000};
+    });
+    settle();
+    EXPECT_EQ(Node::alive.load(), before);                   // both cycles collected
+}
+
 TEST(Any_Tests, TheGcKindLivesAnywhere) {
     settle();
     const int before = Node::alive.load();

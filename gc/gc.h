@@ -43,13 +43,16 @@ namespace gc {
     using sgcl::atomic;
     using sgcl::atomic_ref;
     using sgcl::unique_ptr;   // lives anywhere as it is
-    // any and variant have no word of their own: where they may live is
-    // decided by what they hold (a gc::tracked_ptr inside: anywhere)
-    using sgcl::any;
+    // any and function hold their value by a word of the kind: the gc
+    // ones live anywhere. variant and expected have no word of their own:
+    // where they may live is decided by what they hold.
+    using any = sgcl::basic_any<tracked_ptr>;
+    template<class Signature>
+    using function = sgcl::function<Signature, tracked_ptr>;
+    template<class Signature>
+    using move_only_function = sgcl::move_only_function<Signature, tracked_ptr>;
     using sgcl::variant;
     using sgcl::monostate;
-    using sgcl::function;
-    using sgcl::move_only_function;
     using sgcl::expected;
     using sgcl::unexpected;
     using sgcl::unexpect;
@@ -133,7 +136,15 @@ namespace gc {
     using sgcl::variant_alternative;
     using sgcl::variant_alternative_t;
     using sgcl::any_cast;
-    using sgcl::make_any;
+    // make_any for the gc kind
+    template<class T, class... A>
+    any make_any(A&&... a) {
+        return any(std::in_place_type<T>, std::forward<A>(a)...);
+    }
+    template<class T, class U, class... A>
+    any make_any(std::initializer_list<U> il, A&&... a) {
+        return any(std::in_place_type<T>, il, std::forward<A>(a)...);
+    }
     using sgcl::to_array;
     using sgcl::dynamic_extent;
     using sgcl::erase;

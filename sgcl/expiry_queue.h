@@ -43,7 +43,7 @@ namespace sgcl {
     public:
         using value_type = Ptr<T>;
         using weak_type = weak_ptr<T, Ptr>;
-        using function_type = function<void(value_type)>;
+        using function_type = function<void(value_type), Ptr>;
         using size_type = size_t;
 
         // The handle of one entry: the entry's cell, which watch() made.

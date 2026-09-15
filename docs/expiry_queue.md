@@ -31,7 +31,7 @@ The difference from a destructor: a destructor runs on the collector's threads u
 ```cpp
 using value_type = Ptr<T>;
 using weak_type = weak_ptr<T, Ptr>;
-using function_type = function<void(value_type)>;   // sgcl::function
+using function_type = function<void(value_type), Ptr>;   // sgcl::function of the queue's kind
 using size_type = size_t;
 ```
 
