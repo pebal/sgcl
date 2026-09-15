@@ -5,10 +5,9 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "function.h"
 #include "vector.h"
 #include "weak_ptr.h"
-
-#include <functional>
 
 namespace sgcl {
     // What to do with an object once nothing else reaches it, decided by
@@ -21,9 +20,11 @@ namespace sgcl {
     // the next cycle that finds it unreachable, its destructor as ever.
     // f runs on the thread that calls drain(), at that moment, with the
     // heap in a consistent state: no collector thread, none of the rules
-    // of destructors. What f captures follows rule 1 (a std::function
-    // keeps its closure on the unmanaged heap: no tracked_ptr in it); the
-    // object comes as the argument. The queue drains by itself every so
+    // of destructors. f is a function (function.h): its closure may
+    // capture tracked pointers, which the collector follows; a closure
+    // holding a strong pointer to the watched object itself keeps the
+    // object alive and the entry never expires (the object comes as the
+    // argument instead). The queue drains by itself every so
     // many watch() calls, as many as it has entries (a pass costs less
     // than the calls that paid for it); a thread that watches little and
     // wants its cleanups on time calls drain() in its loop, and an object
@@ -42,7 +43,7 @@ namespace sgcl {
     public:
         using value_type = Ptr<T>;
         using weak_type = weak_ptr<T, Ptr>;
-        using function_type = std::function<void(value_type)>;
+        using function_type = function<void(value_type)>;
         using size_type = size_t;
 
         // The handle of one entry: the entry's cell, which watch() made.

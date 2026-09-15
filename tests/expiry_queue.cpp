@@ -227,3 +227,37 @@ TEST(ExpiryQueue_Tests, InsideAManagedObject) {
     EXPECT_EQ(owner->gone.drain(), 1u);
     EXPECT_EQ(owner->released, 9);
 }
+
+TEST(ExpiryQueue_Tests, TheFunctionMayCaptureTrackedPointers) {
+    settle();
+    const int before = Texture::alive.load();
+    struct Log {
+        vector<int> ids;
+    };
+    expiry_queue<Texture> gone;
+    tracked_ptr log = make_tracked<Log>();
+    off_frame([&] {
+        tracked_ptr object = make_tracked<Texture>(10);
+        gone.watch(object, [log](tracked_ptr<Texture> t) { log->ids.push_back(t->id); });   // a closure with a pointer: in a managed object, followed
+    });
+    tracked_ptr<Log> only_the_closure = log;
+    log = nullptr;
+    only_the_closure = nullptr;                 // the closure alone keeps the log now
+    settle();
+    EXPECT_EQ(gone.drain(), 1u);
+    EXPECT_EQ(Texture::alive.load(), before + 1);   // alive one last time, until the next cycle
+    settle();
+    EXPECT_EQ(Texture::alive.load(), before);
+    tracked_ptr<Log> kept_by_queue;
+    off_frame([&] {
+        tracked_ptr another = make_tracked<Log>();
+        tracked_ptr object = make_tracked<Texture>(11);
+        gone.watch(object, [another](tracked_ptr<Texture> t) { another->ids.push_back(t->id); });
+        kept_by_queue = another;
+    });
+    EXPECT_EQ(kept_by_queue->ids.size(), 0u);
+    settle();
+    EXPECT_EQ(gone.drain(), 1u);
+    EXPECT_EQ(kept_by_queue->ids.size(), 1u);
+    EXPECT_EQ(kept_by_queue->ids[0], 11);
+}

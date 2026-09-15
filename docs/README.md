@@ -15,6 +15,9 @@ One page per public class or function of the library, each with every public mem
 | [weak_set](weak_set.md) | `sgcl/weak_set.h` | a set of objects it does not keep alive |
 | [variant](variant.md) | `sgcl/variant.h` | `std::variant`'s interface with the tracked pointers in a word of their own, apart from the data of the other alternatives |
 | [any](any.md) | `sgcl/any.h` | `std::any`'s interface with a tracked pointer in a word of its own and an object with pointers in a managed object of its own |
+| [function](function.md) | `sgcl/function.h` | `std::function` and `std::move_only_function` whose closure may capture tracked pointers: the closure in a managed object of its own |
+| [expected](expected.md) | `sgcl/expected.h` | `std::expected`'s interface (C++23) over a variant: the value and the error laid out apart |
+| `optional`, `pair`, `tuple` | `sgcl/aliases.h` | the `std` types under the library's names: they hold a tracked pointer correctly as they are, one value per place |
 | [atomic, atomic_ref](atomic.md) | `sgcl/atomic.h`, `sgcl/atomic_ref.h` | lock-free atomic `tracked_ptr`: `load`, `store`, compare-exchange, `wait`/`notify`, no ABA ([atomic_ref](atomic_ref.md) on its own page) |
 
 ## Containers

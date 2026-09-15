@@ -18,7 +18,7 @@ The difference from a destructor: a destructor runs on the collector's threads u
 ## Rules
 
 - An `expiry_queue` lives where a `tracked_ptr` may: on a stack or inside a managed object; never in `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame ([The rules](../README.md#the-rules), rule 1). Its entries are a `sgcl::vector` of a `tracked_ptr` to the cell and the function.
-- What `f` captures follows rule 1 as well: a `std::function` keeps its closure on the unmanaged heap, so no `tracked_ptr` in a capture. Capture a raw pointer to an owner that outlives the queue, a reference, or plain data; the object itself comes as the argument.
+- `f` is an [`sgcl::function`](function.md): its closure may capture tracked pointers, kept in a managed object of its own and followed by the collector. A closure holding a strong pointer to the watched object itself keeps the object alive, and the entry never expires: the object comes as the argument instead. Capture a raw pointer to an owner that outlives the queue, a reference, or plain data; the object itself comes as the argument.
 - `f` runs on the thread that calls `drain()`, at that moment. No collector thread, none of the rules of destructors: it may read the object through its `tracked_ptr` members, allocate, copy the pointer into a managed object; an object kept that way can be watched again after the drain.
 - One queue is used by one thread at a time; threads share it with the program's own synchronization (rule 6). The collector's side (finding the object unreachable, keeping it) needs none.
 - Movable, not copyable. The destructor drops every entry without calling its function: the objects are no longer kept and die with the next cycle that finds them unreachable.
@@ -31,7 +31,7 @@ The difference from a destructor: a destructor runs on the collector's threads u
 ```cpp
 using value_type = Ptr<T>;
 using weak_type = weak_ptr<T, Ptr>;
-using function_type = std::function<void(value_type)>;
+using function_type = function<void(value_type)>;   // sgcl::function
 using size_type = size_t;
 ```
 

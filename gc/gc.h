@@ -48,6 +48,24 @@ namespace gc {
     using sgcl::any;
     using sgcl::variant;
     using sgcl::monostate;
+    using sgcl::function;
+    using sgcl::move_only_function;
+    using sgcl::expected;
+    using sgcl::unexpected;
+    using sgcl::unexpect;
+    using sgcl::unexpect_t;
+    using sgcl::bad_expected_access;
+    // the standard types safe with a tracked_ptr inside, as sgcl names them (sgcl/aliases.h)
+    using sgcl::optional;
+    using sgcl::nullopt;
+    using sgcl::nullopt_t;
+    using sgcl::make_optional;
+    using sgcl::pair;
+    using sgcl::make_pair;
+    using sgcl::tuple;
+    using sgcl::make_tuple;
+    using sgcl::tie;
+    using sgcl::forward_as_tuple;
 
     // gc::make_tracked is sgcl::make_tracked, the same function (a
     // unique_ptr, deterministic until converted): a using-declaration, not

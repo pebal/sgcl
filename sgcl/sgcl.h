@@ -34,7 +34,10 @@
 #include "weak_set.h"
 
 // over the pointers and the maker above
+#include "aliases.h"
 #include "any.h"
+#include "expected.h"
+#include "function.h"
 #include "variant.h"
 
 #include "../gc/gc.h"   // the gc namespace: the same types with gc::tracked_ptr as their word
