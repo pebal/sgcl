@@ -10,6 +10,8 @@
 #include "header_slab.h"
 
 namespace sgcl::detail {
+    struct SharedHolder;   // tracked_ptr.h
+
     // What every page of one type shares, one per type (page_info.h:
     // private_metadata): the type's pointer map, its destroy and free
     // functions, the slab of its page headers, the size and count of its
@@ -30,6 +32,7 @@ namespace sgcl::detail {
         , pool_allocated(TypeInfo<T>::Allocator::IsPoolAllocator::value)
         , is_weak_cell(std::is_same_v<std::remove_cv_t<T>, WeakCell>)
         , is_cell_block(std::is_same_v<std::remove_cv_t<T>, CellBlock>)
+        , is_root_holder(std::is_same_v<std::remove_cv_t<T>, SharedHolder>)
         , type_info(typeid(T)) {
         }
 
@@ -43,6 +46,7 @@ namespace sgcl::detail {
         const bool pool_allocated;   // slots with a free bitmap, not page ranges
         const bool is_weak_cell;     // weak_cell.h: the pages the weak phase visits
         const bool is_cell_block;    // cell_block.h: the pages of the blocks of cells, traced without a map and released by state
+        const bool is_root_holder;   // tracked_ptr.h: SharedHolder, the object under a root_ptr or a to_shared: a root by state, never the target of a tracked_ptr, so a word naming one is data (collector.h: _mark_childs)
         const std::type_info& type_info;
         Page* empty_page = {nullptr};
         Metadata* next = {nullptr};

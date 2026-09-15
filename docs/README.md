@@ -10,6 +10,7 @@ One page per public class or function of the library, each with every public mem
 | [unique_ptr](unique_ptr.md) | `sgcl/unique_ptr.h` | what `make_tracked` returns: a `std::unique_ptr` to a managed object, deterministic until moved into a `tracked_ptr` |
 | [gc::tracked_ptr](gc/tracked_ptr.md) | `gc/tracked_ptr.h` | a `tracked_ptr` that may live anywhere: the same word in managed objects and on stacks, a cell of a managed block as its root elsewhere (a `std` container, a global, a lambda on the heap); the pointer of [the gc namespace](#the-gc-namespace) |
 | [make_tracked](make_tracked.md) | `sgcl/make_tracked.h` | creates an object on the managed heap |
+| [root_ptr](root_ptr.md) | `sgcl/root_ptr.h` | a root that lives anywhere: a managed holder of its own under a `unique_ptr`, no mode, no test; the pointer of an interpreter's handle table or a program's globals |
 | [weak_ptr](weak_ptr.md) | `sgcl/weak_ptr.h` | a pointer that does not keep its object alive, cleared by the cycle that finds the object unreachable |
 | [string](string.md) | `sgcl/string.h` | an immutable string on the managed heap: one word, shared by copying, compared and hashed by its contents, no destructor |
 | [weak_map, weak_multimap](weak_map.md) | `sgcl/weak_map.h` | values attached to objects the map does not keep alive: keyed by the object, an entry dies with it |

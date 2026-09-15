@@ -20,6 +20,7 @@ The class derives from `std::unique_ptr<T, detail::UniqueDeleter>`, so `get()`, 
 - The destructor destroys the object at once, on the calling thread, like `std::unique_ptr`. A `unique_ptr` member of a managed object is destroyed with the object, wherever that happens, on a stack or in a sweep on a collector thread; a destructor may use its `unique_ptr` members freely, unlike its `tracked_ptr` members ([The rules](../README.md#the-rules), 5).
 - The `tracked_ptr` members of the owned object follow the rules of `tracked_ptr`: the object is on the managed heap, so they may live in it, and the collector traces them for as long as the owner lives.
 - Thread safety is that of `std::unique_ptr`: one thread at a time, or the program's own synchronization.
+- Where it belongs: at the edge of the managed world, holding an object from unmanaged memory or for the moment between `make_tracked` and the `tracked_ptr` that takes the object. Inside a managed object it buys only a deterministic destructor for the sub-object, and it costs what a `tracked_ptr` member does not: the owned object is a root the collector finds by its state in every cycle, and the owner's word is one the marking visits. A structure of managed objects is held by `tracked_ptr`s; a million `unique_ptr` members is a million roots, and a full cycle pays for each.
 - `unique_ptr<T[]>` is declared but not defined: managed arrays belong to the containers ([vector](vector.md), [array](array.md)).
 
 ## Members

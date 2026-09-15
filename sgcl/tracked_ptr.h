@@ -342,10 +342,11 @@ namespace sgcl {
     class tracked_ptr<T[]>;
 
     namespace detail {
-        // The managed object behind tracked_ptr::to_shared: a root (its
-        // unique_ptr owns it from the control block of the shared_ptr)
-        // holding the pointer where a tracked_ptr may live. One type for
-        // every T: one pool of pages, not one per pointee type.
+        // The managed object behind tracked_ptr::to_shared and root_ptr
+        // (root_ptr.h): a root (its unique_ptr owns it, from the control
+        // block of the shared_ptr or from the root_ptr) holding the
+        // pointer where a tracked_ptr may live. One type for every T: one
+        // pool of pages, not one per pointee type.
         struct SharedHolder {
             tracked_ptr<void> ptr;
         };

@@ -50,6 +50,7 @@ namespace gc {
     using sgcl::atomic;
     using sgcl::atomic_ref;
     using sgcl::unique_ptr;   // lives anywhere as it is
+    using sgcl::root_ptr;     // a root that lives anywhere: a holder of its own, no mode
     // any and function hold their value by a word of the kind: the gc
     // ones live anywhere. variant and expected have no word of their own:
     // where they may live is decided by what they hold.

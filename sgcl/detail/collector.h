@@ -880,7 +880,17 @@ namespace sgcl::detail {
 
         // Follows the candidate pointer words of one object (page_info.h:
         // ChildPointers). Zero: nothing. A managed address: marked with the
-        // same checks as a stack word (page, slot, registration). Anything
+        // same checks as a stack word (page, slot, registration), with two
+        // exceptions. A word naming a SharedHolder (the object under a
+        // root_ptr or a to_shared) is data: a holder is a root by its state
+        // and never the target of a tracked_ptr, so the offset leaves the
+        // map for good, as any data offset does. A word naming an object a
+        // unique_ptr owns (a unique_ptr member) is not followed: the object
+        // is a root by its state, which the pass over the states marks and
+        // traces; the offset stays, since a tracked_ptr may hold the same
+        // address a moment later (a stale read of the state costs nothing,
+        // an object just released from its unique_ptr being in the
+        // reachable state, which the same pass finds as well). Anything
         // else: the offset is data, removed from the map for good, unless
         // the type is conservative (a coroutine frame: the same offset is
         // a pointer in another frame).
@@ -896,6 +906,16 @@ namespace sgcl::detail {
                         continue;
                     }
                     if (auto page = Heap::page_of_checked((const void*)word)) {
+                        if (page->is_root_holder) {
+                            if (!childs.conservative) {
+                                childs.remove(offset);
+                            }
+                            continue;
+                        }
+                        auto index = page->index_of((const void*)word);
+                        if (index < page->object_count && Page::is_unique_state(page->states()[index].load(std::memory_order_relaxed))) {
+                            continue;
+                        }
                         _mark_conservative<Parallel>(page, (const void*)word, m);
                     } else if (!childs.conservative && !Heap::contains((const void*)word)) {   // in the heap's range without a page: a pointer still (a freed page)
                         childs.remove(offset);

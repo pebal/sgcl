@@ -20,6 +20,7 @@
 #include "multimap.h"
 #include "multiset.h"
 #include "queue.h"
+#include "root_ptr.h"
 #include "set.h"
 #include "stack.h"
 #include "string.h"

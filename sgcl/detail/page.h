@@ -41,6 +41,7 @@ namespace sgcl::detail {
         , object_size(metadata->object_size)
         , object_count(metadata->object_count)
         , is_array(metadata->is_array)
+        , is_root_holder(metadata->is_root_holder)
         , flags_ptr((Flags*)((uintptr_t)states() + ((sizeof(std::atomic<State>) * metadata->object_count + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1)))) {
             assert(metadata != nullptr);
             assert(data != nullptr);
@@ -347,6 +348,7 @@ namespace sgcl::detail {
         const size_t object_size;
         const uint32_t object_count;
         const bool is_array;
+        const bool is_root_holder;   // a page of SharedHolders: a word naming one is data (metadata.h)
         Flags* const flags_ptr;
         size_t page_count = 1;   // > 1 for objects larger than a page
         std::atomic_bool object_created = {false};
