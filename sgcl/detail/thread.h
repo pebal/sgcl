@@ -188,6 +188,11 @@ namespace sgcl::detail {
 
     inline static MainThreadDetector main_thread_detector;
 
+    // This thread's Thread, made on the first call and destroyed when the
+    // thread exits (the destructor unregisters it); its constructor sets
+    // current_thread_ptr. The slow path of current_thread() and
+    // ensure_thread_registered(): a function-local thread_local carries a
+    // guard, read at every access, which the pointer spares the hot paths.
     inline Thread& register_thread() noexcept {
         static thread_local Thread instance;
         return instance;

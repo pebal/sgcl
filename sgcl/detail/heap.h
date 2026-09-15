@@ -234,6 +234,7 @@ namespace sgcl::detail {
             uint32_t free_epoch;  // trim() epoch in which it became free
         };
 
+        // A chunk taken for pages again: no longer idle for trim()
         void _mark_in_use(size_t c) noexcept {
             auto& chunk = _chunks[c];
             if (chunk.free_committed) {
@@ -344,6 +345,10 @@ namespace sgcl::detail {
             return (void*)(_chunk_address(c) + ((size_t)bit << PageShift));
         }
 
+        // One page for a pool: from a pool chunk with a free page, else a
+        // free chunk kept for the pools, else a fresh chunk from the bottom
+        // of the range (the arrays' ranges come from the top), committed
+        // on the way if the system needs it.
         void* _alloc_page_locked() {
             // 1. a pool chunk with a free page, scanning from the last hit
             auto words = _has_free.size();
@@ -382,6 +387,8 @@ namespace sgcl::detail {
             return _take_page_from_chunk(c);
         }
 
+        // A pool page back to its chunk; a chunk with every page free leaves
+        // the pool and waits, committed, for trim()
         void _free_page_locked(void* p) noexcept {
             auto index = ((uintptr_t)p - globals.base) >> PageShift;
             globals.table[index].store(nullptr, std::memory_order_relaxed);
@@ -452,6 +459,9 @@ namespace sgcl::detail {
             return (void*)(globals.base + (first << PageShift));
         }
 
+        // A range of an array back to the bins, merged with its free
+        // neighbours; the whole chunks inside the merged range wait for
+        // trim()
         void _free_range_locked(size_t first, size_t count) noexcept {
             for (size_t i = 0; i < count; ++i) {
                 globals.table[first + i].store(nullptr, std::memory_order_relaxed);

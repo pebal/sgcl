@@ -399,6 +399,10 @@ namespace sgcl::detail {
             return created;
         }
 
+        // A snapshot of every registered thread's hazard pointer (thread.h:
+        // Data::hazard_pointer, the object an atomic load or a weak lock is
+        // holding between its two reads), taken before a pass over the
+        // states and resolved by _mark_hazard_pointers after it.
         void _update_hazard_pointers() {
             _hazard_pointers.clear();
             auto thread = _registered_threads;
@@ -506,6 +510,10 @@ namespace sgcl::detail {
         // they are hidden from it, as in _mark_array_childs.
         enum class WeakPhase { Nothing, Kept, Cleared };
 
+        // The weak phase, once the marking has converged: first the watched
+        // objects (expiry_queue) an unmarked target of which is kept alive
+        // for the queue, then the cells whose target is unmarked cleared.
+        // Kept: the marking goes on (the kept objects are roots now).
         WeakPhase _weak_phase() noexcept {
             if (_keep_watched_targets()) {
                 return WeakPhase::Kept;
@@ -537,6 +545,10 @@ namespace sgcl::detail {
             }
         }
 
+        // Watched cells (weak_cell.h: Watched, not Drained) whose target the
+        // cycle found unreachable: the target is marked reachable again,
+        // for the queue to hand it to its callback, and the cell is flagged
+        // expired. True when any was.
         SGCL_NO_SANITIZE bool _keep_watched_targets() noexcept {
             bool kept = false;
             _for_each_weak_cell([&](WeakCell* cell) {
@@ -555,6 +567,10 @@ namespace sgcl::detail {
             return kept;
         }
 
+        // Every weak cell whose target is unmarked has its word cleared, by
+        // a compare-exchange against a lock in progress (weak_ptr.h: lock
+        // publishes its hazard, then reads the cell again). True when any
+        // was cleared: a pass for the states and hazards follows.
         SGCL_NO_SANITIZE bool _clear_weak_cells() noexcept {
             bool cleared = false;
             _for_each_weak_cell([&](WeakCell* cell) {
@@ -985,6 +1001,8 @@ namespace sgcl::detail {
             return objects;
         }
 
+        // A dirty page of the young cycle and where its marks were taken
+        // down (_collect_dirty_pages)
         struct DirtyPage {
             Page* page;
             size_t first;   // its marks' first word in _dirty_marks
@@ -1142,6 +1160,9 @@ namespace sgcl::detail {
 #endif
         }
 
+        // One thread of the parallel pass: the dirty pages first, then the
+        // listed pages, one at a time from the shared counters, then
+        // whatever the pile holds, until every thread is parked.
         void _mark_work(Marker& m) noexcept {
             auto& q = _mark_queue;
             for (;;) {
@@ -1246,6 +1267,8 @@ namespace sgcl::detail {
             }
         }
 
+        // The older half of this thread's stack to the pile, for the parked
+        // threads (the older items are the roots of the larger subtrees).
         void _spill(Marker& m) noexcept {
             auto& q = _mark_queue;
             auto half = m.work.begin() + m.work.size() / 2;
@@ -1847,6 +1870,12 @@ namespace sgcl::detail {
             _pool.wait();
         }
 
+        // After the sweep: the pages the sweep emptied by more than half go
+        // to their type's list of empty pages (their free bitmaps rebuilt
+        // here, on the pool when there are many), and from there to the
+        // allocators' buffers or, entirely free, back to the heap
+        // (object_pool_allocator_base.h: _free); the headers of the pages
+        // that went back are dropped from _pages and deleted.
         void _release_unused_pages() {
             std::atomic_thread_fence(std::memory_order_acquire);
             Metadata* metadata = nullptr;
