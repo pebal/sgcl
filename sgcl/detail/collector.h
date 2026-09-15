@@ -372,6 +372,9 @@ namespace sgcl::detail {
                     if (skipped) {
                         page->object_created.store(true, std::memory_order_release);
                     }
+                    if (objects_created) {
+                        page->unmarked = true;
+                    }
                 }
             }
             return objects_created;
@@ -382,13 +385,29 @@ namespace sgcl::detail {
         // pages. No demotion of states: the flip of the epoch did that.
         size_t _register_objects() noexcept {
             auto full = _full;
-            auto counts = _parallel_array<size_t>(_pages.size(), [this, full](size_t begin, size_t end) {
+            // A young cycle looks only at the pages a mutator touched since
+            // the last one (object_created, state_updated: their headers
+            // say), picked out here so that the pool gets as many as there
+            // are; a full cycle clears the marks of every page.
+            auto& pages = full ? _pages : _mutated_pages;
+            if (!full) {
+                _mutated_pages.clear();
+                for (auto page : _pages) {
+                    if (page->object_created.load(std::memory_order_relaxed) || page->state_updated.load(std::memory_order_relaxed)) {
+                        _mutated_pages.push_back(page);
+                    }
+                }
+            }
+            auto counts = _parallel_array<size_t>(pages.size(), [this, full, &pages](size_t begin, size_t end) {
                 std::atomic_thread_fence(std::memory_order_acquire);
                 size_t created = 0;
                 for (auto i = begin; i < end; ++i) {
-                    auto page = _pages[i];
+                    auto page = pages[i];
                     created += _register_page(page);
                     page->clear_flags(full);
+                    if (full) {
+                        page->unmarked = true;   // every registered slot is unmarked now
+                    }
                 }
                 return created;
             });
@@ -1464,6 +1483,8 @@ namespace sgcl::detail {
             if constexpr(All) {
                 if (unreachable_page && !page->unreachable) {
                     lists.push_unreachable(page);
+                } else if (!unreachable_page) {
+                    page->unmarked = false;   // the unmarked slots found, if any, are reachable: marked by this round
                 }
             }
         }
@@ -1481,15 +1502,21 @@ namespace sgcl::detail {
         // any of the eight to the current parity meanwhile.
         void _retire_states() noexcept {
             auto stale = State(Page::reachable_state() ^ State::Parity);
-            _parallel_array<int>(_pages.size(), [this, stale](size_t begin, size_t end) {
+            // the pages to retire on, picked out by their headers, so that
+            // the pool is asked for as many as there are
+            _retire_pages.clear();
+            for (auto page : _pages) {
+                if (page->retire) {
+                    page->retire = false;
+                    if (page->is_used) {
+                        _retire_pages.push_back(page);
+                    }
+                }
+            }
+            _parallel_array<int>(_retire_pages.size(), [this, stale](size_t begin, size_t end) {
                 std::atomic_thread_fence(std::memory_order_acquire);
                 for (auto i = begin; i < end; ++i) {
-                    auto page = _pages[i];
-                    if (!page->retire || !page->is_used) {
-                        page->retire = false;
-                        continue;
-                    }
-                    page->retire = false;
+                    auto page = _retire_pages[i];
                     auto states = page->states();
                     auto flags = page->flags();
                     auto count = page->flags_count();
@@ -1568,6 +1595,7 @@ namespace sgcl::detail {
                 }
                 if (late) {
                     page->state_updated.store(true, std::memory_order_release);
+                    page->unmarked = true;
                     _list_unreachable(page);
                 }
             }
@@ -1582,11 +1610,22 @@ namespace sgcl::detail {
             _register_late();
             std::vector<PageLists> results;
             if constexpr(All) {
-                results = _parallel_array<PageLists>(_pages.size(), [this](size_t begin, size_t end) {
+                // the pages that may hold unmarked registered slots (page.h:
+                // unmarked), picked out by their headers here, so that the
+                // pool is asked for as many as there are: in a young cycle
+                // most pages have none, and a pass over them all on the
+                // pool cost more in its dispatch than in its work
+                _unmarked_pages.clear();
+                for (auto page : _pages) {
+                    if (page->unmarked) {
+                        _unmarked_pages.push_back(page);
+                    }
+                }
+                results = _parallel_array<PageLists>(_unmarked_pages.size(), [this](size_t begin, size_t end) {
                     std::atomic_thread_fence(std::memory_order_acquire);
                     PageLists lists;
                     for (auto i = begin; i < end; ++i) {
-                        _update_page_marks<All>(_pages[i], lists);
+                        _update_page_marks<All>(_unmarked_pages[i], lists);
                     }
                     return lists;
                 });
@@ -1708,6 +1747,7 @@ namespace sgcl::detail {
                         flags[w].registered &= flags[w].marked;
                     }
                     page->unreachable = false;
+                    page->unmarked = false;   // registered is within marked now
                 }
                 return 0;
             });
@@ -2748,6 +2788,9 @@ namespace sgcl::detail {
         // read in order. A page is on one at most once (its flag says).
         std::vector<Page*> _reachable_pages;
         std::vector<Page*> _unreachable_pages;
+        std::vector<Page*> _unmarked_pages;   // the pass over all the pages: the ones that may hold unmarked registered slots
+        std::vector<Page*> _mutated_pages;    // the registration of a young cycle: the pages with object_created or state_updated
+        std::vector<Page*> _retire_pages;     // the retire after the sweep: the pages flagged retire
         std::vector<Page*> _pages;   // the registered pages
         std::vector<Page*> _weak_pages;   // of them, the pages of weak cells (weak_cell.h)
         std::vector<Page*> _cell_block_pages;   // and of the blocks of cells (cell_block.h)

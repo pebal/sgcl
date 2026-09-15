@@ -110,20 +110,20 @@ namespace sgcl::detail {
         void clear_flags(bool full) noexcept {
             auto flags = this->flags();
             auto count = flags_count();
-            // the reachable bits are clear already on most pages (the
-            // marking clears them as it goes): a load, no store into a
-            // line that is clean
+            // The reachable bits are clear after every cycle: the marking
+            // takes every bit it is given (collector.h: _mark_page). A full
+            // cycle clears the marks; a young cycle reads nothing here.
             if (full) {
                 for (unsigned i = 0; i < count; ++i) {
                     flags[i].reachable = 0;
                     flags[i].marked = 0;
                 }
             } else {
+#if !defined(NDEBUG)
                 for (unsigned i = 0; i < count; ++i) {
-                    if (flags[i].reachable) {
-                        flags[i].reachable = 0;
-                    }
+                    assert(flags[i].reachable == 0 && "a reachable bit left behind by the marking");
                 }
+#endif
             }
         }
 
@@ -396,6 +396,13 @@ namespace sgcl::detail {
         uint8_t reachable = {0};
         bool unreachable = {false};
         bool retire = {false};   // collector: states of the other parity to retire after the sweep, set where state_updated is lowered
+        // Collector: the page may hold registered slots that are not marked
+        // (registered & ~marked somewhere in its flags): raised by the
+        // registration (new objects, the marks cleared by a full cycle),
+        // lowered by the states pass that finds none and by the fold after
+        // the sweep. A young cycle's pass over all the pages reads only the
+        // header of a page without (collector.h: _update_page_marks).
+        bool unmarked = {true};
         bool is_used = {true};
         // result of the last rebuild of the free bitmap (object_pool_allocator_base.h)
         bool all_free = {false};
