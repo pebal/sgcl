@@ -174,6 +174,37 @@ int main() {
 
 The second `drain()` calls two functions for texture 2, one per entry: the release, and the one that keeps the pointer. The object is alive during both, and after the drain it lives on in `revived`; the next cycle that finds it unreachable, once `revived` is gone, destroys it like any other object.
 
+## Example: a weak map
+
+A registry whose entries go with their objects: the map holds its widgets weakly, and the queue drops the entry of a widget nothing reaches any more.
+
+```cpp
+#include "sgcl/sgcl.h"
+#include <iostream>
+#include <string>
+
+struct Widget {
+    std::string name;
+};
+
+int main() {
+    gc::unordered_map<std::string, gc::weak_ptr<Widget>> widgets;   // by name, held weakly: an entry keeps no widget alive
+    gc::expiry_queue<Widget> gone;
+    {
+        gc::tracked_ptr w = gc::make_tracked<Widget>("button");
+        widgets[w->name] = w;
+        gone.watch(w, [&](gc::tracked_ptr<Widget> t) { widgets.erase(t->name); });   // t: the widget, alive one last time
+    }   // the last strong pointer is gone
+    gc::collector::clear_stack();          // the dead frame zeroed, so that the conservative scan keeps nothing
+    gc::collector::force_collect(true);    // for the demonstration: a cycle finds the widget unreachable and keeps it for the queue
+    std::cout << widgets.size() << " before drain, ";
+    gone.drain();                          // the function runs here, on this thread: the entry goes
+    std::cout << widgets.size() << " after\n";   // 1 before drain, 0 after
+}
+```
+
+The key is the name, not the address. A raw address stored in a managed container is a word holding a heap address, and the pointer map the collector builds by elimination follows it like a `tracked_ptr`: a `gc::unordered_map<const Widget*, ...>` would keep every widget alive by its key, and the queue would never see one expire. The function gets the object alive one last time, which is when its name, or anything else the entry is keyed by, can still be read from it. The `weak_ptr` `watch()` returns is not needed here: it shares the entry's cell and is only a weak pointer, not a handle on the entry; dropping it cancels nothing.
+
 ## See also
 
 - [weak_ptr](weak_ptr.md): what `watch()` returns; [tracked_ptr](tracked_ptr.md): what the function gets.

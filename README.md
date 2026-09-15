@@ -137,6 +137,23 @@ gc::weak_ptr weak = gone.watch(texture, [](gc::tracked_ptr<Texture> t) { glDelet
 gone.drain();                                            // in the render loop: the GL name freed on this thread, the object destroyed by a later cycle
 ```
 
+A registry whose entries go with their objects, a weak map: the map holds its widgets weakly, the queue drops the entry of a widget nothing reaches any more.
+
+```cpp
+gc::unordered_map<std::string, gc::weak_ptr<Widget>> widgets;   // by name, held weakly: an entry keeps no widget alive
+gc::expiry_queue<Widget> gone;
+{
+    gc::tracked_ptr w = gc::make_tracked<Widget>("button");
+    widgets[w->name] = w;
+    gone.watch(w, [&](gc::tracked_ptr<Widget> t) { widgets.erase(t->name); });   // t: the widget, alive one last time
+}   // the last strong pointer is gone
+gc::collector::clear_stack();          // the dead frame zeroed, so that the conservative scan keeps nothing
+gc::collector::force_collect(true);    // for the demonstration: a cycle finds the widget unreachable and keeps it for the queue
+gone.drain();                          // the function runs here, on this thread: the entry goes
+```
+
+The key is the name, not the address: a raw address stored in a managed container is a word holding a heap address, and the pointer map built by elimination ("Pointer maps" below) follows it like a `tracked_ptr`, so a `gc::unordered_map<const Widget*, ...>` would keep every widget alive by its key. The function gets the object alive one last time, which is when its name, or anything else the entry is keyed by, can still be read from it.
+
 The cost, for a program without such queues, is a test of an empty list per cycle; with them, a pass over the cells per convergence of the marking and one more round of marking for the objects kept, plus their memory until the drain.
 
 ## Examples
