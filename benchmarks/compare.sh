@@ -66,7 +66,7 @@ fi
 if case_ weak; then
 KEY=ns/op
 echo "# weak pointer, 20 M per thread: weak|op|threads|variant|ns per op"
-for op in lock copy make; do for t in 1 4; do
+for op in lock expired copy make; do for t in 1 4; do
     for v in sgcl gc shared; do want $v && { run "$BIN/bench_weak_ptr" $v $t $op; echo "weak|$op|$t|$v|$(field ns/op)"; }; done
     want go && { run "$T/weak_ptr" $t $op; echo "weak|$op|$t|go|$(field ns/op)"; }
     want java-zgc && { run "${JAVA[@]}" -Xmx256m WeakPtr $t $op; echo "weak|$op|$t|java-zgc|$(field ns/op)"; }

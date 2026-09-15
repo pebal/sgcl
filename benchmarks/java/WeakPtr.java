@@ -1,7 +1,8 @@
 // Same shape as benchmarks/weak_ptr.cpp: the cost of a weak reference
 // (java.lang.ref.WeakReference).
-//   java WeakPtr [threads=1] [op=lock|copy|make]
+//   java WeakPtr [threads=1] [op=lock|copy|make|expired]
 //   lock: a weak reference to a live object dereferenced (get)
+//   expired: a weak reference to a collected object dereferenced: the null answer
 //   copy: the reference copied into a local, then tested
 //   make: a WeakReference made from a strong reference, then tested
 // Prints nanoseconds per operation.
@@ -24,9 +25,16 @@ public final class WeakPtr {
                 Node strong = new Node();
                 strong.v = 1;
                 WeakReference<Node> weak = new WeakReference<>(strong);
+                if (op.equals("expired")) {
+                    strong = new Node();   // the first node dropped: collected below, the reference cleared
+                    strong.v = 1;
+                    for (int i = 0; i < 10 && weak.get() != null; ++i) { System.gc(); }
+                    if (weak.get() != null) System.err.println("no object expired: the numbers below are of a live one");
+                }
                 long sum = 0;
                 switch (op) {
                     case "lock":
+                    case "expired":
                         for (long i = 0; i < ITERS; ++i) { Node p = weak.get(); if (p != null) sum += p.v; }
                         break;
                     case "copy":

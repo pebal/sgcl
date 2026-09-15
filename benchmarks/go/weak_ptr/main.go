@@ -1,7 +1,8 @@
 // Same shape as benchmarks/weak_ptr.cpp: the cost of a weak pointer
 // (weak.Pointer, Go 1.24 and later).
-//   weak_ptr [threads=1] [op=lock|copy|make]
+//   weak_ptr [threads=1] [op=lock|copy|make|expired]
 //   lock: a weak pointer to a live object dereferenced (Value)
+//   expired: a weak pointer to a collected object dereferenced: the nil answer
 //   copy: a weak pointer copied into a local, then tested
 //   make: a weak pointer made from a strong one (weak.Make), then tested
 // Prints nanoseconds per operation.
@@ -10,6 +11,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"strconv"
 	"sync"
 	"syscall"
@@ -55,9 +57,18 @@ func main() {
 			defer wg.Done()
 			strong := &node{v: 1}
 			wk := weak.Make(strong)
+			if op == "expired" {
+				strong = &node{v: 1} // the first node dropped: collected below, the pointer cleared
+				for i := 0; i < 10 && wk.Value() != nil; i++ {
+					runtime.GC()
+				}
+				if wk.Value() != nil {
+					fmt.Fprintln(os.Stderr, "no object expired: the numbers below are of a live one")
+				}
+			}
 			var sum int64
 			switch op {
-			case "lock":
+			case "lock", "expired":
 				for i := 0; i < iters; i++ {
 					if p := wk.Value(); p != nil {
 						sum += p.v
