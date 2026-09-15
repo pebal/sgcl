@@ -13,6 +13,8 @@ One page per public class or function of the library, each with every public mem
 | [weak_ptr](weak_ptr.md) | `sgcl/weak_ptr.h` | a pointer that does not keep its object alive, cleared by the cycle that finds the object unreachable |
 | [weak_map, weak_multimap](weak_map.md) | `sgcl/weak_map.h` | values attached to objects the map does not keep alive: keyed by the object, an entry dies with it |
 | [weak_set](weak_set.md) | `sgcl/weak_set.h` | a set of objects it does not keep alive |
+| [variant](variant.md) | `sgcl/variant.h` | `std::variant`'s interface with the tracked pointers in a word of their own, apart from the data of the other alternatives |
+| [any](any.md) | `sgcl/any.h` | `std::any`'s interface with a tracked pointer in a word of its own and an object with pointers in a managed object of its own |
 | [atomic, atomic_ref](atomic.md) | `sgcl/atomic.h`, `sgcl/atomic_ref.h` | lock-free atomic `tracked_ptr`: `load`, `store`, compare-exchange, `wait`/`notify`, no ABA ([atomic_ref](atomic_ref.md) on its own page) |
 
 ## Containers

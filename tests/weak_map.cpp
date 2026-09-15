@@ -20,7 +20,9 @@ namespace {
         inline static std::atomic<int> alive = {0};
     };
 
-    void settle() {
+    // Inlined into the test's frame: a frame of its own would sit where
+    // the dead frames were and keep their words (gc.cpp: live_after_collect)
+    SGCL_ALWAYS_INLINE void settle() {
         collector::clear_stack();
         for (int i = 0; i < 3; ++i) {
             collector::force_collect(true);
@@ -71,9 +73,10 @@ TEST(WeakMap_Tests, TheMapDoesNotKeepItsObjectsAlive) {
     settle();
     const int before = Node::alive.load();
     weak_map<Node, std::string> names;
-    tracked_ptr kept = make_tracked<Node>(1);
-    names[kept] = "kept";
-    off_frame([&] {
+    tracked_ptr<Node> kept;
+    off_frame([&] {                        // the allocations in frames of their own: the test frame keeps exact words only
+        kept = make_tracked<Node>(1);
+        names[kept] = "kept";
         tracked_ptr dropped = make_tracked<Node>(2);
         names[dropped] = "dropped";
     });
@@ -190,11 +193,12 @@ TEST(WeakMap_Tests, AValueHoldingItsKeyKeepsTheEntryAlive) {
 TEST(WeakMap_Tests, ErasingThroughAnIteratorReturnsTheNextLiveEntry) {
     settle();
     weak_map<Node, int> counts;
-    tracked_ptr a = make_tracked<Node>(1);
-    tracked_ptr b = make_tracked<Node>(2);
-    counts[a] = 1;
-    counts[b] = 2;
+    tracked_ptr<Node> a, b;
     off_frame([&] {
+        a = make_tracked<Node>(1);
+        b = make_tracked<Node>(2);
+        counts[a] = 1;
+        counts[b] = 2;
         tracked_ptr dropped = make_tracked<Node>(3);
         counts[dropped] = 3;
     });
@@ -285,8 +289,10 @@ TEST(WeakSet_Tests, TheIteratorHoldsTheObjectItStandsOn) {
     collector::force_collect(true);
     collector::force_collect(true);
     EXPECT_EQ(Node::alive.load(), before + 1);
-    EXPECT_EQ((*it)->value, 2);
-    it = seen.end();
+    off_frame([&] {                        // the copies of the pointer in a frame of their own
+        EXPECT_EQ((*it)->value, 2);
+        it = seen.end();
+    });
     settle();
     EXPECT_EQ(Node::alive.load(), before);
     EXPECT_EQ(seen.sweep(), 1u);

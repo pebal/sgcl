@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "os.h"
+
 #include <atomic>
 
 namespace sgcl::detail {
@@ -41,6 +43,25 @@ namespace sgcl::detail {
         explicit WeakCell(void* p, unsigned f = 0) noexcept
         : target(p)
         , flags(f) {
+        }
+
+        // The word and the flags as the collector's weak phase reads them
+        // (collector.h: _for_each_weak_cell). A cell is written by its
+        // constructor before its slot is published, ordered before these
+        // reads by the release store of the state and the acquire fence
+        // the collector has passed since; the sanitizers do not follow
+        // that fence and would report the constructor's stores against
+        // the reads, so the reads are hidden from them (os.h: load_word).
+        SGCL_NO_SANITIZE void* collector_target() const noexcept {
+            auto p = (void*)os::load_word(&target);
+            std::atomic_thread_fence(std::memory_order_acquire);
+            return p;
+        }
+
+        SGCL_NO_SANITIZE unsigned collector_flags() const noexcept {
+            auto f = *(const volatile unsigned*)&flags;
+            std::atomic_thread_fence(std::memory_order_acquire);
+            return f;
         }
 
         std::atomic<void*> target;

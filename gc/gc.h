@@ -43,6 +43,11 @@ namespace gc {
     using sgcl::atomic;
     using sgcl::atomic_ref;
     using sgcl::unique_ptr;   // lives anywhere as it is
+    // any and variant have no word of their own: where they may live is
+    // decided by what they hold (a gc::tracked_ptr inside: anywhere)
+    using sgcl::any;
+    using sgcl::variant;
+    using sgcl::monostate;
 
     // gc::make_tracked is sgcl::make_tracked, the same function (a
     // unique_ptr, deterministic until converted): a using-declaration, not
@@ -102,6 +107,15 @@ namespace gc {
     using sgcl::const_pointer_cast;
     using sgcl::dynamic_pointer_cast;
     using sgcl::get;
+    using sgcl::get_if;
+    using sgcl::holds_alternative;
+    using sgcl::visit;
+    using sgcl::variant_size;
+    using sgcl::variant_size_v;
+    using sgcl::variant_alternative;
+    using sgcl::variant_alternative_t;
+    using sgcl::any_cast;
+    using sgcl::make_any;
     using sgcl::to_array;
     using sgcl::dynamic_extent;
     using sgcl::erase;

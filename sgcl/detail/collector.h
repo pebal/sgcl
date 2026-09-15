@@ -526,7 +526,8 @@ namespace sgcl::detail {
         // the release store of the state and the acquire fence this thread
         // passed since; the thread sanitizer does not follow that fence
         // and would report the constructor's store against the reads, so
-        // they are hidden from it, as in _mark_array_childs.
+        // they are hidden from it (weak_cell.h: collector_target,
+        // collector_flags), as in _mark_array_childs.
         enum class WeakPhase { Nothing, Kept, Cleared };
 
         // The weak phase, once the marking has converged: first the watched
@@ -568,14 +569,17 @@ namespace sgcl::detail {
         // cycle found unreachable: the target is marked reachable again,
         // for the queue to hand it to its callback, and the cell is flagged
         // expired. True when any was.
-        SGCL_NO_SANITIZE bool _keep_watched_targets() noexcept {
+        // The reads through the cell's collector_ accessors (weak_cell.h):
+        // hidden from the sanitizers, for the cells written before their
+        // slot was published.
+        bool _keep_watched_targets() noexcept {
             bool kept = false;
             _for_each_weak_cell([&](WeakCell* cell) {
-                auto flags = cell->flags.load(std::memory_order_acquire);
+                auto flags = cell->collector_flags();
                 if (!(flags & WeakCell::Watched) || (flags & WeakCell::Drained)) {
                     return;
                 }
-                auto target = cell->target.load(std::memory_order_acquire);
+                auto target = cell->collector_target();
                 if (target && _mark_pointer(target)) {
                     kept = true;
                     if (!(flags & WeakCell::Expired)) {
@@ -594,10 +598,10 @@ namespace sgcl::detail {
         // are not handed out again before the sweep: a cell never holds
         // the address of a slot's earlier occupant, which the weak
         // containers (detail/weak_table.h) rely on to compare by it.
-        SGCL_NO_SANITIZE bool _clear_weak_cells() noexcept {
+        bool _clear_weak_cells() noexcept {
             bool cleared = false;
             _for_each_weak_cell([&](WeakCell* cell) {
-                auto target = cell->target.load(std::memory_order_acquire);
+                auto target = cell->collector_target();
                 if (target && _unmarked_object(target)) {
                     cleared |= cell->target.compare_exchange_strong(target, nullptr, std::memory_order_seq_cst);
                 }
@@ -908,7 +912,9 @@ namespace sgcl::detail {
         // holds a pointer to a live object. Either a tracked_ptr shares its
         // storage with data (a union, std::variant, an inline buffer), which
         // the collector cannot follow, or an integer happens to hold an
-        // address. Reported once per type.
+        // address. Reported once per type. A word pointing into the object
+        // itself is data (an empty std::map or std::list points at its own
+        // end node): nothing to follow there.
         void _check_removed_offsets(ChildPointers& childs, void* ptr) noexcept {
             if (childs.warned.load(std::memory_order_relaxed)) {
                 return;
@@ -920,7 +926,7 @@ namespace sgcl::detail {
                     bits &= bits - 1;
                     auto word = (const void*)os::load_word((RawPointer*)ptr + offset);
                     auto page = Heap::page_of_checked(word);
-                    if (page && _is_registered(page, word)) {
+                    if (page && _is_registered(page, word) && page->pointer_of(page->index_of(word)) != ptr) {
                         childs.warned.store(true, std::memory_order_relaxed);
                         std::fprintf(stderr, "[sgcl] type %s: the word at byte offset %zu was classified as data but holds a pointer to a managed object; a tracked_ptr sharing storage with data is not supported\n", childs.type.name(), offset * sizeof(RawPointer));
                         return;
