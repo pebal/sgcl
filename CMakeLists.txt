@@ -15,12 +15,12 @@ add_library(sgcl INTERFACE
     ${SGCL_SOURCES}
 )
 
+# The include path is the tree's root: "sgcl/sgcl.h", "gc/gc.h". Not the
+# sgcl directory itself, whose headers are named after their std
+# counterparts (string.h among them) and would shadow the C headers.
 target_include_directories(sgcl INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/sgcl>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/sgcl/detail>
-    $<INSTALL_INTERFACE:include/sgcl>
-    $<INSTALL_INTERFACE:include/sgcl/detail>
+    $<INSTALL_INTERFACE:include>
 )
 
 install(DIRECTORY sgcl/

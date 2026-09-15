@@ -22,6 +22,7 @@
 #include "queue.h"
 #include "set.h"
 #include "stack.h"
+#include "string.h"
 #include "tracked_ptr.h"
 #include "unique_ptr.h"
 #include "unordered_map.h"

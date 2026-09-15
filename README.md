@@ -69,6 +69,7 @@ Under either namespace:
 - `weak_ptr<T>`: a pointer that keeps nothing alive. `lock()` is the object as a `tracked_ptr` while it is reachable and null once a cycle has found it unreachable; `expired()`, `reset()`; made from a `tracked_ptr` of either kind or another `weak_ptr` ("Weak pointers" below).
 - `weak_map<Key, T>`, `weak_multimap<Key, T>`, `weak_set<Key>`: containers keyed by objects they do not keep alive; an entry dies with its object ("Weak containers" below).
 - `variant<Ts...>`, `any`, `function<R(Args...)>`, `move_only_function`, `expected<T, E>`: the interfaces of their `std` namesakes, safe to hold a `tracked_ptr` or a `weak_ptr` next to other alternatives, values, captures or errors, which the `std` ones are not ("variant, any, function and expected" below). `optional`, `pair` and `tuple` hold one correctly as they are and are aliased under the library's names, so that the safe set is one namespace.
+- `string` (`basic_string<CharT>`, `wstring`, `u8string`, `u16string`, `u32string`): an immutable string on the managed heap, one word, shared by copying, compared and hashed by its contents, no destructor ("string" below).
 - The containers, listed below.
 
 ## Containers
@@ -101,6 +102,29 @@ gc::function<int()> f = [node] { return node->value; };   // the closure in a ma
 gc::expected<gc::tracked_ptr<Node>, std::string> r = gc::unexpected("not found");   // the pointer and the string laid out apart
 std::cout << f() << " " << r.error() << "\n";
 ```
+
+## string
+`sgcl::string` is an immutable string on the managed heap: one word, a pointer to an object holding the length, the characters and a terminator, of exactly that size (a string of ten characters is an object of 16 bytes). What a string is in Java or Go rather than in C++: made once, never modified, shared by copying the word, compared and hashed by its contents, reclaimed by the collector, with no destructor and no reference count. The empty string is null. There is no small-string optimization, and the string is not a buffer to build in: text is built as a `std::string` or a `string_view` and made a `string` once; the read side of `std::string` and all of `std::string_view` are there (`size`, `[]`, the `find`s, `starts_with`, `substr` as a new string, `+` as a new string, the comparisons and `<=>`, `std::hash`, `operator<<`, the conversions), and so are `wstring`, `u8string`, `u16string`, `u32string`. `gc::string` lives anywhere; the two kinds convert into each other and share the object ([docs/string.md](docs/string.md)).
+
+```cpp
+struct Element { gc::string name; gc::vector<gc::tracked_ptr<Element>> children; };
+gc::string p = "p";                                // one object, made once
+gc::tracked_ptr e = gc::make_tracked<Element>();
+e->name = p;                                       // a word copied: the object shared
+assert(e->name == p && e->name.object() == p.object() && e->name == "p");
+std::unordered_map<gc::string, int> counts;        // hashed by the characters, as a std::string_view
+++counts[p];
+```
+
+What it costs against a `std::string` member (`benchmarks/string.cpp`: 2 M strings in managed nodes, one thread; the strings made from a text buffer, copied from scattered nodes, and the sweep that frees the nodes; hashing costs the same, the characters read either way):
+
+| length | make, `std::string` | make, `string` | copy, `std::string` | copy, `string` | sweep, `std::string` | sweep, `string` |
+|---|---|---|---|---|---|---|
+| 10 | 2.8 ns | 9.7 ns | 12.0 ns | 12.6 ns | 16.9 ms | 24.3 ms |
+| 40 | 18.3 ns | 13.9 ns | 84 ns | 14.3 ns | 43.6 ms | 25.9 ms |
+| 100 | 20.2 ns | 18.0 ns | 111 ns | 12.9 ns | 45.5 ms | 30.7 ms |
+
+Below its small buffer (22 characters in libc++, 15 in libstdc++ and MSVC) a `std::string` costs no allocation, and no type that allocates can match that: a `string` of a few characters costs a managed allocation to make (README: "Allocation") and an object of its own for the sweep to free. Past the buffer, a `std::string` costs an allocation to make, an allocation per copy, and a `free` in the sweep for each; a `string` costs the same allocation once, a word per copy, and nothing in the sweep (the sweep of the ten-character case is slower for the `string`: two million more objects to free, where the `std::string`s lay inside their nodes). So `std::string` remains the member for text of a few characters made and dropped, and `string` is the member for text that is kept, shared and compared: names, keys, symbols, the leaves of a document.
 
 ## Pointer aliases
 A `tracked_ptr` may point into the middle of a managed object: to a member or to a base subobject. Such an alias behaves like the aliasing constructor of `std::shared_ptr`: the object it points into stays alive for as long as the alias does.

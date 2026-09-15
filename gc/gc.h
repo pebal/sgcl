@@ -39,6 +39,13 @@ namespace gc {
     using weak_multimap = sgcl::weak_multimap<Key, T, tracked_ptr>;
     template<class Key>
     using weak_set = sgcl::weak_set<Key, tracked_ptr>;
+    template<class CharT, class Traits = std::char_traits<CharT>>
+    using basic_string = sgcl::basic_string<CharT, Traits, tracked_ptr>;
+    using string = basic_string<char>;
+    using wstring = basic_string<wchar_t>;
+    using u8string = basic_string<char8_t>;
+    using u16string = basic_string<char16_t>;
+    using u32string = basic_string<char32_t>;
 
     using sgcl::atomic;
     using sgcl::atomic_ref;
