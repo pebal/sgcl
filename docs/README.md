@@ -11,6 +11,8 @@ One page per public class or function of the library, each with every public mem
 | [gc::tracked_ptr](gc/tracked_ptr.md) | `gc/tracked_ptr.h` | a `tracked_ptr` that may live anywhere: the same word in managed objects and on stacks, a cell of a managed block as its root elsewhere (a `std` container, a global, a lambda on the heap); the pointer of [the gc namespace](#the-gc-namespace) |
 | [make_tracked](make_tracked.md) | `sgcl/make_tracked.h` | creates an object on the managed heap |
 | [weak_ptr](weak_ptr.md) | `sgcl/weak_ptr.h` | a pointer that does not keep its object alive, cleared by the cycle that finds the object unreachable |
+| [weak_map, weak_multimap](weak_map.md) | `sgcl/weak_map.h` | values attached to objects the map does not keep alive: keyed by the object, an entry dies with it |
+| [weak_set](weak_set.md) | `sgcl/weak_set.h` | a set of objects it does not keep alive |
 | [atomic, atomic_ref](atomic.md) | `sgcl/atomic.h`, `sgcl/atomic_ref.h` | lock-free atomic `tracked_ptr`: `load`, `store`, compare-exchange, `wait`/`notify`, no ABA ([atomic_ref](atomic_ref.md) on its own page) |
 
 ## Containers

@@ -29,6 +29,8 @@
 #include "unordered_multiset.h"
 #include "unordered_set.h"
 #include "vector.h"
+#include "weak_map.h"
 #include "weak_ptr.h"
+#include "weak_set.h"
 
 #include "../gc/gc.h"   // the gc namespace: the same types with gc::tracked_ptr as their word

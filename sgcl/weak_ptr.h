@@ -11,6 +11,10 @@
 #include "tracked_ptr.h"
 #include "unique_ptr.h"
 
+namespace sgcl::detail {
+    struct WeakIdentity;
+}
+
 namespace sgcl {
     // A pointer that does not keep its object alive: lock() is the object as
     // a strong pointer while it is reachable through strong pointers, and
@@ -151,6 +155,7 @@ namespace sgcl {
 
         template<class, template<class> class> friend class weak_ptr;
         template<class, template<class> class> friend class expiry_queue;
+        friend struct detail::WeakIdentity;
     };
 
     template<class T, template<class> class Ptr>

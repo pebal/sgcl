@@ -212,6 +212,8 @@ Either the lock sees the cleared word and returns null, or it published its haza
 
 An `expiry_queue` marks its cells `Watched`: the weak phase, finding such a target unreachable, marks it reachable instead and sets `Expired`; `drain()` hands the object to the function alive, and from then on the cell is an ordinary one.
 
+The weak containers (`weak_map.h`, `weak_set.h`, `detail/weak_table.h`) are hash tables keyed by weak pointers, hashed and compared by the cell's word read without a lock: the word holds the object's address while the object lives, and the weak phase clears it before the sweep frees the slot, so a word never names a slot's earlier occupant and a cleared key equals nothing, its own entry included. The hash of a key changes when its object dies, which the table survives because it keeps the hash it placed each node with (the hash is not `noexcept`, which is what makes libstdc++ cache it). The dead entries are dropped by a pass over the table every so many insertions, as many as the table has entries.
+
 ## The `gc::` family
 
 (`gc/tracked_ptr.h`, `cell_block.h`, `types.h`: `UniqueReleased`)

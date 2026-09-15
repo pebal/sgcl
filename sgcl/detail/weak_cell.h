@@ -19,7 +19,11 @@ namespace sgcl::detail {
     // with the last of them. Constructed inside the allocator's init,
     // before its slot is published (maker.h: make_tracked_before_publish),
     // so the collector never sees a cell half-written or the word of the
-    // slot's last occupant.
+    // slot's last occupant. The word, while it holds an address, names
+    // a live object and nothing else: the clearing precedes the sweep
+    // that frees the object's slot, and the slot cannot be handed out
+    // again before that. The weak containers (detail/weak_table.h)
+    // hash and compare their keys by the word, read without a lock.
     // A cell watched by an expiry_queue (expiry_queue.h) carries flags: the
     // collector, finding the target of a Watched cell unreachable, does not
     // clear it but marks the target reachable and sets Expired, and keeps

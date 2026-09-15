@@ -196,63 +196,10 @@ int main() {
 
 The second `drain()` calls two functions for texture 2, one per entry: the release, and the one that keeps the pointer. The object is alive during both, and after the drain it lives on in `revived`; the next cycle that finds it unreachable, once `revived` is gone, destroys it like any other object.
 
-## Example: metadata attached to objects
-
-A map keyed by the object and held weakly, as many strings per object as needed; the entries go with the object.
-
-```cpp
-#include "sgcl/sgcl.h"
-#include <iostream>
-#include <string>
-
-struct Node {
-    int value;
-};
-
-// The keys ordered by the object they point at. A key in the map is
-// watched, so its object is alive as long as the key is there: lock()
-// never fails, and the order never changes under the map.
-struct by_object {
-    using is_transparent = void;
-    static const void* of(const gc::weak_ptr<Node>& w) { return w.lock().get(); }
-    static const void* of(const gc::tracked_ptr<Node>& p) { return p.get(); }
-    template<class A, class B>
-    bool operator()(const A& a, const B& b) const { return of(a) < of(b); }
-};
-
-int main() {
-    // Metadata attached to any object, as many strings as needed: the map
-    // holds its objects weakly, and the entries go with the object.
-    gc::multimap<gc::weak_ptr<Node>, std::string, by_object> meta;
-    gc::expiry_queue<Node> gone;
-    auto attach = [&](const gc::tracked_ptr<Node>& object, std::string text) {
-        gc::weak_ptr<Node> key = object;
-        if (!meta.count(key)) {   // the first string of an object: the queue drops every entry of the object with it
-            gone.watch(object, [&meta, key](gc::tracked_ptr<Node>) { meta.erase(key); });
-        }
-        meta.emplace(key, std::move(text));
-    };
-    {
-        gc::tracked_ptr node = gc::make_tracked<Node>(42);
-        attach(node, "created by the parser");
-        attach(node, "checked");
-        auto [first, last] = meta.equal_range(node);   // looked up by the strong pointer
-        for (auto it = first; it != last; ++it) {
-            std::cout << it->second << "\n";
-        }
-    }   // the last strong pointer is gone
-    gc::collector::clear_stack();          // the dead frame zeroed, so that the conservative scan keeps nothing
-    gc::collector::force_collect(true);    // for the demonstration: a cycle finds the node unreachable and keeps it for the queue
-    gone.drain();                          // the functions run here: the entries go
-    std::cout << meta.size() << " entries left\n";
-}
-```
-
-Output: the two strings, then `0 entries left`. The key is a weak pointer compared by the object it points at, not the address stored raw: a raw address in a managed container is a word holding a heap address, and the pointer map the collector builds by elimination follows it like a `tracked_ptr`, so a `gc::multimap<const Node*, ...>` would keep every node alive by its key, and the queue would never see one expire. A watched key's `lock()` is safe as an ordering: the queue keeps the object until `drain()`, and the function erases the entries while the object is alive one last time. The handle `watch()` returns is not needed here; a `detach(object)` that erased the entries by hand would keep it and `cancel()` it there, so that the object is not kept for a function with nothing left to do.
-
 ## See also
 
 - [weak_ptr](weak_ptr.md): what `entry::weak()` returns; [tracked_ptr](tracked_ptr.md): what the function gets.
+- [weak_map](weak_map.md), [weak_set](weak_set.md): for what needs no function, the metadata or the registry that forgets an object by itself.
 - [collector](collector.md): `force_collect(true)`, used above to make the cycle happen at once.
 - README: [expiry_queue](../README.md#expiry_queue) under [Weak pointers](../README.md#weak-pointers), [The rules](../README.md#the-rules), [Stack roots](../README.md#stack-roots).
 - `tests/expiry_queue.cpp`: every behaviour above, checked.

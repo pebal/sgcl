@@ -590,6 +590,10 @@ namespace sgcl::detail {
         // a compare-exchange against a lock in progress (weak_ptr.h: lock
         // publishes its hazard, then reads the cell again). True when any
         // was cleared: a pass for the states and hazards follows.
+        // Runs before the sweep frees the targets' slots, and the slots
+        // are not handed out again before the sweep: a cell never holds
+        // the address of a slot's earlier occupant, which the weak
+        // containers (detail/weak_table.h) rely on to compare by it.
         SGCL_NO_SANITIZE bool _clear_weak_cells() noexcept {
             bool cleared = false;
             _for_each_weak_cell([&](WeakCell* cell) {

@@ -208,6 +208,7 @@ int main() {
 ## See also
 
 - [tracked_ptr](tracked_ptr.md), [unique_ptr](unique_ptr.md), [make_tracked](make_tracked.md)
+- [weak_map](weak_map.md), [weak_set](weak_set.md): containers keyed by objects they do not keep alive
 - [expiry_queue](expiry_queue.md): a `weak_ptr` plus a function called with the object, alive one last time, when it is found unreachable
 - [collector](collector.md) for `force_collect`
 - README: [Weak pointers](../README.md#weak-pointers), [SGCL classes](../README.md#sgcl-classes), [The rules](../README.md#the-rules)

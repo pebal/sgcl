@@ -42,7 +42,7 @@ The cycles are generational by default (sticky mark bits): a young cycle traces 
 - **Containers**: `vector`, `array`, `deque`, `list`, `forward_list`, the maps and sets, ordered and unordered, with the interfaces of `std`, their nodes and buffers managed.
 - **Lock-free atomic pointers**: `atomic<tracked_ptr<T>>` and `atomic_ref` with compare-exchange, and no ABA: a node is never reused while a thread holds it.
 - **Coroutines**: a promise type derived from `managed_frame` gets its frames from the managed heap, so the `tracked_ptr` locals, parameters and promise members of a suspended coroutine are roots; `task<T>` and `generator<T>` come ready.
-- **Weak pointers**: `weak_ptr<T>` with `lock()` and `expired()`, one word, copied for the price of a `tracked_ptr`; cleared by the collector, never dangling, never a reference count. `expiry_queue<T>` hands an object found unreachable to a function of your choice, on a thread of your choice, alive one last time: a cleanup, or a return to life.
+- **Weak pointers**: `weak_ptr<T>` with `lock()` and `expired()`, one word, copied for the price of a `tracked_ptr`; cleared by the collector, never dangling, never a reference count. `expiry_queue<T>` hands an object found unreachable to a function of your choice, on a thread of your choice, alive one last time: a cleanup, or a return to life. `weak_map`, `weak_multimap` and `weak_set` attach values to objects, or register them, without keeping them alive.
 - **Dynamic type**: `type()`, `is<U>()` and `as<U>()` on any pointer, including `tracked_ptr<void>`, without virtual functions.
 - **Diagnostics**: cycle counters and phase times, live objects and bytes by type, the live objects themselves, what holds an object and what it retains, and the collector one gate at a time for the tests of the engine; read without stopping the collector or after a cycle it runs for the question ("Methods useful for state analysis" below, [docs/diagnostics.md](docs/diagnostics.md)).
 - **Memory under control**: a committed-memory ceiling (90% of the cgroup or physical limit by default), a collection forced before it and `std::bad_alloc` instead of the OOM killer past it; the whole managed heap is one reservation, backed lazily and returned in 2 MB chunks.
@@ -56,7 +56,7 @@ Every public class and function has a page of its own in [docs/](docs/README.md)
 - In `sgcl::`, that word is `sgcl::tracked_ptr<T>`: the pointer the collector follows, one word, a store and a byte of state per copy. The collector finds such words in two places only, inside managed objects and on the stacks it scans, so an `sgcl::tracked_ptr`, and every `sgcl` container, atomic, weak pointer or coroutine handle, lives there and nowhere else: never in `new`/`malloc` memory, a `std` container, a global, a `thread_local` or a lambda copied to the heap (rule 1 below). Debug builds assert it.
 - In `gc::`, that word is `gc::tracked_ptr<T>`: inside a managed object or on a stack it is an `sgcl::tracked_ptr`, the same word at the same cost; in any other memory it is the address of a cell, a word of a managed block of a cache line of them that is the object's root, taken by the constructor from the thread's allocator, given back by the destructor, the pointer's own in between: no store allocates and no move takes a cell from another pointer, so threads race on the cell's word exactly as on an `sgcl::tracked_ptr`, never on the making of a cell; a block is one managed allocation per sixteen cells and is freed by the collector once every cell of it is given back. The mode is decided by the address at construction and read from the sign of the word; the collector never sees the cell form. What a `gc` type pays for living anywhere is the test of that word on each access: a store into a local 1.5 ns against 1.3, into a member 1.9 against 1.8, a dereference 0.48 against 0.44, a construction on the stack 1.8 against 1.3 (the check of the address), a construction and destruction in unmanaged memory 7.4 ([docs/gc/tracked_ptr.md](docs/gc/tracked_ptr.md), and the `gc::` columns of the benchmarks below).
 
-`gc::vector<T>` is `sgcl::vector<T, gc::tracked_ptr>`: each container, `expiry_queue`, `task` and `generator` takes the kind of its root word as its last template parameter, `sgcl::tracked_ptr` by default, and the `gc` names are aliases with `gc::tracked_ptr` in that place. `gc::weak_ptr<T>` is `sgcl::weak_ptr<T, gc::tracked_ptr>`; `gc::atomic`, `gc::atomic_ref`, `gc::unique_ptr`, `gc::make_tracked` and `gc::collector` are the `sgcl` ones, which need no other kind. A `gc` container and an `sgcl` one of the same element type hold the same managed nodes and buffers; the elements are a choice of their own, and in a managed buffer a `gc::tracked_ptr` is an `sgcl::tracked_ptr`.
+`gc::vector<T>` is `sgcl::vector<T, gc::tracked_ptr>`: each container, `expiry_queue`, `task` and `generator` takes the kind of its root word as its last template parameter, `sgcl::tracked_ptr` by default, and the `gc` names are aliases with `gc::tracked_ptr` in that place. `gc::weak_ptr<T>` is `sgcl::weak_ptr<T, gc::tracked_ptr>` and `gc::weak_map`, `gc::weak_multimap`, `gc::weak_set` are the `sgcl` ones with the same kind; `gc::atomic`, `gc::atomic_ref`, `gc::unique_ptr`, `gc::make_tracked` and `gc::collector` are the `sgcl` ones, which need no other kind. A `gc` container and an `sgcl` one of the same element type hold the same managed nodes and buffers; the elements are a choice of their own, and in a managed buffer a `gc::tracked_ptr` is an `sgcl::tracked_ptr`.
 
 ## The classes
 Under either namespace:
@@ -67,6 +67,7 @@ Under either namespace:
 - `managed_frame`, `frame_ptr<Promise>`, `task<T>`, `generator<T>`: coroutines with frames on the managed heap ("Coroutines" below); `gc::task` and `gc::generator` are what a scheduler keeps in a `std::vector`.
 - `expiry_queue<T>`: `watch(object, f)` is an entry, `f` kept for the day nothing else reaches the object (its handle cancels the entry, or gives a `weak_ptr`); `drain()` calls the `f` of every such entry with the object, alive one last time ("Weak pointers" below).
 - `weak_ptr<T>`: a pointer that keeps nothing alive. `lock()` is the object as a `tracked_ptr` while it is reachable and null once a cycle has found it unreachable; `expired()`, `reset()`; made from a `tracked_ptr` of either kind or another `weak_ptr` ("Weak pointers" below).
+- `weak_map<Key, T>`, `weak_multimap<Key, T>`, `weak_set<Key>`: containers keyed by objects they do not keep alive; an entry dies with its object ("Weak containers" below).
 - The containers, listed below.
 
 ## Containers
@@ -139,53 +140,27 @@ auto entry = gone.watch(texture, [](gc::tracked_ptr<Texture> t) { glDeleteTextur
 gone.drain();                                            // in the render loop: the GL name freed on this thread, the object destroyed by a later cycle
 ```
 
-Metadata attached to any object, a map keyed by the object and held weakly: the entries go with the object.
+The cost, for a program without such queues, is a test of an empty list per cycle; with them, a pass over the cells per convergence of the marking and one more round of marking for the objects kept, plus their memory until the drain.
+
+### Weak containers
+`weak_map<Key, T>`, `weak_multimap<Key, T>` and `weak_set<Key>` are containers keyed by objects they do not keep alive: the key is the object itself, its identity and not its contents, looked up by a `tracked_ptr` to it and held by a `weak_ptr`. An entry whose object a cycle has found unreachable is dead: never found, passed over by the iteration, dropped by a sweep, which the container runs by itself every so many insertions (as many as it has entries) and on `sweep()`. Metadata attached to objects from outside, a cache keyed by the object, a registry that forgets. The iteration hands out the object as a strong pointer, held while the iterator stands on the entry, and the value by reference. A value holding a strong pointer to its own key keeps the key alive, and the entry with it: there are no ephemerons.
 
 ```cpp
-struct Node {
-    int value;
-};
-
-// The keys ordered by the object they point at. A key in the map is
-// watched, so its object is alive as long as the key is there: lock()
-// never fails, and the order never changes under the map.
-struct by_object {
-    using is_transparent = void;
-    static const void* of(const gc::weak_ptr<Node>& w) { return w.lock().get(); }
-    static const void* of(const gc::tracked_ptr<Node>& p) { return p.get(); }
-    template<class A, class B>
-    bool operator()(const A& a, const B& b) const { return of(a) < of(b); }
-};
-
-int main() {
-    gc::multimap<gc::weak_ptr<Node>, std::string, by_object> meta;   // as many strings per object as needed
-    gc::expiry_queue<Node> gone;
-    auto attach = [&](const gc::tracked_ptr<Node>& object, std::string text) {
-        gc::weak_ptr<Node> key = object;
-        if (!meta.count(key)) {   // the first string of an object: the queue drops every entry of the object with it
-            gone.watch(object, [&meta, key](gc::tracked_ptr<Node>) { meta.erase(key); });
-        }
-        meta.emplace(key, std::move(text));
-    };
-    {
-        gc::tracked_ptr node = gc::make_tracked<Node>(42);
-        attach(node, "created by the parser");
-        attach(node, "checked");
-        auto [first, last] = meta.equal_range(node);   // looked up by the strong pointer
-        for (auto it = first; it != last; ++it) {
-            std::cout << it->second << "\n";
-        }
-    }   // the last strong pointer is gone
-    gc::collector::clear_stack();          // the dead frame zeroed, so that the conservative scan keeps nothing
-    gc::collector::force_collect(true);    // for the demonstration: a cycle finds the node unreachable and keeps it for the queue
-    gone.drain();                          // the function runs here: the entries go
-    std::cout << meta.size() << " entries left\n";   // 0
-}
+struct Node { int value; };
+gc::weak_map<Node, std::string> names;   // a name for any object, kept outside it; lives anywhere
+{
+    gc::tracked_ptr node = gc::make_tracked<Node>(42);
+    names[node] = "the answer";
+    if (auto it = names.find(node); it != names.end()) {
+        std::cout << it->key->value << ": " << it->value << "\n";   // 42: the answer
+    }
+}   // the last strong pointer is gone
+gc::collector::clear_stack();          // the dead frame zeroed, so that the conservative scan keeps nothing
+gc::collector::force_collect(true);    // optional, for the demonstration: the cycle clears the key
+std::cout << names.sweep() << " entry gone\n";   // 1
 ```
 
-The key is a weak pointer compared by the object it points at, not the address stored raw: a raw address in a managed container is a word holding a heap address, and the pointer map built by elimination ("Pointer maps" below) follows it like a `tracked_ptr`, so a `gc::multimap<const Node*, ...>` would keep every node alive by its key. A watched key's `lock()` is safe as an ordering: the queue keeps the object until `drain()`, and the function erases the entries while the object is alive one last time.
-
-The cost, for a program without such queues, is a test of an empty list per cycle; with them, a pass over the cells per convergence of the marking and one more round of marking for the objects kept, plus their memory until the drain.
+The entries are hashed and compared by the object's address, read from the weak pointer's cell without a lock: the cell holds the address while the object lives, and the weak phase clears it before the sweep frees the slot, so an address in a cell never names a slot's earlier occupant, a dead entry equals nothing (its own key included), and the object that takes the slot next gets an entry of its own. A `gc::multimap<const Node*, ...>` would not do: a raw address in a managed container is a word holding a heap address, which the pointer map built by elimination ("Pointer maps" below) follows like a `tracked_ptr`, so the map would keep every node alive by its key. The lookups cost those of `unordered_map` plus a load of the cell per key compared; the sweeps a pass over the entries, paid for by the insertions between them.
 
 ## Examples
 The basics, in one file (`examples/example.cpp` has the long version):

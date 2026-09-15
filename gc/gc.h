@@ -33,6 +33,12 @@
 namespace gc {
     template<class T>
     using weak_ptr = sgcl::weak_ptr<T, tracked_ptr>;
+    template<class Key, class T>
+    using weak_map = sgcl::weak_map<Key, T, tracked_ptr>;
+    template<class Key, class T>
+    using weak_multimap = sgcl::weak_multimap<Key, T, tracked_ptr>;
+    template<class Key>
+    using weak_set = sgcl::weak_set<Key, tracked_ptr>;
 
     using sgcl::atomic;
     using sgcl::atomic_ref;
