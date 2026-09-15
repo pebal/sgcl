@@ -196,36 +196,59 @@ int main() {
 
 The second `drain()` calls two functions for texture 2, one per entry: the release, and the one that keeps the pointer. The object is alive during both, and after the drain it lives on in `revived`; the next cycle that finds it unreachable, once `revived` is gone, destroys it like any other object.
 
-## Example: a weak map
+## Example: metadata attached to objects
 
-A registry whose entries go with their objects: the map holds its widgets weakly, and the queue drops the entry of a widget nothing reaches any more.
+A map keyed by the object and held weakly, as many strings per object as needed; the entries go with the object.
 
 ```cpp
 #include "sgcl/sgcl.h"
 #include <iostream>
 #include <string>
 
-struct Widget {
-    std::string name;
+struct Node {
+    int value;
+};
+
+// The keys ordered by the object they point at. A key in the map is
+// watched, so its object is alive as long as the key is there: lock()
+// never fails, and the order never changes under the map.
+struct by_object {
+    using is_transparent = void;
+    static const void* of(const gc::weak_ptr<Node>& w) { return w.lock().get(); }
+    static const void* of(const gc::tracked_ptr<Node>& p) { return p.get(); }
+    template<class A, class B>
+    bool operator()(const A& a, const B& b) const { return of(a) < of(b); }
 };
 
 int main() {
-    gc::unordered_map<std::string, gc::weak_ptr<Widget>> widgets;   // by name, held weakly: an entry keeps no widget alive
-    gc::expiry_queue<Widget> gone;
+    // Metadata attached to any object, as many strings as needed: the map
+    // holds its objects weakly, and the entries go with the object.
+    gc::multimap<gc::weak_ptr<Node>, std::string, by_object> meta;
+    gc::expiry_queue<Node> gone;
+    auto attach = [&](const gc::tracked_ptr<Node>& object, std::string text) {
+        gc::weak_ptr<Node> key = object;
+        if (!meta.count(key)) {   // the first string of an object: the queue drops every entry of the object with it
+            gone.watch(object, [&meta, key](gc::tracked_ptr<Node>) { meta.erase(key); });
+        }
+        meta.emplace(key, std::move(text));
+    };
     {
-        gc::tracked_ptr w = gc::make_tracked<Widget>("button");
-        widgets[w->name] = w;
-        gone.watch(w, [&](gc::tracked_ptr<Widget> t) { widgets.erase(t->name); });   // t: the widget, alive one last time
+        gc::tracked_ptr node = gc::make_tracked<Node>(42);
+        attach(node, "created by the parser");
+        attach(node, "checked");
+        auto [first, last] = meta.equal_range(node);   // looked up by the strong pointer
+        for (auto it = first; it != last; ++it) {
+            std::cout << it->second << "\n";
+        }
     }   // the last strong pointer is gone
     gc::collector::clear_stack();          // the dead frame zeroed, so that the conservative scan keeps nothing
-    gc::collector::force_collect(true);    // for the demonstration: a cycle finds the widget unreachable and keeps it for the queue
-    std::cout << widgets.size() << " before drain, ";
-    gone.drain();                          // the function runs here, on this thread: the entry goes
-    std::cout << widgets.size() << " after\n";   // 1 before drain, 0 after
+    gc::collector::force_collect(true);    // for the demonstration: a cycle finds the node unreachable and keeps it for the queue
+    gone.drain();                          // the functions run here: the entries go
+    std::cout << meta.size() << " entries left\n";
 }
 ```
 
-The key is the name, not the address. A raw address stored in a managed container is a word holding a heap address, and the pointer map the collector builds by elimination follows it like a `tracked_ptr`: a `gc::unordered_map<const Widget*, ...>` would keep every widget alive by its key, and the queue would never see one expire. The function gets the object alive one last time, which is when its name, or anything else the entry is keyed by, can still be read from it. The handle `watch()` returns is not needed here; had the registry a `remove(name)` that erases an entry by hand, it would keep the handle and `cancel()` it there, so that the widget is not kept for a function with nothing left to do.
+Output: the two strings, then `0 entries left`. The key is a weak pointer compared by the object it points at, not the address stored raw: a raw address in a managed container is a word holding a heap address, and the pointer map the collector builds by elimination follows it like a `tracked_ptr`, so a `gc::multimap<const Node*, ...>` would keep every node alive by its key, and the queue would never see one expire. A watched key's `lock()` is safe as an ordering: the queue keeps the object until `drain()`, and the function erases the entries while the object is alive one last time. The handle `watch()` returns is not needed here; a `detach(object)` that erased the entries by hand would keep it and `cancel()` it there, so that the object is not kept for a function with nothing left to do.
 
 ## See also
 
