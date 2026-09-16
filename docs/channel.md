@@ -13,7 +13,7 @@ namespace sgcl {
 
 `sgcl::channel<T>` is the channel of Go: a queue with the synchronization of both ends. A channel of capacity *n* buffers *n* elements; one of capacity 0 buffers none, and a send waits until a receive takes the element, so that the pair is a meeting of the two sides (a rendezvous) and not a delivery to a buffer. A receive on an empty channel waits, a send on a full one waits: a producer ahead of its consumer stops (back-pressure). `close()` ends the stream: what was sent is still received, then every receive returns nothing at once and every send returns `false`; a range-for over the channel runs until then.
 
-The waiting is done by a thread, on an atomic of its own, or by a coroutine: `co_await ch.async_receive()` and `co_await ch.async_send(v)` suspend the coroutine with its handle on the channel's list of waiters, and the send or the receive that serves it resumes it, on the serving thread. The buffer is a [concurrent_queue](concurrent_queue.md), the lists of waiters are concurrent queues too, and every waiter is a managed object: nothing in the channel takes a lock, nothing frees anything, and a waiter that was cancelled or served is reclaimed by the collector, as the elements are ([README: Lock-free containers](../README.md#lock-free-containers)).
+The waiting is done by a thread, on an atomic of its own, or by a coroutine: `co_await ch.async_receive()` and `co_await ch.async_send(v)` suspend the coroutine with its handle on the channel's list of waiters, and the send or the receive that serves it resumes it, on the serving thread. The buffer is a lock-free ring (the bounded queue of Vyukov: a managed array of slots made once, a sequence number per slot, one compare-exchange per send or receive and no allocation per element), the lists of waiters are [concurrent_queue](concurrent_queue.md)s, and every waiter is a managed object: nothing in the channel takes a lock, nothing frees anything, and a waiter that was cancelled or served is reclaimed by the collector ([README: Lock-free containers](../README.md#lock-free-containers). A rendezvous has a small ring too, through which a waiting sender's element passes to the receiver that serves it, so that waiting senders are served in their order.
 
 ## Rules
 
@@ -151,5 +151,5 @@ int main() {
 
 ## See also
 
-- [concurrent_queue](concurrent_queue.md), the buffer and the lists of waiters; [coroutine](coroutine.md), the tasks that await a channel
+- [concurrent_queue](concurrent_queue.md), the lists of waiters; [coroutine](coroutine.md), the tasks that await a channel
 - [README: Lock-free containers](../README.md#lock-free-containers)

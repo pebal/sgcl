@@ -6,12 +6,15 @@
 #pragma once
 
 #include "aliases.h"
+#include "array.h"
 #include "concurrent_queue.h"
 #include "coroutine.h"
+#include "detail/backoff.h"
 #include "make_tracked.h"
 #include "tracked_ptr.h"
 
 #include <atomic>
+#include <bit>
 #include <coroutine>
 #include <cstdint>
 #include <iterator>
@@ -34,12 +37,12 @@ namespace sgcl {
     // whose promise derives from managed_frame, so that the tracked
     // pointers of its frame stay roots while it waits) with its handle on
     // the channel's list of waiters, and the send or the receive that
-    // serves it resumes it, on the serving thread. The
-    // buffer is a concurrent_queue, the lists of waiters are concurrent
-    // queues too, and every waiter is a managed object: nothing in the
-    // channel takes a lock, nothing frees anything, and a waiter that is
-    // cancelled (its thread found the element itself) or served is
-    // reclaimed by the collector, as the elements are. What a send does:
+    // serves it resumes it, on the serving thread. The buffer is a ring
+    // (below), a managed array of slots made once, the lists of waiters
+    // are concurrent queues, and every waiter is a managed object:
+    // nothing in the channel takes a lock, nothing frees anything, and a
+    // waiter that is cancelled (its thread found the element itself) or
+    // served is reclaimed by the collector. What a send does:
     // hand the element to a waiting receiver (when the buffer is empty),
     // or put it in the buffer if there is room, or wait with it until a
     // receiver moves it into the buffer; what a receive does: take from
@@ -95,13 +98,39 @@ namespace sgcl {
 
         using WaiterPtr = tracked_ptr<Waiter>;
 
+        // The buffer: the bounded queue of Vyukov, a ring of slots with a
+        // sequence number each, and a head and a tail that count up
+        // forever. A slot whose sequence equals the tail is free for the
+        // sender that wins the tail; the sender writes the element and
+        // publishes the slot by setting its sequence to tail + 1, which is
+        // what the receiver at that position waits to see; a receiver that
+        // wins the head takes the element and sets the sequence to head +
+        // the number of slots, the tail of the next lap. One compare-
+        // exchange per operation, no allocation per element, and a slot
+        // reserved but not yet written is nothing to a receiver (the
+        // sequence says so), which is why a send that reserved a slot
+        // wakes a waiting receiver after publishing it. The ring has a
+        // power of two of slots, at least the capacity, and the capacity
+        // is enforced apart (a channel of 3 has a ring of 4); a rendezvous
+        // has a ring too, of a few slots, through which a waiting sender's
+        // element passes to the receiver that serves it (_refill), so that
+        // the waiting senders are served in their order.
+        struct Slot {
+            atomic<size_t> seq = {0};
+            optional<T> value;
+        };
+
     public:
         using value_type = T;
         using size_type = size_t;
 
         // A channel of capacity n; 0, the default, is a rendezvous
         explicit channel(size_type capacity = 0)
-        : _capacity(capacity) {
+        : _ring(std::bit_ceil(capacity < MinSlots ? MinSlots : capacity))
+        , _capacity(capacity) {
+            for (size_t i = 0; i < _ring.size(); ++i) {
+                _ring[i].seq.store(i, std::memory_order_relaxed);
+            }
         }
 
         channel(const channel&) = delete;
@@ -320,8 +349,9 @@ namespace sgcl {
 
         // The elements in the buffer (not the ones held by waiting senders)
         size_type size() const noexcept {
-            long n = _count.load(std::memory_order_acquire);
-            return n > 0 ? size_type(n) : 0;
+            auto head = _head.load(std::memory_order_acquire);
+            auto tail = _tail.load(std::memory_order_acquire);
+            return tail > head ? tail - head : 0;
         }
 
         bool empty() const noexcept {
@@ -393,8 +423,7 @@ namespace sgcl {
         // would jump the ones sent before it)
         optional<T> _try_receive() {
             for (;;) {
-                if (auto v = _items.try_pop()) {
-                    _count.fetch_sub(1, std::memory_order_acq_rel);
+                if (auto v = _pop()) {
                     _refill();
                     return v;
                 }
@@ -409,23 +438,18 @@ namespace sgcl {
         // (an element sent before is in the buffer or about to be, and
         // must come out first), or the buffer when it has room
         bool _try_send(T& v) {
-            if (_count.load(std::memory_order_acquire) == 0) {
+            if (_ring_empty()) {
                 if (auto w = _take(_receivers)) {
                     w->value.emplace(std::move(v));
                     w->wake();
                     return true;
                 }
             }
-            if (_capacity) {
-                long n = _count.fetch_add(1, std::memory_order_acq_rel) + 1;
-                if (n <= long(_capacity)) {
-                    _items.emplace(std::move(v));
-                    if (auto w = _take(_receivers)) {   // a receiver registered meanwhile: it goes round and finds the buffer
-                        w->wake();
-                    }
-                    return true;
+            if (_capacity && _push(v, _capacity)) {
+                if (auto w = _take(_receivers)) {   // a receiver registered meanwhile: it goes round and finds the buffer
+                    w->wake();
                 }
-                _count.fetch_sub(1, std::memory_order_acq_rel);
+                return true;
             }
             return false;
         }
@@ -450,19 +474,116 @@ namespace sgcl {
             }
         }
 
-        // The first waiting sender's element moved into the buffer (behind
-        // whatever is there: the buffer may stand above its capacity for
-        // the moment a receiver takes to pop it) and the sender released;
-        // false when no sender waits
+        // The first waiting sender's element moved into the ring (behind
+        // whatever is there) and the sender released; false when no
+        // sender waits or the ring has no room. The room is checked before
+        // the sender is claimed; a sender that raced into the room since
+        // (a push between the check and the claim) leaves the claimed one
+        // to be put back at the end of the list, pending again, its
+        // thread still parked, and told of a close that may have passed
+        // the list meanwhile.
         bool _refill() {
+            auto limit = _capacity ? _capacity : _ring.size();
+            if (!_can_push(limit)) {
+                return false;
+            }
             if (auto w = _take(_senders)) {
-                _count.fetch_add(1, std::memory_order_acq_rel);
-                _items.emplace(std::move(*w->value));
-                w->value.reset();
-                w->wake();
-                return true;
+                if (_push(*w->value, limit)) {
+                    w->value.reset();
+                    w->wake();
+                    return true;
+                }
+                w->state.store(Waiter::Pending, std::memory_order_release);
+                _senders.push(w);
+                if (_closed.load(std::memory_order_acquire) && w->claim()) {
+                    w->closed = true;
+                    w->wake();
+                }
             }
             return false;
+        }
+
+        // The ring (Slot above): a push into a free slot up to `limit`
+        // elements in the ring, false when full; a pop of the head's
+        // element, nothing when the ring is empty or its head not yet
+        // written
+        bool _push(T& v, size_t limit) {
+            detail::Backoff<RingBackoffMax> backoff;
+            auto pos = _tail.load(std::memory_order_relaxed);
+            for (;;) {
+                if (pos - _head.load(std::memory_order_acquire) >= limit) {
+                    return false;
+                }
+                auto& slot = _slot(pos);
+                auto seq = slot.seq.load(std::memory_order_acquire);
+                auto dif = (intptr_t)seq - (intptr_t)pos;
+                if (dif == 0) {
+                    if (_tail.compare_exchange_weak(pos, pos + 1, std::memory_order_relaxed)) {
+                        slot.value.emplace(std::move(v));
+                        slot.seq.store(pos + 1, std::memory_order_release);
+                        return true;
+                    }
+                } else if (dif < 0) {
+                    return false;
+                } else {
+                    pos = _tail.load(std::memory_order_relaxed);
+                }
+                backoff();   // a lost exchange or a stale tail: another sender is in
+            }
+        }
+
+        optional<T> _pop() {
+            detail::Backoff<RingBackoffMax> backoff;
+            auto pos = _head.load(std::memory_order_relaxed);
+            for (;;) {
+                auto& slot = _slot(pos);
+                auto seq = slot.seq.load(std::memory_order_acquire);
+                auto dif = (intptr_t)seq - (intptr_t)(pos + 1);
+                if (dif == 0) {
+                    if (_head.compare_exchange_weak(pos, pos + 1, std::memory_order_relaxed)) {
+                        optional<T> v(std::in_place, std::move(*slot.value));
+                        slot.value.reset();
+                        slot.seq.store(pos + _ring.size(), std::memory_order_release);
+                        return v;
+                    }
+                } else if (dif < 0) {
+                    return nullopt;
+                } else {
+                    pos = _head.load(std::memory_order_relaxed);
+                }
+                backoff();
+            }
+        }
+
+        Slot& _slot(size_t pos) noexcept {
+            return _ring[pos & (_ring.size() - 1)];
+        }
+
+        const Slot& _slot(size_t pos) const noexcept {
+            return _ring[pos & (_ring.size() - 1)];
+        }
+
+        // Nothing in the ring and nothing on its way into it
+        bool _ring_empty() const noexcept {
+            return _tail.load(std::memory_order_acquire) == _head.load(std::memory_order_acquire);
+        }
+
+        // What a push or a pop would find now: the slot at the tail free
+        // (and the ring under its limit), the slot at the head written.
+        // What a waiter checks after registering, and exactly what the
+        // operation checks: a slot reserved by another thread and not yet
+        // finished counts as neither, so the waiter parks instead of
+        // going round (allocating a waiter each time) until that thread
+        // is done; the thread that finishes wakes it, a sender through
+        // _take(_receivers) after publishing, a receiver through _refill
+        bool _can_push(size_t limit) const noexcept {
+            auto tail = _tail.load(std::memory_order_acquire);
+            return tail - _head.load(std::memory_order_acquire) < limit && _slot(tail).seq.load(std::memory_order_acquire) == tail;
+        }
+
+        bool _can_pop() const noexcept {
+            auto head = _head.load(std::memory_order_acquire);
+            return _slot(head).seq.load(std::memory_order_acquire) == head + 1;
         }
 
         // The first pending waiter of a list, claimed; cancelled ones are
@@ -479,17 +600,24 @@ namespace sgcl {
         // What a registered receiver checks before parking: an element,
         // a sender or the close it might have missed
         bool _something_to_receive() const noexcept {
-            return _count.load(std::memory_order_acquire) > 0 || !_senders.empty() || _closed.load(std::memory_order_acquire);
+            return _can_pop() || !_senders.empty() || _closed.load(std::memory_order_acquire);
         }
 
         bool _something_to_send_to() const noexcept {
-            return !_receivers.empty() || (_capacity && _count.load(std::memory_order_acquire) < long(_capacity)) || _closed.load(std::memory_order_acquire);
+            return !_receivers.empty() || (_capacity && _can_push(_capacity)) || _closed.load(std::memory_order_acquire);
         }
 
-        concurrent_queue<T> _items;
+        static constexpr size_t MinSlots = 8;   // the ring of a rendezvous, or of a small capacity
+        static constexpr unsigned RingBackoffMax = 32;   // the cap of the backoff at the ring's head and tail: a long pause here leaves a slot others wait for (measured: 8, 32 and 128 alike at sixteen threads, config::BackoffMax an order worse on a loaded machine)
+
+        // The head and the tail a cache line apart (config::CacheLineSize):
+        // the receivers' line and the senders' line
+        array<Slot> _ring;
+        atomic<size_t> _head = {0};
+        unsigned char _pad[config::CacheLineSize - sizeof(atomic<size_t>)] = {};
+        atomic<size_t> _tail = {0};
         concurrent_queue<WaiterPtr> _receivers;
         concurrent_queue<WaiterPtr> _senders;
-        atomic<long> _count = {0};
         atomic<bool> _closed = {false};
         const size_type _capacity;
     };

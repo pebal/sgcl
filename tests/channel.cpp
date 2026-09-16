@@ -230,13 +230,13 @@ TEST(Channel_Test, ManyProducersManyConsumers) {
 TEST(Channel_Test, ElementsHeldAndReclaimed) {
     const size_t before = collector::get_live_object_count();
     sgcl::channel<tracked_ptr<Baz>> ch(100);
-    const size_t empty = collector::get_live_object_count();   // the three queues' first nodes
+    const size_t empty = collector::get_live_object_count();   // the ring and the two waiter queues' first nodes
     off_frame([&] {
         for (int i = 0; i < 100; ++i) {
             ch.send(make_tracked<Baz>(i));
         }
     });
-    EXPECT_EQ(collector::get_live_object_count(), empty + 200u);   // 100 nodes, 100 Baz
+    EXPECT_EQ(collector::get_live_object_count(), empty + 100u);   // 100 Baz in the ring, nothing allocated for them
     off_frame([&] {
         for (int i = 0; i < 100; ++i) {
             auto v = ch.receive();
