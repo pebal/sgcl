@@ -4,19 +4,25 @@
 // (a stack) and ConcurrentSkipListMap, holding Item objects of one long.
 //   java Concurrent <queue|stack> [threads=4] [mode=mixed] [n=200000]
 //   java Concurrent <map|umap|set> [threads=4] [keys=200000] [n=200000]
+//   java Concurrent cow [threads=16] [n=2000000]
 // queue, stack: mixed, every thread pushes an item and pops one, n times
 // over; pairs, half the threads push n each, the other half pop n each.
 // map: insert, the threads insert `keys` disjoint keys; find, every thread
 // looks up n random keys of those; mixed, every thread does n operations
 // over twice the range, 80% lookups, 10% insertions, 10% erasures. The
 // keys are Long: boxed, as a Java map's are. map is ConcurrentSkipListMap,
-// umap ConcurrentHashMap, set ConcurrentSkipListSet.
+// umap ConcurrentHashMap, set ConcurrentSkipListSet. cow is a
+// CopyOnWriteArrayList of 64 Longs: threads - 1 readers sum it n times
+// each through its snapshot iterator, one writer sets an element as fast
+// as it can meanwhile (a copy of the array under the list's lock).
 import java.util.SplittableRandom;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class Concurrent {
     static final class Item { final long value; Item(long v) { value = v; } }
@@ -120,8 +126,44 @@ public final class Concurrent {
         System.out.printf("%s threads=%d keys=%d insert=%.1f find=%.1f mixed=%.1f wall=%.2fs cpu=%.2fs%n", what, threads, keys, insert * 1e9 / keys, find * 1e9 / ops, mixed * 1e9 / ops, insert + find + mixed, Common.cpuSeconds());
     }
 
+    static void runCow(int threads, long n) throws Exception {
+        final CopyOnWriteArrayList<Long> v = new CopyOnWriteArrayList<>();
+        for (int i = 0; i < 64; ++i) v.add(0L);
+        final AtomicBoolean stop = new AtomicBoolean();
+        final long[] writes = new long[1];
+        final double[] writeTime = new double[1];
+        Thread[] ws = new Thread[threads - 1];
+        long t0 = System.nanoTime();
+        for (int t = 0; t < threads - 1; ++t) {
+            ws[t] = new Thread(() -> {
+                long sum = 0;
+                for (long i = 0; i < n; ++i) { for (long x : v) sum += x; }
+                if (sum == -1) System.out.print("?");
+            });
+            ws[t].start();
+        }
+        Thread writer = new Thread(() -> {
+            long w0 = System.nanoTime();
+            long i = 0;
+            while (!stop.get()) { int k = (int) (i % 64); v.set(k, (v.get(k) + 1) % 100); ++i; }
+            writes[0] = i;
+            writeTime[0] = (System.nanoTime() - w0) / 1e9;
+        });
+        writer.start();
+        for (Thread w : ws) w.join();
+        stop.set(true);
+        writer.join();
+        double wall = (System.nanoTime() - t0) / 1e9;
+        double reads = (double) n * (threads - 1);
+        System.out.printf("cow threads=%d ns/read=%.1f ns/write=%.1f writes=%d reads/s=%.0f wall=%.2fs cpu=%.2fs%n", threads, wall * 1e9 / reads, writes[0] > 0 ? writeTime[0] * 1e9 / writes[0] : 0.0, writes[0], reads / wall, wall, Common.cpuSeconds());
+    }
+
     public static void main(String[] args) throws Exception {
         String what = args.length > 0 ? args[0] : "queue";
+        if (what.equals("cow")) {
+            runCow(args.length > 1 ? Integer.parseInt(args[1]) : 16, args.length > 2 ? Long.parseLong(args[2]) : 2_000_000L);
+            return;
+        }
         int threads = args.length > 1 ? Integer.parseInt(args[1]) : 4;
         if (what.equals("map") || what.equals("umap") || what.equals("set")) {
             long keys = args.length > 2 ? Long.parseLong(args[2]) : 200_000L;

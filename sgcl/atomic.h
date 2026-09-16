@@ -7,6 +7,7 @@
 
 #include "../gc/tracked_ptr.h"
 #include "detail/atomic_word.h"
+#include "string.h"
 #include "tracked_ptr.h"
 
 namespace sgcl {
@@ -125,5 +126,120 @@ namespace sgcl {
         }
 
         value_type _val;
+    };
+
+    // The atomic of a string: a string is one word to an object never
+    // modified, so an atomic string is the atomic of that word, the
+    // operations of detail::AtomicWord with a string on the outside. A
+    // load is one atomic load with the hazard pointer of every atomic
+    // load, and the string it returns is the object as it was, whatever
+    // is stored meanwhile; a store is the store of the object the caller
+    // has already made; nothing is copied and nothing allocated beyond
+    // the strings themselves. The compare-exchanges compare identity, the
+    // object, as a compare-exchange on a word does: two strings of the
+    // same characters made apart are two objects, and the expected one
+    // must be the one loaded (or stored) from here, not one equal to it;
+    // an exchange for a change of contents loads, decides, and exchanges
+    // against what it loaded. Lives where the string does: on a stack or
+    // inside a managed object for sgcl::string, anywhere for gc::string.
+    template<class CharT, class Traits, template<class> class Ptr>
+    class atomic<basic_string<CharT, Traits, Ptr>> : public detail::AtomicWord<atomic<basic_string<CharT, Traits, Ptr>>, void, tracked_ptr<void>> {
+        using Base = detail::AtomicWord<atomic, void, tracked_ptr<void>>;   // the word without its const: the string's object is never written through it
+        using String = basic_string<CharT, Traits, Ptr>;
+
+    public:
+        using value_type = String;
+
+        atomic(const atomic&) = delete;
+        atomic& operator=(const atomic&) = delete;
+
+        atomic() noexcept = default;
+
+        atomic(const String& s) noexcept
+        : _val(s) {
+        }
+
+        String load(const std::memory_order m = std::memory_order_seq_cst) const noexcept {
+            return String(Base::load(m));
+        }
+
+        operator String() const noexcept {
+            return load();
+        }
+
+        void store(const String& s, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+            Base::store(_word(s), m);
+        }
+
+        String operator=(const String& s) noexcept {
+            store(s);
+            return s;
+        }
+
+        // The string exchanged in, and the one that was there
+        String exchange(const String& s, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+            String old = load(std::memory_order_acquire);
+            while (!compare_exchange_weak(old, s, m, std::memory_order_acquire)) {
+            }
+            return old;
+        }
+
+        bool compare_exchange_strong(String& expected, const String& desired, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+            tracked_ptr<void> e = _word(expected);
+            bool done = Base::compare_exchange_strong(e, _word(desired), m);
+            if (!done) {
+                expected = String(e);
+            }
+            return done;
+        }
+
+        bool compare_exchange_strong(String& expected, const String& desired, const std::memory_order s, const std::memory_order f) noexcept {
+            tracked_ptr<void> e = _word(expected);
+            bool done = Base::compare_exchange_strong(e, _word(desired), s, f);
+            if (!done) {
+                expected = String(e);
+            }
+            return done;
+        }
+
+        bool compare_exchange_weak(String& expected, const String& desired, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+            tracked_ptr<void> e = _word(expected);
+            bool done = Base::compare_exchange_weak(e, _word(desired), m);
+            if (!done) {
+                expected = String(e);
+            }
+            return done;
+        }
+
+        bool compare_exchange_weak(String& expected, const String& desired, const std::memory_order s, const std::memory_order f) noexcept {
+            tracked_ptr<void> e = _word(expected);
+            bool done = Base::compare_exchange_weak(e, _word(desired), s, f);
+            if (!done) {
+                expected = String(e);
+            }
+            return done;
+        }
+
+        void wait(const String& s, std::memory_order m = std::memory_order_seq_cst) const noexcept {
+            Base::wait(_word(s), m);
+        }
+
+    private:
+        friend Base;
+
+        // the word of a string of either kind as an sgcl::tracked_ptr<void>
+        static tracked_ptr<void> _word(const String& s) noexcept {
+            return const_pointer_cast<void>(tracked_ptr<const void>(s._word));
+        }
+
+        detail::Pointer& _ptr() noexcept {
+            return *static_cast<tracked_ptr<const void>&>(_val._word)._ptr();
+        }
+
+        const detail::Pointer& _ptr() const noexcept {
+            return *static_cast<const tracked_ptr<const void>&>(_val._word)._ptr();
+        }
+
+        String _val;
     };
 }

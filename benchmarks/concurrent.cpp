@@ -15,6 +15,7 @@
 // pointer to an object; the set holds the longs.
 //   concurrent <queue|stack> <sgcl|gc|mutex|shared> [threads=4] [mode=mixed] [n=200000]
 //   concurrent <map|umap|set> <sgcl|gc|mutex|rwlock> [threads=4] [keys=200000] [n=200000]
+//   concurrent cow <sgcl|gc|shared|rwlock> [threads=16] [n=2000000]
 // queue, stack: mixed, every thread pushes an item and pops one, n times
 // over; pairs, half the threads push n items each, the other half pop n
 // each. mutex: the std container of shared_ptr under a std::mutex, the
@@ -28,10 +29,17 @@
 // std container (std::map, std::unordered_map of shared_ptr, std::set)
 // under a std::mutex; rwlock: the same under a std::shared_mutex, the
 // lookups as readers.
+// cow: copy_on_write over an array of 64 longs; threads - 1 readers each
+// take a snapshot and sum it n times, one writer replaces the value
+// (a copy with one element changed) as fast as it can meanwhile. shared:
+// std::shared_ptr<const array> with the atomic operations of <memory>;
+// rwlock: the array under a std::shared_mutex, the readers as readers,
+// the writer changing it in place.
 // Prints nanoseconds per operation and the process CPU time.
 #include "common.h"
 #include "sgcl/sgcl.h"
 
+#include <array>
 #include <atomic>
 #include <map>
 #include <memory>
@@ -285,6 +293,103 @@ namespace {
         }
     };
 
+    using Values = std::array<long, 64>;
+
+    template<template<class> class Ptr>
+    struct SgclCow {
+        sgcl::copy_on_write<Values, Ptr> v;
+        SgclCow() : v(Values{}) {}
+        long read() {
+            auto s = v.load();
+            long sum = 0;
+            for (long x : *s) {
+                sum += x;
+            }
+            return sum;
+        }
+        void write(long i) {
+            v.update([i](Values& a) { a[size_t(i % 64)] = (a[size_t(i % 64)] + 1) % 100; });
+        }
+    };
+
+    struct SharedCow {
+        std::shared_ptr<const Values> v = std::make_shared<const Values>();
+        long read() {
+            auto s = std::atomic_load(&v);
+            long sum = 0;
+            for (long x : *s) {
+                sum += x;
+            }
+            return sum;
+        }
+        void write(long i) {
+            auto old = std::atomic_load(&v);
+            for (;;) {
+                auto next = std::make_shared<Values>(*old);
+                (*next)[size_t(i % 64)] = ((*next)[size_t(i % 64)] + 1) % 100;
+                std::shared_ptr<const Values> desired = std::move(next);
+                if (std::atomic_compare_exchange_strong(&v, &old, desired)) {
+                    return;
+                }
+            }
+        }
+    };
+
+    struct RwlockCow {
+        Values v = {};
+        std::shared_mutex mutex;
+        long read() {
+            std::shared_lock lock(mutex);
+            long sum = 0;
+            for (long x : v) {
+                sum += x;
+            }
+            return sum;
+        }
+        void write(long i) {
+            std::unique_lock lock(mutex);
+            v[size_t(i % 64)] = (v[size_t(i % 64)] + 1) % 100;
+        }
+    };
+
+    template<class C>
+    void run_cow(int threads, long n) {
+        C c;
+        std::vector<std::thread> ws;
+        std::atomic<bool> stop = {false};
+        std::atomic<long> writes = {0};
+        double write_time = 0;
+        auto t0 = bench::Clock::now();
+        for (int t = 0; t < threads - 1; ++t) {
+            ws.emplace_back([&] {
+                long sum = 0;
+                for (long i = 0; i < n; ++i) {
+                    sum += c.read();
+                }
+                if (sum == -1) {
+                    std::printf("?");
+                }
+            });
+        }
+        std::thread writer([&] {
+            auto w0 = bench::Clock::now();
+            long i = 0;
+            while (!stop.load(std::memory_order_relaxed)) {
+                c.write(i++);
+            }
+            writes = i;
+            write_time = bench::seconds_since(w0);
+        });
+        for (auto& w : ws) {
+            w.join();
+        }
+        stop = true;
+        writer.join();
+        double wall = bench::seconds_since(t0);
+        double reads = (double)n * (threads - 1);
+        std::printf("cow threads=%d ns/read=%.1f ns/write=%.1f writes=%ld reads/s=%.0f wall=%.2fs cpu=%.2fs\n", threads, wall * 1e9 / reads, writes ? write_time * 1e9 / (double)writes : 0.0, writes.load(), reads / wall, wall, bench::cpu_seconds());
+    }
+
     template<class M> using Exclusive = std::unique_lock<M>;
     template<class M> using Shared = std::shared_lock<M>;
 
@@ -481,6 +586,24 @@ int main(int argc, char** argv) {
             } else {
                 run_map<Locked<std::set<long>, std::shared_mutex, Shared>>("set", threads, keys, n);
             }
+        }
+        return 0;
+    }
+    if (what == "cow") {
+        if (!bench::has_variant(v.c_str(), {"sgcl", "gc", "shared", "rwlock"})) {
+            std::fprintf(stderr, "usage: concurrent cow <sgcl|gc|shared|rwlock> [threads] [n]\n");
+            return 2;
+        }
+        int t = argc > 3 ? std::atoi(argv[3]) : 16;
+        long n = argc > 4 ? std::atol(argv[4]) : 2'000'000;
+        if (v == "sgcl") {
+            run_cow<SgclCow<sgcl::tracked_ptr>>(t, n);
+        } else if (v == "gc") {
+            run_cow<SgclCow<gc::tracked_ptr>>(t, n);
+        } else if (v == "shared") {
+            run_cow<SharedCow>(t, n);
+        } else {
+            run_cow<RwlockCow>(t, n);
         }
         return 0;
     }

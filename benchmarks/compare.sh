@@ -114,6 +114,15 @@ for c in map umap set; do for t in 1 4 16; do
     want go && { run "$T/concurrent" $c $t 200000 200000; mline $c $t go; }
     want java-zgc && { run "${JAVA[@]}" -Xmx128m Concurrent $c $t 200000 200000; mline $c $t java-zgc; }
 done; done
+KEY=ns/read
+echo "# copy_on_write over 64 longs, threads - 1 readers of 2 M snapshots each, one writer: conc|cow|threads|variant|ns per read|ns per write|writes (shared: shared_ptr with the atomic operations of <memory>; rwlock: the array under a shared_mutex, changed in place)"
+cline() { echo "conc|cow|$1|$2|$(field ns/read)|$(field ns/write)|$(field writes)"; }
+for t in 4 16; do
+    for v in sgcl gc; do want $v && { run "$BIN/bench_concurrent" cow $v $t 2000000; cline $t $v; }; done
+    want shared && { run "$BIN/bench_concurrent" cow shared $t 2000000; cline $t shared; run "$BIN/bench_concurrent" cow rwlock $t 2000000; cline $t rwlock; }
+    want go && { run "$T/concurrent" cow $t 2000000; cline $t go; }
+    want java-zgc && { run "${JAVA[@]}" -Xmx128m Concurrent cow $t 2000000; cline $t java-zgc; }
+done
 fi
 
 if case_ bt; then

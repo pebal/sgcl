@@ -16,6 +16,7 @@
 #include "concurrent_unordered_map.h"
 #include "concurrent_unordered_set.h"
 #include "config.h"
+#include "copy_on_write.h"
 #include "coroutine.h"
 #include "deque.h"
 #include "expiry_queue.h"

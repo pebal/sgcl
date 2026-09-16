@@ -25,7 +25,7 @@ The interface is the read side of `std::string` and all of `std::string_view`: `
 ## Rules
 
 - A `string` is a tracked pointer, so it lives where one may: on a stack or inside a managed object; a `gc::string` anywhere ([The rules](../README.md#the-rules), 1).
-- Threads share a `string` the way they share a `tracked_ptr` ([The rules](../README.md#the-rules), 6); the object itself is immutable and read from any thread without synchronization. The hash is computed by the first thread that asks and stored relaxed: every thread computes the same value.
+- Threads share a `string` the way they share a `tracked_ptr` ([The rules](../README.md#the-rules), 6): the object itself is immutable and read from any thread without synchronization, and a string variable that one thread replaces while others read it is an [`atomic<string>`](atomic.md#atomicbasic_string), one word, a load for the string as it was and a store for a new one. The hash is computed by the first thread that asks and stored relaxed: every thread computes the same value.
 - `data()` and the iterators are valid while some string holds the object: a `string_view` taken from a temporary dangles as it would from a `std::string`.
 - A string's object is never traced and never zeroed: its bytes are characters and nothing else.
 

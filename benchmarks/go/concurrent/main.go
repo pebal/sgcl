@@ -7,9 +7,13 @@
 // care of ABA and of the memory. An element is an item of one int64.
 //   concurrent <queue|stack> [threads=4] [mode=mixed] [n=200000]
 //   concurrent <map|umap|set> [threads=4] [keys=200000] [n=200000]
+//   concurrent cow [threads=16] [n=2000000]
 // umap is sync.Map, the concurrent map of Go's library (a hash map with
 // reads from a snapshot and writes under a lock, its keys boxed in any);
-// set the skip list holding keys alone.
+// set the skip list holding keys alone. cow is Go's idiom for a value
+// read by many and replaced whole: an atomic.Pointer to an array of 64
+// int64, the readers loading and summing it n times each, one writer
+// copying, changing an element and swapping it in as fast as it can.
 package main
 
 import (
@@ -338,6 +342,64 @@ func (s *skiplist) erase(key int64) bool {
 	}
 }
 
+type values [64]int64
+
+func runCow(threads int, n int64) {
+	var v atomic.Pointer[values]
+	v.Store(&values{})
+	var stop atomic.Bool
+	var writes int64
+	var writeTime float64
+	var wg sync.WaitGroup
+	t0 := time.Now()
+	for t := 0; t < threads-1; t++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			var sum int64
+			for i := int64(0); i < n; i++ {
+				s := v.Load()
+				for _, x := range s {
+					sum += x
+				}
+			}
+			if sum == -1 {
+				fmt.Print("?")
+			}
+		}()
+	}
+	var ww sync.WaitGroup
+	ww.Add(1)
+	go func() {
+		defer ww.Done()
+		w0 := time.Now()
+		var i int64
+		for !stop.Load() {
+			for {
+				old := v.Load()
+				next := *old
+				next[i%64] = (next[i%64] + 1) % 100
+				if v.CompareAndSwap(old, &next) {
+					break
+				}
+			}
+			i++
+		}
+		writes = i
+		writeTime = time.Since(w0).Seconds()
+	}()
+	wg.Wait()
+	stop.Store(true)
+	ww.Wait()
+	wall := time.Since(t0).Seconds()
+	reads := float64(n) * float64(threads-1)
+	perWrite := 0.0
+	if writes > 0 {
+		perWrite = writeTime * 1e9 / float64(writes)
+	}
+	fmt.Printf("cow threads=%d ns/read=%.1f ns/write=%.1f writes=%d reads/s=%.0f wall=%.2fs cpu=%.2fs\n", threads, wall*1e9/reads, perWrite, writes, reads/wall, wall, cpuSeconds())
+}
+
 func cpuSeconds() float64 {
 	var ru syscall.Rusage
 	syscall.Getrusage(syscall.RUSAGE_SELF, &ru)
@@ -502,6 +564,17 @@ func main() {
 		threads, _ = strconv.Atoi(os.Args[2])
 	}
 	runtime.GOMAXPROCS(runtime.NumCPU())
+	if what == "cow" {
+		n := int64(2000000)
+		if len(os.Args) > 3 {
+			n, _ = strconv.ParseInt(os.Args[3], 10, 64)
+		}
+		if len(os.Args) <= 2 {
+			threads = 16
+		}
+		runCow(threads, n)
+		return
+	}
 	if what == "map" || what == "umap" || what == "set" {
 		keys, n := int64(200000), int64(200000)
 		if len(os.Args) > 3 {

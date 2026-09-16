@@ -56,6 +56,7 @@ Structures shared by any number of threads without a lock, the textbook algorith
 | [concurrent_set](concurrent_set.md) | `sgcl/concurrent_set.h` | the same skip list with the key as the element |
 | [concurrent_unordered_map](concurrent_unordered_map.md) | `sgcl/concurrent_unordered_map.h` | the split-ordered list of Shalev and Shavit: a lock-free hash map that doubles its bucket array without moving a node |
 | [concurrent_unordered_set](concurrent_unordered_set.md) | `sgcl/concurrent_unordered_set.h` | the same table with the key as the element |
+| [copy_on_write](copy_on_write.md) | `sgcl/copy_on_write.h` | a value read by many threads and replaced whole: one load for an immutable snapshot, a copy and a compare-exchange for a change |
 
 ## The gc namespace
 

@@ -101,6 +101,18 @@ for c in map umap set; do
 done
 
 echo
+echo "## copy_on_write over 64 longs, ns per read / per write, threads - 1 readers of 2 M snapshots each, one writer (best of $RUNS)"
+echo "| threads | sgcl | gc | shared_ptr, atomic | shared_mutex |"
+echo "|---|---|---|---|---|"
+for t in 4 16; do
+    line="| $t"
+    for v in sgcl gc shared rwlock; do
+        line="$line | $(best ns/read "$BIN/bench_concurrent" cow $v "$t") / $(best ns/write "$BIN/bench_concurrent" cow $v "$t")"
+    done
+    echo "$line |"
+done
+
+echo
 echo "## binary-trees, depth 18, wall / cpu seconds (best wall of $RUNS)"
 echo "| threads | sgcl | gc | shared_ptr | unique_ptr | raw |"
 echo "|---|---|---|---|---|---|"

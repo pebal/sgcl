@@ -341,10 +341,17 @@ namespace sgcl {
 
         inline static constexpr CharT _empty = CharT();
 
+        // A string over a word loaded from an atomic (atomic.h)
+        explicit basic_string(tracked_ptr<const void> w) noexcept
+        : _word(w) {
+        }
+
         Word _word;
 
         template<class, class, template<class> class>
         friend class basic_string;
+        template<class>
+        friend class atomic;
     };
 
     using string = basic_string<char>;
