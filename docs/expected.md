@@ -19,7 +19,7 @@ namespace sgcl {
 
 The interface is that of `std::expected`: the constructors (from a value, from an `unexpected`, from an `expected<U, G>`, `in_place`, `unexpect`), the assignments, `emplace`, `swap`, `operator->`, `operator*`, `operator bool`, `has_value`, `value` (`bad_expected_access<E>` carrying the error when there is none), `error`, `value_or`, `error_or`, the monadic `and_then`, `or_else`, `transform`, `transform_error`, the comparisons with an `expected`, a value and an `unexpected`; `expected<void, E>` for a success without a value. Not `constexpr`, and the `expected` of pointer-free types is what `std::expected` is for.
 
-The `expected` has no word of its own. Where it may live is decided by its value and its error: with `sgcl::tracked_ptr` inside, where a `tracked_ptr` may; with [`gc::tracked_ptr`](gc/tracked_ptr.md) inside, anywhere; `gc::expected` and `gc::unexpected` ([gc/gc.h](README.md#the-gc-namespace)) are the same types.
+The `expected` has no word of its own. Where it may live is decided by its value and its error: with a `tracked_ptr` inside, where a `tracked_ptr` may.
 
 ## Rules
 
@@ -80,23 +80,23 @@ friend void swap(expected&, expected&);
 
 ```cpp
 struct Node { int value; };
-using Result = gc::expected<gc::tracked_ptr<Node>, std::string>;
+using Result = sgcl::expected<sgcl::tracked_ptr<Node>, std::string>;
 
 Result find(int key) {
     if (key < 0) {
-        return gc::unexpected("negative key");
+        return sgcl::unexpected("negative key");
     }
-    return gc::make_tracked<Node>(key);           // the pointer in a word of its own, the string elsewhere
+    return sgcl::make_tracked<Node>(key);           // the pointer in a word of its own, the string elsewhere
 }
 
 Result a = find(1), b = find(-1);
 assert(a && (*a)->value == 1 && !b && b.error() == "negative key");
 assert(b.value_or(nullptr) == nullptr);
-gc::expected<int, std::string> v = a.and_then([](const gc::tracked_ptr<Node>& n) -> gc::expected<int, std::string> { return n->value * 2; });
-assert(*v == 2 && b.transform([](const gc::tracked_ptr<Node>& n) { return n->value; }).error() == "negative key");
+sgcl::expected<int, std::string> v = a.and_then([](const sgcl::tracked_ptr<Node>& n) -> sgcl::expected<int, std::string> { return n->value * 2; });
+assert(*v == 2 && b.transform([](const sgcl::tracked_ptr<Node>& n) { return n->value; }).error() == "negative key");
 try {
     b.value();
-} catch (const gc::bad_expected_access<std::string>& e) {
+} catch (const sgcl::bad_expected_access<std::string>& e) {
     assert(e.error() == "negative key");
 }
 ```
@@ -112,30 +112,30 @@ try {
 // chains the steps and reads one error at the end.
 struct User {
     std::string name;
-    gc::tracked_ptr<User> manager;
+    sgcl::tracked_ptr<User> manager;
 };
 
-gc::expected<gc::tracked_ptr<User>, std::string> find(const gc::map<std::string, gc::tracked_ptr<User>>& users, const std::string& name) {
+sgcl::expected<sgcl::tracked_ptr<User>, std::string> find(const sgcl::map<std::string, sgcl::tracked_ptr<User>>& users, const std::string& name) {
     auto it = users.find(name);
     if (it == users.end()) {
-        return gc::unexpected("no user " + name);
+        return sgcl::unexpected("no user " + name);
     }
     return it->second;
 }
 
-gc::expected<gc::tracked_ptr<User>, std::string> manager_of(const gc::tracked_ptr<User>& user) {
+sgcl::expected<sgcl::tracked_ptr<User>, std::string> manager_of(const sgcl::tracked_ptr<User>& user) {
     if (!user->manager) {
-        return gc::unexpected(user->name + " has no manager");
+        return sgcl::unexpected(user->name + " has no manager");
     }
     return user->manager;
 }
 
 int main() {
-    gc::map<std::string, gc::tracked_ptr<User>> users;
-    users["ann"] = gc::make_tracked<User>(User{"ann"});
-    users["bob"] = gc::make_tracked<User>(User{"bob", users["ann"]});
+    sgcl::map<std::string, sgcl::tracked_ptr<User>> users;
+    users["ann"] = sgcl::make_tracked<User>(User{"ann"});
+    users["bob"] = sgcl::make_tracked<User>(User{"bob", users["ann"]});
     for (auto name : {"bob", "ann", "eve"}) {
-        auto result = find(users, name).and_then(manager_of).transform([](const gc::tracked_ptr<User>& m) { return m->name; });
+        auto result = find(users, name).and_then(manager_of).transform([](const sgcl::tracked_ptr<User>& m) { return m->name; });
         std::cout << name << ": " << (result ? *result : result.error()) << "\n";
     }
     // bob: ann / ann: ann has no manager / eve: no user eve

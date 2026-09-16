@@ -5,17 +5,15 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "../gc/tracked_ptr.h"
 #include "detail/atomic_word.h"
 #include "string.h"
 #include "tracked_ptr.h"
 
 namespace sgcl {
     // sgcl::atomic<T> is std::atomic<T> for every T but the ones below: the
-    // tracked pointers of either kind and the strings, whose atomics are
-    // the library's own, over the word each of them is. So a program
-    // written against gc:: or sgcl:: names one atomic for its flags, its
-    // counters and its pointers alike.
+    // tracked pointers and the strings, whose atomics are the library's
+    // own, over the word each of them is. So a program names one atomic
+    // for its flags, its counters and its pointers alike.
     template<class T>
     class atomic : public std::atomic<T> {
     public:
@@ -25,9 +23,11 @@ namespace sgcl {
 
     // The atomic of a tracked_ptr: the operations of detail::AtomicWord on
     // the word it holds, one word, as a tracked_ptr is. It lives where a
-    // tracked_ptr may: on a stack or inside a managed object.
+    // tracked_ptr may: on a stack or inside a managed object; a global
+    // holding an object that other threads share and that is replaced at
+    // run time is a root_ptr with an atomic_ref over it (atomic_ref.h).
     template<class T>
-    class atomic<tracked_ptr<T>> : public detail::AtomicWord<atomic<tracked_ptr<T>>, T, tracked_ptr<T>> {
+    class atomic<tracked_ptr<T>> : public detail::AtomicWord<atomic<tracked_ptr<T>>, T> {
     public:
         using value_type = tracked_ptr<T>;
 
@@ -66,7 +66,7 @@ namespace sgcl {
         }
 
     private:
-        friend detail::AtomicWord<atomic, T, value_type>;
+        friend detail::AtomicWord<atomic, T>;
 
         detail::Pointer& _ptr() noexcept {
             return *_val._ptr();
@@ -74,67 +74,6 @@ namespace sgcl {
 
         const detail::Pointer& _ptr() const noexcept {
             return *_val._ptr();
-        }
-
-        value_type _val;
-    };
-
-    // The atomic of a gc::tracked_ptr: the same operations on the word the
-    // gc::tracked_ptr holds its object by (gc/tracked_ptr.h: the conversion
-    // to sgcl::tracked_ptr<T>&), the tracked_ptr itself inside a managed
-    // object or on a stack, the cell's word in any other memory (a
-    // gc::tracked_ptr takes its cell in its constructor, so no store
-    // allocates under a concurrent load), so that it lives anywhere: a
-    // global holding an object that other threads share and that is
-    // replaced at run time is `static sgcl::atomic<gc::tracked_ptr<T>>`
-    // (README, "The rules"). Inside, sgcl::tracked_ptr (detail::AtomicWord);
-    // outside, gc::tracked_ptr: what load(), the conversion and the
-    // assignment return.
-    template<class T>
-    class atomic<gc::tracked_ptr<T>> : public detail::AtomicWord<atomic<gc::tracked_ptr<T>>, T, gc::tracked_ptr<T>> {
-    public:
-        using value_type = gc::tracked_ptr<T>;
-
-        atomic(const atomic&) = delete;
-        atomic& operator=(const atomic&) = delete;
-
-        atomic() noexcept = default;
-
-        atomic(std::nullptr_t) noexcept
-        : _val(nullptr) {
-        }
-
-        atomic(unique_ptr<T>&& p) noexcept
-        : _val(std::move(p)) {
-        }
-
-        atomic(tracked_ptr<T> p) noexcept
-        : _val(p) {
-        }
-
-        std::nullptr_t operator=(std::nullptr_t) noexcept {
-            this->store(nullptr);
-            return nullptr;
-        }
-
-        void operator=(unique_ptr<T>&& p) noexcept {
-            this->store(std::move(p));
-        }
-
-        value_type operator=(tracked_ptr<T> p) noexcept {
-            this->store(p);
-            return p;
-        }
-
-    private:
-        friend detail::AtomicWord<atomic, T, value_type>;
-
-        detail::Pointer& _ptr() noexcept {
-            return *static_cast<tracked_ptr<T>&>(_val)._ptr();
-        }
-
-        const detail::Pointer& _ptr() const noexcept {
-            return *static_cast<const tracked_ptr<T>&>(_val)._ptr();
         }
 
         value_type _val;
@@ -153,11 +92,11 @@ namespace sgcl {
     // must be the one loaded (or stored) from here, not one equal to it;
     // an exchange for a change of contents loads, decides, and exchanges
     // against what it loaded. Lives where the string does: on a stack or
-    // inside a managed object for sgcl::string, anywhere for gc::string.
-    template<class CharT, class Traits, template<class> class Ptr>
-    class atomic<basic_string<CharT, Traits, Ptr>> : public detail::AtomicWord<atomic<basic_string<CharT, Traits, Ptr>>, void, tracked_ptr<void>> {
-        using Base = detail::AtomicWord<atomic, void, tracked_ptr<void>>;   // the word without its const: the string's object is never written through it
-        using String = basic_string<CharT, Traits, Ptr>;
+    // inside a managed object.
+    template<class CharT, class Traits>
+    class atomic<basic_string<CharT, Traits>> : public detail::AtomicWord<atomic<basic_string<CharT, Traits>>, void> {
+        using Base = detail::AtomicWord<atomic, void>;   // the word without its const: the string's object is never written through it
+        using String = basic_string<CharT, Traits>;
 
     public:
         using value_type = String;
@@ -239,7 +178,7 @@ namespace sgcl {
     private:
         friend Base;
 
-        // the word of a string of either kind as an sgcl::tracked_ptr<void>
+        // the word of a string as a tracked_ptr<void>
         static tracked_ptr<void> _word(const String& s) noexcept {
             return const_pointer_cast<void>(tracked_ptr<const void>(s._word));
         }

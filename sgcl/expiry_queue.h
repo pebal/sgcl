@@ -31,19 +31,18 @@ namespace sgcl {
     // found unreachable waits for that call. watch() returns an entry
     // handle: cancel() withdraws the entry (the object no longer kept,
     // f never called: a resource released by hand), weak() is a weak_ptr
-    // to the object sharing the entry's cell. Ptr is the kind of the
-    // queue's pointers: what watch() takes and what f receives, the word
-    // by which the queue holds its entries and the handle its cell, so
-    // where they live: a tracked_ptr, on a stack or in a managed object;
-    // a gc::tracked_ptr (gc::expiry_queue), anywhere. Shared between
-    // threads with the program's own synchronization; cancel() alone is
+    // to the object sharing the entry's cell. The queue holds its entries
+    // and the handle its cell by tracked_ptrs, what watch() takes and
+    // what f receives, so they live where one may: on a stack or in a
+    // managed object. Shared between threads with the program's own
+    // synchronization; cancel() alone is
     // an atomic flag and may come from any thread.
-    template<class T, template<class> class Ptr>
+    template<class T>
     class expiry_queue {
     public:
-        using value_type = Ptr<T>;
-        using weak_type = weak_ptr<T, Ptr>;
-        using function_type = function<void(value_type), Ptr>;
+        using value_type = tracked_ptr<T>;
+        using weak_type = weak_ptr<T>;
+        using function_type = function<void(value_type)>;
         using size_type = size_t;
 
         // The handle of one entry: the entry's cell, which watch() made.
@@ -83,11 +82,11 @@ namespace sgcl {
             }
 
         private:
-            explicit entry(Ptr<detail::WeakCell> cell) noexcept
+            explicit entry(tracked_ptr<detail::WeakCell> cell) noexcept
             : _cell(std::move(cell)) {
             }
 
-            Ptr<detail::WeakCell> _cell;
+            tracked_ptr<detail::WeakCell> _cell;
 
             friend class expiry_queue;
         };
@@ -179,7 +178,7 @@ namespace sgcl {
             cell->flags.fetch_or(detail::WeakCell::Drained, std::memory_order_acq_rel);
         }
 
-        vector<Entry, Ptr> _entries;
+        vector<Entry> _entries;
         size_type _watched = 0;
         size_type _threshold = 16;
     };

@@ -348,7 +348,7 @@ namespace sgcl::detail {
         const size_t object_size;
         const uint32_t object_count;
         const bool is_array;
-        const bool is_root_holder;   // a page of SharedHolders: a word naming one is data (metadata.h)
+        const bool is_root_holder;   // a page of SharedHolders or of blocks of cells: a word naming one is data (metadata.h)
         Flags* const flags_ptr;
         size_t page_count = 1;   // > 1 for objects larger than a page
         std::atomic_bool object_created = {false};

@@ -11,15 +11,6 @@
 #include <thread>
 #include <vector>
 
-namespace {
-    SGCL_ALWAYS_INLINE size_t live_without_cells() {
-        sgcl::detail::cell_allocator.release();
-        collector::clear_stack(SIZE_MAX);
-        collector::force_collect(true);
-        return collector::get_live_object_count();
-    }
-}
-
 TEST(AtomicString_Test, LoadStore) {
     sgcl::atomic<sgcl::string> a;
     EXPECT_TRUE(a.load().empty());          // the empty string: a null word
@@ -75,7 +66,7 @@ TEST(AtomicString_Test, ExchangeAndCompareExchangeByIdentity) {
 TEST(AtomicString_Test, WaitNotify) {
     sgcl::atomic<sgcl::string> a("start");
     sgcl::string start = a.load();
-    gc::atomic<bool> woke = {false};
+    sgcl::atomic<bool> woke = {false};
     std::thread t([&] {
         a.wait(start);
         woke = true;
@@ -107,27 +98,6 @@ TEST(AtomicString_Test, OldStringsReclaimed) {
     EXPECT_EQ(collector::get_live_object_count(), before + 1u);
 }
 
-TEST(AtomicString_Test, GcLivesAnywhere) {
-    const size_t before = collector::get_live_object_count();
-    auto a = std::make_unique<gc::atomic<gc::string>>();   // in unmanaged memory
-    std::vector<gc::string> seen;                            // gc strings in a std container
-    off_frame([&] {
-        for (int i = 0; i < 5; ++i) {
-            a->store(gc::string(std::to_string(i)));
-            seen.push_back(a->load());
-        }
-        for (int i = 0; i < 5; ++i) {
-            EXPECT_EQ(seen[size_t(i)], std::to_string(i));
-        }
-        gc::string e = a->load();
-        EXPECT_TRUE(a->compare_exchange_strong(e, "last"));
-        EXPECT_EQ(a->load(), "last");
-    });
-    seen.clear();
-    a.reset();
-    EXPECT_EQ(live_without_cells(), before);
-}
-
 TEST(AtomicString_Test, InsideManagedObjectAndOtherCharacters) {
     struct Holder {
         sgcl::atomic<sgcl::string> name;
@@ -147,8 +117,8 @@ TEST(AtomicString_Test, InsideManagedObjectAndOtherCharacters) {
 // every character the same) while the collector runs
 TEST(AtomicString_Test, ReadersSeeWholeStrings) {
     sgcl::atomic<sgcl::string> a("1");
-    gc::atomic<bool> torn = {false};
-    gc::atomic<bool> stop = {false};
+    sgcl::atomic<bool> torn = {false};
+    sgcl::atomic<bool> stop = {false};
     off_frame([&] {
         std::vector<std::thread> ws;
         for (int t = 0; t < 6; ++t) {

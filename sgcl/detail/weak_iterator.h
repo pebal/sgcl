@@ -19,7 +19,7 @@ namespace sgcl::detail {
     // it; the reference it gives out carries that pointer (the pointer
     // itself for a set). It is a tracked object then, and lives where
     // the container's pointers may.
-    template<class Inner, class Key, template<class> class Ptr, class Reference>
+    template<class Inner, class Key, class Reference>
     class WeakIterator {
     public:
         using iterator_category = std::forward_iterator_tag;
@@ -40,7 +40,7 @@ namespace sgcl::detail {
         }
 
         reference operator*() const noexcept {
-            if constexpr(std::is_same_v<Reference, Ptr<Key>>) {
+            if constexpr(std::is_same_v<Reference, tracked_ptr<Key>>) {
                 return _object;
             } else {
                 return Reference::of(_object, *_at);
@@ -94,6 +94,6 @@ namespace sgcl::detail {
 
         Inner _at;
         Inner _end;
-        Ptr<Key> _object;
+        tracked_ptr<Key> _object;
     };
 }

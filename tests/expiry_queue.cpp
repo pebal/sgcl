@@ -14,7 +14,7 @@ namespace {
         explicit Texture(int id) : id(id) { ++alive; }
         ~Texture() { id = -1; --alive; }
         int id;
-        inline static gc::atomic<int> alive = {0};
+        inline static sgcl::atomic<int> alive = {0};
     };
 
     void settle() {

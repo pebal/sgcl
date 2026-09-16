@@ -4,14 +4,12 @@
 #include "sgcl/vector.h"   // or "sgcl/sgcl.h"
 
 namespace sgcl {
-    template<class T, template<class> class Ptr = tracked_ptr>
+    template<class T>
     class vector;
 }
 ```
 
 `sgcl::vector<T>` is `std::vector` over a buffer on the managed heap. The interface is the one of `std::vector` (constructors, `assign`, element access, contiguous iterators, capacity, modifiers, three-way comparison, `std::erase`/`std::erase_if`, a deduction guide from an iterator pair), and so is the behaviour: elements are constructed and destroyed one at a time, an explicit removal destroys them at once, a reallocation moves them and destroys the moved-from ones, `clear()` keeps the capacity.
-
-`Ptr`, the last parameter, is the kind of the word by which the container holds its memory: `tracked_ptr` by default, so that the container lives where a `tracked_ptr` may (on a stack or inside a managed object), or [`gc::tracked_ptr`](gc/tracked_ptr.md), so that it lives anywhere, at the cost of a `gc::tracked_ptr` on each access to that word; `gc::vector` ([gc/gc.h](README.md#the-gc-namespace)) names the latter. The nodes and buffers are the same managed objects either way, and the elements are a choice apart; an element type that names a `tracked_type` (`gc::tracked_ptr<T>` names `sgcl::tracked_ptr<T>`) is stored as that type, one word in the same mode, and handed out as the type it was given, so a container of `gc::tracked_ptr`s costs what one of `sgcl::tracked_ptr`s does ([the gc namespace](README.md#the-gc-namespace)).
 
 What differs is where the memory lives and what the object is. The vector object is three words: a `tracked_ptr` to the first element of the buffer, the count and the capacity. The buffer is a managed array with a header of its own; the collector never destroys a buffer, it only frees one nothing refers to any more (the buffer a reallocation abandoned, the buffer of a vector that is gone). A `sgcl::vector<tracked_ptr<T>>` is therefore the managed form of a vector of pointers: its elements are traced, and it may hold cycles like any other managed object. `vector<bool>` is a plain vector of `bool`; elements aligned beyond 16 bytes are not supported in buffers.
 
@@ -57,11 +55,11 @@ vector(vector&& other) noexcept;
 The default constructor allocates nothing. `vector(count)` holds `count` value-initialized elements; for `tracked_ptr` elements the buffer is already zeroed, so they are null pointers without a constructor run. The range constructor takes the count from a forward range in advance and appends a single-pass range element by element. A copy has a buffer of its own; a move takes the buffer over and leaves `other` empty. An element constructor that throws takes the elements built before it with it and the vector holds nothing.
 
 ```cpp
-gc::vector<int> zeros(4);                         // 0 0 0 0
-gc::vector<std::string> words(2, "x");            // "x" "x"
-gc::vector<int> digits = {1, 2, 3};
-gc::vector copy(digits.begin(), digits.end());    // deduced: gc::vector<int>
-gc::vector<int> taken = std::move(digits);        // digits is empty now
+sgcl::vector<int> zeros(4);                         // 0 0 0 0
+sgcl::vector<std::string> words(2, "x");            // "x" "x"
+sgcl::vector<int> digits = {1, 2, 3};
+sgcl::vector copy(digits.begin(), digits.end());    // deduced: sgcl::vector<int>
+sgcl::vector<int> taken = std::move(digits);        // digits is empty now
 ```
 
 ### Destructor
@@ -83,8 +81,8 @@ vector& operator=(std::initializer_list<T> ilist);
 Copy assignment is `assign(other.begin(), other.end())`: the elements are assigned over in place when the capacity suffices, else into a fresh buffer. Move assignment destroys the current elements and takes the other buffer over.
 
 ```cpp
-gc::vector<int> a = {1, 2, 3};
-gc::vector<int> b;
+sgcl::vector<int> a = {1, 2, 3};
+sgcl::vector<int> b;
 b = a;              // a copy, into b's own buffer
 b = {4, 5};         // two elements; the buffer stays
 b = std::move(a);   // a is empty
@@ -101,7 +99,7 @@ void assign(std::initializer_list<T> ilist);
 Replaces the contents. Within the capacity the elements are assigned over and the surplus destroyed, or the missing ones constructed; above it a fresh vector is built and swapped in. `value` may be an element of this vector. A single-pass range is cleared first and appended element by element.
 
 ```cpp
-gc::vector<int> v = {1, 2, 3};
+sgcl::vector<int> v = {1, 2, 3};
 v.assign(2, 9);          // 9 9, the buffer stays
 v.assign({7, 8, 9, 10});
 ```
@@ -118,7 +116,7 @@ const_reference operator[](size_type pos) const noexcept;
 `at` throws `std::out_of_range` for `pos >= size()`; `operator[]` does not check.
 
 ```cpp
-gc::vector<int> v = {10, 20, 30};
+sgcl::vector<int> v = {10, 20, 30};
 v[1] = 25;
 try { v.at(3); } catch (const std::out_of_range&) { /* 3 >= size() */ }
 ```
@@ -137,7 +135,7 @@ const T* data() const noexcept;
 `front` and `back` require a non-empty vector. `data()` is the buffer as a plain pointer (null for a vector that has no buffer), valid under the same conditions as any pointer to an element.
 
 ```cpp
-gc::vector<int> v = {1, 2, 3};
+sgcl::vector<int> v = {1, 2, 3};
 v.front() = 0;
 v.back() = 9;
 std::span<int> view(v.data(), v.size());   // a view: valid until v reallocates or dies
@@ -159,7 +157,7 @@ const_reverse_iterator crend() const noexcept;
 Contiguous iterators over the buffer: raw pointers, so `std::ranges` algorithms and `std::span` work on the vector. An iterator keeps nothing alive and is invalidated exactly when a `std::vector` iterator is. An iterator dying in a frame nulls its word, so a temporary left behind does not root the buffer under the conservative stack scan.
 
 ```cpp
-gc::vector<int> v = {3, 1, 2};
+sgcl::vector<int> v = {3, 1, 2};
 std::ranges::sort(v);                          // 1 2 3
 for (auto it = v.rbegin(); it != v.rend(); ++it) {
     *it *= 10;                                 // 10 20 30
@@ -187,7 +185,7 @@ void shrink_to_fit();
 `reserve` moves the elements into a buffer of at least the requested capacity when it is above the current one; it never shrinks. `capacity()` is what the size class granted, which may be a little more than asked. `shrink_to_fit` replaces the buffer by one sized for the elements, and drops the buffer altogether when the vector is empty (`clear()` keeps it).
 
 ```cpp
-gc::vector<int> v;
+sgcl::vector<int> v;
 v.reserve(100);                      // one buffer for the pushes below
 for (int i = 0; i < 100; ++i) {
     v.push_back(i);                  // no reallocation
@@ -218,7 +216,7 @@ template<class... A> iterator emplace(const_iterator pos, A&&... a);
 Inserts before `pos` and returns an iterator to the first inserted element (`pos` itself when nothing is inserted). Within the capacity the tail shifts up; above it the new elements are constructed into a fresh buffer first and the old elements move over after, so an argument that refers to an element of this vector stays valid throughout. A single-pass range is collected first, then inserted by moving. On an exception the vector is as it was.
 
 ```cpp
-gc::vector<int> v = {1, 4};
+sgcl::vector<int> v = {1, 4};
 v.insert(v.begin() + 1, 2);               // 1 2 4
 v.insert(v.begin() + 2, 2, 3);            // 1 2 3 3 4
 v.emplace(v.end(), 5);                    // 1 2 3 3 4 5
@@ -236,7 +234,7 @@ iterator erase(const_iterator first, const_iterator last);
 Shifts the tail down and destroys the last `count` elements, as `std::vector` does; returns the iterator to the element after the erased range. `erase(end())` and an empty range are no-ops.
 
 ```cpp
-gc::vector<int> v = {1, 2, 3, 4, 5};
+sgcl::vector<int> v = {1, 2, 3, 4, 5};
 auto it = v.erase(v.begin());             // 2 3 4 5, it -> 2
 v.erase(it + 1, v.end());                 // 2 3
 ```
@@ -252,11 +250,11 @@ template<class... A> reference emplace_back(A&&... a);
 Appends an element and (`emplace_back`) returns a reference to it. The common case inlines into the caller's loop: a compare of the count against the capacity, the construction, a store of the count. The growth allocates a buffer of at least twice the capacity, constructs the new element there first (the arguments may refer to an element), then moves the others over and destroys the moved-from ones; the old buffer is the collector's.
 
 ```cpp
-gc::vector<gc::tracked_ptr<int>> ptrs;
+sgcl::vector<sgcl::tracked_ptr<int>> ptrs;
 for (int i = 0; i < 1000; ++i) {
-    ptrs.push_back(gc::make_tracked<int>(i));     // the buffers outgrown on the way are collected
+    ptrs.push_back(sgcl::make_tracked<int>(i));     // the buffers outgrown on the way are collected
 }
-int& last = *ptrs.emplace_back(gc::make_tracked<int>(1000));
+int& last = *ptrs.emplace_back(sgcl::make_tracked<int>(1000));
 ```
 
 ### pop_back
@@ -277,7 +275,7 @@ void resize(size_type count, const value_type& value);
 Destroys the elements past `count`, or appends value-initialized elements (copies of `value`) up to it, reallocating when the capacity does not suffice.
 
 ```cpp
-gc::vector<int> v = {1, 2, 3};
+sgcl::vector<int> v = {1, 2, 3};
 v.resize(5);          // 1 2 3 0 0
 v.resize(2);          // 1 2
 v.resize(4, 7);       // 1 2 7 7
@@ -302,7 +300,7 @@ friend auto operator<=>(const vector& l, const vector& r);
 Element-wise, as for `std::vector`: `==` compares sizes first, `<=>` is lexicographical with the synthesized three-way comparison (`<=>` of `T` when it has one, else a `std::weak_ordering` built from `<`), so `<`, `<=`, `>`, `>=` and `!=` follow.
 
 ```cpp
-gc::vector<int> a = {1, 2}, b = {1, 3};
+sgcl::vector<int> a = {1, 2}, b = {1, 3};
 bool less = a < b;                  // true
 bool same = a == b;                 // false
 ```
@@ -316,7 +314,7 @@ vector(InputIt, InputIt) -> vector<std::iter_value_t<InputIt>>;
 
 ```cpp
 std::list<double> src = {1.5, 2.5};
-gc::vector v(src.begin(), src.end());     // gc::vector<double>
+sgcl::vector v(src.begin(), src.end());     // sgcl::vector<double>
 ```
 
 ### std::erase, std::erase_if
@@ -331,7 +329,7 @@ namespace std {
 Remove every element equal to `value`, or satisfying `pred`, and return how many were removed.
 
 ```cpp
-gc::vector<int> v = {1, 2, 2, 3, 4};
+sgcl::vector<int> v = {1, 2, 2, 3, 4};
 size_t twos = std::erase(v, 2);                                  // 2; v is 1 3 4
 size_t big = std::erase_if(v, [](int x) { return x > 2; });      // 2; v is 1
 ```
@@ -346,8 +344,8 @@ class vector<unique_ptr<T>> : public std::vector<unique_ptr<T>>;
 A `unique_ptr` owns its object and needs no tracing, so a vector of them is a plain `std::vector` with the constructors and assignments of the base: it may live anywhere a `std::vector` may, and the objects die when their `unique_ptr` does.
 
 ```cpp
-gc::vector<gc::unique_ptr<int>> owned;
-owned.push_back(gc::make_tracked<int>(1));
+sgcl::vector<sgcl::unique_ptr<int>> owned;
+owned.push_back(sgcl::make_tracked<int>(1));
 owned.pop_back();                                  // the int is destroyed here, deterministically
 ```
 
@@ -360,26 +358,26 @@ owned.pop_back();                                  // the int is destroyed here,
 
 struct Node {
     int value;
-    gc::vector<gc::tracked_ptr<Node>> edges;       // a managed buffer of traced pointers: any graph
+    sgcl::vector<sgcl::tracked_ptr<Node>> edges;       // a managed buffer of traced pointers: any graph
 };
 
 int main() {
     // A vector of values, on the stack: the buffer is on the managed heap
-    gc::vector<int> numbers = {5, 3, 9, 1};
+    sgcl::vector<int> numbers = {5, 3, 9, 1};
     numbers.push_back(7);
     std::ranges::sort(numbers);                     // contiguous iterators: 1 3 5 7 9
     std::erase_if(numbers, [](int x) { return x > 5; });        // 1 3 5
 
     // A graph with a cycle, its edges in vectors inside managed objects
-    gc::tracked_ptr a = gc::make_tracked<Node>(1);
-    gc::tracked_ptr b = gc::make_tracked<Node>(2);
+    sgcl::tracked_ptr a = sgcl::make_tracked<Node>(1);
+    sgcl::tracked_ptr b = sgcl::make_tracked<Node>(2);
     a->edges.push_back(b);
     b->edges.push_back(a);                          // a cycle: collected like anything else
 
     // A vector of pointers on the stack roots every node it holds
-    gc::vector<gc::tracked_ptr<Node>> nodes;
+    sgcl::vector<sgcl::tracked_ptr<Node>> nodes;
     for (int i = 0; i < 100; ++i) {
-        gc::tracked_ptr n = gc::make_tracked<Node>(i);
+        sgcl::tracked_ptr n = sgcl::make_tracked<Node>(i);
         n->edges.push_back(a);
         nodes.push_back(n);                         // the buffers outgrown on the way are collected
     }
@@ -388,10 +386,10 @@ int main() {
 
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
-    gc::collector::force_collect(true);
+    sgcl::collector::force_collect(true);
     std::cout << nodes.size() << " nodes kept, "
               << nodes.front()->edges.front()->edges.front()->value << " reachable through the cycle\n";
-    std::cout << gc::collector::get_live_object_count() << " live objects\n";
+    std::cout << sgcl::collector::get_live_object_count() << " live objects\n";
     return numbers.size() == 3 && nodes.size() == 10 ? 0 : 1;
 }
 ```

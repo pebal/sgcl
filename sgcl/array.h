@@ -6,7 +6,6 @@
 #pragma once
 
 #include "detail/contiguous_iterator.h"
-#include "detail/managed.h"
 #include "detail/synth_three_way.h"
 #include "make_tracked.h"
 #include "tracked_ptr.h"
@@ -28,7 +27,7 @@ namespace sgcl {
     // inside a managed object) and costs nothing beyond the elements.
     // array<T> (N = dynamic_extent, below): a handle to a managed buffer
     // whose size is fixed when it is created.
-    template<class T, size_t N = dynamic_extent, template<class> class Ptr>
+    template<class T, size_t N = dynamic_extent>
     struct array {
         using value_type = T;
         using reference = T&;
@@ -172,8 +171,8 @@ namespace sgcl {
     };
 
     // No elements: an empty aggregate with the same interface.
-    template<class T, template<class> class Ptr>
-    struct array<T, 0, Ptr> {
+    template<class T>
+    struct array<T, 0> {
         using value_type = T;
         using reference = T&;
         using const_reference = const T&;
@@ -272,20 +271,20 @@ namespace sgcl {
     template<class T, class... U>
     array(T, U...) -> array<std::enable_if_t<(std::is_same_v<T, U> && ...), T>, 1 + sizeof...(U)>;
 
-    template<size_t I, class T, size_t N, template<class> class Ptr>
-    constexpr T& get(array<T, N, Ptr>& a) noexcept {
+    template<size_t I, class T, size_t N>
+    constexpr T& get(array<T, N>& a) noexcept {
         static_assert(I < N, "index out of range");
         return a.elems[I];
     }
 
-    template<size_t I, class T, size_t N, template<class> class Ptr>
-    constexpr const T& get(const array<T, N, Ptr>& a) noexcept {
+    template<size_t I, class T, size_t N>
+    constexpr const T& get(const array<T, N>& a) noexcept {
         static_assert(I < N, "index out of range");
         return a.elems[I];
     }
 
-    template<size_t I, class T, size_t N, template<class> class Ptr>
-    constexpr T&& get(array<T, N, Ptr>&& a) noexcept {
+    template<size_t I, class T, size_t N>
+    constexpr T&& get(array<T, N>&& a) noexcept {
         static_assert(I < N, "index out of range");
         return std::move(a.elems[I]);
     }
@@ -312,19 +311,15 @@ namespace sgcl {
     // its own; moving passes the buffer on. The buffer is referenced only
     // through the pointer to its first element: a pointer to an element
     // does not keep it, like with vector (README, "Containers").
-    template<class V, template<class> class Ptr>
-    struct array<V, dynamic_extent, Ptr> {
+    template<class T>
+    struct array<T, dynamic_extent> {
     private:
-        // What the buffer holds (vector.h, detail/managed.h): V, or the
-        // word V names as its tracked_type; the interface is V
-        using T = detail::managed_t<V>;
-
     public:
-        using value_type = V;
-        using reference = V&;
-        using const_reference = const V&;
-        using pointer = V*;
-        using const_pointer = const V*;
+        using value_type = T;
+        using reference = T&;
+        using const_reference = const T&;
+        using pointer = T*;
+        using const_pointer = const T*;
         using size_type = size_t;
         using difference_type = ptrdiff_t;
         using iterator = detail::ContiguousIterator<value_type>;
@@ -349,7 +344,7 @@ namespace sgcl {
             }
         }
 
-        array(size_type count, const V& value) {
+        array(size_type count, const T& value) {
             if (count) {
                 _check_size(count);
                 auto data = _allocate(count);
@@ -377,7 +372,7 @@ namespace sgcl {
             }
         }
 
-        array(std::initializer_list<V> ilist)
+        array(std::initializer_list<T> ilist)
         : array(ilist.begin(), ilist.end()) {
         }
 
@@ -421,7 +416,7 @@ namespace sgcl {
             return *this;
         }
 
-        array& operator=(std::initializer_list<V> ilist) {
+        array& operator=(std::initializer_list<T> ilist) {
             array fresh(ilist);
             swap(fresh);
             return *this;
@@ -465,11 +460,11 @@ namespace sgcl {
             return _values()[size() - 1];
         }
 
-        V* data() noexcept {
+        T* data() noexcept {
             return _values();
         }
 
-        const V* data() const noexcept {
+        const T* data() const noexcept {
             return _values();
         }
 
@@ -533,7 +528,7 @@ namespace sgcl {
             return (size_type)std::numeric_limits<difference_type>::max() / sizeof(T);
         }
 
-        void fill(const V& value) {
+        void fill(const T& value) {
             std::fill(begin(), end(), value);
         }
 
@@ -557,7 +552,7 @@ namespace sgcl {
     private:
         // Two words: the first element and the count (a size class may
         // give the buffer more room than asked; the count is the handle's).
-        Ptr<T> _ptr;
+        tracked_ptr<T> _ptr;
         size_type _size = 0;
 
         T* _data() const noexcept {
@@ -570,8 +565,8 @@ namespace sgcl {
             }
         }
 
-        V* _values() const noexcept {
-            return reinterpret_cast<V*>(_data());
+        T* _values() const noexcept {
+            return _data();
         }
 
         T* _allocate(size_type n) {
@@ -596,17 +591,17 @@ namespace sgcl {
         }
     };
 
-    template<std::input_iterator InputIt, template<class> class Ptr = tracked_ptr>
-    array(InputIt, InputIt) -> array<std::iter_value_t<InputIt>, dynamic_extent, Ptr>;
+    template<std::input_iterator InputIt>
+    array(InputIt, InputIt) -> array<std::iter_value_t<InputIt>, dynamic_extent>;
 }
 
 namespace std {
-    template<class T, size_t N, template<class> class Ptr>
-    struct tuple_size<sgcl::array<T, N, Ptr>> : integral_constant<size_t, N> {
+    template<class T, size_t N>
+    struct tuple_size<sgcl::array<T, N>> : integral_constant<size_t, N> {
     };
 
-    template<size_t I, class T, size_t N, template<class> class Ptr>
-    struct tuple_element<I, sgcl::array<T, N, Ptr>> {
+    template<size_t I, class T, size_t N>
+    struct tuple_element<I, sgcl::array<T, N>> {
         using type = T;
     };
 }

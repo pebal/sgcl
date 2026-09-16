@@ -32,8 +32,7 @@ namespace sgcl {
     // search steps through one object per node at any level. The
     // container holds the head node (a sentinel of the maximum height and
     // no element) and the number of levels in use; it lives where a
-    // tracked_ptr may (on a stack or inside a managed object), the gc::
-    // one (gc/gc.h) anywhere.
+    // tracked_ptr may (on a stack or inside a managed object).
     //
     // insert, try_emplace, emplace and erase are lock-free and
     // linearizable: an insertion takes effect at the compare-exchange that
@@ -49,9 +48,9 @@ namespace sgcl {
     // its node, once nothing holds it: not at the erase, which other
     // threads may be reading it across. size() counts, in linear time,
     // as Java's does.
-    template<class Key, class V, class Compare = std::less<Key>, template<class> class Ptr = tracked_ptr>
-    class concurrent_map : public detail::SkipList<detail::ConcurrentMapTraits<Key, V, Compare, Ptr>> {
-        using Base = detail::SkipList<detail::ConcurrentMapTraits<Key, V, Compare, Ptr>>;
+    template<class Key, class V, class Compare = std::less<Key>>
+    class concurrent_map : public detail::SkipList<detail::ConcurrentMapTraits<Key, V, Compare>> {
+        using Base = detail::SkipList<detail::ConcurrentMapTraits<Key, V, Compare>>;
 
     public:
         using mapped_type = V;

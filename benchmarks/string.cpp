@@ -6,7 +6,7 @@
 // Cost of a string kept in managed objects: sgcl::string (immutable, one
 // word to an object of exactly its size, no destructor) against
 // std::string (a small buffer inside, a heap buffer past it).
-//   string <sgcl|gc|std> [op=make|copy|hash1|hashn|sweep] [len=10]   (gc: gc::string in the same nodes)
+//   string <sgcl|std> [op=make|copy|hash1|hashn|sweep] [len=10]
 //   make: 2 M strings made from tokens of a text buffer, each stored in a node
 //   copy: 2 M strings copied from one node to another, in order
 //   hash1: 2 M strings each hashed once, as a map key would be
@@ -40,7 +40,7 @@ namespace {
         if constexpr(std::is_same_v<S, std::string>) {
             return std::string(tok, len);
         } else {
-            return S(std::string_view(tok, len));   // sgcl::string and gc::string alike
+            return S(std::string_view(tok, len));
         }
     }
 
@@ -100,13 +100,13 @@ namespace {
 
 int main(int argc, char** argv) {
     const char* variant = argc > 1 ? argv[1] : "sgcl";
-    if (!bench::has_variant(variant, {"sgcl", "gc", "std"})) {
-        std::fprintf(stderr, "usage: string <sgcl|gc|std> [make|copy|hash1|hashn|sweep] [len]\n");
+    if (!bench::has_variant(variant, {"sgcl", "std"})) {
+        std::fprintf(stderr, "usage: string <sgcl|std> [make|copy|hash1|hashn|sweep] [len]\n");
         return 2;
     }
     const char* op = argc > 2 ? argv[2] : "make";
     size_t len = argc > 3 ? (size_t)std::atoi(argv[3]) : 10;
-    double v = !std::strcmp(variant, "sgcl") ? run<sgcl::string>(op, len) : !std::strcmp(variant, "gc") ? run<gc::string>(op, len) : run<std::string>(op, len);
+    double v = !std::strcmp(variant, "sgcl") ? run<sgcl::string>(op, len) : run<std::string>(op, len);
     if (!std::strcmp(op, "sweep")) {
         std::printf("%s op=%s len=%zu ms=%.1f\n", variant, op, len, v);
     } else {

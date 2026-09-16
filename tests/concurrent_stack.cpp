@@ -11,19 +11,6 @@
 #include <thread>
 #include <vector>
 
-namespace {
-    // The count with the thread's block of cells let go of first
-    // (tests/gc_tracked_ptr.cpp): a gc::tracked_ptr in unmanaged memory
-    // holds a cell of a managed block, and a block is an object of the
-    // count until every cell of it is given back.
-    SGCL_ALWAYS_INLINE size_t live_without_cells() {
-        sgcl::detail::cell_allocator.release();
-        collector::clear_stack(SIZE_MAX);
-        collector::force_collect(true);
-        return collector::get_live_object_count();
-    }
-}
-
 TEST(ConcurrentStack_Test, PushPopOrder) {
     sgcl::concurrent_stack<int> s;
     EXPECT_TRUE(s.empty());
@@ -100,27 +87,6 @@ TEST(ConcurrentStack_Test, NodesAndObjectsReclaimed) {
     EXPECT_EQ(collector::get_live_object_count(), before);
 }
 
-TEST(ConcurrentStack_Test, GcStackLivesAnywhere) {
-    const size_t before = collector::get_live_object_count();
-    off_frame([&] {
-        auto s = std::make_unique<gc::concurrent_stack<gc::tracked_ptr<Baz>>>();   // in unmanaged memory
-        for (int i = 0; i < 10; ++i) {
-            s->push(gc::make_tracked<Baz>(i));
-        }
-        std::vector<gc::tracked_ptr<Baz>> out;   // gc pointers in a std container
-        while (auto v = s->try_pop()) {
-            out.push_back(*v);
-        }
-        ASSERT_EQ(out.size(), 10u);
-        EXPECT_EQ(out.front()->value, 9);
-        EXPECT_EQ(out.back()->value, 0);
-        size_t live = collector::get_live_object_count();   // the ten Baz, and the blocks of the cells of s and out
-        EXPECT_GE(live, before + 10u);
-        EXPECT_LE(live, before + 12u);
-    });
-    EXPECT_EQ(live_without_cells(), before);
-}
-
 TEST(ConcurrentStack_Test, StackInsideManagedObject) {
     struct Holder {
         sgcl::concurrent_stack<int> s;
@@ -138,7 +104,7 @@ TEST(ConcurrentStack_Test, MixedPushPopManyThreads) {
     const size_t before = collector::get_live_object_count();
     off_frame([&] {
         sgcl::concurrent_stack<tracked_ptr<Baz>> s;
-        gc::atomic<long> popped = {0};
+        sgcl::atomic<long> popped = {0};
         std::vector<std::thread> ws;
         for (int t = 0; t < threads; ++t) {
             ws.emplace_back([&, t] {
@@ -177,7 +143,7 @@ TEST(ConcurrentStack_Test, MixedPushPopManyThreads) {
 TEST(ConcurrentStack_Test, ProducersAndBlockingConsumers) {
     const int pairs = 4;
     const int n = 20000;
-    std::vector<gc::atomic<int>> seen(size_t(pairs * n));
+    std::vector<sgcl::atomic<int>> seen(size_t(pairs * n));
     off_frame([&] {
         sgcl::concurrent_stack<tracked_ptr<Baz>> s;
         std::vector<std::thread> ws;

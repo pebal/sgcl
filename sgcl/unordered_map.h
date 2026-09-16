@@ -14,9 +14,9 @@ namespace sgcl {
     // one raw node pointer and may live anywhere (a std::vector of
     // iterators is fine): its node is rooted by the map while the element
     // is in it, and an iterator to an erased element is invalid as in std.
-    template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>, template<class> class Ptr = tracked_ptr>
-    class unordered_map : public detail::HashTable<detail::HashMapTraits<Key, T, Hash, KeyEqual, true, Ptr>> {
-        using Base = detail::HashTable<detail::HashMapTraits<Key, T, Hash, KeyEqual, true, Ptr>>;
+    template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
+    class unordered_map : public detail::HashTable<detail::HashMapTraits<Key, T, Hash, KeyEqual, true>> {
+        using Base = detail::HashTable<detail::HashMapTraits<Key, T, Hash, KeyEqual, true>>;
 
     public:
         using key_type = Key;
@@ -139,17 +139,17 @@ namespace sgcl {
 
     template<std::input_iterator InputIt,
              class Hash = std::hash<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>>,
-             class KeyEqual = std::equal_to<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>>, template<class> class Ptr = tracked_ptr>
+             class KeyEqual = std::equal_to<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>>>
     unordered_map(InputIt, InputIt, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual())
         -> unordered_map<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>,
-                         typename std::iterator_traits<InputIt>::value_type::second_type, Hash, KeyEqual, Ptr>;
+                         typename std::iterator_traits<InputIt>::value_type::second_type, Hash, KeyEqual>;
 
-    template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>, template<class> class Ptr = tracked_ptr>
+    template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
     unordered_map(std::initializer_list<std::pair<Key, T>>, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual())
-        -> unordered_map<Key, T, Hash, KeyEqual, Ptr>;
+        -> unordered_map<Key, T, Hash, KeyEqual>;
 
-    template<class Key, class T, class Hash, class KeyEqual, template<class> class Ptr, class Pred>
-    size_t erase_if(unordered_map<Key, T, Hash, KeyEqual, Ptr>& c, Pred pred) {
+    template<class Key, class T, class Hash, class KeyEqual, class Pred>
+    size_t erase_if(unordered_map<Key, T, Hash, KeyEqual>& c, Pred pred) {
         return c.erase_if_impl(pred);
     }
 }

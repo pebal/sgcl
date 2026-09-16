@@ -30,7 +30,7 @@ namespace {
     };
 
     struct Counted {
-        static inline gc::atomic<int> alive = 0;
+        static inline sgcl::atomic<int> alive = 0;
         Counted() { ++alive; }
         ~Counted() { --alive; }
         int value = 7;
@@ -164,7 +164,7 @@ TEST_P(Stepping, LockBeforeAndAfterTheWeakPhase) {
     EXPECT_EQ(Counted::alive, 0);
 }
 
-// The cells of gc::tracked_ptrs in unmanaged memory: a block let go of by
+// The cells of root_ptrs in unmanaged memory: a block let go of by
 // its allocator is freed by the cycle whose registration finds every cell
 // of it given back, not by the cycle in flight when the last cell goes.
 TEST_P(Stepping, ABlockOfCellsGoesWithTheNextRegistration) {
@@ -172,7 +172,7 @@ TEST_P(Stepping, ABlockOfCellsGoesWithTheNextRegistration) {
     arm(s);
     settle(s);
     auto live0 = collector::get_statistics().live_objects;
-    auto cells = std::make_unique<std::vector<gc::tracked_ptr<Counted>>>();
+    auto cells = std::make_unique<std::vector<root_ptr<Counted>>>();
     off_frame([&] {
         cells->reserve(detail::CellBlock::Slots);
         for (unsigned i = 0; i < detail::CellBlock::Slots; ++i) {
@@ -201,8 +201,8 @@ TEST_P(Stepping, AThreadExitingBeforeTheScanFreesItsObjects) {
     arm(s);
     settle(s);
     Counted::alive = 0;
-    gc::atomic<bool> go = false;
-    gc::atomic<bool> ready = false;
+    sgcl::atomic<bool> go = false;
+    sgcl::atomic<bool> ready = false;
     std::thread other([&] {
         tracked_ptr held = make_tracked<Counted>();     // on this thread's stack only
         ready = true;
@@ -229,8 +229,8 @@ TEST_P(Stepping, AThreadExitingAfterTheScanKeepsItsObjectsForTheCycle) {
     arm(s);
     settle(s);
     Counted::alive = 0;
-    gc::atomic<bool> go = false;
-    gc::atomic<bool> ready = false;
+    sgcl::atomic<bool> go = false;
+    sgcl::atomic<bool> ready = false;
     std::thread other([&] {
         tracked_ptr held = make_tracked<Counted>();
         ready = true;

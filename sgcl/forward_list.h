@@ -31,12 +31,8 @@ namespace sgcl {
     // being moved. An iterator is a raw node pointer, trivially copyable and
     // at home in any container: the list roots every linked node, and an
     // iterator to an erased element is invalid, as in std.
-    template<class V, template<class> class Ptr>
+    template<class T>
     class forward_list {
-        // What a node holds (vector.h, detail/managed.h): V, or the word V
-        // names as its tracked_type; the interface, _value included, is V
-        using T = detail::managed_t<V>;
-
         struct NodeBase {
             tracked_ptr<NodeBase> next;
         };
@@ -53,8 +49,8 @@ namespace sgcl {
             return static_cast<Node*>(node)->slot;
         }
 
-        static V& _value(NodeBase* node) noexcept {
-            return reinterpret_cast<V&>(static_cast<Node*>(node)->slot.value);
+        static T& _value(NodeBase* node) noexcept {
+            return static_cast<Node*>(node)->slot.value;
         }
 
         // A raw pointer to the node; stepping and dereferencing are plain
@@ -106,19 +102,19 @@ namespace sgcl {
             }
 
             template<class> friend class Iterator;
-            template<class, template<class> class> friend class forward_list;
+            template<class> friend class forward_list;
         };
 
     public:
-        using value_type = V;
+        using value_type = T;
         using size_type = size_t;
         using difference_type = ptrdiff_t;
-        using reference = V&;
-        using const_reference = const V&;
-        using pointer = V*;
-        using const_pointer = const V*;
-        using iterator = Iterator<V>;
-        using const_iterator = Iterator<const V>;
+        using reference = T&;
+        using const_reference = const T&;
+        using pointer = T*;
+        using const_pointer = const T*;
+        using iterator = Iterator<T>;
+        using const_iterator = Iterator<const T>;
 
         forward_list()
         : _head(make_tracked<NodeBase>()) {
@@ -135,7 +131,7 @@ namespace sgcl {
             }
         }
 
-        forward_list(size_type count, const V& value)
+        forward_list(size_type count, const T& value)
         : forward_list() {
             try {
                 assign(count, value);
@@ -158,7 +154,7 @@ namespace sgcl {
             }
         }
 
-        forward_list(std::initializer_list<V> ilist)
+        forward_list(std::initializer_list<T> ilist)
         : forward_list(ilist.begin(), ilist.end()) {
         }
 
@@ -198,12 +194,12 @@ namespace sgcl {
             return *this;
         }
 
-        forward_list& operator=(std::initializer_list<V> ilist) {
+        forward_list& operator=(std::initializer_list<T> ilist) {
             assign(ilist);
             return *this;
         }
 
-        void assign(size_type count, const V& value) {
+        void assign(size_type count, const T& value) {
             NodeBase* prev = _head.get();
             for (; count && prev->next; --count) {
                 prev = prev->next.get();
@@ -230,7 +226,7 @@ namespace sgcl {
             }
         }
 
-        void assign(std::initializer_list<V> ilist) {
+        void assign(std::initializer_list<T> ilist) {
             assign(ilist.begin(), ilist.end());
         }
 
@@ -290,15 +286,15 @@ namespace sgcl {
             _erase_after(_head.get(), nullptr);
         }
 
-        iterator insert_after(const_iterator pos, const V& value) {
+        iterator insert_after(const_iterator pos, const T& value) {
             return emplace_after(pos, value);
         }
 
-        iterator insert_after(const_iterator pos, V&& value) {
+        iterator insert_after(const_iterator pos, T&& value) {
             return emplace_after(pos, std::move(value));
         }
 
-        iterator insert_after(const_iterator pos, size_type count, const V& value) {
+        iterator insert_after(const_iterator pos, size_type count, const T& value) {
             return _emplace_chain_after(pos._node, [&] { return count-- > 0; }, [&](detail::Slot<T>& slot) { slot.construct(value); });
         }
 
@@ -307,7 +303,7 @@ namespace sgcl {
             return _emplace_chain_after(pos._node, [&] { return first != last; }, [&](detail::Slot<T>& slot) { slot.construct(*first); ++first; });
         }
 
-        iterator insert_after(const_iterator pos, std::initializer_list<V> ilist) {
+        iterator insert_after(const_iterator pos, std::initializer_list<T> ilist) {
             return insert_after(pos, ilist.begin(), ilist.end());
         }
 
@@ -334,11 +330,11 @@ namespace sgcl {
             return iterator(last._node);
         }
 
-        void push_front(const V& value) {
+        void push_front(const T& value) {
             emplace_front(value);
         }
 
-        void push_front(V&& value) {
+        void push_front(T&& value) {
             emplace_front(std::move(value));
         }
 
@@ -458,7 +454,7 @@ namespace sgcl {
             splice_after(pos, other, first, last);
         }
 
-        size_type remove(const V& value) {
+        size_type remove(const T& value) {
             return remove_if([&value](const T& v) { return v == value; });
         }
 
@@ -524,7 +520,7 @@ namespace sgcl {
         }
 
     private:
-        Ptr<NodeBase> _head;   // the sentinel, a bare NodeBase without an element: the root, of the kind Ptr
+        tracked_ptr<NodeBase> _head;   // the sentinel, a bare NodeBase without an element: the root
 
         // A node is made and its element constructed in one step, so no
         // node ever holds an unconstructed element: when the constructor
@@ -723,24 +719,24 @@ namespace sgcl {
         }
     };
 
-    template<class T, template<class> class Ptr>
-    class forward_list<unique_ptr<T>, Ptr> : public std::forward_list<unique_ptr<T>> {
+    template<class T>
+    class forward_list<unique_ptr<T>> : public std::forward_list<unique_ptr<T>> {
     public:
         using std::forward_list<unique_ptr<T>>::forward_list;
     };
 
-    template<class T, template<class> class Ptr>
-    inline void swap(forward_list<T, Ptr>& lhs, forward_list<T, Ptr>& rhs) noexcept {
+    template<class T>
+    inline void swap(forward_list<T>& lhs, forward_list<T>& rhs) noexcept {
         lhs.swap(rhs);
     }
 
-    template<class T, template<class> class Ptr, class Pred>
-    inline typename forward_list<T, Ptr>::size_type erase_if(forward_list<T, Ptr>& c, Pred pred) {
+    template<class T, class Pred>
+    inline typename forward_list<T>::size_type erase_if(forward_list<T>& c, Pred pred) {
         return c.remove_if(pred);
     }
 
-    template<class T, template<class> class Ptr, class U>
-    inline typename forward_list<T, Ptr>::size_type erase(forward_list<T, Ptr>& c, const U& value) {
+    template<class T, class U>
+    inline typename forward_list<T>::size_type erase(forward_list<T>& c, const U& value) {
         return c.remove_if([&value](const T& v) { return v == value; });
     }
 }

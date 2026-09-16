@@ -34,13 +34,13 @@ Constructs a `T` from `args...` on the managed heap, as `new (slot) T(std::forwa
 
 ```cpp
 struct Point { int x, y; };
-struct Node { int value; gc::tracked_ptr<Node> next; };
+struct Node { int value; sgcl::tracked_ptr<Node> next; };
 
-auto number = gc::make_tracked<int>(42);                    // unique_ptr<int>
-gc::unique_ptr point = gc::make_tracked<Point>(1, 2);       // an aggregate, in parentheses
-gc::tracked_ptr node = gc::make_tracked<Node>(7);           // moved into a tracked_ptr: the collector's from now on
-node->next = gc::make_tracked<Node>(8, node);               // a cycle, built from a unique_ptr temporary
-gc::unique_ptr<Node> owned = gc::make_tracked<Node>();      // default-initialized: next is null
+auto number = sgcl::make_tracked<int>(42);                    // unique_ptr<int>
+sgcl::unique_ptr point = sgcl::make_tracked<Point>(1, 2);       // an aggregate, in parentheses
+sgcl::tracked_ptr node = sgcl::make_tracked<Node>(7);           // moved into a tracked_ptr: the collector's from now on
+node->next = sgcl::make_tracked<Node>(8, node);               // a cycle, built from a unique_ptr temporary
+sgcl::unique_ptr<Node> owned = sgcl::make_tracked<Node>();      // default-initialized: next is null
 assert(*number == 42 && point->y == 2 && node->next->next == node && !owned->next);
 ```
 
@@ -64,21 +64,21 @@ struct Circle : Shape {
 };
 
 struct Label {
-    Label(std::string text, gc::tracked_ptr<Shape> shape) : text(std::move(text)), shape(shape) {}
+    Label(std::string text, sgcl::tracked_ptr<Shape> shape) : text(std::move(text)), shape(shape) {}
     std::string text;
-    gc::tracked_ptr<Shape> shape;     // stored by the constructor: a root from that store on
+    sgcl::tracked_ptr<Shape> shape;     // stored by the constructor: a root from that store on
 };
 
 int main() {
     // Deterministic: a unique_ptr, destroyed at the end of the scope
     {
-        gc::unique_ptr circle = gc::make_tracked<Circle>(1.0);       // unique_ptr<Circle>
+        sgcl::unique_ptr circle = sgcl::make_tracked<Circle>(1.0);       // unique_ptr<Circle>
         std::cout << "area " << circle->area() << '\n';
     }   // the Circle is destroyed here, on this thread
 
     // Collected: the unique_ptr moved into a tracked_ptr of the base class
-    gc::tracked_ptr<Shape> shape = gc::make_tracked<Circle>(2.0);
-    gc::tracked_ptr label = gc::make_tracked<Label>("big", shape);       // arguments forwarded to the constructor
+    sgcl::tracked_ptr<Shape> shape = sgcl::make_tracked<Circle>(2.0);
+    sgcl::tracked_ptr label = sgcl::make_tracked<Label>("big", shape);       // arguments forwarded to the constructor
     shape = nullptr;                                                     // the Circle lives on: the Label holds it
     std::cout << label->text << ": area " << label->shape->area() << '\n';
 
@@ -86,7 +86,7 @@ int main() {
     assert(label->shape.is<Circle>());
 
     label = nullptr;                          // nothing reaches the Label or the Circle now
-    gc::collector::force_collect(true);       // optional, for the demonstration only: the collector runs its cycles by itself
+    sgcl::collector::force_collect(true);       // optional, for the demonstration only: the collector runs its cycles by itself
     return 0;
 }
 ```

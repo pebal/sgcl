@@ -15,7 +15,7 @@
 // exchange (sgcl/detail/backoff.h, config::BackoffMax pauses at most; Go
 // and Java the same), the answer of Herlihy and Shavit to many threads at
 // one word.
-//   lockfree_stack <sgcl|gc|shared|unique> [threads=4] [mode=mixed] [n=1000000]   (gc: gc::tracked_ptr)
+//   lockfree_stack <sgcl|shared|unique> [threads=4] [mode=mixed] [n=1000000]
 // mixed: every thread pushes a node and pops one, n times over.
 // pairs: half the threads push n nodes each, the other half pop n each
 // (spinning on an empty stack), like the example.
@@ -31,16 +31,14 @@
 #include <vector>
 
 namespace {
-    // Ptr: sgcl::tracked_ptr, or gc::tracked_ptr for the gc variant
-    template<template<class> class Ptr>
     struct Sgcl {
         struct Node {
-            Ptr<Node> next;
+            sgcl::tracked_ptr<Node> next;
             long value;
         };
-        sgcl::atomic<Ptr<Node>> head;
+        sgcl::atomic<sgcl::tracked_ptr<Node>> head;
         void push(long v) {
-            Ptr<Node> n = sgcl::make_tracked<Node>();
+            sgcl::tracked_ptr<Node> n = sgcl::make_tracked<Node>();
             n->value = v;
             n->next = head.load(std::memory_order_relaxed);
             sgcl::detail::Backoff backoff;
@@ -155,8 +153,8 @@ namespace {
 
 int main(int argc, char** argv) {
     const char* variant = argc > 1 ? argv[1] : "sgcl";
-    if (!bench::has_variant(variant, {"sgcl", "gc", "shared", "unique"})) {
-        std::fprintf(stderr, "usage: lockfree_stack <sgcl|gc|shared|unique> [threads] [mixed|pairs] [n]\n");
+    if (!bench::has_variant(variant, {"sgcl", "shared", "unique"})) {
+        std::fprintf(stderr, "usage: lockfree_stack <sgcl|shared|unique> [threads] [mixed|pairs] [n]\n");
         return 2;
     }
     int threads = argc > 2 ? std::atoi(argv[2]) : 4;
@@ -168,9 +166,7 @@ int main(int argc, char** argv) {
     }
     std::string v = variant;
     if (v == "sgcl") {
-        run<Sgcl<sgcl::tracked_ptr>>(threads, mode, n);
-    } else if (v == "gc") {
-        run<Sgcl<gc::tracked_ptr>>(threads, mode, n);
+        run<Sgcl>(threads, mode, n);
     } else if (v == "shared") {
         run<Shared>(threads, mode, n);
     } else {

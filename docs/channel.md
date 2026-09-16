@@ -4,14 +4,10 @@
 #include "sgcl/channel.h"   // or "sgcl/sgcl.h"
 
 namespace sgcl {
-    template<class T, template<class> class Ptr = tracked_ptr>
-    class channel;
-    template<template<class> class Ptr>
-    class channel<void, Ptr>;   // a channel of signals
-}
-namespace gc {
     template<class T>
-    using channel = sgcl::channel<T, gc::tracked_ptr>;
+    class channel;
+    template<>
+    class channel<void>;   // a channel of signals
 }
 ```
 
@@ -21,7 +17,7 @@ The waiting is done by a thread, on an atomic of its own, or by a coroutine: `co
 
 ## Rules
 
-- The channel holds its queues by words of the `Ptr` kind: `sgcl::channel` lives where a `tracked_ptr` may, on a thread's stack or inside a managed object ([The rules](../README.md#the-rules), 1); `gc::channel` lives anywhere.
+- The channel holds its queues by `tracked_ptr`s, so it lives where one may: on a thread's stack or inside a managed object ([The rules](../README.md#the-rules), 1).
 - Every operation is lock-free on the channel's side; `send` and `receive` wait only for the other side, `try_send` and `try_receive` never. Elements are delivered in the order each sender sent them; between senders sending at the same moment the order is theirs.
 - A coroutine that awaits a channel must have a managed frame (a [task](coroutine.md), or a promise derived from `managed_frame`), so that the tracked pointers of its frame are roots while it waits; its frame is held by its task for the length of the wait, as for any suspension. The thread that serves the wait resumes the coroutine and runs it until its next suspension: a send from a thread runs the receiving coroutine on that thread.
 - A send to a closed channel returns `false` (Go panics); a send waiting when the channel closes returns `false` with its element undelivered. `close()` twice is nothing.
@@ -117,7 +113,7 @@ struct Job {
     int id;
 };
 
-gc::task<> worker(gc::channel<gc::tracked_ptr<Job>>& jobs, gc::channel<int>& results) {
+sgcl::task<> worker(sgcl::channel<sgcl::tracked_ptr<Job>>& jobs, sgcl::channel<int>& results) {
     while (auto job = co_await jobs.async_receive()) {     // suspends while jobs is empty
         co_await results.async_send((*job)->id * 2);       // suspends while results is full
     }
@@ -125,15 +121,15 @@ gc::task<> worker(gc::channel<gc::tracked_ptr<Job>>& jobs, gc::channel<int>& res
 }
 
 int main() {
-    gc::channel<gc::tracked_ptr<Job>> jobs(8);
-    gc::channel<int> results(8);
-    gc::task<> w = worker(jobs, results);
+    sgcl::channel<sgcl::tracked_ptr<Job>> jobs(8);
+    sgcl::channel<int> results(8);
+    sgcl::task<> w = worker(jobs, results);
     w.resume();                                            // to its first wait; from then on the senders drive it
     std::vector<std::thread> producers;
     for (int p = 0; p < 4; ++p) {
         producers.emplace_back([&, p] {
             for (int i = 0; i < 100; ++i) {
-                jobs.send(gc::make_tracked<Job>(p * 100 + i));   // waits when the buffer of eight is full
+                jobs.send(sgcl::make_tracked<Job>(p * 100 + i));   // waits when the buffer of eight is full
             }
         });
     }

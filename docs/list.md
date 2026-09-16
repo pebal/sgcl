@@ -4,14 +4,12 @@
 #include "sgcl/list.h"   // or "sgcl/sgcl.h"
 
 namespace sgcl {
-    template<class T, template<class> class Ptr = tracked_ptr>
+    template<class T>
     class list;
 }
 ```
 
 `sgcl::list<T>` is `std::list` over managed nodes: a circular doubly linked list around a managed sentinel. The interface is the one of `std::list` (constructors, `assign`, `front`/`back`, bidirectional iterators, modifiers at both ends and in the middle, `merge`, `splice`, `remove`, `remove_if`, `reverse`, `unique`, `sort`, three-way comparison, `std::erase`/`std::erase_if`), and so is the behaviour: an element is constructed at insertion and destroyed at removal, references and iterators to the other elements stay valid through every insertion, erasure and relink.
-
-`Ptr`, the last parameter, is the kind of the word by which the container holds its memory: `tracked_ptr` by default, so that the container lives where a `tracked_ptr` may (on a stack or inside a managed object), or [`gc::tracked_ptr`](gc/tracked_ptr.md), so that it lives anywhere, at the cost of a `gc::tracked_ptr` on each access to that word; `gc::list` ([gc/gc.h](README.md#the-gc-namespace)) names the latter. The nodes and buffers are the same managed objects either way, and the elements are a choice apart; an element type that names a `tracked_type` (`gc::tracked_ptr<T>` names `sgcl::tracked_ptr<T>`) is stored as that type, one word in the same mode, and handed out as the type it was given, so a container of `gc::tracked_ptr`s costs what one of `sgcl::tracked_ptr`s does ([the gc namespace](README.md#the-gc-namespace)).
 
 What differs is who frees the nodes. The links are `tracked_ptr`s, so a rooted sentinel keeps every node alive and the list walks them through raw pointers; an `erase` unlinks a node and destroys its element, and the collector reclaims the node later, once nothing refers to it. Nothing is ever freed by hand, so a cycle through a list is collected like any other cycle. The list object is two words (the sentinel and the count); the sentinel is created on first use, so a default-constructed list allocates nothing. A node is as big as its `std` counterpart and pays no malloc rounding ([Benchmarks: Containers](../README.md#containers-1): 17.8 ns per `push_back` against 26.4 ns for `std::list`, 2.0 ns per step of iteration against 2.2 ns).
 
@@ -59,11 +57,11 @@ list(list&& other) noexcept;
 The default constructor allocates nothing, not even the sentinel. `list(count)` holds `count` value-initialized elements, `list(count, value)` `count` copies. A copy has nodes of its own; a move takes the sentinel over and leaves `other` empty. An element constructor that throws leaves the list as it was before that insertion.
 
 ```cpp
-gc::list<int> zeros(4);                          // 0 0 0 0
-gc::list<std::string> words(2, "x");             // "x" "x"
-gc::list<int> digits = {1, 2, 3};
-gc::list<int> copy(digits.begin(), digits.end());
-gc::list<int> taken = std::move(digits);         // digits is empty now
+sgcl::list<int> zeros(4);                          // 0 0 0 0
+sgcl::list<std::string> words(2, "x");             // "x" "x"
+sgcl::list<int> digits = {1, 2, 3};
+sgcl::list<int> copy(digits.begin(), digits.end());
+sgcl::list<int> taken = std::move(digits);         // digits is empty now
 ```
 
 ### Destructor
@@ -85,8 +83,8 @@ list& operator=(std::initializer_list<T> ilist);
 Copy assignment is `assign(other.begin(), other.end())`. Move assignment clears this list and takes the other sentinel over, leaving `other` empty.
 
 ```cpp
-gc::list<int> a = {1, 2, 3};
-gc::list<int> b;
+sgcl::list<int> a = {1, 2, 3};
+sgcl::list<int> b;
 b = a;              // a copy, in nodes of its own
 b = {4, 5};         // two elements
 b = std::move(a);   // a is empty
@@ -103,7 +101,7 @@ void assign(std::initializer_list<T> ilist);
 Replaces the contents: the existing elements are assigned over in their nodes, the surplus erased, the missing ones appended.
 
 ```cpp
-gc::list<int> l = {1, 2, 3};
+sgcl::list<int> l = {1, 2, 3};
 l.assign(2, 9);          // 9 9, in the first two nodes
 l.assign({7, 8, 9, 10});
 ```
@@ -135,7 +133,7 @@ const_reverse_iterator crend() const noexcept;
 Bidirectional iterators, raw node pointers: `std::ranges` algorithms that need no random access work on the list. `end()` is the sentinel (null for a list that has none yet, which means the same). An iterator keeps nothing alive by itself and is invalidated only by the erasure of its own element.
 
 ```cpp
-gc::list<int> l = {3, 1, 2};
+sgcl::list<int> l = {3, 1, 2};
 auto it = std::ranges::find(l, 1);
 l.erase(it);                                   // 3 2; it is invalid now
 for (auto r = l.rbegin(); r != l.rend(); ++r) {
@@ -175,7 +173,7 @@ iterator insert(const_iterator pos, std::initializer_list<T> ilist);
 Inserts before `pos` and returns an iterator to the first inserted element (`pos` itself when nothing is inserted). A node is made and its element constructed in one step, so no node ever holds an unconstructed element; a range is built as a chain first and linked in at once, so a throwing constructor leaves the list as it was.
 
 ```cpp
-gc::list<int> l = {1, 4};
+sgcl::list<int> l = {1, 4};
 auto it = l.insert(std::next(l.begin()), 2);   // 1 2 4
 l.insert(std::next(it), 2, 3);                 // 1 2 3 3 4
 l.emplace(l.end(), 5);                         // 1 2 3 3 4 5
@@ -192,7 +190,7 @@ iterator erase(const_iterator first, const_iterator last);
 Destroys the elements and unlinks their nodes; returns the iterator to the element after the erased range. `erase(end())` is a no-op. The nodes are the collector's once unlinked.
 
 ```cpp
-gc::list<int> l = {1, 2, 3, 4, 5};
+sgcl::list<int> l = {1, 2, 3, 4, 5};
 auto it = l.erase(l.begin());                  // 2 3 4 5, it -> 2
 l.erase(std::next(it), l.end());               // 2
 ```
@@ -211,11 +209,11 @@ template<class... A> reference emplace_front(A&&... a);
 Appends an element at the back or the front, in a node of its own, and (`emplace_*`) returns a reference to it.
 
 ```cpp
-gc::list<gc::tracked_ptr<int>> ptrs;
+sgcl::list<sgcl::tracked_ptr<int>> ptrs;
 for (int i = 0; i < 1000; ++i) {
-    ptrs.push_back(gc::make_tracked<int>(i));
+    ptrs.push_back(sgcl::make_tracked<int>(i));
 }
-int& first = *ptrs.emplace_front(gc::make_tracked<int>(-1));
+int& first = *ptrs.emplace_front(sgcl::make_tracked<int>(-1));
 ```
 
 ### pop_back, pop_front
@@ -237,7 +235,7 @@ void resize(size_type count, const T& value);
 Erases the elements past `count`, or appends value-initialized elements (copies of `value`) up to it.
 
 ```cpp
-gc::list<int> l = {1, 2, 3};
+sgcl::list<int> l = {1, 2, 3};
 l.resize(5);          // 1 2 3 0 0
 l.resize(2);          // 1 2
 l.resize(4, 7);       // 1 2 7 7
@@ -264,7 +262,7 @@ template<class Compare> void merge(list&& other, Compare comp);
 Merges two sorted lists into this one, stable: of equal elements, those of this list come first. Runs of the other list move over in one relink; the sizes follow each move, so a throwing comparator leaves two valid lists. Merging a list with itself does nothing.
 
 ```cpp
-gc::list<int> a = {1, 3, 5}, b = {2, 4, 6};
+sgcl::list<int> a = {1, 3, 5}, b = {2, 4, 6};
 a.merge(b);                                    // a is 1 2 3 4 5 6, b is empty
 ```
 
@@ -282,7 +280,7 @@ void splice(const_iterator pos, list&& other, const_iterator first, const_iterat
 Moves the nodes of `other`, the node `it` names, or the nodes in `[first, last)`, before `pos`; no element is copied or destroyed and every iterator stays valid, now naming an element of this list. `other` may be this list. Splicing a range from another list counts its nodes.
 
 ```cpp
-gc::list<int> a = {1, 2}, b = {3, 4, 5};
+sgcl::list<int> a = {1, 2}, b = {3, 4, 5};
 a.splice(a.end(), b, b.begin());               // a is 1 2 3, b is 4 5
 a.splice(a.begin(), b);                        // a is 4 5 1 2 3, b is empty
 ```
@@ -297,7 +295,7 @@ template<class UnaryPredicate> size_type remove_if(UnaryPredicate pred);
 Erase every element equal to `value`, or satisfying `pred`, and return how many were erased. A `value` that is an element of this list is removed last, after the comparisons that read it.
 
 ```cpp
-gc::list<int> l = {1, 2, 2, 3, 4};
+sgcl::list<int> l = {1, 2, 2, 3, 4};
 size_t twos = l.remove(2);                                       // 2; l is 1 3 4
 size_t big = l.remove_if([](int x) { return x > 2; });           // 2; l is 1
 ```
@@ -320,7 +318,7 @@ template<class BinaryPredicate> size_type unique(BinaryPredicate pred);
 Erases every element equal to the one before it (`pred(previous, current)`), keeping the first of each run; returns how many were erased.
 
 ```cpp
-gc::list<int> l = {1, 1, 2, 2, 2, 3};
+sgcl::list<int> l = {1, 1, 2, 2, 2, 3};
 size_t dropped = l.unique();                   // 3; l is 1 2 3
 ```
 
@@ -334,7 +332,7 @@ template<class Compare> void sort(Compare comp);
 A stable merge sort in place: the nodes are relinked within the list, never detached, so a throwing comparator leaves a valid list of the same elements.
 
 ```cpp
-gc::list<int> l = {3, 1, 2};
+sgcl::list<int> l = {3, 1, 2};
 l.sort();                                      // 1 2 3
 l.sort(std::greater<>());                      // 3 2 1
 ```
@@ -349,7 +347,7 @@ template<class T> detail::synth_three_way_result<const T> operator<=>(const list
 Element-wise, as for `std::list`: `==` compares sizes first, `<=>` is lexicographical with the synthesized three-way comparison (`<=>` of `T` when it has one, else a `std::weak_ordering` built from `<`), so `<`, `<=`, `>`, `>=` and `!=` follow.
 
 ```cpp
-gc::list<int> a = {1, 2}, b = {1, 3};
+sgcl::list<int> a = {1, 2}, b = {1, 3};
 bool less = a < b;                  // true
 bool same = a == b;                 // false
 ```
@@ -366,7 +364,7 @@ namespace std {
 `remove_if` under the standard names: erase every element equal to `value`, or satisfying `pred`, and return how many were erased.
 
 ```cpp
-gc::list<int> l = {1, 2, 2, 3, 4};
+sgcl::list<int> l = {1, 2, 2, 3, 4};
 size_t twos = std::erase(l, 2);                                  // 2; l is 1 3 4
 size_t big = std::erase_if(l, [](int x) { return x > 2; });      // 2; l is 1
 ```
@@ -381,8 +379,8 @@ class list<unique_ptr<T>> : public std::list<unique_ptr<T>>;
 A `unique_ptr` owns its object and needs no tracing, so a list of them is a plain `std::list` with the constructors of the base: it may live anywhere a `std::list` may, and the objects die when their `unique_ptr` does.
 
 ```cpp
-gc::list<gc::unique_ptr<int>> owned;
-owned.push_back(gc::make_tracked<int>(1));
+sgcl::list<sgcl::unique_ptr<int>> owned;
+owned.push_back(sgcl::make_tracked<int>(1));
 owned.pop_front();                                 // the int is destroyed here, deterministically
 ```
 
@@ -394,24 +392,24 @@ owned.pop_front();                                 // the int is destroyed here,
 
 struct Item {
     int key;
-    gc::tracked_ptr<Item> twin;                     // items may point at each other
+    sgcl::tracked_ptr<Item> twin;                     // items may point at each other
 };
 
 struct Registry {
-    gc::list<gc::tracked_ptr<Item>> items;          // inside a managed object: traced with it
+    sgcl::list<sgcl::tracked_ptr<Item>> items;          // inside a managed object: traced with it
 };
 
 int main() {
     // A list of values on the stack: the nodes are on the managed heap
-    gc::list<int> numbers = {5, 3, 9, 1};
+    sgcl::list<int> numbers = {5, 3, 9, 1};
     numbers.push_front(7);
     numbers.sort();                                 // 1 3 5 7 9, the nodes relinked in place
     numbers.remove_if([](int x) { return x % 2 == 0; });
 
     // A registry in a managed object; the items live in its list
-    gc::tracked_ptr r = gc::make_tracked<Registry>();
+    sgcl::tracked_ptr r = sgcl::make_tracked<Registry>();
     for (int i = 0; i < 1000; ++i) {
-        r->items.push_back(gc::make_tracked<Item>(i));
+        r->items.push_back(sgcl::make_tracked<Item>(i));
     }
     r->items.front()->twin = r->items.back();       // a cycle through the list: collected like any other
     r->items.back()->twin = r->items.front();
@@ -421,15 +419,15 @@ int main() {
     for (auto it = r->items.begin(); it != r->items.end();) {
         it = (*it)->key % 2 ? r->items.erase(it) : std::next(it);   // the unlinked nodes are the collector's
     }
-    gc::list<gc::tracked_ptr<Item>> moved;
+    sgcl::list<sgcl::tracked_ptr<Item>> moved;
     moved.splice(moved.end(), r->items, kept);      // the node moves, the iterator still names it
 
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
-    gc::collector::force_collect(true);
+    sgcl::collector::force_collect(true);
     std::cout << numbers.size() << " odd numbers, " << r->items.size() << " items left in the registry, "
               << "item " << (*kept)->key << " moved out; "
-              << gc::collector::get_live_object_count() << " live objects\n";
+              << sgcl::collector::get_live_object_count() << " live objects\n";
     return numbers.size() == 5 && r->items.size() == 499 && moved.front()->key == 500 ? 0 : 1;
 }
 ```

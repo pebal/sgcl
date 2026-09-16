@@ -17,9 +17,9 @@ namespace sgcl {
     // wait-free; insert, emplace and erase lock-free and linearizable; the
     // iteration weakly consistent, an iterator holding its node. The
     // elements are const, as in std::unordered_set.
-    template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>, template<class> class Ptr = tracked_ptr>
-    class concurrent_unordered_set : public detail::SplitList<detail::ConcurrentUnorderedSetTraits<Key, Hash, KeyEqual, Ptr>> {
-        using Base = detail::SplitList<detail::ConcurrentUnorderedSetTraits<Key, Hash, KeyEqual, Ptr>>;
+    template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
+    class concurrent_unordered_set : public detail::SplitList<detail::ConcurrentUnorderedSetTraits<Key, Hash, KeyEqual>> {
+        using Base = detail::SplitList<detail::ConcurrentUnorderedSetTraits<Key, Hash, KeyEqual>>;
 
     public:
         using typename Base::value_type;

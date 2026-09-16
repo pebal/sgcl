@@ -16,7 +16,7 @@ namespace {
         explicit Node(int v) : value(v) { ++alive; }
         ~Node() { value = -1; --alive; }
         int value;
-        inline static gc::atomic<int> alive = {0};
+        inline static sgcl::atomic<int> alive = {0};
     };
 
     struct Holder {
@@ -34,11 +34,11 @@ namespace {
         ~Counted() { --alive; }
         int operator()() const { return 1; }
         tracked_ptr<Node> node;
-        inline static gc::atomic<int> alive = {0};
+        inline static sgcl::atomic<int> alive = {0};
     };
 
     // Inlined into the test's frame: a frame of its own would sit where
-    // the dead frames were and keep their words (gc.cpp: live_after_collect)
+    // the dead frames were and keep their words (root_ptr.cpp: live_after_collect)
     SGCL_ALWAYS_INLINE void settle() {
         collector::clear_stack();
         for (int i = 0; i < 3; ++i) {
@@ -195,29 +195,6 @@ TEST(Function_Tests, AClosureCapturingItsOwnerIsACycle) {
     });
     settle();
     EXPECT_EQ(Node::alive.load(), before);                   // the cycle collected
-}
-
-TEST(Function_Tests, TheGcKindLivesAnywhere) {
-    settle();
-    const int before = Node::alive.load();
-    auto* callbacks = new std::vector<gc::function<int()>>();
-    off_frame([&] {
-        for (int i = 0; i < 100; ++i) {
-            gc::tracked_ptr node = gc::make_tracked<Node>(i);
-            callbacks->push_back([node] { return node->value; });
-        }
-    });
-    settle();
-    EXPECT_EQ(Node::alive.load(), before + 100);
-    int sum = 0;
-    for (auto& f : *callbacks) {
-        sum += f();
-    }
-    EXPECT_EQ(sum, 99 * 100 / 2);
-    delete callbacks;
-    detail::cell_allocator.release();
-    settle();
-    EXPECT_EQ(Node::alive.load(), before);
 }
 
 TEST(MoveOnlyFunction_Tests, TheInterfaceOfStdMoveOnlyFunction) {

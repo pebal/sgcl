@@ -17,9 +17,9 @@ namespace sgcl {
     // emplace and erase lock-free and linearizable; the iteration in key
     // order and weakly consistent, an iterator holding its node. The
     // elements are const, as in std::set.
-    template<class Key, class Compare = std::less<Key>, template<class> class Ptr = tracked_ptr>
-    class concurrent_set : public detail::SkipList<detail::ConcurrentSetTraits<Key, Compare, Ptr>> {
-        using Base = detail::SkipList<detail::ConcurrentSetTraits<Key, Compare, Ptr>>;
+    template<class Key, class Compare = std::less<Key>>
+    class concurrent_set : public detail::SkipList<detail::ConcurrentSetTraits<Key, Compare>> {
+        using Base = detail::SkipList<detail::ConcurrentSetTraits<Key, Compare>>;
 
     public:
         using typename Base::value_type;

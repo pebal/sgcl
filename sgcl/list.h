@@ -30,17 +30,12 @@ namespace sgcl {
     // constructed at insertion and destroyed at removal, as in std::list;
     // the node itself is reclaimed later by the collector. The sentinel is
     // created on first use, so a default-constructed list allocates nothing.
-    // The list holds its sentinel by a word of the kind Ptr: a tracked_ptr,
-    // so that it lives on a stack or inside a managed object; a gc::tracked_ptr
-    // (gc::list), so that it lives anywhere. An iterator is a raw node pointer, trivially
+    // The list holds its sentinel by a tracked_ptr, so it lives on a
+    // stack or inside a managed object. An iterator is a raw node pointer, trivially
     // copyable and at home in any container: the list roots every linked
     // node, and an iterator to an erased element is invalid, as in std.
-    template<class V, template<class> class Ptr>
+    template<class T>
     class list {
-        // What a node holds (vector.h, detail/managed.h): V, or the word V
-        // names as its tracked_type; the interface, _value included, is V
-        using T = detail::managed_t<V>;
-
         struct NodeBase {
             tracked_ptr<NodeBase> prev;
             tracked_ptr<NodeBase> next;
@@ -56,8 +51,8 @@ namespace sgcl {
             return static_cast<Node*>(node)->slot;
         }
 
-        static V& _value(NodeBase* node) noexcept {
-            return reinterpret_cast<V&>(static_cast<Node*>(node)->slot.value);
+        static T& _value(NodeBase* node) noexcept {
+            return static_cast<Node*>(node)->slot.value;
         }
 
         // A raw pointer to the node; stepping and dereferencing are plain
@@ -123,15 +118,15 @@ namespace sgcl {
         };
 
     public:
-        using value_type = V;
-        using reference = V&;
-        using const_reference = const V&;
-        using pointer = V*;
-        using const_pointer = const V*;
+        using value_type = T;
+        using reference = T&;
+        using const_reference = const T&;
+        using pointer = T*;
+        using const_pointer = const T*;
         using size_type = size_t;
         using difference_type = ptrdiff_t;
-        using iterator = Iterator<V>;
-        using const_iterator = Iterator<const V>;
+        using iterator = Iterator<T>;
+        using const_iterator = Iterator<const T>;
         using reverse_iterator = std::reverse_iterator<iterator>;
         using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
@@ -144,7 +139,7 @@ namespace sgcl {
             resize(count);
         }
 
-        list(size_type count, const V& value)
+        list(size_type count, const T& value)
         : list() {
             insert(end(), count, value);
         }
@@ -155,7 +150,7 @@ namespace sgcl {
             insert(end(), std::move(first), std::move(last));
         }
 
-        list(std::initializer_list<V> ilist)
+        list(std::initializer_list<T> ilist)
         : list() {
             insert(end(), ilist.begin(), ilist.end());
         }
@@ -201,12 +196,12 @@ namespace sgcl {
             return *this;
         }
 
-        list& operator=(std::initializer_list<V> ilist) {
+        list& operator=(std::initializer_list<T> ilist) {
             assign(ilist.begin(), ilist.end());
             return *this;
         }
 
-        void assign(size_type count, const V& value) {
+        void assign(size_type count, const T& value) {
             NodeBase* end = _end();
             NodeBase* node = end->next.get();
             for (; count && node != end; --count, node = node->next.get()) {
@@ -233,7 +228,7 @@ namespace sgcl {
             }
         }
 
-        void assign(std::initializer_list<V> ilist) {
+        void assign(std::initializer_list<T> ilist) {
             assign(ilist.begin(), ilist.end());
         }
 
@@ -335,15 +330,15 @@ namespace sgcl {
             return iterator(node.get());
         }
 
-        iterator insert(const_iterator pos, const V& value) {
+        iterator insert(const_iterator pos, const T& value) {
             return emplace(pos, value);
         }
 
-        iterator insert(const_iterator pos, V&& value) {
+        iterator insert(const_iterator pos, T&& value) {
             return emplace(pos, std::move(value));
         }
 
-        iterator insert(const_iterator pos, size_type count, const V& value) {
+        iterator insert(const_iterator pos, size_type count, const T& value) {
             if (!count) {
                 return iterator(pos._node);
             }
@@ -358,7 +353,7 @@ namespace sgcl {
             return iterator(_insert_range(_pos(pos), std::move(first), std::move(last)));
         }
 
-        iterator insert(const_iterator pos, std::initializer_list<V> ilist) {
+        iterator insert(const_iterator pos, std::initializer_list<T> ilist) {
             return insert(pos, ilist.begin(), ilist.end());
         }
 
@@ -376,11 +371,11 @@ namespace sgcl {
             return iterator(_erase(first._node, last._node));
         }
 
-        void push_back(const V& value) {
+        void push_back(const T& value) {
             emplace_back(value);
         }
 
-        void push_back(V&& value) {
+        void push_back(T&& value) {
             emplace_back(std::move(value));
         }
 
@@ -393,11 +388,11 @@ namespace sgcl {
             return _value(node.get());
         }
 
-        void push_front(const V& value) {
+        void push_front(const T& value) {
             emplace_front(value);
         }
 
-        void push_front(V&& value) {
+        void push_front(T&& value) {
             emplace_front(std::move(value));
         }
 
@@ -433,7 +428,7 @@ namespace sgcl {
             }
         }
 
-        void resize(size_type count, const V& value) {
+        void resize(size_type count, const T& value) {
             if (count > _size) {
                 _insert_n(_end(), count - _size, value);
             } else if (count < _size) {
@@ -553,7 +548,7 @@ namespace sgcl {
 
         // A value that is an element of this list is removed last, after
         // the comparisons that read it.
-        size_type remove(const V& value) {
+        size_type remove(const T& value) {
             NodeBase* end = _sentinel.get();
             if (!end) {
                 return 0;
@@ -659,7 +654,7 @@ namespace sgcl {
         }
 
     private:
-        Ptr<NodeBase> _sentinel;
+        tracked_ptr<NodeBase> _sentinel;
         size_type _size;
 
         // A run of new nodes not yet in any list, rooted by `first`. Until
@@ -791,7 +786,7 @@ namespace sgcl {
 
         // The insertions of several: the nodes made into a chain first,
         // rooted by it, linked in at once
-        NodeBase* _insert_n(NodeBase* pos, size_type count, const V& value) {
+        NodeBase* _insert_n(NodeBase* pos, size_type count, const T& value) {
             Chain chain;
             for (; count; --count) {
                 chain.emplace_back(value);
@@ -910,36 +905,36 @@ namespace sgcl {
         }
     };
 
-    template<class T, template<class> class Ptr>
-    bool operator==(const list<T, Ptr>& lhs, const list<T, Ptr>& rhs) {
+    template<class T>
+    bool operator==(const list<T>& lhs, const list<T>& rhs) {
         return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin());
     }
 
-    template<class T, template<class> class Ptr>
-    detail::synth_three_way_result<const T> operator<=>(const list<T, Ptr>& lhs, const list<T, Ptr>& rhs) {
+    template<class T>
+    detail::synth_three_way_result<const T> operator<=>(const list<T>& lhs, const list<T>& rhs) {
         return std::lexicographical_compare_three_way(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), detail::synth_three_way);
     }
 
-    template<class T, template<class> class Ptr>
-    void swap(list<T, Ptr>& lhs, list<T, Ptr>& rhs) noexcept {
+    template<class T>
+    void swap(list<T>& lhs, list<T>& rhs) noexcept {
         lhs.swap(rhs);
     }
 
-    template<typename T, template<class> class Ptr>
-    class list<unique_ptr<T>, Ptr> : public std::list<unique_ptr<T>> {
+    template<typename T>
+    class list<unique_ptr<T>> : public std::list<unique_ptr<T>> {
     public:
         using std::list<unique_ptr<T>>::list;
     };
 }
 
 namespace std {
-    template<class T, template<class> class Ptr, class U>
-    typename sgcl::list<T, Ptr>::size_type erase(sgcl::list<T, Ptr>& c, const U& value) {
+    template<class T, class U>
+    typename sgcl::list<T>::size_type erase(sgcl::list<T>& c, const U& value) {
         return c.remove_if([&](const auto& element) { return element == value; });
     }
 
-    template<class T, template<class> class Ptr, class Pred>
-    typename sgcl::list<T, Ptr>::size_type erase_if(sgcl::list<T, Ptr>& c, Pred pred) {
+    template<class T, class Pred>
+    typename sgcl::list<T>::size_type erase_if(sgcl::list<T>& c, Pred pred) {
         return c.remove_if(pred);
     }
 }

@@ -130,7 +130,7 @@ namespace sgcl::detail {
         }
 
         // Whether p is on this thread's stack: the location check of the
-        // debug assertions and of gc::tracked_ptr
+        // debug assertions
         bool on_stack(const void* p) const noexcept {
             return (uintptr_t)p - _data->stack_begin < _data->stack_end - _data->stack_begin;
         }

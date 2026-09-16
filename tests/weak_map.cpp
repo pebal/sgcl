@@ -17,11 +17,11 @@ namespace {
         ~Node() { value = -1; --alive; }
         int value;
         tracked_ptr<Node> next;
-        inline static gc::atomic<int> alive = {0};
+        inline static sgcl::atomic<int> alive = {0};
     };
 
     // Inlined into the test's frame: a frame of its own would sit where
-    // the dead frames were and keep their words (gc.cpp: live_after_collect)
+    // the dead frames were and keep their words (root_ptr.cpp: live_after_collect)
     SGCL_ALWAYS_INLINE void settle() {
         collector::clear_stack();
         for (int i = 0; i < 3; ++i) {
@@ -298,25 +298,3 @@ TEST(WeakSet_Tests, TheIteratorHoldsTheObjectItStandsOn) {
     EXPECT_EQ(seen.sweep(), 1u);
 }
 
-TEST(WeakMap_Tests, TheGcKindLivesAnywhere) {
-    settle();
-    const int before = Node::alive.load();
-    auto* names = new gc::weak_map<Node, std::string>();
-    auto* seen = new gc::weak_set<Node>();
-    gc::tracked_ptr kept = gc::make_tracked<Node>(1);
-    (*names)[kept] = "kept";
-    seen->insert(kept);
-    off_frame([&] {
-        gc::tracked_ptr dropped = gc::make_tracked<Node>(2);
-        (*names)[dropped] = "dropped";
-        seen->insert(dropped);
-    });
-    settle();
-    EXPECT_EQ(Node::alive.load(), before + 1);
-    EXPECT_EQ(names->sweep(), 1u);
-    EXPECT_EQ(seen->sweep(), 1u);
-    EXPECT_EQ((*names)[kept], "kept");
-    EXPECT_TRUE(seen->contains(kept));
-    delete names;
-    delete seen;
-}

@@ -119,8 +119,8 @@ TEST(Referrers_Tests, HeldByABufferAndByAUniquePtr) {
     }
 }
 
-TEST(Referrers_Tests, HeldByACellOfAGcPointerInUnmanagedMemory) {
-    auto kept = std::make_unique<gc::tracked_ptr<Leaf>>(make_tracked<Leaf>());   // a cell in a block, the only holder
+TEST(Referrers_Tests, HeldByACellOfARootPtrInUnmanagedMemory) {
+    auto kept = std::make_unique<root_ptr<Leaf>>(make_tracked<Leaf>());   // a cell in a block, the only holder
     auto [guard, path] = collector::get_path_to_root(kept->get());
     ASSERT_EQ(path.size(), 2u);
     EXPECT_EQ(path[0].from, kind::cell);                 // the cell
@@ -133,8 +133,8 @@ TEST(Referrers_Tests, HeldByACellOfAGcPointerInUnmanagedMemory) {
 }
 
 TEST(Referrers_Tests, AnotherThreadsStackIsARoot) {
-    gc::atomic<Leaf*> shared = nullptr;
-    gc::atomic<bool> done = false;
+    sgcl::atomic<Leaf*> shared = nullptr;
+    sgcl::atomic<bool> done = false;
     std::thread other([&] {
         tracked_ptr leaf = make_tracked<Leaf>();         // held by this thread's stack only
         shared = leaf.get();

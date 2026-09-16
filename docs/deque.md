@@ -4,14 +4,12 @@
 #include "sgcl/deque.h"   // or "sgcl/sgcl.h"
 
 namespace sgcl {
-    template<class T, template<class> class Ptr = tracked_ptr>
+    template<class T>
     class deque;
 }
 ```
 
 `sgcl::deque<T>` is `std::deque` over managed memory. The interface is the one of `std::deque` (constructors, `assign`, element access, random-access iterators, `shrink_to_fit`, modifiers at both ends and in the middle, three-way comparison, `std::erase`/`std::erase_if`), and so is the behaviour: elements are constructed at insertion and destroyed at removal, references stay valid across a push or pop at either end, iterators do not.
-
-`Ptr`, the last parameter, is the kind of the word by which the container holds its memory: `tracked_ptr` by default, so that the container lives where a `tracked_ptr` may (on a stack or inside a managed object), or [`gc::tracked_ptr`](gc/tracked_ptr.md), so that it lives anywhere, at the cost of a `gc::tracked_ptr` on each access to that word; `gc::deque` ([gc/gc.h](README.md#the-gc-namespace)) names the latter. The nodes and buffers are the same managed objects either way, and the elements are a choice apart; an element type that names a `tracked_type` (`gc::tracked_ptr<T>` names `sgcl::tracked_ptr<T>`) is stored as that type, one word in the same mode, and handed out as the type it was given, so a container of `gc::tracked_ptr`s costs what one of `sgcl::tracked_ptr`s does ([the gc namespace](README.md#the-gc-namespace)).
 
 What differs is where the memory lives. The elements live in blocks on the managed heap (a block holds as many elements as fit in 4 KB, rounded down to a power of two, at least one), addressed through a managed array of block pointers, the map; the deque object is four words (the map, its size, the index of the first element, the count). A map that is outgrown is replaced by a fresh one, never shifted in place. A block emptied by pops stays in the map as the spare block of its end, so a window of elements travelling through the deque allocates no blocks; every block goes when the deque becomes empty. Nothing is ever freed by hand: the blocks and the maps the deque lets go of are reclaimed by the collector once nothing refers to them. A `sgcl::deque<tracked_ptr<T>>` is the managed form of a deque of pointers: its elements are traced, and it may hold cycles like any other managed object.
 
@@ -59,11 +57,11 @@ deque(deque&& other) noexcept;
 The default constructor allocates nothing. `deque(count)` holds `count` value-initialized elements, `deque(count, value)` `count` copies. The range constructor appends element by element, single-pass ranges included. A copy has blocks of its own; a move takes the map over and leaves `other` empty. An element constructor that throws leaves the deque empty and the exception propagates.
 
 ```cpp
-gc::deque<int> zeros(4);                          // 0 0 0 0
-gc::deque<std::string> words(2, "x");             // "x" "x"
-gc::deque<int> digits = {1, 2, 3};
-gc::deque<int> copy(digits.begin(), digits.end());
-gc::deque<int> taken = std::move(digits);         // digits is empty now
+sgcl::deque<int> zeros(4);                          // 0 0 0 0
+sgcl::deque<std::string> words(2, "x");             // "x" "x"
+sgcl::deque<int> digits = {1, 2, 3};
+sgcl::deque<int> copy(digits.begin(), digits.end());
+sgcl::deque<int> taken = std::move(digits);         // digits is empty now
 ```
 
 ### Destructor
@@ -85,8 +83,8 @@ deque& operator=(std::initializer_list<T> ilist);
 Copy assignment is `assign(other.begin(), other.end())`. Move assignment clears this deque and takes the other map over, leaving `other` empty.
 
 ```cpp
-gc::deque<int> a = {1, 2, 3};
-gc::deque<int> b;
+sgcl::deque<int> a = {1, 2, 3};
+sgcl::deque<int> b;
 b = a;              // a copy, in blocks of its own
 b = {4, 5};         // two elements
 b = std::move(a);   // a is empty
@@ -103,7 +101,7 @@ void assign(std::initializer_list<T> ilist);
 Replaces the contents: the existing elements are assigned over, the surplus popped from the back, the missing ones pushed to the back.
 
 ```cpp
-gc::deque<int> d = {1, 2, 3};
+sgcl::deque<int> d = {1, 2, 3};
 d.assign(2, 9);          // 9 9
 d.assign({7, 8, 9, 10});
 ```
@@ -120,7 +118,7 @@ const_reference operator[](size_type pos) const;
 `at` throws `std::out_of_range` for `pos >= size()`; `operator[]` does not check. Both are a division by the block size and two loads.
 
 ```cpp
-gc::deque<int> d = {10, 20, 30};
+sgcl::deque<int> d = {10, 20, 30};
 d[1] = 25;
 try { d.at(3); } catch (const std::out_of_range&) { /* 3 >= size() */ }
 ```
@@ -152,7 +150,7 @@ const_reverse_iterator crend() const noexcept;
 Random-access iterators: a step within a block and the access are plain loads, a step across a block boundary one load of the map, so `std::ranges` algorithms and `std::sort` work on the deque. An iterator keeps nothing alive by itself and is invalidated exactly when a `std::deque` iterator is.
 
 ```cpp
-gc::deque<int> d = {3, 1, 2};
+sgcl::deque<int> d = {3, 1, 2};
 std::ranges::sort(d);                          // 1 2 3
 for (auto it = d.rbegin(); it != d.rend(); ++it) {
     *it *= 10;                                 // 10 20 30
@@ -199,7 +197,7 @@ template<class... A> iterator emplace(const_iterator pos, A&&... a);
 Inserts before `pos` and returns an iterator to the first inserted element (`pos` itself when nothing is inserted). An insertion at either end is a push there; in the middle the shorter side of the deque shifts by the count. The value is built before anything moves, so an argument that refers to an element of this deque stays valid. A single-pass range is collected first, so that a failure leaves the deque as it was; on an exception the deque is as it was.
 
 ```cpp
-gc::deque<int> d = {1, 4};
+sgcl::deque<int> d = {1, 4};
 d.insert(d.begin() + 1, 2);               // 1 2 4
 d.insert(d.begin() + 2, 2, 3);            // 1 2 3 3 4
 d.emplace(d.end(), 5);                    // 1 2 3 3 4 5
@@ -217,7 +215,7 @@ iterator erase(const_iterator first, const_iterator last);
 Removes the elements, shifting the shorter side of the deque over them and popping at that end, so the elements are destroyed at the end nearer to the range, as `std::deque` may do; returns the iterator to the element after the erased range. `erase(end())` and an empty range are no-ops.
 
 ```cpp
-gc::deque<int> d = {1, 2, 3, 4, 5};
+sgcl::deque<int> d = {1, 2, 3, 4, 5};
 auto it = d.erase(d.begin());             // 2 3 4 5, it -> 2
 d.erase(it + 1, d.end());                 // 2 3
 ```
@@ -236,12 +234,12 @@ template<class... A> reference emplace_front(A&&... a);
 Appends an element at the back or the front and (`emplace_*`) returns a reference to it. The common case, a block with room at that end (the last one in use, or the spare), is two loads, the construction and two stores; the map at its end or a missing block allocates a block, and a fresh map when the map is full. References to the other elements stay valid, iterators do not.
 
 ```cpp
-gc::deque<gc::tracked_ptr<int>> ptrs;
+sgcl::deque<sgcl::tracked_ptr<int>> ptrs;
 for (int i = 0; i < 1000; ++i) {
-    ptrs.push_back(gc::make_tracked<int>(i));
-    ptrs.push_front(gc::make_tracked<int>(-i));     // the outgrown maps are collected
+    ptrs.push_back(sgcl::make_tracked<int>(i));
+    ptrs.push_front(sgcl::make_tracked<int>(-i));     // the outgrown maps are collected
 }
-int& last = *ptrs.emplace_back(gc::make_tracked<int>(1000));
+int& last = *ptrs.emplace_back(sgcl::make_tracked<int>(1000));
 ```
 
 ### pop_back, pop_front
@@ -263,7 +261,7 @@ void resize(size_type count, const value_type& value);
 Pops from the back down to `count`, or pushes value-initialized elements (copies of `value`) at the back up to it.
 
 ```cpp
-gc::deque<int> d = {1, 2, 3};
+sgcl::deque<int> d = {1, 2, 3};
 d.resize(5);          // 1 2 3 0 0
 d.resize(2);          // 1 2
 d.resize(4, 7);       // 1 2 7 7
@@ -288,7 +286,7 @@ friend auto operator<=>(const deque& lhs, const deque& rhs);
 Element-wise, as for `std::deque`: `==` compares sizes first, `<=>` is lexicographical with the synthesized three-way comparison (`<=>` of `T` when it has one, else a `std::weak_ordering` built from `<`), so `<`, `<=`, `>`, `>=` and `!=` follow.
 
 ```cpp
-gc::deque<int> a = {1, 2}, b = {1, 3};
+sgcl::deque<int> a = {1, 2}, b = {1, 3};
 bool less = a < b;                  // true
 bool same = a == b;                 // false
 ```
@@ -303,7 +301,7 @@ template<class T, class Pred> typename deque<T>::size_type erase_if(deque<T>& c,
 Declared in `sgcl` and brought into `std`: remove every element equal to `value`, or satisfying `pred`, and return how many were removed.
 
 ```cpp
-gc::deque<int> d = {1, 2, 2, 3, 4};
+sgcl::deque<int> d = {1, 2, 2, 3, 4};
 size_t twos = std::erase(d, 2);                                  // 2; d is 1 3 4
 size_t big = std::erase_if(d, [](int x) { return x > 2; });      // 2; d is 1
 ```
@@ -318,8 +316,8 @@ class deque<unique_ptr<T>> : public std::deque<unique_ptr<T>>;
 A `unique_ptr` owns its object and needs no tracing, so a deque of them is a plain `std::deque` with the constructors of the base: it may live anywhere a `std::deque` may, and the objects die when their `unique_ptr` does.
 
 ```cpp
-gc::deque<gc::unique_ptr<int>> owned;
-owned.push_back(gc::make_tracked<int>(1));
+sgcl::deque<sgcl::unique_ptr<int>> owned;
+owned.push_back(sgcl::make_tracked<int>(1));
 owned.pop_front();                                 // the int is destroyed here, deterministically
 ```
 
@@ -331,17 +329,17 @@ owned.pop_front();                                 // the int is destroyed here,
 
 struct Job {
     int id;
-    gc::vector<gc::tracked_ptr<Job>> depends_on;       // a job may wait for others
+    sgcl::vector<sgcl::tracked_ptr<Job>> depends_on;       // a job may wait for others
 };
 
 struct Scheduler {
-    gc::deque<gc::tracked_ptr<Job>> pending;        // inside a managed object: traced with it
+    sgcl::deque<sgcl::tracked_ptr<Job>> pending;        // inside a managed object: traced with it
 };
 
 int main() {
     // A work queue on the stack: pushes at the back, pops at the front,
     // and a window of elements travelling through it allocates no blocks
-    gc::deque<int> window;
+    sgcl::deque<int> window;
     for (int i = 0; i < 100000; ++i) {
         window.push_back(i);
         if (window.size() > 16) {
@@ -350,9 +348,9 @@ int main() {
     }
 
     // A scheduler in a managed object; urgent jobs go to the front
-    gc::tracked_ptr s = gc::make_tracked<Scheduler>();
+    sgcl::tracked_ptr s = sgcl::make_tracked<Scheduler>();
     for (int i = 0; i < 1000; ++i) {
-        gc::tracked_ptr job = gc::make_tracked<Job>(i);
+        sgcl::tracked_ptr job = sgcl::make_tracked<Job>(i);
         if (i % 100 == 0) {
             s->pending.push_front(job);
         } else {
@@ -370,9 +368,9 @@ int main() {
     }
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
-    gc::collector::force_collect(true);
+    sgcl::collector::force_collect(true);
     std::cout << drained << " jobs drained, " << s->pending.size() << " pending, first is job "
-              << s->pending.front()->id << "; " << gc::collector::get_live_object_count() << " live objects\n";
+              << s->pending.front()->id << "; " << sgcl::collector::get_live_object_count() << " live objects\n";
     return window.size() == 16 && window.front() == 99984 && s->pending.size() == 500 ? 0 : 1;
 }
 ```

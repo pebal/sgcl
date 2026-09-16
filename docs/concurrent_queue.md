@@ -4,12 +4,8 @@
 #include "sgcl/concurrent_queue.h"   // or "sgcl/sgcl.h"
 
 namespace sgcl {
-    template<class T, template<class> class Ptr = tracked_ptr>
-    class concurrent_queue;
-}
-namespace gc {
     template<class T>
-    using concurrent_queue = sgcl::concurrent_queue<T, gc::tracked_ptr>;
+    class concurrent_queue;
 }
 ```
 
@@ -17,7 +13,7 @@ namespace gc {
 
 ## Rules
 
-- The container is two atomic words, the head and the tail, kept a cache line apart (`config::CacheLineSize`) so that the consumers' line and the producers' line do not bounce for each other's traffic. `sgcl::concurrent_queue` lives where a `tracked_ptr` may: on a thread's stack or inside a managed object ([The rules](../README.md#the-rules), 1); `gc::concurrent_queue` lives anywhere and pays the test of the mode on each access to the head and the tail ([The gc namespace](README.md#the-gc-namespace)).
+- The container is two atomic words, the head and the tail, kept a cache line apart (`config::CacheLineSize`) so that the consumers' line and the producers' line do not bounce for each other's traffic. The queue lives where a `tracked_ptr` may: on a thread's stack or inside a managed object ([The rules](../README.md#the-rules), 1).
 - Every operation is lock-free and may be called from any thread at any time; `push` and `try_pop` are linearizable at their compare-exchange on a link and on a node's flag. The queue is FIFO: every producer's elements come out in the order it pushed them, at every consumer. `pop` blocks while the queue is empty, on the link of the last node; every `push` notifies.
 - An element is moved out of its node by the thread that pops it, into the `optional` returned, and destroyed in the node there and then: what `std::queue::pop` does, on the popping thread. The move should not throw: an element whose move constructor throws is lost.
 - The nodes between the head and the first element, taken ones the head has not passed yet, are the queue's while it lives: at most a couple, as the head is swung every second node.
@@ -54,9 +50,9 @@ template<class... A> void emplace(A&&... a);
 Creates a node on the managed heap holding the element (constructed from `a...` in place for `emplace`), walks from the tail to the last node and links the new one after it with a compare-exchange on its link; swings the tail when the walk went two nodes or more (a failure there is another push's success). Notifies the threads waiting in `pop`.
 
 ```cpp
-gc::concurrent_queue<gc::tracked_ptr<Request>> requests;   // a global: gc::
-requests.push(gc::make_tracked<Request>(1));
-requests.emplace(gc::make_tracked<Request>(2));
+sgcl::concurrent_queue<sgcl::tracked_ptr<Request>> requests;   // a global: sgcl::
+requests.push(sgcl::make_tracked<Request>(1));
+requests.emplace(sgcl::make_tracked<Request>(2));
 ```
 
 ### try_pop, pop
@@ -72,7 +68,7 @@ T pop();
 while (auto r = requests.try_pop()) {
     (*r)->handle();
 }
-gc::tracked_ptr next = requests.pop();   // blocks until a push
+sgcl::tracked_ptr next = requests.pop();   // blocks until a push
 ```
 
 ### empty, size
@@ -113,7 +109,7 @@ struct Stage {
 
 int main() {
     sgcl::tracked_ptr stage = sgcl::make_tracked<Stage>();
-    gc::atomic<int> received = 0, out_of_order = 0;
+    sgcl::atomic<int> received = 0, out_of_order = 0;
     std::vector<std::thread> threads;
     for (int p = 0; p < 4; ++p) {
         threads.emplace_back([&, p] {

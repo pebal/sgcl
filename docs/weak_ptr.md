@@ -4,18 +4,18 @@
 #include "sgcl/weak_ptr.h"   // or "sgcl/sgcl.h"
 
 namespace sgcl {
-    template<class T, template<class> class Ptr = tracked_ptr>
+    template<class T>
     class weak_ptr;
 }
 ```
 
 `weak_ptr<T>` is a pointer that keeps nothing alive: the object lives as long as something else reaches it through [`tracked_ptr`](tracked_ptr.md)s or a [`unique_ptr`](unique_ptr.md), and `lock()` says whether it still does. `lock()` is the object as a `tracked_ptr` while it is reachable, and null once a cycle has found it unreachable; `expired()` is the same question without the pointer. It is what `std::weak_ptr` is to `std::shared_ptr`, without the counts: a back pointer, a cache entry, an observer that must not extend a lifetime.
 
-It is one word: a `tracked_ptr` to a small cell on the managed heap that holds the target as a word the collector clears instead of tracing. A `weak_ptr` made from a strong pointer allocates a cell of its own (16 bytes); copies share it, and the cell is collected with the last copy. `Ptr` is the kind of that word, and so where the `weak_ptr` may live: `weak_ptr<T>` lives where a `tracked_ptr` may; `weak_ptr<T, gc::tracked_ptr>` is a [`gc::tracked_ptr`](gc/tracked_ptr.md) to the cell, lives anywhere (a `std` container, a global, a lambda on the heap) at the cost of a `gc::tracked_ptr`, and its `lock()` is a `gc::tracked_ptr<T>`. The two kinds convert into each other and share cells. The clearing is a phase of the cycle, after the marking and before the sweep: `lock()` never hands out an object the sweep will destroy or the slot it will be reused for, and a `lock()` that races with the clearing either sees the null or wins, holding the object for at least one more cycle ([Weak pointers](../README.md#weak-pointers)). Between the object becoming unreachable and the cycle that notices, `lock()` still returns it: the lag of any garbage collector.
+It is one word: a `tracked_ptr` to a small cell on the managed heap that holds the target as a word the collector clears instead of tracing. A `weak_ptr` made from a strong pointer allocates a cell of its own (16 bytes); copies share it, and the cell is collected with the last copy. That word is a `tracked_ptr`, so a `weak_ptr` lives where one may. The clearing is a phase of the cycle, after the marking and before the sweep: `lock()` never hands out an object the sweep will destroy or the slot it will be reused for, and a `lock()` that races with the clearing either sees the null or wins, holding the object for at least one more cycle ([Weak pointers](../README.md#weak-pointers)). Between the object becoming unreachable and the cycle that notices, `lock()` still returns it: the lag of any garbage collector.
 
 ## Rules
 
-- A `weak_ptr<T>` is a `tracked_ptr` (to a cell), so it lives where one may: on a stack or inside a managed object, never in `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame ([The rules](../README.md#the-rules), 1 and 4). A `weak_ptr<T, gc::tracked_ptr>` lives anywhere, under the rules of `gc::tracked_ptr`.
+- A `weak_ptr<T>` is a `tracked_ptr` (to a cell), so it lives where one may: on a stack or inside a managed object, never in `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame ([The rules](../README.md#the-rules), 1 and 4).
 - It addresses an object no `unique_ptr` owns: a `tracked_ptr` cannot address one either, and the owner's delete would leave the cell dangling. Debug builds assert it.
 - Threads share a `weak_ptr` the way they share a `tracked_ptr`: one written by one thread and read by another needs the program's own synchronization ([The rules](../README.md#the-rules), 6). `lock()` itself is safe against the collector clearing the cell at the same time.
 - In a destructor, a `weak_ptr` member is a `tracked_ptr` member: the cell may be dying in the same sweep, so it is not to be read there ([The rules](../README.md#the-rules), 5).
@@ -37,8 +37,8 @@ constexpr weak_ptr(std::nullptr_t) noexcept;
 
 template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
 weak_ptr(const tracked_ptr<U>& p);
-template<class U, std::enable_if_t<std::is_convertible_v<typename gc::tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-weak_ptr(const gc::tracked_ptr<U>& p);
+template<class U, std::enable_if_t<std::is_convertible_v<typename sgcl::tracked_ptr<U>::element_type*, element_type*>, int> = 0>
+weak_ptr(const sgcl::tracked_ptr<U>& p);
 
 weak_ptr(const weak_ptr&) noexcept = default;
 weak_ptr(weak_ptr&&) noexcept = default;
@@ -46,17 +46,17 @@ template<class U, template<class> class P, std::enable_if_t<std::is_convertible_
 weak_ptr(const weak_ptr<U, P>& w) noexcept;
 ```
 
-The default and the `nullptr` constructors make an empty `weak_ptr`, with no cell: expired. The constructors from a `tracked_ptr<U>` or a `gc::tracked_ptr<U>` (with `U*` convertible to `T*`) allocate a cell holding the object, which is why they are not `noexcept`; from a null pointer they make an empty one. Copies, from a `weak_ptr` of either kind, to `T` or to a derived class, share the cell; a move is a copy of the word, the source keeps its cell.
+The default and the `nullptr` constructors make an empty `weak_ptr`, with no cell: expired. The constructors from a `tracked_ptr<U>` (with `U*` convertible to `T*`) allocate a cell holding the object, which is why they are not `noexcept`; from a null pointer they make an empty one. Copies, from a `weak_ptr` to `T` or to a derived class, share the cell; a move is a copy of the word, the source keeps its cell.
 
 ```cpp
 struct Base { virtual ~Base() = default; };
 struct Item : Base { int value = 7; };
 
-gc::tracked_ptr item = gc::make_tracked<Item>();
-gc::weak_ptr weak = item;                // weak_ptr<Item>, a cell of its own
-gc::weak_ptr<Base> base = weak;          // the same cell, seen as the base
-gc::weak_ptr<Base> from_item = item;     // another cell
-gc::weak_ptr<Item> none;                 // no cell: expired
+sgcl::tracked_ptr item = sgcl::make_tracked<Item>();
+sgcl::weak_ptr weak = item;                // weak_ptr<Item>, a cell of its own
+sgcl::weak_ptr<Base> base = weak;          // the same cell, seen as the base
+sgcl::weak_ptr<Base> from_item = item;     // another cell
+sgcl::weak_ptr<Item> none;                 // no cell: expired
 assert(weak.lock() == item && base.lock() == item && none.expired());
 ```
 
@@ -75,10 +75,10 @@ weak_ptr& operator=(std::nullptr_t) noexcept;
 Assigning a `weak_ptr` shares its cell; assigning a `tracked_ptr` allocates a new cell (the copies that shared the old one keep it); assigning `nullptr` drops the cell.
 
 ```cpp
-gc::tracked_ptr a = gc::make_tracked<int>(1);
-gc::tracked_ptr b = gc::make_tracked<int>(2);
-gc::weak_ptr w = a;
-gc::weak_ptr copy = w;       // shares the cell of a
+sgcl::tracked_ptr a = sgcl::make_tracked<int>(1);
+sgcl::tracked_ptr b = sgcl::make_tracked<int>(2);
+sgcl::weak_ptr w = a;
+sgcl::weak_ptr copy = w;       // shares the cell of a
 w = b;                       // a new cell: the copy still sees a
 assert(*w.lock() == 2 && *copy.lock() == 1);
 w = nullptr;
@@ -95,8 +95,8 @@ The object as a `tracked_ptr`, held from then on, or null when the cell has been
 
 ```cpp
 struct Item { int value = 1; };
-gc::tracked_ptr item = gc::make_tracked<Item>();
-gc::weak_ptr cached = item;
+sgcl::tracked_ptr item = sgcl::make_tracked<Item>();
+sgcl::weak_ptr cached = item;
 if (auto p = cached.lock()) {   // tracked_ptr<Item>: the object, held by p
     p->value = 2;
 }
@@ -111,13 +111,13 @@ bool expired() const noexcept;
 True when the cell has been cleared or there is none: `lock()` would return null. The other way round is not guaranteed: an object found unreachable stays in the cell until the cycle clears it, so `expired()` may be false for an object nothing reaches any more. For a decision that needs the object, `lock()` and test the result.
 
 ```cpp
-gc::weak_ptr<int> weak;
+sgcl::weak_ptr<int> weak;
 {
-    gc::tracked_ptr number = gc::make_tracked<int>(1);
+    sgcl::tracked_ptr number = sgcl::make_tracked<int>(1);
     weak = number;
     assert(!weak.expired());
 }
-gc::collector::force_collect(true);     // optional, for the demonstration only: the next cycle clears it anyway
+sgcl::collector::force_collect(true);     // optional, for the demonstration only: the next cycle clears it anyway
 assert(weak.expired() && !weak.lock());
 ```
 
@@ -139,9 +139,9 @@ template<class T> void swap(weak_ptr<T>& l, weak_ptr<T>& r) noexcept;   // free 
 Exchanges the cells of the two pointers.
 
 ```cpp
-gc::tracked_ptr a = gc::make_tracked<int>(1);
-gc::weak_ptr w = a;
-gc::weak_ptr<int> empty;
+sgcl::tracked_ptr a = sgcl::make_tracked<int>(1);
+sgcl::weak_ptr w = a;
+sgcl::weak_ptr<int> empty;
 swap(w, empty);
 assert(w.expired() && *empty.lock() == 1);
 ```
@@ -150,10 +150,10 @@ assert(w.expired() && *empty.lock() == 1);
 
 ```cpp
 template<class T> weak_ptr(const tracked_ptr<T>&) -> weak_ptr<T>;
-template<class T> weak_ptr(const gc::tracked_ptr<T>&) -> weak_ptr<T, gc::tracked_ptr>;
+template<class T> weak_ptr(const sgcl::tracked_ptr<T>&) -> weak_ptr<T, sgcl::tracked_ptr>;
 ```
 
-`sgcl::weak_ptr w = item` is a `weak_ptr<T>` for a `tracked_ptr<T> item` and a `weak_ptr<T, gc::tracked_ptr>` for a `gc::tracked_ptr<T> item`: the weak pointer of a `gc::tracked_ptr` may go wherever the `gc::tracked_ptr` may. The explicit arguments are needed for a base class, an empty `weak_ptr` or a member declaration.
+`sgcl::weak_ptr w = item` is a `weak_ptr<T>` for a `tracked_ptr<T> item`. The explicit arguments are needed for a base class, an empty `weak_ptr` or a member declaration.
 
 ## Example
 
@@ -168,12 +168,12 @@ template<class T> weak_ptr(const gc::tracked_ptr<T>&) -> weak_ptr<T, gc::tracked
 struct Node {
     explicit Node(int id) : id(id) {}
     int id;
-    gc::vector<gc::tracked_ptr<Node>> children;       // owns the subtrees
-    gc::weak_ptr<Node> parent;                         // a back pointer, no cycle
+    sgcl::vector<sgcl::tracked_ptr<Node>> children;       // owns the subtrees
+    sgcl::weak_ptr<Node> parent;                         // a back pointer, no cycle
 };
 
-gc::tracked_ptr<Node> add_child(const gc::tracked_ptr<Node>& parent, int id) {
-    gc::tracked_ptr child = gc::make_tracked<Node>(id);
+sgcl::tracked_ptr<Node> add_child(const sgcl::tracked_ptr<Node>& parent, int id) {
+    sgcl::tracked_ptr child = sgcl::make_tracked<Node>(id);
     child->parent = parent;                 // a cell of its own
     parent->children.push_back(child);
     return child;
@@ -181,7 +181,7 @@ gc::tracked_ptr<Node> add_child(const gc::tracked_ptr<Node>& parent, int id) {
 
 // The path to the root, in a frame of its own: the copies it makes are
 // stack words, and the stack is scanned conservatively
-void print_path(gc::tracked_ptr<Node> node) {
+void print_path(sgcl::tracked_ptr<Node> node) {
     for (auto n = node; n; n = n->parent.lock()) {   // lock(): the parent while it lives
         std::cout << n->id << ' ';
     }
@@ -189,15 +189,15 @@ void print_path(gc::tracked_ptr<Node> node) {
 }
 
 int main() {
-    gc::tracked_ptr root = gc::make_tracked<Node>(0);
-    gc::tracked_ptr branch = add_child(root, 1);
-    gc::tracked_ptr leaf = add_child(branch, 2);
+    sgcl::tracked_ptr root = sgcl::make_tracked<Node>(0);
+    sgcl::tracked_ptr branch = add_child(root, 1);
+    sgcl::tracked_ptr leaf = add_child(branch, 2);
     print_path(leaf);                           // 2 1 0
 
     // The root dropped, the branch held: the branch's back pointer expires,
     // the leaf's still locks, since the branch owns the leaf
     root = nullptr;
-    gc::collector::force_collect(true);         // optional, for the demonstration only: the next cycle clears it anyway
+    sgcl::collector::force_collect(true);         // optional, for the demonstration only: the next cycle clears it anyway
     assert(branch->parent.expired());
     assert(leaf->parent.lock() == branch);
     print_path(leaf);                           // 2 1

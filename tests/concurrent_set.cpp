@@ -15,17 +15,6 @@
 #include <vector>
 
 namespace {
-    // The count with the thread's block of cells let go of first
-    // (tests/gc_tracked_ptr.cpp): a gc::tracked_ptr in unmanaged memory
-    // holds a cell of a managed block, and a block is an object of the
-    // count until every cell of it is given back.
-    SGCL_ALWAYS_INLINE size_t live_without_cells() {
-        sgcl::detail::cell_allocator.release();
-        collector::clear_stack(SIZE_MAX);
-        collector::force_collect(true);
-        return collector::get_live_object_count();
-    }
-
     template<class S>
     std::vector<int> keys_of(const S& s) {
         std::vector<int> keys;
@@ -103,20 +92,6 @@ TEST(ConcurrentSet_Test, ElementsAndNodesReclaimed) {
     EXPECT_EQ(collector::get_live_object_count(), before + 1u);
 }
 
-TEST(ConcurrentSet_Test, GcSetLivesAnywhere) {
-    const size_t before = collector::get_live_object_count();
-    auto s = std::make_unique<gc::concurrent_set<int>>();   // in unmanaged memory
-    off_frame([&] {
-        for (int i = 0; i < 10; ++i) {
-            s->insert(i);
-        }
-        EXPECT_EQ(s->size(), 10u);
-        EXPECT_EQ(keys_of(*s), (std::vector<int>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}));
-    });
-    s.reset();
-    EXPECT_EQ(live_without_cells(), before);
-}
-
 TEST(ConcurrentSet_Test, ChurnManyThreads) {
     const int threads = 8;
     const int range = 2000;
@@ -124,7 +99,7 @@ TEST(ConcurrentSet_Test, ChurnManyThreads) {
     const size_t before = collector::get_live_object_count();
     off_frame([&] {
         sgcl::concurrent_set<int> s;
-        gc::atomic<bool> bad = {false};
+        sgcl::atomic<bool> bad = {false};
         std::vector<std::thread> ws;
         for (int t = 0; t < threads; ++t) {
             ws.emplace_back([&, t] {

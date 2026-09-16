@@ -4,9 +4,9 @@
 #include "sgcl/function.h"   // or "sgcl/sgcl.h"
 
 namespace sgcl {
-    template<class Signature, template<class> class Ptr = tracked_ptr>
+    template<class Signature>
     class function;              // function<R(Args...)>
-    template<class Signature, template<class> class Ptr = tracked_ptr>
+    template<class Signature>
     class move_only_function;    // R(Args...), R(Args...) const, R(Args...) noexcept, R(Args...) const noexcept
 }
 ```
@@ -17,11 +17,11 @@ The interface is that of `std::function`: the constructors (a null function poin
 
 `move_only_function<Signature>` is `std::move_only_function` over the same storage: the callable need not be copyable (a lambda capturing a `unique_ptr`), the signature's `const` and `noexcept` are honoured (`R(Args...) const` is callable through a `const move_only_function&`, `R(Args...) noexcept` makes the call `noexcept`; the reference qualifiers `&` and `&&` are not supported), `in_place_type`, and calling an empty one is undefined (debug builds assert).
 
-`Ptr` is the kind of the word, and so where the `function` lives, as for the containers: `sgcl::function` on a stack or inside a managed object, `gc::function` and `gc::move_only_function` ([gc/gc.h](README.md#the-gc-namespace)) anywhere, a `std::vector` of callbacks included. What the closure captures follows the rules of its type where the `function` lives, as a member would: an `sgcl::tracked_ptr` captured by a `gc::function` on the unmanaged heap is the mistake it would be in a `std::vector`; capture a `gc::tracked_ptr` there. [`expiry_queue`](expiry_queue.md) takes its function as a `function` of the queue's kind: an entry's function may capture the objects it works on.
+The word is a `tracked_ptr`, so a `function` lives where one may, as the containers do: on a stack or inside a managed object. What the closure captures follows the rules of its type where the `function` lives, as a member would. [`expiry_queue`](expiry_queue.md) takes its function as a `function`: an entry's function may capture the objects it works on.
 
 ## Rules
 
-- An `sgcl::function` lives where a `tracked_ptr` may, a `gc::function` anywhere ([The rules](../README.md#the-rules), 1); the closure follows the rules of its captures where the `function` lives: an `sgcl::tracked_ptr` captured by a `gc::function` on the unmanaged heap is the mistake it would be as a member; capture a `gc::tracked_ptr` there.
+- A `function` lives where a `tracked_ptr` may ([The rules](../README.md#the-rules), 1); the closure follows the rules of its captures where the `function` lives.
 - A closure in a node is destroyed by `reset`, an assignment or the destructor, at once, on the calling thread; the objects it captured are unreferenced from then on and die with the next cycle that finds them so.
 - A closure in a node is traced: one that captures a strong pointer to the object holding the `function` is a cycle, collected when nothing else reaches it; one that captures a strong pointer to an object an [`expiry_queue`](expiry_queue.md) watches keeps that object alive.
 - Thread safety is that of `std::function` ([The rules](../README.md#the-rules), 6).
@@ -55,8 +55,8 @@ template<class T> const T* target() const noexcept;
 The free functions, in `sgcl`:
 
 ```cpp
-template<class R, class... Args, template<class> class Ptr> void swap(function<R(Args...), Ptr>&, function<R(Args...), Ptr>&) noexcept;
-template<class R, class... Args, template<class> class Ptr> bool operator==(const function<R(Args...), Ptr>&, std::nullptr_t) noexcept;
+template<class R, class... Args> void swap(function<R(Args...)>&, function<R(Args...)>&) noexcept;
+template<class R, class... Args> bool operator==(const function<R(Args...)>&, std::nullptr_t) noexcept;
 template<class R, class... Args> function(R (*)(Args...)) -> function<R(Args...)>;
 template<class F> function(F) -> function</* the signature of F::operator() */>;
 ```
@@ -65,14 +65,14 @@ template<class F> function(F) -> function</* the signature of F::operator() */>;
 
 ```cpp
 struct Node { int value; };
-gc::tracked_ptr node = gc::make_tracked<Node>(1);
-gc::function<int()> f = [node] { return node->value; };   // a closure with a pointer: in a managed node of its own
-gc::function<int(int)> g = [](int x) { return x + 1; };   // no pointers: inside the function
-gc::function<int(int)> h = g;
-assert(f() == 1 && g(1) == 2 && h(1) == 2 && !gc::function<void()>());
+sgcl::tracked_ptr node = sgcl::make_tracked<Node>(1);
+sgcl::function<int()> f = [node] { return node->value; };   // a closure with a pointer: in a managed node of its own
+sgcl::function<int(int)> g = [](int x) { return x + 1; };   // no pointers: inside the function
+sgcl::function<int(int)> h = g;
+assert(f() == 1 && g(1) == 2 && h(1) == 2 && !sgcl::function<void()>());
 assert(f.target_type() != typeid(void) && g.target<int (*)(int)>() == nullptr);
 node = nullptr;                                            // f still holds the Node
-gc::move_only_function<int() const> m = [p = std::make_unique<int>(2)] { return *p; };   // a move-only closure
+sgcl::move_only_function<int() const> m = [p = std::make_unique<int>(2)] { return *p; };   // a move-only closure
 assert(m() == 2);
 ```
 
@@ -84,16 +84,16 @@ assert(m() == 2);
 #include <string>
 
 // An event with listeners: each listener a function capturing the object
-// it works on, kept in a std::vector on the unmanaged heap, as any
-// gc:: type may be. The listener's objects live while the listener does;
-// a listener capturing the button that holds it would be a cycle,
-// collected with the button.
+// it works on, kept in an sgcl::vector where a tracked pointer may live.
+// The listener's objects live while the listener does; a listener
+// capturing the button that holds it would be a cycle, collected with
+// the button.
 struct Label {
     std::string text;
 };
 
 struct Button {
-    std::vector<gc::function<void(const std::string&)>> on_click;   // gc::function: lives anywhere
+    sgcl::vector<sgcl::function<void(const std::string&)>> on_click;   // the closures in managed nodes
     void click(const std::string& what) {
         for (auto& f : on_click) {
             f(what);
@@ -103,12 +103,12 @@ struct Button {
 
 int main() {
     Button button;
-    gc::tracked_ptr label = gc::make_tracked<Label>();
+    sgcl::tracked_ptr label = sgcl::make_tracked<Label>();
     button.on_click.push_back([label](const std::string& what) { label->text = "clicked " + what; });   // the closure in a managed node: label followed
     button.on_click.push_back([](const std::string& what) { std::cout << "log: " << what << "\n"; });   // no pointers: inside the function
-    gc::tracked_ptr<Label> seen = label;
+    sgcl::tracked_ptr<Label> seen = label;
     label = nullptr;                                     // the listener keeps the label
-    gc::collector::force_collect(true);                  // optional, for the demonstration only
+    sgcl::collector::force_collect(true);                  // optional, for the demonstration only
     button.click("ok");
     std::cout << seen->text << "\n";                     // clicked ok
     button.on_click.clear();                             // the closures destroyed now; the label lives on through seen

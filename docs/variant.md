@@ -13,7 +13,7 @@ namespace sgcl {
 
 The interface is that of `std::variant`: the constructors and their overload resolution (`variant<int, tracked_ptr<T>> v = make_tracked<T>()` picks the pointer), `in_place_type` and `in_place_index`, `emplace`, `index`, `valueless_by_exception`, `swap`, `get`, `get_if`, `holds_alternative`, `visit` (with and without an explicit result type, over one or several variants), `monostate`, `bad_variant_access`, `variant_npos`, `variant_size`, `variant_alternative` (also as specializations of the `std` traits), the six comparisons and `<=>` when the alternatives have them, `std::hash` when they do. What differs: nothing is `constexpr` (the alternatives live in raw storage), the variant is never trivially copyable, and its size is the pointer word plus the places of the alternatives that may hold pointers plus the largest of the others (`variant<int, tracked_ptr<T>, weak_ptr<T>>` is 16 bytes). A variant of pointer-free alternatives has no reason to be one of these: `std::variant` is smaller and `constexpr`.
 
-The variant has no word of its own. Where it may live is decided by its alternatives: with `sgcl::tracked_ptr` or `sgcl::weak_ptr` alternatives, where a `tracked_ptr` may (on a stack or inside a managed object); with [`gc::tracked_ptr`](gc/tracked_ptr.md) ones, anywhere. `gc::variant` ([gc/gc.h](README.md#the-gc-namespace)) is the same type.
+The variant has no word of its own. Where it may live is decided by its alternatives: with `tracked_ptr` or `weak_ptr` alternatives, where a `tracked_ptr` may (on a stack or inside a managed object).
 
 ## Rules
 
@@ -99,13 +99,13 @@ assert(described == "text");
 // children. The children are tracked pointers, next to the data, in one
 // variant per node: the collector follows them.
 struct Node;
-using Children = gc::vector<gc::tracked_ptr<Node>>;
+using Children = sgcl::vector<sgcl::tracked_ptr<Node>>;
 struct Node {
-    gc::variant<double, std::string, Children> value;
+    sgcl::variant<double, std::string, Children> value;
 };
 
-double sum(const gc::tracked_ptr<Node>& node) {
-    return gc::visit([](const auto& v) -> double {
+double sum(const sgcl::tracked_ptr<Node>& node) {
+    return sgcl::visit([](const auto& v) -> double {
         using T = std::remove_cvref_t<decltype(v)>;
         if constexpr(std::is_same_v<T, double>) {
             return v;
@@ -122,15 +122,15 @@ double sum(const gc::tracked_ptr<Node>& node) {
 }
 
 int main() {
-    gc::tracked_ptr root = gc::make_tracked<Node>();
+    sgcl::tracked_ptr root = sgcl::make_tracked<Node>();
     Children children;
-    children.push_back(gc::make_tracked<Node>(Node{1.5}));
-    children.push_back(gc::make_tracked<Node>(Node{std::string("name")}));
-    children.push_back(gc::make_tracked<Node>(Node{2.5}));
+    children.push_back(sgcl::make_tracked<Node>(Node{1.5}));
+    children.push_back(sgcl::make_tracked<Node>(Node{std::string("name")}));
+    children.push_back(sgcl::make_tracked<Node>(Node{2.5}));
     root->value = std::move(children);
     std::cout << sum(root) << "\n";              // 4
     root->value = 0.0;                           // the children unreferenced: collected
-    gc::collector::force_collect(true);          // optional, for the demonstration only
+    sgcl::collector::force_collect(true);          // optional, for the demonstration only
     return 0;
 }
 ```

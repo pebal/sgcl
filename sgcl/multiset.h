@@ -15,9 +15,9 @@ namespace sgcl {
     // inside a managed object only; its iterators are raw node pointers
     // (trivially copyable, storable anywhere) that stay valid for as long
     // as the element is in the container, exactly as in std.
-    template<class Key, class Compare = std::less<Key>, template<class> class Ptr = tracked_ptr>
-    class multiset : public detail::RbTree<detail::SetTraits<Key, Compare, true, Ptr>> {
-        using Base = detail::RbTree<detail::SetTraits<Key, Compare, true, Ptr>>;
+    template<class Key, class Compare = std::less<Key>>
+    class multiset : public detail::RbTree<detail::SetTraits<Key, Compare, true>> {
+        using Base = detail::RbTree<detail::SetTraits<Key, Compare, true>>;
 
     public:
         using key_type = Key;
@@ -39,19 +39,19 @@ namespace sgcl {
         }
     };
 
-    template<std::input_iterator InputIt, class Compare = std::less<typename std::iterator_traits<InputIt>::value_type>, template<class> class Ptr = tracked_ptr>
-    multiset(InputIt, InputIt, Compare = Compare()) -> multiset<typename std::iterator_traits<InputIt>::value_type, Compare, Ptr>;
+    template<std::input_iterator InputIt, class Compare = std::less<typename std::iterator_traits<InputIt>::value_type>>
+    multiset(InputIt, InputIt, Compare = Compare()) -> multiset<typename std::iterator_traits<InputIt>::value_type, Compare>;
 
-    template<class Key, class Compare = std::less<Key>, template<class> class Ptr = tracked_ptr>
-    multiset(std::initializer_list<Key>, Compare = Compare()) -> multiset<Key, Compare, Ptr>;
+    template<class Key, class Compare = std::less<Key>>
+    multiset(std::initializer_list<Key>, Compare = Compare()) -> multiset<Key, Compare>;
 
-    template<class Key, class Compare, template<class> class Ptr>
-    void swap(multiset<Key, Compare, Ptr>& lhs, multiset<Key, Compare, Ptr>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
+    template<class Key, class Compare>
+    void swap(multiset<Key, Compare>& lhs, multiset<Key, Compare>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
         lhs.swap(rhs);
     }
 
-    template<class Key, class Compare, template<class> class Ptr, class Pred>
-    typename multiset<Key, Compare, Ptr>::size_type erase_if(multiset<Key, Compare, Ptr>& c, Pred pred) {
+    template<class Key, class Compare, class Pred>
+    typename multiset<Key, Compare>::size_type erase_if(multiset<Key, Compare>& c, Pred pred) {
         auto old_size = c.size();
         for (auto it = c.begin(), last = c.end(); it != last;) {
             if (pred(*it)) {

@@ -13,13 +13,6 @@
 #include <vector>
 
 namespace {
-    SGCL_ALWAYS_INLINE size_t live_without_cells() {
-        sgcl::detail::cell_allocator.release();
-        collector::clear_stack(SIZE_MAX);
-        collector::force_collect(true);
-        return collector::get_live_object_count();
-    }
-
     using namespace std::chrono_literals;
 }
 
@@ -85,7 +78,7 @@ TEST(Channel_Test, RendezvousWaitsForTheReceiver) {
     sgcl::channel<int> ch;            // capacity 0
     EXPECT_EQ(ch.capacity(), 0u);
     EXPECT_FALSE(ch.try_send(1));     // no receiver waiting
-    gc::atomic<bool> sent = {false};
+    sgcl::atomic<bool> sent = {false};
     std::thread s([&] {
         ch.send(7);
         sent = true;
@@ -107,7 +100,7 @@ TEST(Channel_Test, RendezvousWaitsForTheReceiver) {
 
 TEST(Channel_Test, BackPressure) {
     sgcl::channel<int> ch(2);
-    gc::atomic<int> sent = {0};
+    sgcl::atomic<int> sent = {0};
     std::thread p([&] {
         for (int i = 0; i < 10; ++i) {
             ch.send(i);
@@ -128,7 +121,7 @@ TEST(Channel_Test, BackPressure) {
 
 TEST(Channel_Test, CloseWakesWaitingReceivers) {
     sgcl::channel<int> ch(1);
-    gc::atomic<int> got_nothing = {0};
+    sgcl::atomic<int> got_nothing = {0};
     std::vector<std::thread> receivers;
     for (int i = 0; i < 4; ++i) {
         receivers.emplace_back([&] {
@@ -150,7 +143,7 @@ TEST(Channel_Test, CloseWakesWaitingReceivers) {
 TEST(Channel_Test, CloseRefusesWaitingSenders) {
     sgcl::channel<int> ch(1);
     ch.send(1);                       // fills the buffer
-    gc::atomic<int> refused = {0};
+    sgcl::atomic<int> refused = {0};
     std::vector<std::thread> senders;
     for (int i = 0; i < 3; ++i) {
         senders.emplace_back([&] {
@@ -174,7 +167,7 @@ TEST(Channel_Test, CloseRefusesWaitingSenders) {
 // four receivers waiting, four sends into a channel of capacity one
 TEST(Channel_Test, WaitingReceiversAreServedDirectly) {
     sgcl::channel<int> ch(1);
-    gc::atomic<int> served = {0};
+    sgcl::atomic<int> served = {0};
     std::vector<std::thread> receivers;
     for (int i = 0; i < 4; ++i) {
         receivers.emplace_back([&] {
@@ -197,8 +190,8 @@ TEST(Channel_Test, WaitingReceiversAreServedDirectly) {
 TEST(Channel_Test, ManyProducersManyConsumers) {
     const int producers = 4, consumers = 4, n = 5000;
     sgcl::channel<int> ch(16);
-    std::vector<gc::atomic<int>> seen(size_t(producers * n));
-    gc::atomic<bool> out_of_order = {false};
+    std::vector<sgcl::atomic<int>> seen(size_t(producers * n));
+    sgcl::atomic<bool> out_of_order = {false};
     std::vector<std::thread> ws;
     for (int p = 0; p < producers; ++p) {
         ws.emplace_back([&, p] {
@@ -258,7 +251,7 @@ TEST(Channel_Test, ElementsHeldAndReclaimed) {
 namespace {
     // A coroutine that receives from one channel and sends to another
     // until the first closes, then closes the second
-    gc::task<> worker(gc::channel<gc::tracked_ptr<Baz>>& in, gc::channel<int>& out) {
+    sgcl::task<> worker(sgcl::channel<tracked_ptr<Baz>>& in, sgcl::channel<int>& out) {
         while (auto job = co_await in.async_receive()) {
             if (!co_await out.async_send((*job)->value * 2)) {
                 break;
@@ -267,7 +260,7 @@ namespace {
         out.close();
     }
 
-    gc::task<int> summer(gc::channel<int>& in) {
+    sgcl::task<int> summer(sgcl::channel<int>& in) {
         int sum = 0;
         while (auto v = co_await in.async_receive()) {
             sum += *v;
@@ -277,16 +270,16 @@ namespace {
 }
 
 TEST(Channel_Test, CoroutinePipeline) {
-    gc::channel<gc::tracked_ptr<Baz>> jobs(4);
-    gc::channel<int> results(4);
-    gc::task<> w = worker(jobs, results);
-    gc::task<int> s = summer(results);
+    sgcl::channel<tracked_ptr<Baz>> jobs(4);
+    sgcl::channel<int> results(4);
+    sgcl::task<> w = worker(jobs, results);
+    sgcl::task<int> s = summer(results);
     w.resume();                       // to its first co_await: waiting on jobs
     s.resume();                       // waiting on results
     EXPECT_FALSE(w.done());
     std::thread producer([&] {
         for (int i = 0; i < 100; ++i) {
-            jobs.send(gc::make_tracked<Baz>(i));   // each send resumes the worker on this thread
+            jobs.send(make_tracked<Baz>(i));   // each send resumes the worker on this thread
         }
         jobs.close();
     });
@@ -298,8 +291,8 @@ TEST(Channel_Test, CoroutinePipeline) {
 }
 
 TEST(Channel_Test, CoroutineSuspendedOnFullChannelAndOnClose) {
-    gc::channel<int> out(1);
-    auto sender = [](gc::channel<int>& ch, int n, gc::atomic<int>& sent) -> gc::task<> {
+    sgcl::channel<int> out(1);
+    auto sender = [](sgcl::channel<int>& ch, int n, sgcl::atomic<int>& sent) -> sgcl::task<> {
         for (int i = 0; i < n; ++i) {
             if (!co_await ch.async_send(i)) {
                 co_return;
@@ -307,8 +300,8 @@ TEST(Channel_Test, CoroutineSuspendedOnFullChannelAndOnClose) {
             ++sent;
         }
     };
-    gc::atomic<int> sent = {0};
-    gc::task<> t = sender(out, 5, sent);
+    sgcl::atomic<int> sent = {0};
+    sgcl::task<> t = sender(out, 5, sent);
     t.resume();
     EXPECT_EQ(sent.load(), 1);        // one in the buffer, the second send suspended
     EXPECT_FALSE(t.done());
@@ -321,23 +314,23 @@ TEST(Channel_Test, CoroutineSuspendedOnFullChannelAndOnClose) {
     EXPECT_EQ(*out.receive(), 4);
     EXPECT_TRUE(t.done());
 
-    gc::channel<int> in;
-    auto receiver = [](gc::channel<int>& ch, gc::atomic<int>& state) -> gc::task<> {
+    sgcl::channel<int> in;
+    auto receiver = [](sgcl::channel<int>& ch, sgcl::atomic<int>& state) -> sgcl::task<> {
         auto v = co_await ch.async_receive();
         state = v ? 1 : 2;
     };
-    gc::atomic<int> state = {0};
-    gc::task<> r = receiver(in, state);
+    sgcl::atomic<int> state = {0};
+    sgcl::task<> r = receiver(in, state);
     r.resume();
     EXPECT_EQ(state.load(), 0);       // suspended on the empty channel
     in.close();                       // wakes it with nothing
     EXPECT_EQ(state.load(), 2);
     EXPECT_TRUE(r.done());
 
-    gc::channel<int> full(1);
+    sgcl::channel<int> full(1);
     full.send(1);
-    gc::atomic<int> sent2 = {0};
-    gc::task<> t2 = sender(full, 1, sent2);
+    sgcl::atomic<int> sent2 = {0};
+    sgcl::task<> t2 = sender(full, 1, sent2);
     t2.resume();                      // suspended: full
     EXPECT_EQ(sent2.load(), 0);
     full.close();                     // refused
@@ -360,35 +353,16 @@ TEST(Channel_Test, SignalChannel) {
     EXPECT_FALSE(sig.receive());
     EXPECT_FALSE(sig.send());
 
-    gc::channel<void> done;
-    auto waiter = [](gc::channel<void>& ch, gc::atomic<int>& got) -> gc::task<> {
+    sgcl::channel<void> done;
+    auto waiter = [](sgcl::channel<void>& ch, sgcl::atomic<int>& got) -> sgcl::task<> {
         got = co_await ch.async_receive() ? 1 : 2;
     };
-    gc::atomic<int> got = {0};
-    gc::task<> w = waiter(done, got);
+    sgcl::atomic<int> got = {0};
+    sgcl::task<> w = waiter(done, got);
     w.resume();
     EXPECT_EQ(got.load(), 0);
     done.send();                      // a rendezvous with the coroutine
     EXPECT_EQ(got.load(), 1);
-}
-
-TEST(Channel_Test, GcChannelLivesAnywhere) {
-    const size_t before = collector::get_live_object_count();
-    auto ch = std::make_unique<gc::channel<gc::tracked_ptr<Baz>>>(8);   // in unmanaged memory
-    std::vector<gc::tracked_ptr<Baz>> out;
-    off_frame([&] {
-        for (int i = 0; i < 8; ++i) {
-            ch->send(gc::make_tracked<Baz>(i));
-        }
-        while (auto v = ch->try_receive()) {
-            out.push_back(*v);
-        }
-        ASSERT_EQ(out.size(), 8u);
-        EXPECT_EQ(out[3]->value, 3);
-    });
-    out.clear();
-    ch.reset();
-    EXPECT_EQ(live_without_cells(), before);
 }
 
 TEST(Channel_Test, InsideManagedObject) {

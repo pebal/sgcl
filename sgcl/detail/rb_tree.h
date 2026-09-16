@@ -8,7 +8,6 @@
 #include "../make_tracked.h"
 #include "../tracked_ptr.h"
 #include "anchor.h"
-#include "managed.h"
 #include "slot.h"
 #include "synth_three_way.h"
 
@@ -467,10 +466,9 @@ namespace sgcl::detail {
             return static_cast<RbNode<V>*>(_node.get())->slot.value;
         }
 
-        // The element dies as it was constructed, as the stored type
         void _destroy() noexcept {
             if (_node) {
-                static_cast<RbNode<managed_value_t<V>>*>(_node.get())->slot.destroy();
+                static_cast<RbNode<V>*>(_node.get())->slot.destroy();
                 _node = nullptr;
             }
         }
@@ -555,21 +553,13 @@ namespace sgcl::detail {
         template<class> friend class RbTree;
     };
 
-    // Root: the kind of the word by which the container holds its header
-    // node, tracked_ptr or gc::tracked_ptr (types.h); the links between the nodes
-    // are tracked_ptrs whatever it is.
-    template<class Key, class T, class Compare, bool Multi, template<class> class Root>
+    template<class Key, class T, class Compare, bool Multi>
     struct MapTraits {
         using key_type = Key;
         using value_type = std::pair<const Key, T>;
-        // What a node stores (vector.h, detail/managed.h): the value's
-        // types replaced by the words they name as tracked_type; the
-        // interface, the iterators and the handles see value_type over it
-        using stored_type = managed_value_t<value_type>;
         using key_compare = Compare;
         using value_compare = MapValueCompare<Key, T, Compare>;
         using node_type = MapNodeHandle<Key, T>;
-        template<class U> using root = Root<U>;
         static constexpr bool multi = Multi;
         static constexpr bool const_iterators = false;
 
@@ -579,15 +569,13 @@ namespace sgcl::detail {
         }
     };
 
-    template<class Key, class Compare, bool Multi, template<class> class Root>
+    template<class Key, class Compare, bool Multi>
     struct SetTraits {
         using key_type = Key;
         using value_type = Key;
-        using stored_type = managed_value_t<value_type>;
         using key_compare = Compare;
         using value_compare = Compare;
         using node_type = SetNodeHandle<Key>;
-        template<class U> using root = Root<U>;
         static constexpr bool multi = Multi;
         static constexpr bool const_iterators = true;
 
@@ -620,8 +608,7 @@ namespace sgcl::detail {
 
     protected:
         using NodeBase = RbNodeBase;
-        using Node = RbNode<value_type>;                           // the view of a node: its value as the interface sees it
-        using StoredNode = RbNode<typename Traits::stored_type>;   // the node as allocated, constructed and destroyed
+        using Node = RbNode<value_type>;
         using Ptr = RbPtr;
         using insert_return_type = InsertReturn<iterator, node_type>;
         using insert_result = std::conditional_t<Multi, iterator, std::pair<iterator, bool>>;
@@ -865,20 +852,20 @@ namespace sgcl::detail {
         template<class... A>
         insert_result emplace(A&&... a) {
             _ensure_header();
-            Ptr n = make_tracked<StoredNode>();
+            Ptr n = make_tracked<Node>();
             Node* node = _node(n.get());
-            _stored(node)->slot.construct(std::forward<A>(a)...);
+            node->slot.construct(std::forward<A>(a)...);
             InsertPos pos;
             try {
                 pos = _pos(_key(n.get()));
             }
             catch (...) {
-                _stored(node)->slot.destroy();
+                node->slot.destroy();
                 throw;
             }
             if constexpr (!Multi) {
                 if (pos.existing) {
-                    _stored(node)->slot.destroy();
+                    node->slot.destroy();
                     return {iterator(pos.existing), false};
                 }
             }
@@ -889,19 +876,19 @@ namespace sgcl::detail {
         template<class... A>
         iterator emplace_hint(const_iterator hint, A&&... a) {
             _ensure_header();
-            Ptr n = make_tracked<StoredNode>();
+            Ptr n = make_tracked<Node>();
             Node* node = _node(n.get());
-            _stored(node)->slot.construct(std::forward<A>(a)...);
+            node->slot.construct(std::forward<A>(a)...);
             InsertPos pos;
             try {
                 pos = _hint_pos(hint._node, _key(n.get()));
             }
             catch (...) {
-                _stored(node)->slot.destroy();
+                node->slot.destroy();
                 throw;
             }
             if (pos.existing) {
-                _stored(node)->slot.destroy();
+                node->slot.destroy();
                 return iterator(pos.existing);
             }
             _link(pos, n.get());
@@ -1154,7 +1141,7 @@ namespace sgcl::detail {
         }
 
     protected:
-        typename Traits::template root<NodeBase> _header;   // the root of the container: tracked_ptr or gc::tracked_ptr
+        tracked_ptr<NodeBase> _header;   // the root of the container
         size_t _size = 0;
         [[no_unique_address]] key_compare _comp;
 
@@ -1173,15 +1160,6 @@ namespace sgcl::detail {
         NodeBase* _rightmost() const noexcept {
             return _header ? _hdr()->right.get() : nullptr;
         }
-
-        // The node as stored, for its construction and destruction
-
-        static StoredNode* _stored(Node* n) noexcept {
-
-            return reinterpret_cast<StoredNode*>(n);
-
-        }
-
 
         static Node* _node(NodeBase* n) noexcept {
             return static_cast<Node*>(n);
@@ -1245,7 +1223,7 @@ namespace sgcl::detail {
                 _destroy_subtree(x->right.get());
                 auto y = x->left.get();
                 _unlink(x);
-                _stored(_node(x))->slot.destroy();
+                _node(x)->slot.destroy();
                 keep.reset(y);   // y was rooted by x until here
                 x = y;
             }
@@ -1264,7 +1242,7 @@ namespace sgcl::detail {
             Anchor keep(n);   // rooted while unlinked and cleared
             rb_rebalance_for_erase(n, _hdr());
             _unlink(n);
-            _stored(_node(n))->slot.destroy();
+            _node(n)->slot.destroy();
             --_size;
         }
 
@@ -1277,8 +1255,8 @@ namespace sgcl::detail {
         // A new node for the value built from a, linked at pos.
         template<class... A>
         iterator _insert_at(const InsertPos& pos, A&&... a) {
-            auto n = make_tracked<StoredNode>();   // rooted by its state (UniqueLock) and by this frame until it is linked
-            _stored(_node(n.get()))->slot.construct(std::forward<A>(a)...);
+            auto n = make_tracked<Node>();   // rooted by its state (UniqueLock) and by this frame until it is linked
+            _node(n.get())->slot.construct(std::forward<A>(a)...);
             // shared from here: released from the unique state before the
             // links to the node are stored (reset() refuses a unique object)
             Page::set_state_released(n.get());

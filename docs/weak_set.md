@@ -4,19 +4,19 @@
 #include "sgcl/weak_set.h"   // or "sgcl/sgcl.h"
 
 namespace sgcl {
-    template<class Key, template<class> class Ptr = tracked_ptr>
+    template<class Key>
     class weak_set;
 }
 ```
 
-`weak_set<Key>` is a set of objects that does not keep them alive: the [`weak_map`](weak_map.md) of nothing but keys. An object is inserted, found and erased by a `tracked_ptr<Key>` to it and held by a [`weak_ptr`](weak_ptr.md); an entry whose object the collector has found unreachable is dead: never found, passed over by the iteration, dropped by a sweep. Objects registered somewhere without being owned there: the listeners, the open windows, the instances of a class, a set that forgets. Hashing, equality, the sweeps, `Ptr` and the rules are those of `weak_map`; `gc::weak_set` ([gc/gc.h](README.md#the-gc-namespace)) lives anywhere.
+`weak_set<Key>` is a set of objects that does not keep them alive: the [`weak_map`](weak_map.md) of nothing but keys. An object is inserted, found and erased by a `tracked_ptr<Key>` to it and held by a [`weak_ptr`](weak_ptr.md); an entry whose object the collector has found unreachable is dead: never found, passed over by the iteration, dropped by a sweep. Objects registered somewhere without being owned there: the listeners, the open windows, the instances of a class, a set that forgets. Hashing, equality, the sweeps and the rules are those of `weak_map`.
 
 ## Members
 
 ```cpp
 using key_type = Key;
-using key_pointer = Ptr<Key>;
-using weak_type = weak_ptr<Key, Ptr>;
+using key_pointer = tracked_ptr<Key>;
+using weak_type = weak_ptr<Key>;
 using size_type = size_t;
 using reference = key_pointer;               // what an iterator gives out: the object, held
 using iterator = /* forward iterator over the live objects */;
@@ -55,16 +55,16 @@ struct Window {
 int main() {
     // Every window there is, without owning any: a window is gone when
     // its owner drops it, and the set notices
-    gc::weak_set<Window> windows;
-    gc::tracked_ptr main_window = gc::make_tracked<Window>(1);
+    sgcl::weak_set<Window> windows;
+    sgcl::tracked_ptr main_window = sgcl::make_tracked<Window>(1);
     windows.insert(main_window);
     {
-        gc::tracked_ptr dialog = gc::make_tracked<Window>(2);
+        sgcl::tracked_ptr dialog = sgcl::make_tracked<Window>(2);
         windows.insert(dialog);
         std::cout << windows.size() << " windows\n";              // 2
     }   // the dialog's last strong pointer is gone
-    gc::collector::clear_stack();          // the dead frame zeroed, so that the conservative scan keeps nothing
-    gc::collector::force_collect(true);    // optional, for the demonstration: the cycle clears the entry
+    sgcl::collector::clear_stack();          // the dead frame zeroed, so that the conservative scan keeps nothing
+    sgcl::collector::force_collect(true);    // optional, for the demonstration: the cycle clears the entry
     for (auto window : windows) {          // tracked_ptr<Window>, held: the live ones
         std::cout << "window " << window->id << "\n";              // window 1
     }

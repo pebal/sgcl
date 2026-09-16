@@ -4,12 +4,8 @@
 #include "sgcl/concurrent_set.h"   // or "sgcl/sgcl.h"
 
 namespace sgcl {
-    template<class Key, class Compare = std::less<Key>, template<class> class Ptr = tracked_ptr>
-    class concurrent_set;
-}
-namespace gc {
     template<class Key, class Compare = std::less<Key>>
-    using concurrent_set = sgcl::concurrent_set<Key, Compare, gc::tracked_ptr>;
+    class concurrent_set;
 }
 ```
 

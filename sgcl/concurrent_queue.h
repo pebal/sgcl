@@ -8,7 +8,6 @@
 #include "aliases.h"
 #include "atomic.h"
 #include "config.h"
-#include "detail/managed.h"
 #include "make_tracked.h"
 #include "tracked_ptr.h"
 
@@ -36,8 +35,8 @@ namespace sgcl {
     // and no free list: a node is never reused while a thread holds it,
     // and a node nobody holds is reclaimed by the collector. The container
     // holds two words, the atomic head and tail; it lives where a
-    // tracked_ptr may (on a stack or inside a managed object), and the
-    // gc:: one (gc/gc.h) anywhere; the nodes are managed objects linked by
+    // tracked_ptr may (on a stack or inside a managed object); the nodes
+    // are managed objects linked by
     // atomic tracked_ptrs. An element is destroyed by the thread that
     // popped it, as std::queue's pop destroys it. Every operation is
     // lock-free; push and try_pop are linearizable at their
@@ -45,12 +44,8 @@ namespace sgcl {
     // empty queue, on the atomic link of the last node, and every push
     // notifies. The head and the tail are kept a cache line apart
     // (config::CacheLineSize).
-    template<class V, template<class> class Ptr>
+    template<class T>
     class concurrent_queue {
-        // What a node holds (vector.h, detail/managed.h): V, or the word V
-        // names as its tracked_type; the interface is V
-        using T = detail::managed_t<V>;
-
         struct Node {
             Node() noexcept = default;
 
@@ -71,7 +66,7 @@ namespace sgcl {
         };
 
     public:
-        using value_type = V;
+        using value_type = T;
         using size_type = size_t;
 
         // An empty queue: the head and the tail address one node whose
@@ -83,11 +78,11 @@ namespace sgcl {
         concurrent_queue(const concurrent_queue&) = delete;
         concurrent_queue& operator=(const concurrent_queue&) = delete;
 
-        void push(const V& value) {
+        void push(const T& value) {
             emplace(value);
         }
 
-        void push(V&& value) {
+        void push(T&& value) {
             emplace(std::move(value));
         }
 
@@ -132,13 +127,13 @@ namespace sgcl {
 
         // The first element, or nothing when the queue is empty at the
         // moment of the walk
-        optional<V> try_pop() {
+        optional<T> try_pop() {
             tracked_ptr<Node> last;
             return _pop(last);
         }
 
         // The first element, waiting for one when the queue is empty
-        V pop() {
+        T pop() {
             for (;;) {
                 tracked_ptr<Node> last;
                 if (auto value = _pop(last)) {
@@ -181,7 +176,7 @@ namespace sgcl {
         // the head swung to it, or past it, once the walk went two nodes
         // or more. `last` is the last node of the list when nothing was
         // found: what pop() waits on.
-        optional<V> _pop(tracked_ptr<Node>& last) {
+        optional<T> _pop(tracked_ptr<Node>& last) {
         restart:
             tracked_ptr<Node> head = _head.load(std::memory_order_acquire);
             tracked_ptr<Node> p = head;
@@ -189,7 +184,7 @@ namespace sgcl {
                 if (!p->taken.load(std::memory_order_acquire)) {
                     bool expected = false;
                     if (p->taken.compare_exchange_strong(expected, true, std::memory_order_acq_rel, std::memory_order_relaxed)) {
-                        optional<V> value(std::in_place, std::move(*p->value));
+                        optional<T> value(std::in_place, std::move(*p->value));
                         p->value.reset();
                         if (p != head) {
                             tracked_ptr<Node> q = p->next.load(std::memory_order_acquire);
@@ -251,8 +246,8 @@ namespace sgcl {
         // the one, producers on the other, and neither line bounces for
         // the other side's traffic. Padding rather than alignas, so that
         // the queue asks no alignment of the object it is a member of.
-        atomic<Ptr<Node>> _head;
-        unsigned char _pad[config::CacheLineSize - sizeof(atomic<Ptr<Node>>)] = {};
-        atomic<Ptr<Node>> _tail;
+        atomic<tracked_ptr<Node>> _head;
+        unsigned char _pad[config::CacheLineSize - sizeof(atomic<tracked_ptr<Node>>)] = {};
+        atomic<tracked_ptr<Node>> _tail;
     };
 }

@@ -49,5 +49,3 @@
 #include "expected.h"
 #include "function.h"
 #include "variant.h"
-
-#include "../gc/gc.h"   // the gc namespace: the same types with gc::tracked_ptr as their word

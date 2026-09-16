@@ -5,7 +5,7 @@
 //------------------------------------------------------------------------------
 // Latency of single mutator operations on a shared graph, as a distribution:
 // the median is similar everywhere, the differences are in the tail.
-//   graph_latency <sgcl|gc|shared> [threads=cores] [seconds=5] [roots=4096]   (gc: gc::tracked_ptr)
+//   graph_latency <sgcl|shared> [threads=cores] [seconds=5] [roots=4096]
 // Each thread keeps a ring of roots. An operation is one of:
 //   insert: a new node linked to four random existing nodes, stored into a
 //           random root slot (the old subgraph may become garbage: freed
@@ -27,16 +27,14 @@ namespace {
     constexpr int Links = 4;
     constexpr int WalkSteps = 32;
 
-    // Ptr: sgcl::tracked_ptr, or gc::tracked_ptr for the gc variant
-    template<template<class> class Ptr>
     struct Sgcl {
         struct Node {
-            Ptr<Node> link[Links];
+            sgcl::tracked_ptr<Node> link[Links];
             long value;
             long pad[3];
         };
-        using P = Ptr<Node>;
-        using Roots = sgcl::vector<P, Ptr>;
+        using P = sgcl::tracked_ptr<Node>;
+        using Roots = sgcl::vector<P>;
         static P make(long v) {
             auto n = sgcl::make_tracked<Node>();
             n->value = v;
@@ -150,15 +148,14 @@ namespace {
 
 int main(int argc, char** argv) {
     const char* variant = argc > 1 ? argv[1] : "sgcl";
-    if (!bench::has_variant(variant, {"sgcl", "gc", "shared"})) {
-        std::fprintf(stderr, "usage: graph_latency <sgcl|gc|shared> [threads] [seconds] [roots]\n");
+    if (!bench::has_variant(variant, {"sgcl", "shared"})) {
+        std::fprintf(stderr, "usage: graph_latency <sgcl|shared> [threads] [seconds] [roots]\n");
         return 2;
     }
     int threads = argc > 2 ? std::atoi(argv[2]) : (int)bench::hardware_threads();
     double seconds = argc > 3 ? std::atof(argv[3]) : 5;
     int roots = argc > 4 ? std::atoi(argv[4]) : 4096;
     std::printf("%s threads=%d seconds=%.0f roots=%d\n", variant, threads, seconds, roots);
-    if (!std::strcmp(variant, "sgcl")) run<Sgcl<sgcl::tracked_ptr>>(threads, seconds, roots);
-    else if (!std::strcmp(variant, "gc")) run<Sgcl<gc::tracked_ptr>>(threads, seconds, roots);
+    if (!std::strcmp(variant, "sgcl")) run<Sgcl>(threads, seconds, roots);
     else run<Shared>(threads, seconds, roots);
 }

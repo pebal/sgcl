@@ -2,20 +2,17 @@
 # Copyright (c) 2022-2026 Sebastian Nibisz
 # SPDX-License-Identifier: Apache-2.0
 #
-# LLDB formatters for the pointers and containers of sgcl:: and gc::.
+# LLDB formatters for the pointers and containers of sgcl.
 # Load with `command script import <sgcl>/lldb/sgcl.py` (in ~/.lldbinit
-# for every session). A tracked_ptr shows its address, the mode of a
-# gc::tracked_ptr (the word, or the cell of a block) and the state of the
-# object's slot when the collector's types are in the debug info; its one
-# child is the object. A container shows its size and its elements, read
+# for every session). A tracked_ptr shows its address and the state of
+# the object's slot when the collector's types are in the debug info; a
+# root_ptr the same, with the cell of a block it holds its object by; its
+# one child is the object. A container shows its size and its elements, read
 # from the managed buffer or walked node by node, as the std containers
 # do with their own formatters.
 
 import lldb
 import struct
-
-SIGN_BIT = 1 << 63
-
 
 # --- reading the process ---------------------------------------------------
 
@@ -86,26 +83,15 @@ def align_up(n, a):
     return (n + a - 1) // a * a
 
 
-# --- the tagged word of a gc::tracked_ptr -----------------------------------
+# --- the cell of a root_ptr ---------------------------------------------------
 
-def resolve_gc_word(valobj, word):
-    """(object address, mode text) of a gc::tracked_ptr's word."""
-    if word is None:
+def resolve_root(valobj, cell):
+    """(object address, mode text) of a root_ptr from the address of its cell."""
+    if not cell:
         return None, "?"
-    if word & SIGN_BIT:
-        cell = word & ~SIGN_BIT
-        target = read_ptr(valobj, cell)
-        block = cell & ~127          # a block is a cache line, 128 or 64 bytes; the larger mask names the line
-        return target, "cell %d of block 0x%x" % ((cell - block) // 8, block)
-    return word, "tracked"
-
-
-def untag(valobj, word):
-    if word is None:
-        return None
-    if word & SIGN_BIT:
-        return read_ptr(valobj, word & ~SIGN_BIT)
-    return word
+    target = read_ptr(valobj, cell)
+    block = cell & ~127          # a block is a cache line, 128 or 64 bytes; the larger mask names the line
+    return target, "cell %d of block 0x%x" % ((cell - block) // 8, block)
 
 
 # --- the state of an object's slot (the collector's types in the debug info) -
@@ -150,23 +136,29 @@ def state_of(valobj, object_addr):
 
 # --- pointers ---------------------------------------------------------------
 
-def is_gc_pointer(valobj):
+def is_root_pointer(valobj):
     t = valobj.GetType()
     if t.IsReferenceType():
         t = t.GetDereferencedType()
-    return t.GetUnqualifiedType().GetCanonicalType().GetName().startswith("gc::tracked_ptr<")
+    return t.GetUnqualifiedType().GetCanonicalType().GetName().startswith("sgcl::root_ptr<")
+
+
+def object_of(valobj):
+    """(object address, mode text) of a tracked_ptr (its word) or a root_ptr (its cell's word)."""
+    word = word_of(valobj)
+    if word is None:
+        return None, "?"
+    if is_root_pointer(valobj):
+        return resolve_root(valobj, word)
+    return word, None
 
 
 def pointer_summary(valobj, internal_dict):
-    word = word_of(valobj)
-    if word is None:
+    obj, mode = object_of(valobj)
+    if mode == "?":
         return "?"
-    if is_gc_pointer(valobj):
-        obj, mode = resolve_gc_word(valobj, word)
-    else:
-        obj, mode = word, None
     if not obj:
-        return "null" + (" (%s)" % mode if mode and mode != "tracked" else "")
+        return "null" + (" (%s)" % mode if mode else "")
     parts = ["0x%x" % obj]
     if mode:
         parts.append(mode)
@@ -185,10 +177,7 @@ class PointerChildren:
 
     def update(self):
         self.object = None
-        word = word_of(self.valobj)
-        if word is None:
-            return
-        obj = untag(self.valobj, word) if is_gc_pointer(self.valobj) else word
+        obj, mode = object_of(self.valobj)
         pointee = template_type(self.valobj, 0)
         if obj and pointee.IsValid() and pointee.GetByteSize() > 0 and pointee.GetName() != "void":
             self.object = self.valobj.CreateValueFromAddress("object", obj, pointee)
@@ -230,7 +219,7 @@ class WeakChildren(PointerChildren):
 
     def update(self):
         self.object = None
-        cell = untag(self.valobj, word_of(member(self.valobj, "_cell")))
+        cell = (word_of(member(self.valobj, "_cell")))
         target = read_ptr(self.valobj, cell) if cell else None
         pointee = template_type(self.valobj, 0)
         if target and pointee.IsValid() and pointee.GetByteSize() > 0 and pointee.GetName() != "void":
@@ -238,7 +227,7 @@ class WeakChildren(PointerChildren):
 
 
 def weak_ptr_summary(valobj, internal_dict):
-    cell = untag(valobj, word_of(member(valobj, "_cell")))
+    cell = (word_of(member(valobj, "_cell")))
     if not cell:
         return "expired (no cell)"
     target = read_ptr(valobj, cell)          # WeakCell: target, then flags
@@ -259,7 +248,7 @@ def element_type_of(valobj):
 
 
 class VectorChildren:
-    """sgcl::vector<T, Ptr> and the dynamic sgcl::array<T>: the elements of the managed buffer."""
+    """sgcl::vector<T> and the dynamic sgcl::array<T>: the elements of the managed buffer."""
 
     def __init__(self, valobj, internal_dict):
         self.valobj = valobj
@@ -270,7 +259,7 @@ class VectorChildren:
     def update(self):
         self.elem = element_type_of(self.valobj)
         self.size = member_u64(self.valobj, "_size")
-        self.data = untag(self.valobj, word_of(member(self.valobj, "_ptr"))) or 0
+        self.data = (word_of(member(self.valobj, "_ptr"))) or 0
         if not self.data:
             self.size = 0
 
@@ -299,7 +288,7 @@ def vector_summary(valobj, internal_dict):
 
 
 class DequeChildren:
-    """sgcl::deque<T, Ptr>: the elements through the map of blocks."""
+    """sgcl::deque<T>: the elements through the map of blocks."""
 
     def __init__(self, valobj, internal_dict):
         self.valobj = valobj
@@ -311,7 +300,7 @@ class DequeChildren:
         self.block_size = 1 << (block.bit_length() - 1)
         self.size = member_u64(self.valobj, "_size")
         self.start = member_u64(self.valobj, "_start")
-        self.map = untag(self.valobj, word_of(member(self.valobj, "_map"))) or 0
+        self.map = (word_of(member(self.valobj, "_map"))) or 0
         if not self.map:
             self.size = 0
 
@@ -355,7 +344,7 @@ class ListChildren:
         forward = "forward_list<" in name
         links = 1 if forward else 2
         self.offset = slot_offset(self.valobj, links * 8, self.elem)
-        head = untag(self.valobj, word_of(member(self.valobj, "_head" if forward else "_sentinel")))
+        head = (word_of(member(self.valobj, "_head" if forward else "_sentinel")))
         if not head:
             return
         limit = 1 << 20
@@ -459,7 +448,7 @@ class TreeChildren:
             return
         self.offset = slot_offset(self.valobj, 25, self.elem)   # parent, left, right, red
         size = member_u64(self.valobj, "_size")
-        header = untag(self.valobj, word_of(member(self.valobj, "_header")))
+        header = (word_of(member(self.valobj, "_header")))
         if not header or not size:
             return
         node = read_ptr(self.valobj, header + 8)             # leftmost
@@ -514,7 +503,7 @@ class HashChildren:
             return
         self.offset = slot_offset(self.valobj, 16, self.elem)   # next, hash
         size = member_u64(self.valobj, "_size")
-        before = untag(self.valobj, word_of(member(self.valobj, "_before_begin")))
+        before = (word_of(member(self.valobj, "_before_begin")))
         if not before or not size:
             return
         node = read_ptr(self.valobj, before)
@@ -564,12 +553,12 @@ def __lldb_init_module(debugger, internal_dict):
             debugger.HandleCommand("type synthetic add -w %s -x '%s' -l %s.%s" % (cat, regex, m, synthetic))
         if summary:
             debugger.HandleCommand("type summary add -w %s -x '%s' -F %s.%s -e" % (cat, regex, m, summary))
-    add(r"^(sgcl|gc)::tracked_ptr<.+>$", "pointer_summary", "PointerChildren")
+    add(r"^sgcl::(tracked_ptr|root_ptr)<.+>$", "pointer_summary", "PointerChildren")
     add(r"^sgcl::atomic<.+>$", None, None)
     add(r"^sgcl::unique_ptr<.+>$", "unique_ptr_summary", "UniqueChildren")
     add(r"^sgcl::weak_ptr<.+>$", "weak_ptr_summary", "WeakChildren")
     add(r"^sgcl::vector<.+>$", "vector_summary", "VectorChildren")
-    add(r"^sgcl::array<.+, (18446744073709551615|-1)(ul|UL|ull|ULL)?, .+>$", "array_summary", "ArrayChildren")
+    add(r"^sgcl::array<.+, (18446744073709551615|-1)(ul|UL|ull|ULL)?>$", "array_summary", "ArrayChildren")
     add(r"^sgcl::deque<.+>$", "deque_summary", "DequeChildren")
     add(r"^sgcl::(list|forward_list)<.+>$", "list_summary", "ListChildren")
     add(r"^sgcl::(map|multimap|set|multiset)<.+>$", "size_summary", "TreeChildren")

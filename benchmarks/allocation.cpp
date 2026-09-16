@@ -7,7 +7,7 @@
 // size in a loop and keeps only the newest one, so every allocation also
 // retires one object (freed at once by shared_ptr/unique_ptr, by the
 // collector for SGCL).
-//   allocation <sgcl|gc|shared|unique> [threads=1] [size=32] [iterations=20000000]   (gc: gc::tracked_ptr)
+//   allocation <sgcl|shared|unique> [threads=1] [size=32] [iterations=20000000]
 // Prints nanoseconds per allocation (wall time of the slowest thread / n)
 // and the process CPU time in seconds.
 #include "common.h"
@@ -20,14 +20,13 @@ struct Obj {
     char pad[N];
 };
 
-// Ptr: sgcl::tracked_ptr, or gc::tracked_ptr for the gc variant
-template<class T, template<class> class Ptr>
+template<class T>
 double run_sgcl(int threads, long n) {
     std::vector<std::thread> ws;
     auto t0 = bench::Clock::now();
     for (int t = 0; t < threads; ++t) {
         ws.emplace_back([&] {
-            Ptr<T> keep;
+            sgcl::tracked_ptr<T> keep;
             for (long i = 0; i < n; ++i) {
                 keep = sgcl::make_tracked<T>();
             }
@@ -77,16 +76,15 @@ double run_unique(int threads, long n) {
 
 template<class T>
 double run(const char* variant, int threads, long n) {
-    if (!std::strcmp(variant, "sgcl")) return run_sgcl<T, sgcl::tracked_ptr>(threads, n);
-    if (!std::strcmp(variant, "gc")) return run_sgcl<T, gc::tracked_ptr>(threads, n);
+    if (!std::strcmp(variant, "sgcl")) return run_sgcl<T>(threads, n);
     if (!std::strcmp(variant, "shared")) return run_shared<T>(threads, n);
     return run_unique<T>(threads, n);
 }
 
 int main(int argc, char** argv) {
     const char* variant = argc > 1 ? argv[1] : "sgcl";
-    if (!bench::has_variant(variant, {"sgcl", "gc", "shared", "unique"})) {
-        std::fprintf(stderr, "usage: allocation <sgcl|gc|shared|unique> [threads] [size: 8|32|256|4096] [iterations]\n");
+    if (!bench::has_variant(variant, {"sgcl", "shared", "unique"})) {
+        std::fprintf(stderr, "usage: allocation <sgcl|shared|unique> [threads] [size: 8|32|256|4096] [iterations]\n");
         return 2;
     }
     int threads = argc > 2 ? std::atoi(argv[2]) : 1;

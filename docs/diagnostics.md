@@ -30,7 +30,7 @@ What the library gives a program to find out what the collector is doing, what i
 Start from the types, without stopping anything for long:
 
 ```cpp
-for (auto& t : gc::collector::get_type_statistics()) {          // a full cycle first: what is alive, not what waits for one
+for (auto& t : sgcl::collector::get_type_statistics()) {          // a full cycle first: what is alive, not what waits for one
     std::cout << t.type->name() << (t.buffers ? " buffers" : "") << ": "
               << t.live_objects << " objects, " << t.live_bytes << " bytes, " << t.pages << " pages\n";
 }
@@ -41,7 +41,7 @@ The list is sorted by bytes, so the first lines are the answer in most cases: a 
 Then the numbers over time: `get_statistics()` at intervals, from any thread, without waiting:
 
 ```cpp
-auto s = gc::collector::get_statistics();
+auto s = sgcl::collector::get_statistics();
 std::cout << s.cycles << " cycles (" << s.full_cycles << " full), last " << s.last_cycle_ms << " ms, "
           << s.live_objects << " objects marked, " << s.live_bytes / 1048576 << " MB in use, "
           << s.committed_bytes / 1048576 << " MB committed\n";
@@ -56,12 +56,12 @@ Four things keep an object alive that the program has let go of, in the order to
 1. **A word on a stack.** The stacks are scanned conservatively: a dead local, a spilled register, a temporary the compiler left in a frame keep their target for as long as the frame is not overwritten. This is the first suspect for an object that dies "a little later" than expected, and the reason the tests count after `collector::clear_stack(SIZE_MAX)`. A program does not need to clear its stack; a test that asserts a count does, and asserts it from a frame the cleared region does not include ([collector: clear_stack](collector.md#clear_stack)).
 2. **A young cycle.** The marks are sticky through the young cycles: an object marked once stays marked until a full cycle looks again ([README: Generations](../README.md#generations)). `force_collect(true)` is a full cycle; the destructor of an object dropped between full cycles runs at the next one.
 3. **A container's capacity.** A `vector` or `array<T>` roots every element up to its `size()`, and an element removed by `pop_back()` or `erase()` is destroyed at once; but a buffer abandoned by a reallocation is garbage of the next cycle, and the elements of a buffer that a dying `vector` leaves behind are collected with it, not destroyed on the spot ([vector: Rules](vector.md#rules)).
-4. **A cell of a `gc::tracked_ptr`.** A `gc::tracked_ptr` in unmanaged memory (a `std` container, a global, a lambda on the heap) holds its object for exactly its own lifetime, through a cell in a block of a cache line; a block lives while one of its cells is in use ([gc::tracked_ptr](gc/tracked_ptr.md)). A `gc::tracked_ptr` that outlives its owner's intent, a global or a cached closure, is the pointer to look for.
+4. **A cell of a `root_ptr`.** A [`root_ptr`](root_ptr.md) in unmanaged memory (a `std` container, a global, a lambda on the heap) holds its object for exactly its own lifetime, through a cell in a block of a cache line; a block lives while one of its cells is in use. A `root_ptr` that outlives its owner's intent, a global or a cached closure, is the pointer to look for.
 
 To see which it is, ask the collector:
 
 ```cpp
-gc::collector::explain(p, std::cerr);
+sgcl::collector::explain(p, std::cerr);
 // 0x1000a0040 is held by
 //   a buffer of Item[] at 0x1000c0000, the word at byte 1040
 //   a Cache at 0x1000a0100, the word at byte 16
@@ -71,13 +71,13 @@ gc::collector::explain(p, std::cerr);
 
 `get_retained(p)` is the last line as data: what would go if the object went, the way a heap profiler reports a dominator. Asked of the top of a chain, of a global's object or a cache, it says whether that holder is the leak or only a link in it.
 
-`get_path_to_root(p)` is the same chain as data, `get_referrers(p)` every word that points at the object, the stack words included ([collector: get_referrers](collector.md#referrer-get_referrers-get_path_to_root-explain)). A chain that ends on a stack word names the thread; one that ends on a word of the calling thread, with nothing else in it, is case 1: nothing but that frame, or a stale word in it, holds the object. A chain through a buffer at a byte past the container's `size()` is case 3. A chain that ends at a `cell` is case 4: a `gc::tracked_ptr` somewhere in unmanaged memory. A `unique_ptr` at the top is an owner the program forgot, a global as a rule. Where the whole picture of a cycle is wanted rather than one object, `-DSGCL_TRACE_STACK` prints every marking decision: which stack word retained which object (`[stack]` and `[scan]` lines), which object was found reachable by its state (`[updated]`), by a card (`[dirty]`) or by a hazard pointer (`[hazard]`); a line per object per cycle, so for a program reduced to the case.
+`get_path_to_root(p)` is the same chain as data, `get_referrers(p)` every word that points at the object, the stack words included ([collector: get_referrers](collector.md#referrer-get_referrers-get_path_to_root-explain)). A chain that ends on a stack word names the thread; one that ends on a word of the calling thread, with nothing else in it, is case 1: nothing but that frame, or a stale word in it, holds the object. A chain through a buffer at a byte past the container's `size()` is case 3. A chain that ends at a `cell` is case 4: a `root_ptr` somewhere in unmanaged memory. A `unique_ptr` at the top is an owner the program forgot, a global as a rule. Where the whole picture of a cycle is wanted rather than one object, `-DSGCL_TRACE_STACK` prints every marking decision: which stack word retained which object (`[stack]` and `[scan]` lines), which object was found reachable by its state (`[updated]`), by a card (`[dirty]`) or by a hazard pointer (`[hazard]`); a line per object per cycle, so for a program reduced to the case.
 
 ### An object dies too early
 
 With the rules kept, it does not: an object is reachable or it is not. The rules broken are what a debug build asserts, at the point of the break rather than at the crash later:
 
-- `a tracked_ptr must live on the stack or inside a managed object`: an `sgcl::tracked_ptr` (or a container, atomic or weak pointer of `sgcl::`) constructed in `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame. The collector cannot see it; its object dies at the next cycle. The fix is the `gc::` type ([README: The two namespaces](../README.md#the-two-namespaces)).
+- `a tracked_ptr must live on the stack or inside a managed object`: a `tracked_ptr` (or a container, atomic or weak pointer) constructed in `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame. The collector cannot see it; its object dies at the next cycle. The fix is a [`root_ptr`](root_ptr.md) there, or a managed object holding the container ([README: Stack roots](../README.md#stack-roots)).
 - `a tracked_ptr may address a managed object or a part of it, not an element of a container's buffer`: a `tracked_ptr` made from the address of a `vector` element. A buffer is rooted by the pointer to its first element only; an alias into it keeps nothing. Hold the container, or an index.
 - `a weak_ptr cannot address an object a unique_ptr owns`: a `weak_ptr` made before the object was handed to a `tracked_ptr`.
 - `type T: the word at byte offset N was classified as data but holds a pointer to a managed object` (a message, once per type, from the collector thread): a `tracked_ptr` sharing its storage with data, in a `union`, a `std::variant`, a small-buffer `std::function` or `std::any` (the library's [variant](variant.md), [any](any.md), [function](function.md) and [expected](expected.md) keep it apart), or a raw pointer to a managed object kept as data. The collector's pointer map is built by elimination and cannot follow a word that is a pointer in one object and data in another ([README: The rules](../README.md#the-rules), 2).
@@ -106,11 +106,11 @@ The mutators' side is not in the statistics: it is the write barrier on every po
 A store that lands in a particular window of a cycle, an object made after the flip of the epoch, a pointer read while the weak cells are cleared: the stress tests find these by luck, `collector::stepper` finds them on purpose. A test takes the collector and lets it through one gate at a time, doing the mutator's work in between:
 
 ```cpp
-gc::collector::stepper s(false);                       // young cycles; the test's thread is the mutator
-gc::tracked_ptr holder = gc::make_tracked<Node>();
+sgcl::collector::stepper s(false);                       // young cycles; the test's thread is the mutator
+sgcl::tracked_ptr holder = sgcl::make_tracked<Node>();
 s.finish_cycle();                                      // holder is old and marked
-s.advance_to(gc::collector::stepper::phase::roots);    // the stacks scanned, the dirty pages traced
-holder->next = gc::make_tracked<Node>();               // stored into an old object after the trace: the card
+s.advance_to(sgcl::collector::stepper::phase::roots);    // the stacks scanned, the dirty pages traced
+holder->next = sgcl::make_tracked<Node>();               // stored into an old object after the trace: the card
 s.finish_cycle();                                      // not swept: made after the flip
 s.finish_cycle();                                      // registered now, found through the card
 ```
@@ -122,17 +122,17 @@ The gates and the scenarios the library's own tests assert with them are in [col
 `lldb/sgcl.py` is a set of LLDB formatters for the pointers and containers of both namespaces. Loaded once (`command script import <sgcl>/lldb/sgcl.py`, in `~/.lldbinit` for every session; Xcode and the VS Code extension pick it up from there), `frame variable` and the variables view show:
 
 ```
-(gc::tracked_ptr<Node>) node = 0x10000270000 (tracked, Reachable Fresh) {
+(sgcl::tracked_ptr<Node>) node = 0x10000270000 (tracked, Reachable Fresh) {
   object = { v = 7, next = 0x10000270010 (tracked, Reachable Fresh) { ... } }
 }
-(gc::tracked_ptr<Node>) kept = 0x10000270010 (cell 0 of block 0x10000260000, Reachable Fresh) { ... }
+(sgcl::tracked_ptr<Node>) kept = 0x10000270010 (cell 0 of block 0x10000260000, Reachable Fresh) { ... }
 (sgcl::unique_ptr<Node>) owned = 0x10000270020 (UniqueLock) { object = { v = 7, next = null } }
-(sgcl::weak_ptr<Node, gc::tracked_ptr>) weak = 0x10000270000 { object = { ... } }
-(gc::vector<int>) v = size=3 capacity=4 { [0] = 1, [1] = 2, [2] = 3 }
-(gc::map<int, std::string>) m = size=2 { [0] = (first = 1, second = "one"), [1] = (first = 2, second = "two") }
+(sgcl::weak_ptr<Node, sgcl::tracked_ptr>) weak = 0x10000270000 { object = { ... } }
+(sgcl::vector<int>) v = size=3 capacity=4 { [0] = 1, [1] = 2, [2] = 3 }
+(sgcl::map<int, std::string>) m = size=2 { [0] = (first = 1, second = "one"), [1] = (first = 2, second = "two") }
 ```
 
-A pointer shows its address, for a `gc::tracked_ptr` its mode (`tracked`, or the cell and the block that holds it), and, when the collector's types are in the debug info, the state of the object's slot (`Reachable` with the parity, `UniqueLock`, `Destroyed`: [how it works](how-it-works.md#an-objects-slot)); its one child is the object. A `weak_ptr` shows its target while the cell holds it, `expired` after. A container shows its size and its elements, read from the managed buffer or walked node by node, whatever the namespace and the kind of its root word. The expression evaluator does not know the inline operators (`p node->v` fails); `frame variable node.object.v` reads through the formatter, and `p node.get()->v` calls what is compiled in. `lldb/check.sh` builds `lldb/example.cpp` and checks the output; GDB has no counterpart yet.
+A pointer shows its address, for a `root_ptr` the cell and the block that holds it, and, when the collector's types are in the debug info, the state of the object's slot (`Reachable` with the parity, `UniqueLock`, `Destroyed`: [how it works](how-it-works.md#an-objects-slot)); its one child is the object. A `weak_ptr` shows its target while the cell holds it, `expired` after. A container shows its size and its elements, read from the managed buffer or walked node by node. The expression evaluator does not know the inline operators (`p node->v` fails); `frame variable node.object.v` reads through the formatter, and `p node.get()->v` calls what is compiled in. `lldb/check.sh` builds `lldb/example.cpp` and checks the output; GDB has no counterpart yet.
 
 ### Reading the log
 

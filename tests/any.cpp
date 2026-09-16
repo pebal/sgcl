@@ -14,7 +14,7 @@ namespace {
         explicit Node(int v) : value(v) { ++alive; }
         ~Node() { value = -1; --alive; }
         int value;
-        inline static gc::atomic<int> alive = {0};
+        inline static sgcl::atomic<int> alive = {0};
     };
 
     struct Pair {
@@ -28,7 +28,7 @@ namespace {
     };
 
     // Inlined into the test's frame: a frame of its own would sit where
-    // the dead frames were and keep their words (gc.cpp: live_after_collect)
+    // the dead frames were and keep their words (root_ptr.cpp: live_after_collect)
     SGCL_ALWAYS_INLINE void settle() {
         collector::clear_stack();
         for (int i = 0; i < 3; ++i) {
@@ -144,7 +144,7 @@ namespace {
         Counted(const Counted&) { ++alive; }
         ~Counted() { --alive; }
         tracked_ptr<Node> node;             // may hold a pointer: lives in a managed object
-        inline static gc::atomic<int> alive = {0};
+        inline static sgcl::atomic<int> alive = {0};
     };
 }
 
@@ -217,22 +217,3 @@ TEST(Any_Tests, AValuePointingBackAtItsOwnerIsACycle) {
     EXPECT_EQ(Node::alive.load(), before);                   // both cycles collected
 }
 
-TEST(Any_Tests, TheGcKindLivesAnywhere) {
-    settle();
-    const int before = Node::alive.load();
-    auto* values = new std::vector<gc::any>();
-    off_frame([&] {
-        for (int i = 0; i < 100; ++i) {
-            values->push_back(i % 2 ? gc::any(0x50000 + i) : gc::any(gc::tracked_ptr(gc::make_tracked<Node>(i))));
-        }
-    });
-    settle();
-    EXPECT_EQ(Node::alive.load(), before + 50);
-    for (int i = 0; i < 100; i += 2) {
-        EXPECT_EQ(gc::any_cast<gc::tracked_ptr<Node>>((*values)[i])->value, i);
-    }
-    delete values;
-    detail::cell_allocator.release();       // the thread's block of cells let go of (gc_tracked_ptr.cpp), for the tests that count
-    settle();
-    EXPECT_EQ(Node::alive.load(), before);
-}

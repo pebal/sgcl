@@ -101,7 +101,7 @@ TEST(Heap_Tests, CheckedLookupRejectsForeignPointers) {
 // elements, exactly once, and go back to the heap.
 namespace {
     constexpr int ElemCount = 160000;   // 16-byte elements: ~39 pages
-    gc::atomic<int> elem_destroyed[ElemCount];
+    sgcl::atomic<int> elem_destroyed[ElemCount];
 
     struct Child {
         int v;

@@ -14,7 +14,7 @@ namespace {
         explicit Node(int v) : value(v) { ++alive; }
         ~Node() { value = -1; --alive; }
         int value;
-        inline static gc::atomic<int> alive = {0};
+        inline static sgcl::atomic<int> alive = {0};
     };
 
     using Result = expected<tracked_ptr<Node>, std::string>;
@@ -174,35 +174,10 @@ TEST(Expected_Tests, ThePointerValueIsFollowedNextToErrors) {
     EXPECT_EQ(Node::alive.load(), before);
 }
 
-TEST(Expected_Tests, TheGcKindLivesAnywhere) {
-    settle();
-    const int before = Node::alive.load();
-    auto* results = new std::vector<gc::expected<gc::tracked_ptr<Node>, std::string>>();
-    off_frame([&] {
-        for (int i = 0; i < 100; ++i) {
-            if (i % 2) {
-                results->push_back(gc::unexpected(std::string("odd")));
-            } else {
-                results->push_back(gc::make_tracked<Node>(i));
-            }
-        }
-    });
-    settle();
-    EXPECT_EQ(Node::alive.load(), before + 50);
-    for (int i = 0; i < 100; i += 2) {
-        EXPECT_EQ((*(*results)[i])->value, i);
-    }
-    delete results;
-    detail::cell_allocator.release();
-    settle();
-    EXPECT_EQ(Node::alive.load(), before);
-}
-
 TEST(Aliases_Tests, TheStandardTypesSafeWithAPointerUnderTheLibrarysNames) {
     static_assert(std::is_same_v<sgcl::optional<int>, std::optional<int>>);
-    static_assert(std::is_same_v<gc::optional<gc::tracked_ptr<Node>>, std::optional<gc::tracked_ptr<Node>>>);
-    static_assert(std::is_same_v<gc::pair<int, gc::tracked_ptr<Node>>, std::pair<int, gc::tracked_ptr<Node>>>);
-    static_assert(std::is_same_v<gc::tuple<gc::tracked_ptr<Node>>, std::tuple<gc::tracked_ptr<Node>>>);
+    static_assert(std::is_same_v<sgcl::pair<int, tracked_ptr<Node>>, std::pair<int, tracked_ptr<Node>>>);
+    static_assert(std::is_same_v<sgcl::tuple<tracked_ptr<Node>>, std::tuple<tracked_ptr<Node>>>);
     settle();
     const int before = Node::alive.load();
     struct Bag {

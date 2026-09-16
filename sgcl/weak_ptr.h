@@ -7,7 +7,6 @@
 
 #include "detail/maker.h"
 #include "detail/weak_cell.h"
-#include "../gc/tracked_ptr.h"
 #include "tracked_ptr.h"
 #include "unique_ptr.h"
 
@@ -22,23 +21,19 @@ namespace sgcl {
     // to a cell on the managed heap (detail/weak_cell.h) that holds the
     // target as a word the collector clears instead of tracing; copies share
     // the cell, a weak_ptr made from a strong pointer gets a cell of its
-    // own. Ptr is the kind of that word, and so where the weak_ptr may live:
-    // weak_ptr<T> is a tracked_ptr to the cell and lives where a tracked_ptr
-    // may, in a managed object or on a stack; weak_ptr<T, gc::tracked_ptr> is a
-    // gc::tracked_ptr to the cell and lives anywhere, at the cost of a gc::tracked_ptr
-    // (gc/tracked_ptr.h), and its lock() is a gc::tracked_ptr. The two kinds convert into
-    // each other. Not for an object a unique_ptr owns: a tracked_ptr cannot
-    // address one either, and its owner's delete would leave the cell
-    // dangling.
-    template<class T, template<class> class Ptr>
+    // own. That word is a tracked_ptr, so a weak_ptr lives where one may,
+    // in a managed object or on a stack (a root_ptr holds one anywhere).
+    // Not for an object a unique_ptr owns: a tracked_ptr cannot address
+    // one either, and its owner's delete would leave the cell dangling.
+    template<class T>
     class weak_ptr {
     public:
         using element_type = typename tracked_ptr<T>::element_type;
-        using pointer_type = Ptr<T>;
+        using pointer_type = tracked_ptr<T>;
 
         // The constructors and assignments of std::weak_ptr, from a strong
-        // pointer of either kind and from a weak_ptr of either kind (a
-        // copy shares the cell; a weak_ptr from a strong pointer gets one)
+        // pointer and from a weak_ptr (a copy shares the cell; a weak_ptr
+        // from a strong pointer gets one)
         constexpr weak_ptr() noexcept = default;
 
         constexpr weak_ptr(std::nullptr_t) noexcept {
@@ -49,36 +44,25 @@ namespace sgcl {
         : _cell(_make_cell(static_cast<element_type*>(p.get()))) {
         }
 
-        template<class U, std::enable_if_t<std::is_convertible_v<typename gc::tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        weak_ptr(const gc::tracked_ptr<U>& p)
-        : _cell(_make_cell(static_cast<element_type*>(p.get()))) {
-        }
-
         weak_ptr(const weak_ptr&) noexcept = default;
         weak_ptr(weak_ptr&&) noexcept = default;
 
-        template<class U, template<class> class P, std::enable_if_t<std::is_convertible_v<typename weak_ptr<U, P>::element_type*, element_type*>, int> = 0>
-        weak_ptr(const weak_ptr<U, P>& w) noexcept
+        template<class U, std::enable_if_t<std::is_convertible_v<typename weak_ptr<U>::element_type*, element_type*>, int> = 0>
+        weak_ptr(const weak_ptr<U>& w) noexcept
         : _cell(w._cell) {
         }
 
         weak_ptr& operator=(const weak_ptr&) noexcept = default;
         weak_ptr& operator=(weak_ptr&&) noexcept = default;
 
-        template<class U, template<class> class P, std::enable_if_t<std::is_convertible_v<typename weak_ptr<U, P>::element_type*, element_type*>, int> = 0>
-        weak_ptr& operator=(const weak_ptr<U, P>& w) noexcept {
+        template<class U, std::enable_if_t<std::is_convertible_v<typename weak_ptr<U>::element_type*, element_type*>, int> = 0>
+        weak_ptr& operator=(const weak_ptr<U>& w) noexcept {
             _cell = w._cell;
             return *this;
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
         weak_ptr& operator=(const tracked_ptr<U>& p) {
-            _cell = _make_cell(static_cast<element_type*>(p.get()));
-            return *this;
-        }
-
-        template<class U, std::enable_if_t<std::is_convertible_v<typename gc::tracked_ptr<U>::element_type*, element_type*>, int> = 0>
-        weak_ptr& operator=(const gc::tracked_ptr<U>& p) {
             _cell = _make_cell(static_cast<element_type*>(p.get()));
             return *this;
         }
@@ -109,15 +93,9 @@ namespace sgcl {
                 thread.set_hazard_pointer(l);
                 l = (element_type*)cell->target.load(std::memory_order_seq_cst);
             } while(l != t);
-            if constexpr (std::is_same_v<pointer_type, tracked_ptr<T>>) {
-                pointer_type p(l, detail::OnRegisteredThread{});
-                thread.clear_hazard_pointer();
-                return p;
-            } else {
-                pointer_type p(l);
-                thread.clear_hazard_pointer();
-                return p;
-            }
+            pointer_type p(l, detail::OnRegisteredThread{});
+            thread.clear_hazard_pointer();
+            return p;
         }
 
         // The cell has been cleared, or there is none: lock() would be null
@@ -138,7 +116,7 @@ namespace sgcl {
 
     private:
         // The cell, constructed before its slot is published (maker.h)
-        static Ptr<detail::WeakCell> _make_cell(element_type* p, unsigned flags = 0) {
+        static tracked_ptr<detail::WeakCell> _make_cell(element_type* p, unsigned flags = 0) {
             if (!p) {
                 return {};
             }
@@ -147,27 +125,22 @@ namespace sgcl {
         }
 
         // A weak_ptr over a cell made with flags (expiry_queue.h)
-        explicit weak_ptr(Ptr<detail::WeakCell> cell) noexcept
+        explicit weak_ptr(tracked_ptr<detail::WeakCell> cell) noexcept
         : _cell(std::move(cell)) {
         }
 
-        Ptr<detail::WeakCell> _cell;
+        tracked_ptr<detail::WeakCell> _cell;
 
-        template<class, template<class> class> friend class weak_ptr;
-        template<class, template<class> class> friend class expiry_queue;
+        template<class> friend class weak_ptr;
+        template<class> friend class expiry_queue;
         friend struct detail::WeakIdentity;
     };
 
-    template<class T, template<class> class Ptr>
-    void swap(weak_ptr<T, Ptr>& l, weak_ptr<T, Ptr>& r) noexcept {
+    template<class T>
+    void swap(weak_ptr<T>& l, weak_ptr<T>& r) noexcept {
         l.swap(r);
     }
 
-    // The weak pointer of a gc::tracked_ptr is a gc weak pointer: it may go wherever
-    // the gc::tracked_ptr may.
     template<class T>
     weak_ptr(const tracked_ptr<T>&) -> weak_ptr<T>;
-
-    template<class T>
-    weak_ptr(const gc::tracked_ptr<T>&) -> weak_ptr<T, gc::tracked_ptr>;
 }

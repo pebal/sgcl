@@ -16,11 +16,11 @@
 #endif
 
 namespace sgcl::detail {
-    // The cells of the gc::tracked_ptrs that live in unmanaged memory
-    // (gc/tracked_ptr.h), a line of the L1 cache of them to a block
+    // The cells of the root_ptrs (root_ptr.h), the roots that live in
+    // unmanaged memory, a line of the L1 cache of them to a block
     // (config.h: L1LineSize; 16 on a 128-byte line, 8 on a 64-byte one): a
     // managed object of nothing but pointers, made by the thread's cell
-    // allocator (gc/tracked_ptr.h: CellAllocator) once per block and never
+    // allocator (cell_allocator.h) once per block and never
     // freed by a mutator. A free slot holds its own address, which no
     // pointer in use can hold (a word of a managed object addressing
     // itself), so a free slot is told from a null one without a word of

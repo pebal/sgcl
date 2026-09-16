@@ -18,7 +18,7 @@ namespace {
         Payload(const Payload& o) : v(o.v) { ++alive; }
         Payload& operator=(const Payload&) = default;
         ~Payload() { --alive; }
-        inline static gc::atomic<int> alive = {0};
+        inline static sgcl::atomic<int> alive = {0};
     };
 
     struct Node {

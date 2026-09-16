@@ -49,9 +49,9 @@ The default and the `nullptr` constructors make an empty pointer. The move const
 struct Base { virtual ~Base() = default; };
 struct Item : Base { int value = 7; };
 
-gc::unique_ptr item = gc::make_tracked<Item>();       // unique_ptr<Item>
-gc::unique_ptr<Base> base = std::move(item);           // the Item, as its base; item is null now
-gc::unique_ptr<Item> none;                             // empty
+sgcl::unique_ptr item = sgcl::make_tracked<Item>();       // unique_ptr<Item>
+sgcl::unique_ptr<Base> base = std::move(item);           // the Item, as its base; item is null now
+sgcl::unique_ptr<Item> none;                             // empty
 assert(!item && base && !none);
 ```
 
@@ -75,8 +75,8 @@ std::unique_ptr<T, deleter_type>& operator=(std::nullptr_t) noexcept;           
 The assignments of `std::unique_ptr`: the current object, if any, is destroyed, the new one taken over (a `unique_ptr<U>` with `U*` convertible to `T*` converts), or the pointer left empty for `nullptr`.
 
 ```cpp
-gc::unique_ptr number = gc::make_tracked<int>(1);
-number = gc::make_tracked<int>(2);     // the 1 is destroyed here
+sgcl::unique_ptr number = sgcl::make_tracked<int>(1);
+number = sgcl::make_tracked<int>(2);     // the 1 is destroyed here
 number = nullptr;                      // the 2 is destroyed here
 ```
 
@@ -90,8 +90,8 @@ operator const unique_ptr<void>&() const noexcept;
 Every `unique_ptr<T>` is a `unique_ptr<void>&`: the same owner seen without its type. `type()`, `is<U>()` and `as<U>()` still work on it.
 
 ```cpp
-gc::unique_ptr number = gc::make_tracked<int>(1);
-gc::unique_ptr<void>& any = number;
+sgcl::unique_ptr number = sgcl::make_tracked<int>(1);
+sgcl::unique_ptr<void>& any = number;
 assert(any.is<int>());
 ```
 
@@ -111,7 +111,7 @@ The interface of `std::unique_ptr`, unchanged. `get()` is the raw pointer, valid
 
 ```cpp
 struct Point { int x, y; };
-gc::unique_ptr p = gc::make_tracked<Point>(1, 2);
+sgcl::unique_ptr p = sgcl::make_tracked<Point>(1, 2);
 p->x = (*p).y;
 Point* raw = p.get();       // valid while p owns the Point
 assert(raw->x == 2 && p);
@@ -138,11 +138,11 @@ struct Shape { virtual ~Shape() = default; };
 struct Circle : Shape { double r = 1; };
 struct Square : Shape { double a = 1; };
 
-gc::unique_ptr<Shape> shape = gc::make_tracked<Circle>();
+sgcl::unique_ptr<Shape> shape = sgcl::make_tracked<Circle>();
 assert(shape.type() == typeid(Circle));
 assert(shape.is<Circle>() && !shape.is<Shape>());
-gc::unique_ptr square = shape.as<Square>();     // null: not a Square, shape keeps the object
-gc::unique_ptr circle = shape.as<Circle>();     // unique_ptr<Circle>: the object moved, shape is empty
+sgcl::unique_ptr square = shape.as<Square>();     // null: not a Square, shape keeps the object
+sgcl::unique_ptr circle = shape.as<Circle>();     // unique_ptr<Circle>: the object moved, shape is empty
 assert(!square && circle && !shape);
 ```
 
@@ -150,16 +150,16 @@ assert(!square && circle && !shape);
 
 ```cpp
 // from std::unique_ptr: ==, !=, <, <=, >, >=, <=> between two unique_ptrs and with nullptr
-template<class T> struct std::hash<gc::unique_ptr<T>>;
+template<class T> struct std::hash<sgcl::unique_ptr<T>>;
 ```
 
 The comparisons of `std::unique_ptr`, on the addresses. `std::hash<sgcl::unique_ptr<T>>` is the hash of the address, `std::hash<T*>`.
 
 ```cpp
-gc::unique_ptr a = gc::make_tracked<int>(1);
-gc::unique_ptr b = gc::make_tracked<int>(1);
+sgcl::unique_ptr a = sgcl::make_tracked<int>(1);
+sgcl::unique_ptr b = sgcl::make_tracked<int>(1);
 assert(a != b && a != nullptr && nullptr < a);
-size_t h = std::hash<gc::unique_ptr<int>>{}(a);
+size_t h = std::hash<sgcl::unique_ptr<int>>{}(a);
 (void)h;
 ```
 
@@ -177,10 +177,10 @@ The casts, on an rvalue: the object is released from `r` and owned by the result
 struct Shape { virtual ~Shape() = default; };
 struct Circle : Shape { double r = 1; };
 
-gc::unique_ptr<const Shape> shape = gc::make_tracked<Circle>();
-gc::unique_ptr mutable_shape = gc::const_pointer_cast<Shape>(std::move(shape));          // unique_ptr<Shape>
-gc::unique_ptr circle = gc::dynamic_pointer_cast<Circle>(std::move(mutable_shape));      // unique_ptr<Circle>
-gc::unique_ptr<Shape> back = gc::static_pointer_cast<Shape>(std::move(circle));
+sgcl::unique_ptr<const Shape> shape = sgcl::make_tracked<Circle>();
+sgcl::unique_ptr mutable_shape = sgcl::const_pointer_cast<Shape>(std::move(shape));          // unique_ptr<Shape>
+sgcl::unique_ptr circle = sgcl::dynamic_pointer_cast<Circle>(std::move(mutable_shape));      // unique_ptr<Circle>
+sgcl::unique_ptr<Shape> back = sgcl::static_pointer_cast<Shape>(std::move(circle));
 assert(!shape && !mutable_shape && !circle && back);
 ```
 
@@ -195,32 +195,32 @@ struct Node {
     explicit Node(int id) : id(id) {}
     ~Node() { std::cout << "Node " << id << " destroyed\n"; }
     int id;
-    gc::tracked_ptr<Node> next;
+    sgcl::tracked_ptr<Node> next;
 };
 
 // A registry that owns its root: a unique_ptr may live in a global, and
 // everything reachable from the Node it owns lives with it.
-static gc::unique_ptr registry = gc::make_tracked<Node>(0);
+static sgcl::unique_ptr registry = sgcl::make_tracked<Node>(0);
 
 // A helper that creates and returns an object: the caller decides whether
 // it stays deterministic (kept as a unique_ptr) or goes to the collector
 // (moved into a tracked_ptr).
-gc::unique_ptr<Node> make_node(int id) {
-    return gc::make_tracked<Node>(id);
+sgcl::unique_ptr<Node> make_node(int id) {
+    return sgcl::make_tracked<Node>(id);
 }
 
 int main() {
     {
-        gc::unique_ptr scoped = make_node(1);     // unique_ptr<Node>
+        sgcl::unique_ptr scoped = make_node(1);     // unique_ptr<Node>
         scoped->next = make_node(2);              // the 2 belongs to the collector, rooted by the 1
         assert(scoped.is<Node>());
     }   // "Node 1 destroyed", here and now; the 2 is garbage, for the collector
 
-    gc::tracked_ptr shared = make_node(3);        // the 3 belongs to the collector
+    sgcl::tracked_ptr shared = make_node(3);        // the 3 belongs to the collector
     registry->next = shared;                      // and is reachable from the global root
     shared = nullptr;                             // still alive: the registry keeps it
 
-    gc::collector::force_collect(true);           // optional, for the demonstration only: "Node 2 destroyed", on a collector thread
+    sgcl::collector::force_collect(true);           // optional, for the demonstration only: "Node 2 destroyed", on a collector thread
     std::cout << "registry -> " << registry->next->id << '\n';   // 3
     return 0;
 }

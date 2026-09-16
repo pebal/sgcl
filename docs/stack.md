@@ -42,12 +42,12 @@ template<std::input_iterator InputIt> stack(InputIt first, InputIt last);
 An empty stack, a stack over a copy of `cont` or over `cont` itself (moved in), or a stack whose container is built from a range, the first element at the bottom. Copy and move construction and assignment are the implicit ones, so they are those of the container.
 
 ```cpp
-gc::deque<int> d = {1, 2, 3};
-gc::stack<int> from_copy(d);                          // top() is 3, d unchanged
-gc::stack<int> from_move(std::move(d));               // d is empty now
+sgcl::deque<int> d = {1, 2, 3};
+sgcl::stack<int> from_copy(d);                          // top() is 3, d unchanged
+sgcl::stack<int> from_move(std::move(d));               // d is empty now
 std::vector<int> src = {4, 5};
-gc::stack<int> from_range(src.begin(), src.end());    // top() is 5
-gc::stack<int, gc::vector<int>> on_vector;            // any managed sequence with push_back
+sgcl::stack<int> from_range(src.begin(), src.end());    // top() is 5
+sgcl::stack<int, sgcl::vector<int>> on_vector;            // any managed sequence with push_back
 ```
 
 ### top
@@ -77,9 +77,9 @@ template<class... A> decltype(auto) emplace(A&&... a);
 `c.push_back(value)` and `c.emplace_back(a...)`; `emplace` returns what the container's `emplace_back` returns, a reference to the new element for the SGCL containers.
 
 ```cpp
-gc::stack<gc::tracked_ptr<int>> s;
-s.push(gc::make_tracked<int>(1));
-int& two = *s.emplace(gc::make_tracked<int>(2));      // a reference to the element on top
+sgcl::stack<sgcl::tracked_ptr<int>> s;
+s.push(sgcl::make_tracked<int>(1));
+int& two = *s.emplace(sgcl::make_tracked<int>(2));      // a reference to the element on top
 ```
 
 ### pop
@@ -109,8 +109,8 @@ friend auto operator<=>(const stack& lhs, const stack& rhs);
 The comparisons of the containers, bottom to top: `<`, `<=`, `>`, `>=` and `!=` follow.
 
 ```cpp
-gc::deque<int> d = {1, 2};
-gc::stack<int> a(d), b(d);
+sgcl::deque<int> d = {1, 2};
+sgcl::stack<int> a(d), b(d);
 b.push(3);
 bool less = a < b;                  // true: a prefix
 ```
@@ -125,14 +125,14 @@ bool less = a < b;                  // true: a prefix
 // for every node it holds, the stack of visited values a plain sequence
 struct Node {
     int value;
-    gc::tracked_ptr<Node> left, right;
+    sgcl::tracked_ptr<Node> left, right;
 };
 
-gc::tracked_ptr<Node> build(int depth, int& next) {
+sgcl::tracked_ptr<Node> build(int depth, int& next) {
     if (depth == 0) {
         return nullptr;
     }
-    gc::tracked_ptr node = gc::make_tracked<Node>(next++);
+    sgcl::tracked_ptr node = sgcl::make_tracked<Node>(next++);
     node->left = build(depth - 1, next);
     node->right = build(depth - 1, next);
     return node;
@@ -140,14 +140,14 @@ gc::tracked_ptr<Node> build(int depth, int& next) {
 
 int main() {
     int next = 0;
-    gc::tracked_ptr root = build(10, next);           // 1023 nodes
+    sgcl::tracked_ptr root = build(10, next);           // 1023 nodes
 
-    gc::stack<gc::tracked_ptr<Node>> pending;        // on the stack: a root for the nodes it holds
-    gc::stack<int, gc::vector<int>> visited;         // over a vector: one contiguous buffer
+    sgcl::stack<sgcl::tracked_ptr<Node>> pending;        // on the stack: a root for the nodes it holds
+    sgcl::stack<int, sgcl::vector<int>> visited;         // over a vector: one contiguous buffer
     pending.push(root);
     root = nullptr;                                  // the tree is reachable through `pending` only
     while (!pending.empty()) {
-        gc::tracked_ptr node = pending.top();
+        sgcl::tracked_ptr node = pending.top();
         pending.pop();                               // the pointer is destroyed, the node lives on behind `node`
         visited.push(node->value);
         if (node->right) {
@@ -160,9 +160,9 @@ int main() {
     // Every node has been popped: the tree is garbage
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
-    gc::collector::force_collect(true);
+    sgcl::collector::force_collect(true);
     std::cout << visited.size() << " nodes visited, last value " << visited.top() << ", "
-              << gc::collector::get_live_object_count() << " live objects\n";
+              << sgcl::collector::get_live_object_count() << " live objects\n";
     return visited.size() == 1023 && visited.top() == 1022 ? 0 : 1;
 }
 ```

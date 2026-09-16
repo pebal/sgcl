@@ -16,13 +16,13 @@
 namespace sgcl::detail {
     // Where any (any.h) and function (function.h) keep a value of a type
     // they do not know: by what it is (pointer_word.h). A pointer word
-    // (tracked_ptr of either kind, weak_ptr) is constructed in the word
-    // of the storage itself; a small value that cannot hold a pointer in
-    // a buffer of 16 bytes; anything else, an object with tracked
-    // pointers among its data first of all, in a managed node of its own
-    // (a Slot<T>, as the containers keep their elements), held by a
-    // Ptr<Slot<T>> constructed in the same word. So the word holds null
-    // or an address and nothing else, and what it holds is traced: a
+    // (tracked_ptr, weak_ptr) is constructed in the word of the storage
+    // itself; a small value that cannot hold a pointer in a buffer of 16
+    // bytes; anything else, an object with tracked pointers among its
+    // data first of all, in a managed node of its own (a Slot<T>, as the
+    // containers keep their elements), held by a tracked_ptr<Slot<T>>
+    // constructed in the same word. So the word holds null or an address
+    // and nothing else, and what it holds is traced: a
     // value that points back at the object holding the storage is a
     // cycle, collected like any other (which a value owned the way a
     // unique_ptr owns, a root by the state of its slot, would not be).
@@ -32,12 +32,10 @@ namespace sgcl::detail {
     // std::function keep the small value in a buffer inside themselves,
     // where a pointer would share its word with the data of other values
     // (README: Pointer maps), and the large one on the unmanaged heap,
-    // where a tracked_ptr may not live.
-    // Ptr is the kind of the word, and so where the storage may live:
-    // tracked_ptr on a stack or in a managed object, gc::tracked_ptr
-    // anywhere. Extra is what the manager carries besides: the invoker
-    // of a function, nothing for an any.
-    template<template<class> class Ptr, class Extra = std::nullptr_t>
+    // where a tracked_ptr may not live. The word is a tracked_ptr, so the
+    // storage lives where one may. Extra is what the manager carries
+    // besides: the invoker of a function, nothing for an any.
+    template<class Extra = std::nullptr_t>
     class ValueStorage {
     protected:
         static constexpr size_t BufferSize = 16;
@@ -111,7 +109,7 @@ namespace sgcl::detail {
         template<class T, bool Copyable, Extra X>
         struct NodeOps {
             using Node = Slot<T>;
-            using NodePtr = Ptr<Node>;
+            using NodePtr = tracked_ptr<Node>;
 
             static NodePtr& node(const ValueStorage& s) noexcept {
                 return *const_cast<NodePtr*>(reinterpret_cast<const NodePtr*>(s._word));

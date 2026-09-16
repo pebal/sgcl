@@ -42,13 +42,13 @@ namespace sgcl {
     // destroyed by the collector with its node, once nothing holds it:
     // not at the erase, which other threads may be reading it across.
     // The container holds its bucket array, its head node and its
-    // counters by words of the Ptr kind: sgcl::concurrent_unordered_map
-    // lives where a tracked_ptr may, gc::concurrent_unordered_map anywhere.
+    // counters by tracked_ptrs, so it lives where one may (on a stack or
+    // inside a managed object).
     // No operator[], at, insert_or_assign, node handles or local iteration
     // of a bucket.
-    template<class Key, class V, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>, template<class> class Ptr = tracked_ptr>
-    class concurrent_unordered_map : public detail::SplitList<detail::ConcurrentUnorderedMapTraits<Key, V, Hash, KeyEqual, Ptr>> {
-        using Base = detail::SplitList<detail::ConcurrentUnorderedMapTraits<Key, V, Hash, KeyEqual, Ptr>>;
+    template<class Key, class V, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
+    class concurrent_unordered_map : public detail::SplitList<detail::ConcurrentUnorderedMapTraits<Key, V, Hash, KeyEqual>> {
+        using Base = detail::SplitList<detail::ConcurrentUnorderedMapTraits<Key, V, Hash, KeyEqual>>;
 
     public:
         using mapped_type = V;

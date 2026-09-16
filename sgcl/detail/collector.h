@@ -882,9 +882,13 @@ namespace sgcl::detail {
         // ChildPointers). Zero: nothing. A managed address: marked with the
         // same checks as a stack word (page, slot, registration), with two
         // exceptions. A word naming a SharedHolder (the object under a
-        // root_ptr or a to_shared) is data: a holder is a root by its state
-        // and never the target of a tracked_ptr, so the offset leaves the
-        // map for good, as any data offset does. A word naming an object a
+        // to_shared) or a block of cells (the cell of a root_ptr inside a
+        // managed object) is data: both are roots by their state and
+        // never the target of a tracked_ptr, so the offset leaves the map
+        // for good, as any data offset does; except the word of a block
+        // itself, which names its own block when the cell is free
+        // (cell_block.h: a free cell holds its own address), and stays in
+        // the block's map, full by design. A word naming an object a
         // unique_ptr owns (a unique_ptr member) is not followed: the object
         // is a root by its state, which the pass over the states marks and
         // traces; the offset stays, since a tracked_ptr may hold the same
@@ -906,7 +910,7 @@ namespace sgcl::detail {
                         continue;
                     }
                     if (auto page = Heap::page_of_checked((const void*)word)) {
-                        if (page->is_root_holder) {
+                        if (page->is_root_holder && word != (uintptr_t)((RawPointer*)ptr + offset)) {   // not a free cell of this block
                             if (!childs.conservative) {
                                 childs.remove(offset);
                             }

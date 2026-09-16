@@ -156,9 +156,9 @@ namespace sgcl {
         // that holder, ..., the last a root: a word on a stack (`holder` is
         // the word's address, the thread unnamed), an object a unique_ptr
         // owns (`unique`: `holder` is the object itself), a released block
-        // of cells of gc::tracked_ptrs in unmanaged memory (`cell`: the
-        // block, `offset` the cell; the gc::tracked_ptr that owns the cell
-        // is not known to the collector; the block itself follows as a
+        // of cells of root_ptrs in unmanaged memory (`cell`: the block,
+        // `offset` the cell; the root_ptr that owns the cell is not known
+        // to the collector; the block itself follows as a
         // `unique` link, a root by its state). The calling thread's own
         // frames are searched last, and only when nothing else reaches the
         // object: the caller holds the pointer it asks about and asks what
@@ -224,7 +224,7 @@ namespace sgcl {
                 switch (r.from) {
                     case referrer::kind::object: out << "  a " << r.type->name() << " at " << r.holder << ", the word at byte " << r.offset << '\n'; break;
                     case referrer::kind::buffer: out << "  a buffer of " << r.type->name() << " at " << r.holder << ", the word at byte " << r.offset << '\n'; break;
-                    case referrer::kind::cell: out << "  a cell of a gc::tracked_ptr in unmanaged memory (block " << r.holder << ", cell " << r.offset / sizeof(void*) << ")\n"; break;
+                    case referrer::kind::cell: out << "  a cell of a root_ptr in unmanaged memory (block " << r.holder << ", cell " << r.offset / sizeof(void*) << ")\n"; break;
                     case referrer::kind::stack: out << "  a word on the stack of thread " << r.thread << ", at " << r.holder << (_own_stack(r.holder, boundary) ? " (this thread, above the call)\n" : "\n"); break;
                     case referrer::kind::unique:
                         if (*r.type == typeid(detail::CellBlock)) {

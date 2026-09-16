@@ -156,16 +156,12 @@ TEST(String_Tests, TheHashIsComputedOnceAndKept) {
     ++counts[c];
     EXPECT_EQ(counts.size(), 2u);
     EXPECT_EQ(counts[string("some text to hash")], 2);
-    std::unordered_map<gc::string, int> std_counts;   // the gc kind in a std container
-    ++std_counts[gc::string(a)];
-    ++std_counts[gc::string(b)];
-    EXPECT_EQ(std_counts.size(), 1u);
     map<string, int> ordered;
     ordered[b] = 1;
     ordered[c] = 2;
     ordered[string("a")] = 0;
     EXPECT_EQ(ordered.begin()->first, "a");
-    std::set<gc::string> sorted = {gc::string("pear"), gc::string("apple"), gc::string("fig")};
+    set<string> sorted = {string("pear"), string("apple"), string("fig")};
     EXPECT_EQ(*sorted.begin(), "apple");
 }
 
@@ -199,25 +195,7 @@ TEST(String_Tests, EverySizeClassAndPastThem) {
     EXPECT_EQ(live_string_objects(), before);         // gone with the last word, no destructor to run
 }
 
-TEST(String_Tests, TheOtherKindsAndTheOtherCharacters) {
-    string a = "text";
-    gc::string g = a;                               // the same object, the word of the other kind
-    EXPECT_EQ(g.object(), a.object());
-    EXPECT_EQ(g, a);
-    EXPECT_EQ(a, g);
-    string back = g;
-    EXPECT_EQ(back.object(), a.object());
-    gc::string assigned;
-    assigned = a;
-    EXPECT_EQ(assigned, "text");
-    auto* heap = new std::vector<gc::string>();     // gc::string lives anywhere
-    heap->push_back(a);
-    heap->push_back(gc::string("more"));
-    settle();
-    EXPECT_EQ((*heap)[0], "text");
-    EXPECT_EQ((*heap)[1], "more");
-    delete heap;
-    detail::cell_allocator.release();
+TEST(String_Tests, TheOtherCharacters) {
     wstring w = L"wide";
     EXPECT_EQ(w.size(), 4u);
     EXPECT_EQ(w, L"wide");
@@ -229,7 +207,6 @@ TEST(String_Tests, TheOtherKindsAndTheOtherCharacters) {
     EXPECT_EQ(u32.find(U"two"), 7u);
     u8string u8 = u8"eight";
     EXPECT_EQ(u8.size(), 5u);
-    static_assert(std::is_same_v<gc::string, sgcl::basic_string<char, std::char_traits<char>, gc::tracked_ptr>>);
 }
 
 namespace {

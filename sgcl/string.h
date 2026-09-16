@@ -38,15 +38,15 @@ namespace sgcl {
     // string_view or a literal, operator+ (a new string), std::hash
     // (computed once, kept in the object), operator<<, conversions to string_view and to
     // std::string; the constructors from a literal, a string_view, a
-    // std::string, a range, (n, ch); no mutation, no capacity. Ptr is the
-    // kind of the word, and so where the string lives: tracked_ptr on a
-    // stack or in a managed object, gc::tracked_ptr (gc::string) anywhere.
+    // std::string, a range, (n, ch); no mutation, no capacity. The word
+    // is a tracked_ptr, so a string lives where one may: on a stack or in
+    // a managed object.
     // The length is kept in 32 bits: a string holds up to 4 G characters.
-    template<class CharT, class Traits = std::char_traits<CharT>, template<class> class Ptr = tracked_ptr>
+    template<class CharT, class Traits = std::char_traits<CharT>>
     class basic_string {
         static_assert(sizeof(detail::StringHeader) % sizeof(CharT) == 0, "the header is a whole number of characters");
 
-        using Maker = detail::StringMaker<Ptr>;
+        using Maker = detail::StringMaker;
         using Word = typename Maker::Word;
         static constexpr size_t HeaderChars = sizeof(detail::StringHeader) / sizeof(CharT);
 
@@ -87,8 +87,7 @@ namespace sgcl {
         }
 
         // From any type a string_view is made of (a std::string, a
-        // std::string_view), as std::string does; not from a string of
-        // the other kind, which converts below
+        // std::string_view), as std::string does
         template<class V>
         requires std::is_convertible_v<const V&, view_type> && (!std::is_convertible_v<const V&, const CharT*>) && (!std::is_same_v<std::remove_cvref_t<V>, basic_string>)
         explicit basic_string(const V& v)
@@ -111,13 +110,6 @@ namespace sgcl {
         basic_string(const basic_string&) noexcept = default;
         basic_string(basic_string&&) noexcept = default;
 
-        // A string of the other kind: the same object, the word of this kind
-        template<template<class> class P>
-        requires (!std::is_same_v<P<const void>, Word>)
-        basic_string(const basic_string<CharT, Traits, P>& o) noexcept
-        : _word(o._word) {
-        }
-
         basic_string& operator=(const basic_string&) noexcept = default;
         basic_string& operator=(basic_string&&) noexcept = default;
 
@@ -133,13 +125,6 @@ namespace sgcl {
         requires std::is_convertible_v<const V&, view_type> && (!std::is_convertible_v<const V&, const CharT*>) && (!std::is_same_v<std::remove_cvref_t<V>, basic_string>)
         basic_string& operator=(const V& v) {
             return *this = basic_string(v);
-        }
-
-        template<template<class> class P>
-        requires (!std::is_same_v<P<const void>, Word>)
-        basic_string& operator=(const basic_string<CharT, Traits, P>& o) noexcept {
-            _word = o._word;
-            return *this;
         }
 
         // The characters, terminated; the empty string's are a terminator
@@ -265,10 +250,9 @@ namespace sgcl {
         }
 
         // The same object, or the same characters: the lengths first,
-        // the hashes when both are known, the characters last. Between
-        // strings of either kind (the free operators below).
-        template<template<class> class P>
-        bool equals(const basic_string<CharT, Traits, P>& o) const noexcept {
+        // the hashes when both are known, the characters last (the free
+        // operators below).
+        bool equals(const basic_string& o) const noexcept {
             if (object() == o.object()) {
                 return true;
             }
@@ -348,8 +332,6 @@ namespace sgcl {
 
         Word _word;
 
-        template<class, class, template<class> class>
-        friend class basic_string;
         template<class>
         friend class atomic;
     };
@@ -360,18 +342,18 @@ namespace sgcl {
     using u16string = basic_string<char16_t>;
     using u32string = basic_string<char32_t>;
 
-    template<class CharT, class Traits, template<class> class Ptr>
-    void swap(basic_string<CharT, Traits, Ptr>& l, basic_string<CharT, Traits, Ptr>& r) noexcept {
+    template<class CharT, class Traits>
+    void swap(basic_string<CharT, Traits>& l, basic_string<CharT, Traits>& r) noexcept {
         l.swap(r);
     }
 
-    template<class CharT, class Traits, template<class> class P1, template<class> class P2>
-    bool operator==(const basic_string<CharT, Traits, P1>& a, const basic_string<CharT, Traits, P2>& b) noexcept {
+    template<class CharT, class Traits>
+    bool operator==(const basic_string<CharT, Traits>& a, const basic_string<CharT, Traits>& b) noexcept {
         return a.equals(b);
     }
 
-    template<class CharT, class Traits, template<class> class P1, template<class> class P2>
-    std::strong_ordering operator<=>(const basic_string<CharT, Traits, P1>& a, const basic_string<CharT, Traits, P2>& b) noexcept {
+    template<class CharT, class Traits>
+    std::strong_ordering operator<=>(const basic_string<CharT, Traits>& a, const basic_string<CharT, Traits>& b) noexcept {
         return a.view() <=> b.view();
     }
 
@@ -386,51 +368,51 @@ namespace sgcl {
         }
     }
 
-    template<class CharT, class Traits, template<class> class Ptr>
-    basic_string<CharT, Traits, Ptr> operator+(const basic_string<CharT, Traits, Ptr>& a, const basic_string<CharT, Traits, Ptr>& b) {
-        return detail::string_concat<basic_string<CharT, Traits, Ptr>>(a.view(), b.view());
+    template<class CharT, class Traits>
+    basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a, const basic_string<CharT, Traits>& b) {
+        return detail::string_concat<basic_string<CharT, Traits>>(a.view(), b.view());
     }
 
-    template<class CharT, class Traits, template<class> class Ptr>
-    basic_string<CharT, Traits, Ptr> operator+(const basic_string<CharT, Traits, Ptr>& a, std::type_identity_t<std::basic_string_view<CharT, Traits>> b) {
-        return detail::string_concat<basic_string<CharT, Traits, Ptr>>(a.view(), b);
+    template<class CharT, class Traits>
+    basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a, std::type_identity_t<std::basic_string_view<CharT, Traits>> b) {
+        return detail::string_concat<basic_string<CharT, Traits>>(a.view(), b);
     }
 
-    template<class CharT, class Traits, template<class> class Ptr>
-    basic_string<CharT, Traits, Ptr> operator+(std::type_identity_t<std::basic_string_view<CharT, Traits>> a, const basic_string<CharT, Traits, Ptr>& b) {
-        return detail::string_concat<basic_string<CharT, Traits, Ptr>>(a, b.view());
+    template<class CharT, class Traits>
+    basic_string<CharT, Traits> operator+(std::type_identity_t<std::basic_string_view<CharT, Traits>> a, const basic_string<CharT, Traits>& b) {
+        return detail::string_concat<basic_string<CharT, Traits>>(a, b.view());
     }
 
-    template<class CharT, class Traits, template<class> class Ptr>
-    basic_string<CharT, Traits, Ptr> operator+(const basic_string<CharT, Traits, Ptr>& a, const CharT* b) {
-        return detail::string_concat<basic_string<CharT, Traits, Ptr>>(a.view(), std::basic_string_view<CharT, Traits>(b));
+    template<class CharT, class Traits>
+    basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a, const CharT* b) {
+        return detail::string_concat<basic_string<CharT, Traits>>(a.view(), std::basic_string_view<CharT, Traits>(b));
     }
 
-    template<class CharT, class Traits, template<class> class Ptr>
-    basic_string<CharT, Traits, Ptr> operator+(const CharT* a, const basic_string<CharT, Traits, Ptr>& b) {
-        return detail::string_concat<basic_string<CharT, Traits, Ptr>>(std::basic_string_view<CharT, Traits>(a), b.view());
+    template<class CharT, class Traits>
+    basic_string<CharT, Traits> operator+(const CharT* a, const basic_string<CharT, Traits>& b) {
+        return detail::string_concat<basic_string<CharT, Traits>>(std::basic_string_view<CharT, Traits>(a), b.view());
     }
 
-    template<class CharT, class Traits, template<class> class Ptr>
-    basic_string<CharT, Traits, Ptr> operator+(const basic_string<CharT, Traits, Ptr>& a, CharT b) {
-        return detail::string_concat<basic_string<CharT, Traits, Ptr>>(a.view(), std::basic_string_view<CharT, Traits>(&b, 1));
+    template<class CharT, class Traits>
+    basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a, CharT b) {
+        return detail::string_concat<basic_string<CharT, Traits>>(a.view(), std::basic_string_view<CharT, Traits>(&b, 1));
     }
 
-    template<class CharT, class Traits, template<class> class Ptr>
-    basic_string<CharT, Traits, Ptr> operator+(CharT a, const basic_string<CharT, Traits, Ptr>& b) {
-        return detail::string_concat<basic_string<CharT, Traits, Ptr>>(std::basic_string_view<CharT, Traits>(&a, 1), b.view());
+    template<class CharT, class Traits>
+    basic_string<CharT, Traits> operator+(CharT a, const basic_string<CharT, Traits>& b) {
+        return detail::string_concat<basic_string<CharT, Traits>>(std::basic_string_view<CharT, Traits>(&a, 1), b.view());
     }
 
-    template<class CharT, class Traits, template<class> class Ptr>
-    std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os, const basic_string<CharT, Traits, Ptr>& s) {
+    template<class CharT, class Traits>
+    std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& os, const basic_string<CharT, Traits>& s) {
         return os << s.view();
     }
 }
 
 namespace std {
-    template<class CharT, class Traits, template<class> class Ptr>
-    struct hash<sgcl::basic_string<CharT, Traits, Ptr>> {
-        size_t operator()(const sgcl::basic_string<CharT, Traits, Ptr>& s) const noexcept {
+    template<class CharT, class Traits>
+    struct hash<sgcl::basic_string<CharT, Traits>> {
+        size_t operator()(const sgcl::basic_string<CharT, Traits>& s) const noexcept {
             return s.hash();
         }
     };

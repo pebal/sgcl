@@ -32,7 +32,7 @@ The first element of what `get_live_objects()` returns. While it lives, the coll
 
 ```cpp
 {
-    auto [guard, objects] = gc::collector::get_live_objects();
+    auto [guard, objects] = sgcl::collector::get_live_objects();
     // the collector is paused: every void* in `objects` is a live object
 }   // the guard is destroyed here, the collector resumes
 ```
@@ -46,13 +46,13 @@ static size_t get_live_object_count();
 Runs a full collection, waits for it and returns the number of objects it marked: every managed object reachable from a root, containers' buffers included. Zeroes the unused stack below the caller's frame first. Blocks the caller for the length of a cycle.
 
 ```cpp
-size_t before = gc::collector::get_live_object_count();
+size_t before = sgcl::collector::get_live_object_count();
 {
-    gc::tracked_ptr p = gc::make_tracked<int>(1);
-    assert(gc::collector::get_live_object_count() == before + 1);
+    sgcl::tracked_ptr p = sgcl::make_tracked<int>(1);
+    assert(sgcl::collector::get_live_object_count() == before + 1);
 }
 // p is gone; the count zeroes the dead frame words first
-assert(gc::collector::get_live_object_count() == before);
+assert(sgcl::collector::get_live_object_count() == before);
 ```
 
 ### get_live_objects
@@ -65,7 +65,7 @@ Runs a full collection, waits for it and returns the addresses of the objects it
 
 ```cpp
 {
-    auto [guard, objects] = gc::collector::get_live_objects();
+    auto [guard, objects] = sgcl::collector::get_live_objects();
     for (void* object : objects) {
         std::cout << object << '\n';
     }
@@ -81,12 +81,12 @@ static bool force_collect(bool wait = false) noexcept;
 Requests a full collection. With `wait == false` it wakes the collector and returns `true` at once; the cycle runs concurrently. With `wait == true` it returns once a full cycle that started after the call has completed and found nothing more to remove: the current cycle may be half done, and a destructor that stores a pointer keeps its target for one more cycle, so several cycles may run (a bounded number, since a mutator that keeps allocating produces garbage forever). It returns `false` only if the collector is terminating and no such cycle will come. Zeroes the unused stack below the caller's frame first. Optional: the collector runs its cycles by itself, and a program that calls it in a loop only wastes CPU on cycles that would have run anyway.
 
 ```cpp
-gc::weak_ptr<Item> weak;
+sgcl::weak_ptr<Item> weak;
 {
-    gc::tracked_ptr item = gc::make_tracked<Item>();
+    sgcl::tracked_ptr item = sgcl::make_tracked<Item>();
     weak = item;
 }
-gc::collector::force_collect(true);     // optional, for the demonstration only: the next cycle clears it anyway
+sgcl::collector::force_collect(true);     // optional, for the demonstration only: the next cycle clears it anyway
 assert(weak.expired());
 ```
 
@@ -100,8 +100,8 @@ Zeroes `bytes` of the unused stack below the caller's frame (`SIZE_MAX` for the 
 
 ```cpp
 process_batch();                           // deep frames, now dead, may hold stale pointers
-gc::collector::clear_stack();              // 64 KB below this frame zeroed
-gc::collector::clear_stack(SIZE_MAX);      // or the whole unused stack
+sgcl::collector::clear_stack();              // 64 KB below this frame zeroed
+sgcl::collector::clear_stack(SIZE_MAX);      // or the whole unused stack
 ```
 
 ### terminate
@@ -115,7 +115,7 @@ Stops the collector: the current cycle finishes, cycles run until nothing dies a
 ```cpp
 int main() {
     run();                          // the program's work
-    gc::collector::terminate();     // the collector's threads are gone from here on
+    sgcl::collector::terminate();     // the collector's threads are gone from here on
     return 0;
 }
 ```
@@ -144,13 +144,13 @@ static statistics get_statistics() noexcept;
 Counters of the collector's work, read without stopping it and without waiting for anything: every field is a relaxed load of a counter the collector thread stores at the end of a cycle. The values describe the last cycle that completed, except `committed_bytes` and `live_bytes`, which are read now; `live_bytes` counts the pages in use by the allocators, garbage not yet swept included, so it is at least what the live objects take. `phases_ms[i]` is the wall time of phase `i` of the last cycle, named by `phase_names[i]`; the eight add up to `last_cycle_ms`, give or take the clock. Before the first cycle every counter is zero.
 
 ```cpp
-auto s = gc::collector::get_statistics();
+auto s = sgcl::collector::get_statistics();
 std::cout << s.cycles << " cycles (" << s.full_cycles << " full), "
           << s.live_objects << " objects, " << s.live_bytes / 1048576 << " MB live, "
           << s.committed_bytes / 1048576 << " MB committed, last cycle "
           << s.last_cycle_ms << " ms with " << s.last_helpers_used << " helpers\n";
 for (int i = 0; i < 8; ++i) {
-    std::cout << gc::collector::phase_names[i] << ' ' << s.phases_ms[i] << " ms\n";
+    std::cout << sgcl::collector::phase_names[i] << ' ' << s.phases_ms[i] << " ms\n";
 }
 ```
 
@@ -172,7 +172,7 @@ static std::vector<type_statistics> get_type_statistics();
 The live objects by type after a full cycle: what a heap that grows is made of. Objects are listed by their type; the buffers of the containers (`vector`, `array<T>`, the maps of `deque`, the buckets of the hash tables) by their array type, `typeid(T[])` for elements `T`, with `buffers == true`, the slot they occupy as their bytes and no pages, since the pages of buffers belong to size classes rather than to a type. `object_size` is the slot size, at least `sizeof(T)`. Sorted by `live_bytes`, descending, then by `live_objects`. Like `get_live_objects()`: a full cycle runs first, the caller's dead frames are zeroed, the caller waits for the cycle.
 
 ```cpp
-for (auto& t : gc::collector::get_type_statistics()) {
+for (auto& t : sgcl::collector::get_type_statistics()) {
     std::cout << (t.buffers ? "buffers of " : "") << t.type->name() << ": "
               << t.live_objects << " x " << t.object_size << " B = " << t.live_bytes << " B";
     if (!t.buffers) {
@@ -191,7 +191,7 @@ static size_t get_committed_memory() noexcept;
 Bytes of managed memory committed right now: the part of the heap's reserved range backed by physical memory, in 2 MB chunks, free chunks kept for reuse included ([Memory](../README.md#memory)). The reservation itself (the process's virtual size) is not counted.
 
 ```cpp
-std::cout << gc::collector::get_committed_memory() / 1048576 << " MB committed\n";
+std::cout << sgcl::collector::get_committed_memory() / 1048576 << " MB committed\n";
 ```
 
 ### get_memory_limit, set_memory_limit
@@ -204,14 +204,14 @@ static void set_memory_limit(size_t bytes) noexcept;
 The ceiling on committed managed memory, in bytes: by default 90% of the cgroup memory limit on Linux, or of the physical memory elsewhere (`config::HeapLimitPercent`). Above 75% of it (`config::HeapPressurePercent`) the collector cycles every 100 ms and returns every free chunk to the system at once. When an allocation would cross it, the allocation first forces a full collection and waits for it; if that does not free enough, it throws `std::bad_alloc` instead of letting the process run into the OOM killer. `set_memory_limit(0)` disables the ceiling. The setting takes effect for the next chunk committed; it does not shrink what is committed already.
 
 ```cpp
-auto limit = gc::collector::get_memory_limit();             // the default ceiling
-gc::collector::set_memory_limit(size_t(4) << 30);            // 4 GB
+auto limit = sgcl::collector::get_memory_limit();             // the default ceiling
+sgcl::collector::set_memory_limit(size_t(4) << 30);            // 4 GB
 try {
-    gc::vector<int> huge(size_t(2) << 30);                   // 8 GB of int: over the ceiling
+    sgcl::vector<int> huge(size_t(2) << 30);                   // 8 GB of int: over the ceiling
 } catch (const std::bad_alloc&) {
     // a full collection ran first; not enough was free
 }
-gc::collector::set_memory_limit(limit);                      // back to the default
+sgcl::collector::set_memory_limit(limit);                      // back to the default
 ```
 
 ### referrer, get_referrers, get_path_to_root, explain
@@ -239,7 +239,7 @@ static void explain(const void* p, std::ostream& out);
 
 What holds an object. Both run a full cycle first and keep the collector paused while the `pause_guard` lives, as `get_live_objects()` does, so that the live objects are exactly the marked ones and no page moves under the walk (the mutators run on; a word is read as the scan reads it). `p` may point into the object. One guard at a time: a call made while a guard lives waits for a cycle the paused collector cannot run.
 
-`get_referrers` lists every word that points at the object: the members of objects (`object`, with the holder's type and the word's offset), the elements of buffers (`buffer`, the element type as `typeid(T[])`, the offset from the buffer's start, header included), the cells of `gc::tracked_ptr`s in unmanaged memory (`cell`: the block and the cell's offset; the `gc::tracked_ptr` that owns the cell is not known to the collector), the words of every thread's stack (`stack`: the word's address and the thread's id; on the calling thread, the frames above the call, so a local that holds the object is listed), the object itself when a `unique_ptr` owns it (`unique`), and the cells of `weak_ptr`s (`weak`), which hold nothing.
+`get_referrers` lists every word that points at the object: the members of objects (`object`, with the holder's type and the word's offset), the elements of buffers (`buffer`, the element type as `typeid(T[])`, the offset from the buffer's start, header included), the cells of [`root_ptr`](root_ptr.md)s in unmanaged memory (`cell`: the block and the cell's offset; the `root_ptr` that owns the cell is not known to the collector), the words of every thread's stack (`stack`: the word's address and the thread's id; on the calling thread, the frames above the call, so a local that holds the object is listed), the object itself when a `unique_ptr` owns it (`unique`), and the cells of `weak_ptr`s (`weak`), which hold nothing.
 
 `get_path_to_root` is a chain from the object up to a root: `[0]` holds the object, `[1]` holds that holder, and so on to a root: an object a `unique_ptr` owns, a block of cells (a `unique` link with `typeid(detail::CellBlock)`, a root by its state), a word on a stack. A search from the roots down, breadth first, the roots by state first, then the other threads' stacks, and the calling thread's frames above the call only when nothing else reaches the object: the caller holds the pointer it asks about and asks what else does, so a chain that ends on its own stack says that nothing else does. The search does not go through a weak cell: a `weak_ptr` holds nothing, so no chain leads through one (`get_referrers` still lists it). Empty: `p` is not into a live managed object, or only the frames of the call hold it.
 
@@ -248,10 +248,10 @@ What holds an object. Both run a full cycle first and keep the collector paused 
 `explain` writes the chain as text, one line per link, and what the object retains; or why there is no chain.
 
 ```cpp
-gc::unique_ptr<Node> head = gc::make_tracked<Node>();
-head->next = gc::make_tracked<Node>();
-head->next->leaf = gc::make_tracked<Leaf>();
-gc::collector::explain(head->next->leaf.get(), std::cout);
+sgcl::unique_ptr<Node> head = sgcl::make_tracked<Node>();
+head->next = sgcl::make_tracked<Node>();
+head->next->leaf = sgcl::make_tracked<Leaf>();
+sgcl::collector::explain(head->next->leaf.get(), std::cout);
 // 0x100... is held by
 //   a Node at 0x100..., the word at byte 0
 //   a Node at 0x100..., the word at byte 8
@@ -283,11 +283,11 @@ The collector one gate at a time, for the tests of the engine. While a `stepper`
 The stepper's thread must not wait for the collector between gates: `force_collect`, `get_live_object_count`, `get_live_objects` and `get_type_statistics` would deadlock. `get_statistics()` reads the counters of the last completed cycle and is fine. What the tests of the engine assert with it (`tests/stepping.cpp`): an object made after the flip and released into an old object is neither swept this cycle nor lost by the next; one made before the flip and released after the roots were traced is reachable by the state of its release alone; a store into an old, marked object after its page was traced is found by the next young cycle through the card; a `weak_ptr` locked before the weak phase holds its object through the cycle and reads null after it; a pointer loaded from an `atomic` after the stacks were scanned, its only other reference dropped, is a root by the state of the copy; a thread exiting before the scan takes its objects with it, one exiting after keeps them for the cycle; an object watched by an `expiry_queue` is kept for the drain; a block of cells is freed by the cycle after the one that saw its last cell go.
 
 ```cpp
-gc::collector::stepper s(false);                     // young cycles
-gc::tracked_ptr holder = gc::make_tracked<Node>();
+sgcl::collector::stepper s(false);                     // young cycles
+sgcl::tracked_ptr holder = sgcl::make_tracked<Node>();
 s.finish_cycle();                                    // holder is old and marked
-s.advance_to(gc::collector::stepper::phase::roots);  // the stacks scanned, the dirty pages traced
-holder->next = gc::make_tracked<Node>();             // stored into an old object after the trace: the card
+s.advance_to(sgcl::collector::stepper::phase::roots);  // the stacks scanned, the dirty pages traced
+holder->next = sgcl::make_tracked<Node>();             // stored into an old object after the trace: the card
 s.finish_cycle();                                    // not swept: made after the flip
 s.finish_cycle();                                    // registered now, found through the card
 ```
@@ -299,46 +299,46 @@ s.finish_cycle();                                    // registered now, found th
 #include <iostream>
 
 struct Node {
-    gc::tracked_ptr<Node> next;
+    sgcl::tracked_ptr<Node> next;
     int value;
 };
 
 // The stack is scanned conservatively: the pointers juggled here stay in a
 // frame of their own, which the counts below zero before they count.
 static void build_and_drop(size_t count) {
-    gc::tracked_ptr<Node> head;
+    sgcl::tracked_ptr<Node> head;
     for (size_t i = 0; i < count; ++i) {
-        gc::tracked_ptr node = gc::make_tracked<Node>();
+        sgcl::tracked_ptr node = sgcl::make_tracked<Node>();
         node->next = head;
         node->value = int(i);
         head = node;
     }
-    std::cout << "with the list: " << gc::collector::get_live_object_count() << " live objects\n";
+    std::cout << "with the list: " << sgcl::collector::get_live_object_count() << " live objects\n";
 }   // head is gone: the whole list is garbage
 
 int main() {
-    size_t before = gc::collector::get_live_object_count();
+    size_t before = sgcl::collector::get_live_object_count();
     build_and_drop(1000);
     // the count runs a full cycle first and zeroes the frames build_and_drop left behind
-    std::cout << "after the list: " << gc::collector::get_live_object_count() - before << " new live objects\n";
+    std::cout << "after the list: " << sgcl::collector::get_live_object_count() - before << " new live objects\n";
 
-    gc::vector<gc::tracked_ptr<Node>> kept;
+    sgcl::vector<sgcl::tracked_ptr<Node>> kept;
     for (int i = 0; i < 10; ++i) {
-        kept.push_back(gc::make_tracked<Node>());
+        kept.push_back(sgcl::make_tracked<Node>());
     }
     // what the live heap is made of, by type: the ten nodes and the vector's buffer
-    for (auto& t : gc::collector::get_type_statistics()) {
-        if (*t.type == typeid(Node) || *t.type == typeid(gc::tracked_ptr<Node>[])) {
+    for (auto& t : sgcl::collector::get_type_statistics()) {
+        if (*t.type == typeid(Node) || *t.type == typeid(sgcl::tracked_ptr<Node>[])) {
             std::cout << (t.buffers ? "buffers of " : "") << t.type->name() << ": "
                       << t.live_objects << " x " << t.object_size << " B\n";
         }
     }
 
-    gc::collector::force_collect(true);     // optional, for the demonstration only: the collector runs its cycles by itself
-    auto s = gc::collector::get_statistics();
+    sgcl::collector::force_collect(true);     // optional, for the demonstration only: the collector runs its cycles by itself
+    auto s = sgcl::collector::get_statistics();
     std::cout << s.cycles << " cycles, " << s.live_objects << " live objects, last cycle "
-              << s.last_cycle_ms << " ms, " << gc::collector::get_committed_memory() / 1048576
-              << " MB committed of a " << gc::collector::get_memory_limit() / 1048576 << " MB ceiling\n";
+              << s.last_cycle_ms << " ms, " << sgcl::collector::get_committed_memory() / 1048576
+              << " MB committed of a " << sgcl::collector::get_memory_limit() / 1048576 << " MB ceiling\n";
     return 0;
 }
 ```

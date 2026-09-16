@@ -12,7 +12,6 @@
 #include "../config.h"
 #include "../make_tracked.h"
 #include "../tracked_ptr.h"
-#include "managed.h"
 #include "os.h"
 
 #include <atomic>
@@ -25,18 +24,12 @@
 #include <utility>
 
 namespace sgcl::detail {
-    // Root: the kind of the word by which the container holds its bucket
-    // array, its head node and its counters, and its iterators hold their
-    // node (types.h); the links between the nodes are tracked_ptrs
-    // whatever it is.
-    template<class Key, class T, class Hash, class KeyEqual, template<class> class Root>
+    template<class Key, class T, class Hash, class KeyEqual>
     struct ConcurrentUnorderedMapTraits {
         using key_type = Key;
         using value_type = pair<const Key, T>;
-        using stored_type = managed_value_t<value_type>;
         using hasher = Hash;
         using key_equal = KeyEqual;
-        template<class U> using root = Root<U>;
         static constexpr bool const_iterators = false;
 
         template<class P>
@@ -45,14 +38,12 @@ namespace sgcl::detail {
         }
     };
 
-    template<class Key, class Hash, class KeyEqual, template<class> class Root>
+    template<class Key, class Hash, class KeyEqual>
     struct ConcurrentUnorderedSetTraits {
         using key_type = Key;
         using value_type = Key;
-        using stored_type = managed_t<value_type>;
         using hasher = Hash;
         using key_equal = KeyEqual;
-        template<class U> using root = Root<U>;
         static constexpr bool const_iterators = true;
 
         template<class K>
@@ -79,8 +70,7 @@ namespace sgcl::detail {
 
     protected:
         using Key = key_type;
-        template<class U> using Ptr = typename Traits::template root<U>;
-        using Value = typename Traits::stored_type;
+        using Value = value_type;
 
     private:
         // The first words of every node: the link, the split-order key
@@ -252,7 +242,7 @@ namespace sgcl::detail {
             : _node(node) {
             }
 
-            Ptr<NodeBase> _node;
+            tracked_ptr<NodeBase> _node;
 
             friend bool operator==(const Iterator& lhs, const Iterator& rhs) noexcept {
                 return lhs._node.get() == rhs._node.get();
@@ -615,9 +605,9 @@ namespace sgcl::detail {
             _buckets.compare_exchange_strong(old, b, std::memory_order_acq_rel, std::memory_order_relaxed);
         }
 
-        atomic<Ptr<Buckets>> _buckets;
-        Ptr<NodeBase> _head;        // the dummy of bucket 0: the head of the list
-        Ptr<Counters> _counters;
+        atomic<tracked_ptr<Buckets>> _buckets;
+        tracked_ptr<NodeBase> _head;        // the dummy of bucket 0: the head of the list
+        tracked_ptr<Counters> _counters;
         [[no_unique_address]] hasher _hash;
         [[no_unique_address]] key_equal _equal;
     };

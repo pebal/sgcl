@@ -79,9 +79,8 @@ namespace sgcl::detail {
     // The managed object for a string of `bytes` (header, characters and
     // terminator), from the smallest class that holds it, as the string's
     // word: a pointer to the first byte
-    template<template<class> class Ptr>
     struct StringMaker {
-        using Word = Ptr<const void>;
+        using Word = tracked_ptr<const void>;
 
         template<class CharT, size_t Bytes>
         static Word make_slot(std::basic_string_view<CharT> s) {

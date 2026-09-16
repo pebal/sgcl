@@ -4,12 +4,8 @@
 #include "sgcl/copy_on_write.h"   // or "sgcl/sgcl.h"
 
 namespace sgcl {
-    template<class T, template<class> class Ptr = tracked_ptr>
-    class copy_on_write;
-}
-namespace gc {
     template<class T>
-    using copy_on_write = sgcl::copy_on_write<T, gc::tracked_ptr>;
+    class copy_on_write;
 }
 ```
 
@@ -17,7 +13,7 @@ namespace gc {
 
 ## Rules
 
-- The container is one word, the atomic pointer. `sgcl::copy_on_write` lives where a `tracked_ptr` may: on a thread's stack or inside a managed object ([The rules](../README.md#the-rules), 1); `gc::copy_on_write` lives anywhere. A snapshot is a pointer of the container's kind to `const T` (`tracked_ptr<const T>` or `gc::tracked_ptr<const T>`) and lives where that kind may: a `gc::` snapshot may sit in a `std` container.
+- The container is one word, the atomic pointer. `sgcl::copy_on_write` lives where a `tracked_ptr` may: on a thread's stack or inside a managed object ([The rules](../README.md#the-rules), 1). A snapshot is a `tracked_ptr<const T>` and lives where one may.
 - `load` is one atomic load, wait-free. `store` and `update` are lock-free: a writer that loses the exchange to another writer copies again, so `update`'s function may run more than once, on copies nobody else sees. Writers are meant to be rare next to readers; with many concurrent writers of a large value a mutex around them serializes the copies cheaper.
 - `T` is copied on every `update` and constructed on every `store`: the cost of a write is the copy. A snapshot is never modified: `T` is reached as `const` through it.
 - A value's destructor runs when the collector reclaims it, once no snapshot holds it.
@@ -29,7 +25,7 @@ namespace gc {
 
 ```cpp
 using value_type = T;
-using snapshot = Ptr<const T>;   // tracked_ptr<const T>, gc::tracked_ptr<const T> for gc::copy_on_write
+using snapshot = tracked_ptr<const T>;   // tracked_ptr<const T>, sgcl::tracked_ptr<const T> for sgcl::copy_on_write
 ```
 
 ### Constructors
@@ -43,8 +39,8 @@ copy_on_write(const copy_on_write&) = delete;
 ```
 
 ```cpp
-gc::copy_on_write<Config> config(std::in_place, "localhost", 8080);   // a global: gc::
-sgcl::copy_on_write<sgcl::vector<gc::tracked_ptr<Listener>>> listeners;
+sgcl::copy_on_write<Config> config(std::in_place, "localhost", 8080);   // a global: sgcl::
+sgcl::copy_on_write<sgcl::vector<sgcl::tracked_ptr<Listener>>> listeners;
 ```
 
 ### load
@@ -110,9 +106,9 @@ struct Route {
 };
 
 int main() {
-    gc::copy_on_write<gc::vector<Route>> table(gc::vector<Route>{{1, 10}, {2, 20}});
-    gc::atomic<bool> stop = false;
-    gc::atomic<long> lookups = 0, inconsistent = 0;
+    sgcl::copy_on_write<sgcl::vector<Route>> table(sgcl::vector<Route>{{1, 10}, {2, 20}});
+    sgcl::atomic<bool> stop = false;
+    sgcl::atomic<long> lookups = 0, inconsistent = 0;
     std::vector<std::thread> readers;
     for (int r = 0; r < 8; ++r) {
         readers.emplace_back([&] {

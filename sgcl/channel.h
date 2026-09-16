@@ -8,7 +8,6 @@
 #include "aliases.h"
 #include "concurrent_queue.h"
 #include "coroutine.h"
-#include "detail/managed.h"
 #include "make_tracked.h"
 #include "tracked_ptr.h"
 
@@ -50,13 +49,10 @@ namespace sgcl {
     // each sender; between senders sending at the same moment the order
     // is theirs.
     //
-    // The channel holds its queues by words of the Ptr kind: an
-    // sgcl::channel lives where a tracked_ptr may (on a stack or inside a
-    // managed object), a gc::channel anywhere.
-    template<class V, template<class> class Ptr>
+    // The channel holds its queues by tracked_ptrs, so it lives where
+    // one may: on a stack or inside a managed object.
+    template<class T>
     class channel {
-        using T = detail::managed_t<V>;
-
         // A waiting thread or coroutine: claimed with a compare-exchange
         // by the side that serves it (a sender gives it the element, a
         // receiver takes the element it holds), or cancelled by its own
@@ -100,7 +96,7 @@ namespace sgcl {
         using WaiterPtr = tracked_ptr<Waiter>;
 
     public:
-        using value_type = V;
+        using value_type = T;
         using size_type = size_t;
 
         // A channel of capacity n; 0, the default, is a rendezvous
@@ -113,17 +109,17 @@ namespace sgcl {
 
         // Sends the element: delivered, and true; or false when the
         // channel is closed, before or while the send waits
-        bool send(const V& value) {
+        bool send(const T& value) {
             return _send(T(value));
         }
 
-        bool send(V&& value) {
+        bool send(T&& value) {
             return _send(T(std::move(value)));
         }
 
         // Sends without waiting: false when the channel is closed or full
         // (for a rendezvous: when no receiver waits)
-        bool try_send(const V& value) {
+        bool try_send(const T& value) {
             if (_closed.load(std::memory_order_acquire)) {
                 return false;
             }
@@ -131,7 +127,7 @@ namespace sgcl {
             return _try_send(v);
         }
 
-        bool try_send(V&& value) {
+        bool try_send(T&& value) {
             if (_closed.load(std::memory_order_acquire)) {
                 return false;
             }
@@ -141,7 +137,7 @@ namespace sgcl {
 
         // Receives the next element, waiting for one; nothing once the
         // channel is closed and drained
-        optional<V> receive() {
+        optional<T> receive() {
             for (;;) {
                 if (auto v = _try_receive()) {
                     return v;
@@ -156,13 +152,13 @@ namespace sgcl {
                 }
                 me->park();
                 if (me->value) {
-                    return optional<V>(std::in_place, std::move(*me->value));
+                    return optional<T>(std::in_place, std::move(*me->value));
                 }
             }
         }
 
         // Receives without waiting: nothing when the channel is empty
-        optional<V> try_receive() {
+        optional<T> try_receive() {
             return _try_receive();
         }
 
@@ -202,12 +198,12 @@ namespace sgcl {
                 }
             }
 
-            optional<V> await_resume() {
+            optional<T> await_resume() {
                 if (_value) {
-                    return optional<V>(std::in_place, std::move(*_value));
+                    return optional<T>(std::in_place, std::move(*_value));
                 }
                 if (_me && _me->value) {
-                    return optional<V>(std::in_place, std::move(*_me->value));
+                    return optional<T>(std::in_place, std::move(*_me->value));
                 }
                 return nullopt;
             }
@@ -285,11 +281,11 @@ namespace sgcl {
             return async_receive_op(*this);
         }
 
-        async_send_op async_send(const V& value) {
+        async_send_op async_send(const T& value) {
             return async_send_op(*this, T(value));
         }
 
-        async_send_op async_send(V&& value) {
+        async_send_op async_send(T&& value) {
             return async_send_op(*this, T(std::move(value)));
         }
 
@@ -336,10 +332,10 @@ namespace sgcl {
         class iterator {
         public:
             using iterator_category = std::input_iterator_tag;
-            using value_type = V;
+            using value_type = T;
             using difference_type = ptrdiff_t;
-            using pointer = V*;
-            using reference = V&;
+            using pointer = T*;
+            using reference = T&;
 
             iterator() noexcept = default;
 
@@ -376,7 +372,7 @@ namespace sgcl {
             }
 
             channel* _ch = nullptr;
-            optional<V> _value;
+            optional<T> _value;
         };
 
         iterator begin() {
@@ -395,7 +391,7 @@ namespace sgcl {
         // (a receiver that found the buffer empty may find it filled by
         // the time it reaches the senders, and an element taken directly
         // would jump the ones sent before it)
-        optional<V> _try_receive() {
+        optional<T> _try_receive() {
             for (;;) {
                 if (auto v = _items.try_pop()) {
                     _count.fetch_sub(1, std::memory_order_acq_rel);
@@ -471,7 +467,7 @@ namespace sgcl {
 
         // The first pending waiter of a list, claimed; cancelled ones are
         // dropped on the way
-        static WaiterPtr _take(concurrent_queue<WaiterPtr, Ptr>& waiters) {
+        static WaiterPtr _take(concurrent_queue<WaiterPtr>& waiters) {
             while (auto w = waiters.try_pop()) {
                 if ((*w)->claim()) {
                     return *w;
@@ -490,9 +486,9 @@ namespace sgcl {
             return !_receivers.empty() || (_capacity && _count.load(std::memory_order_acquire) < long(_capacity)) || _closed.load(std::memory_order_acquire);
         }
 
-        concurrent_queue<T, Ptr> _items;
-        concurrent_queue<WaiterPtr, Ptr> _receivers;
-        concurrent_queue<WaiterPtr, Ptr> _senders;
+        concurrent_queue<T> _items;
+        concurrent_queue<WaiterPtr> _receivers;
+        concurrent_queue<WaiterPtr> _senders;
         atomic<long> _count = {0};
         atomic<bool> _closed = {false};
         const size_type _capacity;
@@ -500,8 +496,8 @@ namespace sgcl {
 
     // A channel of signals: send() carries nothing, receive() is whether
     // one came (false once closed)
-    template<template<class> class Ptr>
-    class channel<void, Ptr> {
+    template<>
+    class channel<void> {
         struct Signal {};
 
     public:
@@ -550,11 +546,11 @@ namespace sgcl {
         private:
             friend class channel;
 
-            explicit async_receive_op(channel<Signal, Ptr>& ch) noexcept
+            explicit async_receive_op(channel<Signal>& ch) noexcept
             : _op(ch.async_receive()) {
             }
 
-            typename channel<Signal, Ptr>::async_receive_op _op;
+            typename channel<Signal>::async_receive_op _op;
         };
 
         async_receive_op async_receive() noexcept {
@@ -582,6 +578,6 @@ namespace sgcl {
         }
 
     private:
-        channel<Signal, Ptr> _ch;
+        channel<Signal> _ch;
     };
 }

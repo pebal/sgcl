@@ -9,7 +9,6 @@
 #include "../atomic.h"
 #include "../make_tracked.h"
 #include "../tracked_ptr.h"
-#include "managed.h"
 #include "os.h"
 
 #include <bit>
@@ -21,20 +20,11 @@
 #include <utility>
 
 namespace sgcl::detail {
-    // Root: the kind of the word by which the container holds its head
-    // node and its iterators hold theirs, tracked_ptr or gc::tracked_ptr
-    // (types.h); the links between the nodes are tracked_ptrs whatever it
-    // is.
-    template<class Key, class T, class Compare, template<class> class Root>
+    template<class Key, class T, class Compare>
     struct ConcurrentMapTraits {
         using key_type = Key;
         using value_type = pair<const Key, T>;
-        // What a node stores (vector.h, detail/managed.h): the value's
-        // types replaced by the words they name as tracked_type; the
-        // interface and the iterators see value_type over it
-        using stored_type = managed_value_t<value_type>;
         using key_compare = Compare;
-        template<class U> using root = Root<U>;
         static constexpr bool const_iterators = false;
 
         template<class P>
@@ -43,13 +33,11 @@ namespace sgcl::detail {
         }
     };
 
-    template<class Key, class Compare, template<class> class Root>
+    template<class Key, class Compare>
     struct ConcurrentSetTraits {
         using key_type = Key;
         using value_type = Key;
-        using stored_type = managed_t<value_type>;
         using key_compare = Compare;
-        template<class U> using root = Root<U>;
         static constexpr bool const_iterators = true;
 
         template<class K>
@@ -60,9 +48,8 @@ namespace sgcl::detail {
 
     // The skip list under concurrent_map and concurrent_set (concurrent_map.h
     // has the account of the algorithm): Traits names the element
-    // (value_type, the stored type with a gc::tracked_ptr mapped to its
-    // word, the key inside it, the comparison, whether the iterators are
-    // const, the kind of the root word).
+    // (value_type), the key inside it, the comparison and whether the
+    // iterators are const.
     template<class Traits>
     class SkipList {
     public:
@@ -75,8 +62,7 @@ namespace sgcl::detail {
     protected:
         using Key = key_type;
         using Compare = key_compare;
-        template<class U> using Ptr = typename Traits::template root<U>;
-        using Value = typename Traits::stored_type;
+        using Value = value_type;
 
     private:
 
@@ -195,9 +181,8 @@ namespace sgcl::detail {
             }
         }
 
-        // The iterator holds its node by a word of the container's kind:
-        // the node lives for as long as the iterator does, wherever a
-        // Ptr may live.
+        // The iterator holds its node by a tracked_ptr: the node lives
+        // for as long as the iterator does.
         template<class U>
         class Iterator {
         public:
@@ -238,7 +223,7 @@ namespace sgcl::detail {
             : _node(node) {
             }
 
-            Ptr<NodeBase> _node;
+            tracked_ptr<NodeBase> _node;
 
             friend bool operator==(const Iterator& lhs, const Iterator& rhs) noexcept {
                 return lhs._node.get() == rhs._node.get();
@@ -615,7 +600,7 @@ namespace sgcl::detail {
             }
         }
 
-        Ptr<Head> _head;
+        tracked_ptr<Head> _head;
         atomic<unsigned> _top = 1;   // the levels in use: a search starts at the top one
         [[no_unique_address]] Compare _comp;
     };

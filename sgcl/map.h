@@ -16,9 +16,9 @@ namespace sgcl {
     // inside a managed object only; its iterators are raw node pointers
     // (trivially copyable, storable anywhere) that stay valid for as long
     // as the element is in the container, exactly as in std.
-    template<class Key, class T, class Compare = std::less<Key>, template<class> class Ptr = tracked_ptr>
-    class map : public detail::RbTree<detail::MapTraits<Key, T, Compare, false, Ptr>> {
-        using Base = detail::RbTree<detail::MapTraits<Key, T, Compare, false, Ptr>>;
+    template<class Key, class T, class Compare = std::less<Key>>
+    class map : public detail::RbTree<detail::MapTraits<Key, T, Compare, false>> {
+        using Base = detail::RbTree<detail::MapTraits<Key, T, Compare, false>>;
 
     public:
         using key_type = Key;
@@ -163,21 +163,21 @@ namespace sgcl {
     };
 
     template<std::input_iterator InputIt,
-             class Compare = std::less<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>>, template<class> class Ptr = tracked_ptr>
+             class Compare = std::less<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>>>
     map(InputIt, InputIt, Compare = Compare())
         -> map<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>,
-               typename std::iterator_traits<InputIt>::value_type::second_type, Compare, Ptr>;
+               typename std::iterator_traits<InputIt>::value_type::second_type, Compare>;
 
-    template<class Key, class T, class Compare = std::less<Key>, template<class> class Ptr = tracked_ptr>
-    map(std::initializer_list<std::pair<Key, T>>, Compare = Compare()) -> map<Key, T, Compare, Ptr>;
+    template<class Key, class T, class Compare = std::less<Key>>
+    map(std::initializer_list<std::pair<Key, T>>, Compare = Compare()) -> map<Key, T, Compare>;
 
-    template<class Key, class T, class Compare, template<class> class Ptr>
-    void swap(map<Key, T, Compare, Ptr>& lhs, map<Key, T, Compare, Ptr>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
+    template<class Key, class T, class Compare>
+    void swap(map<Key, T, Compare>& lhs, map<Key, T, Compare>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
         lhs.swap(rhs);
     }
 
-    template<class Key, class T, class Compare, template<class> class Ptr, class Pred>
-    typename map<Key, T, Compare, Ptr>::size_type erase_if(map<Key, T, Compare, Ptr>& c, Pred pred) {
+    template<class Key, class T, class Compare, class Pred>
+    typename map<Key, T, Compare>::size_type erase_if(map<Key, T, Compare>& c, Pred pred) {
         auto old_size = c.size();
         for (auto it = c.begin(), last = c.end(); it != last;) {
             if (pred(*it)) {

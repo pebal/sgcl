@@ -71,7 +71,7 @@ namespace sgcl {
         struct CallSignature<R (G::*)(A...) const & noexcept> { using type = R(A...); };
     }
 
-    template<class Signature, template<class> class Ptr = tracked_ptr>
+    template<class Signature>
     class function;
 
     // A function with the interface of std::function whose closure may
@@ -84,12 +84,11 @@ namespace sgcl {
     // in a node is a node of its own); the callable is called as an
     // lvalue, as std::function calls it; bad_function_call (the one of
     // std) on an empty function; the closure destroyed the moment the
-    // function drops it. Ptr is the kind of the word, and so where the
-    // function lives: tracked_ptr on a stack or in a managed object,
-    // gc::tracked_ptr (gc::function) anywhere. 32 bytes.
-    template<class R, class... Args, template<class> class Ptr>
-    class function<R(Args...), Ptr> : detail::ValueStorage<Ptr, R (*)(const void*, Args&&...)> {
-        using Storage = detail::ValueStorage<Ptr, R (*)(const void*, Args&&...)>;   // the invoker gets the storage as a void pointer
+    // function drops it. The word is a tracked_ptr, so a function lives
+    // where one may: on a stack or in a managed object. 32 bytes.
+    template<class R, class... Args>
+    class function<R(Args...)> : detail::ValueStorage<R (*)(const void*, Args&&...)> {
+        using Storage = detail::ValueStorage<R (*)(const void*, Args&&...)>;   // the invoker gets the storage as a void pointer
 
         template<class F>
         static constexpr bool Callable = !std::is_same_v<F, function> && std::is_invocable_r_v<R, F&, Args...>;
@@ -189,13 +188,13 @@ namespace sgcl {
     template<class F>
     function(F) -> function<typename detail::CallSignature<decltype(&F::operator())>::type>;
 
-    template<class R, class... Args, template<class> class Ptr>
-    void swap(function<R(Args...), Ptr>& l, function<R(Args...), Ptr>& r) noexcept {
+    template<class R, class... Args>
+    void swap(function<R(Args...)>& l, function<R(Args...)>& r) noexcept {
         l.swap(r);
     }
 
-    template<class R, class... Args, template<class> class Ptr>
-    bool operator==(const function<R(Args...), Ptr>& f, std::nullptr_t) noexcept {
+    template<class R, class... Args>
+    bool operator==(const function<R(Args...)>& f, std::nullptr_t) noexcept {
         return !f;
     }
 
@@ -203,9 +202,9 @@ namespace sgcl {
         // move_only_function's one implementation for the signatures with
         // and without const and noexcept: the qualifiers are the class's
         // parameters
-        template<template<class> class Ptr, class R, bool Const, bool Noexcept, class... Args>
-        class MoveOnlyFunction : ValueStorage<Ptr, R (*)(const void*, Args&&...)> {
-            using Storage = ValueStorage<Ptr, R (*)(const void*, Args&&...)>;
+        template<class R, bool Const, bool Noexcept, class... Args>
+        class MoveOnlyFunction : ValueStorage<R (*)(const void*, Args&&...)> {
+            using Storage = ValueStorage<R (*)(const void*, Args&&...)>;
 
             template<class F>
             using CallAs = std::conditional_t<Const, const F, F>;
@@ -307,36 +306,36 @@ namespace sgcl {
     // storage of function, a callable that need not be copyable, the
     // signature's const and noexcept honoured (the reference qualifiers
     // are not supported). Calling an empty one is undefined.
-    template<class Signature, template<class> class Ptr = tracked_ptr>
+    template<class Signature>
     class move_only_function;
 
-    template<class R, class... Args, template<class> class Ptr>
-    class move_only_function<R(Args...), Ptr> : public detail::MoveOnlyFunction<Ptr, R, false, false, Args...> {
-        using Base = detail::MoveOnlyFunction<Ptr, R, false, false, Args...>;
+    template<class R, class... Args>
+    class move_only_function<R(Args...)> : public detail::MoveOnlyFunction<R, false, false, Args...> {
+        using Base = detail::MoveOnlyFunction<R, false, false, Args...>;
     public:
         using Base::Base;
         using Base::operator=;
     };
 
-    template<class R, class... Args, template<class> class Ptr>
-    class move_only_function<R(Args...) const, Ptr> : public detail::MoveOnlyFunction<Ptr, R, true, false, Args...> {
-        using Base = detail::MoveOnlyFunction<Ptr, R, true, false, Args...>;
+    template<class R, class... Args>
+    class move_only_function<R(Args...) const> : public detail::MoveOnlyFunction<R, true, false, Args...> {
+        using Base = detail::MoveOnlyFunction<R, true, false, Args...>;
     public:
         using Base::Base;
         using Base::operator=;
     };
 
-    template<class R, class... Args, template<class> class Ptr>
-    class move_only_function<R(Args...) noexcept, Ptr> : public detail::MoveOnlyFunction<Ptr, R, false, true, Args...> {
-        using Base = detail::MoveOnlyFunction<Ptr, R, false, true, Args...>;
+    template<class R, class... Args>
+    class move_only_function<R(Args...) noexcept> : public detail::MoveOnlyFunction<R, false, true, Args...> {
+        using Base = detail::MoveOnlyFunction<R, false, true, Args...>;
     public:
         using Base::Base;
         using Base::operator=;
     };
 
-    template<class R, class... Args, template<class> class Ptr>
-    class move_only_function<R(Args...) const noexcept, Ptr> : public detail::MoveOnlyFunction<Ptr, R, true, true, Args...> {
-        using Base = detail::MoveOnlyFunction<Ptr, R, true, true, Args...>;
+    template<class R, class... Args>
+    class move_only_function<R(Args...) const noexcept> : public detail::MoveOnlyFunction<R, true, true, Args...> {
+        using Base = detail::MoveOnlyFunction<R, true, true, Args...>;
     public:
         using Base::Base;
         using Base::operator=;

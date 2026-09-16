@@ -164,8 +164,7 @@ namespace sgcl {
     // and variant_alternative), without constexpr: the alternatives live
     // in raw storage. A variant is never trivially copyable, and the
     // variant of pointer-free alternatives is what std::variant is for.
-    // Lives where its alternatives may: where a tracked_ptr may with
-    // sgcl::tracked_ptr alternatives, anywhere with gc::tracked_ptr ones.
+    // Lives where its alternatives may: where a tracked_ptr may.
     template<class... Ts>
     class variant {
         static_assert(sizeof...(Ts) > 0, "a variant has at least one alternative");

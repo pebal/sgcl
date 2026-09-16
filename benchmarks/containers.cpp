@@ -5,7 +5,7 @@
 //------------------------------------------------------------------------------
 // The containers against their std counterparts: one case per process, so
 // that the peak resident size belongs to that case alone.
-//   containers <sgcl|gc|std> <case> [n=1000000]   (gc: the gc family, a gc::tracked_ptr root and gc::tracked_ptr elements)
+//   containers <sgcl|std> <case> [n=1000000]
 // cases: vector_push, vector_iterate, vector_ptr (tracked_ptr / shared_ptr
 // elements), deque_push, deque_iterate, list_push, list_iterate,
 // list_erase, forward_list_push, map_insert, map_find, map_iterate,
@@ -357,33 +357,30 @@ int main(int argc, char** argv) {
     std::string c = argc > 2 ? argv[2] : "vector_push";
     long n = argc > 3 ? std::atol(argv[3]) : 1'000'000;
     bool sg = variant == "sgcl";
-    bool g = variant == "gc";   // the gc family: the same containers with a gc::tracked_ptr root, gc::tracked_ptr elements
-    sgcl_variant = sg || g;
+    sgcl_variant = sg;
     auto t0 = bench::Clock::now();
     long result = 0;
     auto make_tracked = [](long i) { auto p = sgcl::make_tracked<Node>(); p->v = i; return p; };
     auto make_shared = [](long i) { auto p = std::make_shared<Node>(); p->v = i; return p; };
-#define PICK(S, G, D) (sg ? (S) : g ? (G) : (D))
-    if (c == "vector_push") result = PICK(run_vector_push<sgcl::vector<long>>(n), run_vector_push<gc::vector<long>>(n), run_vector_push<std::vector<long>>(n));
-    else if (c == "vector_iterate") result = PICK(run_vector_iterate<sgcl::vector<long>>(n), run_vector_iterate<gc::vector<long>>(n), run_vector_iterate<std::vector<long>>(n));
+#define PICK(S, D) (sg ? (S) : (D))
+    if (c == "vector_push") result = PICK(run_vector_push<sgcl::vector<long>>(n), run_vector_push<std::vector<long>>(n));
+    else if (c == "vector_iterate") result = PICK(run_vector_iterate<sgcl::vector<long>>(n), run_vector_iterate<std::vector<long>>(n));
     else if (c == "vector_ptr") result = PICK((run_vector_ptr<sgcl::vector<sgcl::tracked_ptr<Node>>, sgcl::tracked_ptr<Node>>(n, make_tracked)),
-                                              (run_vector_ptr<gc::vector<gc::tracked_ptr<Node>>, gc::tracked_ptr<Node>>(n, make_tracked)),
                                               (run_vector_ptr<std::vector<std::shared_ptr<Node>>, std::shared_ptr<Node>>(n, make_shared)));
-    else if (c == "deque_push") result = PICK(run_deque_push<sgcl::deque<long>>(n), run_deque_push<gc::deque<long>>(n), run_deque_push<std::deque<long>>(n));
-    else if (c == "deque_iterate") result = PICK(run_deque_iterate<sgcl::deque<long>>(n), run_deque_iterate<gc::deque<long>>(n), run_deque_iterate<std::deque<long>>(n));
-    else if (c == "list_push") result = PICK(run_list_push<sgcl::list<long>>(n), run_list_push<gc::list<long>>(n), run_list_push<std::list<long>>(n));
-    else if (c == "list_iterate") result = PICK(run_list_iterate<sgcl::list<long>>(n), run_list_iterate<gc::list<long>>(n), run_list_iterate<std::list<long>>(n));
-    else if (c == "list_erase") result = PICK(run_list_erase<sgcl::list<long>>(n), run_list_erase<gc::list<long>>(n), run_list_erase<std::list<long>>(n));
-    else if (c == "forward_list_push") result = PICK(run_forward_list_push<sgcl::forward_list<long>>(n), run_forward_list_push<gc::forward_list<long>>(n), run_forward_list_push<std::forward_list<long>>(n));
-    else if (c == "map_insert") result = PICK((run_map_insert<sgcl::map<long, long>>(n)), (run_map_insert<gc::map<long, long>>(n)), (run_map_insert<std::map<long, long>>(n)));
-    else if (c == "map_find") result = PICK((run_map_find<sgcl::map<long, long>>(n)), (run_map_find<gc::map<long, long>>(n)), (run_map_find<std::map<long, long>>(n)));
-    else if (c == "map_iterate") result = PICK((run_map_iterate<sgcl::map<long, long>>(n)), (run_map_iterate<gc::map<long, long>>(n)), (run_map_iterate<std::map<long, long>>(n)));
-    else if (c == "set_insert") result = PICK(run_set_insert<sgcl::set<long>>(n), run_set_insert<gc::set<long>>(n), run_set_insert<std::set<long>>(n));
-    else if (c == "unordered_insert") result = PICK((run_map_insert<sgcl::unordered_map<long, long>>(n)), (run_map_insert<gc::unordered_map<long, long>>(n)), (run_map_insert<std::unordered_map<long, long>>(n)));
-    else if (c == "unordered_find") result = PICK((run_map_find<sgcl::unordered_map<long, long>>(n)), (run_map_find<gc::unordered_map<long, long>>(n)), (run_map_find<std::unordered_map<long, long>>(n)));
-    else if (c == "unordered_erase") result = PICK((run_unordered_erase<sgcl::unordered_map<long, long>>(n)), (run_unordered_erase<gc::unordered_map<long, long>>(n)), (run_unordered_erase<std::unordered_map<long, long>>(n)));
+    else if (c == "deque_push") result = PICK(run_deque_push<sgcl::deque<long>>(n), run_deque_push<std::deque<long>>(n));
+    else if (c == "deque_iterate") result = PICK(run_deque_iterate<sgcl::deque<long>>(n), run_deque_iterate<std::deque<long>>(n));
+    else if (c == "list_push") result = PICK(run_list_push<sgcl::list<long>>(n), run_list_push<std::list<long>>(n));
+    else if (c == "list_iterate") result = PICK(run_list_iterate<sgcl::list<long>>(n), run_list_iterate<std::list<long>>(n));
+    else if (c == "list_erase") result = PICK(run_list_erase<sgcl::list<long>>(n), run_list_erase<std::list<long>>(n));
+    else if (c == "forward_list_push") result = PICK(run_forward_list_push<sgcl::forward_list<long>>(n), run_forward_list_push<std::forward_list<long>>(n));
+    else if (c == "map_insert") result = PICK((run_map_insert<sgcl::map<long, long>>(n)), (run_map_insert<std::map<long, long>>(n)));
+    else if (c == "map_find") result = PICK((run_map_find<sgcl::map<long, long>>(n)), (run_map_find<std::map<long, long>>(n)));
+    else if (c == "map_iterate") result = PICK((run_map_iterate<sgcl::map<long, long>>(n)), (run_map_iterate<std::map<long, long>>(n)));
+    else if (c == "set_insert") result = PICK(run_set_insert<sgcl::set<long>>(n), run_set_insert<std::set<long>>(n));
+    else if (c == "unordered_insert") result = PICK((run_map_insert<sgcl::unordered_map<long, long>>(n)), (run_map_insert<std::unordered_map<long, long>>(n)));
+    else if (c == "unordered_find") result = PICK((run_map_find<sgcl::unordered_map<long, long>>(n)), (run_map_find<std::unordered_map<long, long>>(n)));
+    else if (c == "unordered_erase") result = PICK((run_unordered_erase<sgcl::unordered_map<long, long>>(n)), (run_unordered_erase<std::unordered_map<long, long>>(n)));
     else if (c == "unordered_ptr") result = PICK((run_unordered_ptr<sgcl::unordered_map<long, sgcl::tracked_ptr<Node>>, sgcl::tracked_ptr<Node>>(n, make_tracked)),
-                                                 (run_unordered_ptr<gc::unordered_map<long, gc::tracked_ptr<Node>>, gc::tracked_ptr<Node>>(n, make_tracked)),
                                                  (run_unordered_ptr<std::unordered_map<long, std::shared_ptr<Node>>, std::shared_ptr<Node>>(n, make_shared)));
 #undef PICK
     else {

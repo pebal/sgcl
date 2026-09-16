@@ -12,20 +12,20 @@ namespace sgcl {
     // nothing but keys (weak_map.h). Objects registered somewhere without
     // being owned there, a set that forgets. The iteration gives out the
     // live objects, held while the iterator stands on them.
-    template<class Key, template<class> class Ptr = tracked_ptr>
-    class weak_set : public detail::WeakTable<Key, unordered_set<weak_ptr<Key, Ptr>, detail::WeakHash<Key, Ptr>, detail::WeakEqual<Key, Ptr>, Ptr>, Ptr> {
-        using Base = detail::WeakTable<Key, unordered_set<weak_ptr<Key, Ptr>, detail::WeakHash<Key, Ptr>, detail::WeakEqual<Key, Ptr>, Ptr>, Ptr>;
+    template<class Key>
+    class weak_set : public detail::WeakTable<Key, unordered_set<weak_ptr<Key>, detail::WeakHash<Key>, detail::WeakEqual<Key>>> {
+        using Base = detail::WeakTable<Key, unordered_set<weak_ptr<Key>, detail::WeakHash<Key>, detail::WeakEqual<Key>>>;
         using Table = typename Base::table_type;
         using Base::_table;
 
     public:
         using key_type = Key;
-        using key_pointer = Ptr<Key>;
+        using key_pointer = tracked_ptr<Key>;
         using size_type = size_t;
 
         // What an iterator gives out: the object, held
         using reference = key_pointer;
-        using iterator = detail::WeakIterator<typename Table::iterator, Key, Ptr, reference>;
+        using iterator = detail::WeakIterator<typename Table::iterator, Key, reference>;
 
         weak_set() = default;
 
@@ -48,7 +48,7 @@ namespace sgcl {
             if (it != _table.end()) {
                 return {iterator(it, _table.end()), false};
             }
-            it = _table.emplace(weak_ptr<Key, Ptr>(object)).first;
+            it = _table.emplace(weak_ptr<Key>(object)).first;
             this->_inserted_one();
             return {iterator(it, _table.end()), true};
         }

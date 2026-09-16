@@ -12,13 +12,6 @@
 #include <vector>
 
 namespace {
-    SGCL_ALWAYS_INLINE size_t live_without_cells() {
-        sgcl::detail::cell_allocator.release();
-        collector::clear_stack(SIZE_MAX);
-        collector::force_collect(true);
-        return collector::get_live_object_count();
-    }
-
     struct Config {
         std::string host;
         int port = 0;
@@ -108,25 +101,6 @@ TEST(CopyOnWrite_Test, OldValuesReclaimed) {
     EXPECT_EQ(collector::get_live_object_count(), before + 1u);
 }
 
-TEST(CopyOnWrite_Test, GcLivesAnywhere) {
-    const size_t before = collector::get_live_object_count();
-    auto cfg = std::make_unique<gc::copy_on_write<Config>>(Config{"a", 1});   // in unmanaged memory
-    std::vector<gc::copy_on_write<Config>::snapshot> seen;                   // snapshots in a std container
-    off_frame([&] {
-        for (int i = 0; i < 5; ++i) {
-            seen.push_back(cfg->load());
-            cfg->update([&](Config& c) { c.port = i + 2; });
-        }
-        for (int i = 0; i < 5; ++i) {
-            EXPECT_EQ(seen[size_t(i)]->port, i + 1);
-        }
-        EXPECT_EQ(cfg->load()->port, 6);
-    });
-    seen.clear();
-    cfg.reset();
-    EXPECT_EQ(live_without_cells(), before);
-}
-
 TEST(CopyOnWrite_Test, InsideManagedObject) {
     struct Holder {
         sgcl::copy_on_write<Config> cfg;
@@ -140,7 +114,7 @@ TEST(CopyOnWrite_Test, InsideManagedObject) {
 // lands exactly once, whatever the retries
 TEST(CopyOnWrite_Test, UpdatesAreLinearizable) {
     sgcl::copy_on_write<long> n(0);
-    gc::atomic<long> retries = {0};
+    sgcl::atomic<long> retries = {0};
     off_frame([&] {
         std::vector<std::thread> ws;
         for (int t = 0; t < 8; ++t) {
@@ -164,8 +138,8 @@ TEST(CopyOnWrite_Test, UpdatesAreLinearizable) {
 // of a Pair are always equal in a snapshot
 TEST(CopyOnWrite_Test, SnapshotsAreWhole) {
     sgcl::copy_on_write<Pair> p;
-    gc::atomic<bool> torn = {false};
-    gc::atomic<bool> stop = {false};
+    sgcl::atomic<bool> torn = {false};
+    sgcl::atomic<bool> stop = {false};
     off_frame([&] {
         std::vector<std::thread> ws;
         for (int t = 0; t < 6; ++t) {

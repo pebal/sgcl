@@ -7,6 +7,7 @@
 
 #include <atomic>
 #include <cstring>
+#include <memory>
 
 // The collector learns where the pointers are in each type by elimination
 // (detail/child_pointers.h); these tests pin down what that implies.
@@ -15,7 +16,7 @@ namespace {
         int v;
         Payload(int x) : v(x) { ++alive; }
         ~Payload() { v = -1; --alive; }
-        inline static gc::atomic<int> alive = {0};
+        inline static sgcl::atomic<int> alive = {0};
     };
 
     struct Mixed {
@@ -49,6 +50,15 @@ namespace {
     struct RawHolder {
         RawHolder() {}
         Payload* raw = nullptr;
+    };
+
+    // A root_ptr and a shared_ptr from to_shared() inside a managed object:
+    // words naming a block of cells and a control block (which owns the
+    // SharedHolder)
+    struct Roots {
+        root_ptr<Payload> root;
+        std::shared_ptr<Payload> shared;
+        tracked_ptr<Payload> tracked;
     };
 
     // A destructor reads a tracked_ptr member through if_alive() only: null
@@ -118,6 +128,39 @@ TEST(Maps_Tests, PointerBehindAVtable) {
     EXPECT_EQ(v->p->v, 4);
     auto offset = size_t((char*)&v->p - (char*)v.get()) / sizeof(void*);   // offsetof: not standard-layout
     EXPECT_EQ(candidate_words<Virtual>(), std::vector<size_t>{offset});
+}
+
+// A word naming a root by state (the cell of a root_ptr, the holder of a
+// to_shared) is data to the map, as a word naming unmanaged memory (a
+// shared_ptr's control block) is: the offset leaves it as any data offset
+// does, and the root keeps its object by its own state
+TEST(Maps_Tests, WordsNamingRootsByStateAreData) {
+    tracked_ptr<Roots> r = make_tracked<Roots>();
+    off_frame([&] {
+        r->root = make_tracked<Payload>(5);
+        r->shared = tracked_ptr<Payload>(make_tracked<Payload>(6)).to_shared();
+        r->tracked = make_tracked<Payload>(7);
+    });
+    for (int i = 0; i < 3; ++i) {
+        collector::force_collect(true);
+    }
+    // the root_ptr's word (a cell of a block) and the control block's are
+    // data; the shared_ptr's first word is the object's address, a raw
+    // pointer to a managed object, kept as any raw pointer is
+    std::vector<size_t> expected = {offsetof(Roots, shared) / sizeof(void*), offsetof(Roots, tracked) / sizeof(void*)};
+    EXPECT_EQ(candidate_words<Roots>(), expected);
+    off_frame([&] {                                  // the reads in a frame of their own: what they spill is cleared
+        EXPECT_EQ(r->root->v, 5);
+        EXPECT_EQ(r->shared->v, 6);
+        EXPECT_EQ(r->tracked->v, 7);
+    });
+    EXPECT_EQ(Payload::alive.load(), 3);
+    r = nullptr;
+    collector::clear_stack(SIZE_MAX);
+    for (int i = 0; i < 3; ++i) {
+        collector::force_collect(true);
+    }
+    EXPECT_EQ(Payload::alive.load(), 0);   // the Roots died: its root_ptr and shared_ptr ran their destructors in the sweep
 }
 
 // A raw pointer inside a managed object is not a reference: the target must

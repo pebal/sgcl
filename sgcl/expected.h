@@ -142,9 +142,8 @@ namespace sgcl {
     // the constructors, in_place and unexpect, emplace, swap, operator->
     // and *, has_value, value (bad_expected_access<E> without one), error,
     // value_or, error_or, and_then, or_else, transform, transform_error,
-    // the comparisons; not constexpr. Lives where its variant may: with
-    // sgcl::tracked_ptrs inside where a tracked_ptr may, with
-    // gc::tracked_ptrs anywhere; gc::expected is the same type.
+    // the comparisons; not constexpr. Lives where its variant may: where
+    // a tracked_ptr may.
     template<class T, class E>
     class expected {
         static_assert(!std::is_reference_v<T> && !std::is_function_v<T> && !std::is_same_v<std::remove_cv_t<T>, std::in_place_t> && !std::is_same_v<std::remove_cv_t<T>, unexpect_t> && !detail::IsUnexpected<std::remove_cv_t<T>>::value, "the value type of an expected is an object type, not in_place_t, unexpect_t or an unexpected");

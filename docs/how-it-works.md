@@ -84,7 +84,7 @@ stateDiagram-v2
 - `Reachable` carries the parity of the epoch in which the barrier set it. The state of the current parity says "a pointer to this object was stored in this epoch"; the other parity says nothing, as `Used` does. The flip of the epoch retires every state of the old parity at once without touching it.
 - `Fresh` with `Reachable` marks an object handed to its first `tracked_ptr` and not registered yet; with the current parity it says "created after the flip", and the cycle leaves such an object alone.
 - `Destroyed` is a slot whose destructor has run (a `unique_ptr` deleted the object, a container destroyed its element): the sweep frees it without running anything.
-- `UniqueReleased` is a block of cells of `gc::tracked_ptr`s (below) its allocator will not hand out any more: a root until the collector finds every cell of it free.
+- `UniqueReleased` is a block of cells of `root_ptr`s (below) its allocator will not hand out any more: a root until the collector finds every cell of it free.
 
 The flags: `registered` says the collector knows the slot (it will be swept if not marked); `reachable` is the marking's queue (found, to be traced, in slot order); `marked` is the mark bit, sticky through the young cycles, cleared by a full one.
 
@@ -120,7 +120,7 @@ A cycle's roots are:
 
 - **The stacks**, scanned conservatively: every word of the used part of every registered thread's stack that points into the heap, at a slot in use, is a root. The used part is what the thread's stack pages have touched (`os::touched_pages`), read in segments, on the helpers when there is more than `StackScanThreshold` of it. A thread is registered by the first `tracked_ptr` it constructs, and forgets itself when it exits, after a handshake with a scan in progress: it raises `exiting` and waits for `stack_scan` to drop. The scan reads the stack of a running thread as it is; a dead word keeps its target for a cycle, which `clear_stack()` cuts short.
 - **The objects a `unique_ptr` owns**: `UniqueLock` by state, wherever the `unique_ptr` is (a global, a member, a `std` container).
-- **The blocks of cells** of `gc::tracked_ptr`s in unmanaged memory, `UniqueLock` or `UniqueReleased` by state.
+- **The blocks of cells** of `root_ptr`s in unmanaged memory, `UniqueLock` or `UniqueReleased` by state.
 - **The hazard pointers** of the threads: an object a thread is loading from an atomic at that moment.
 - **The watched weak cells**: an object an `expiry_queue` is to be told about is kept for one more round.
 
@@ -214,44 +214,15 @@ An `expiry_queue` marks its cells `Watched`: the weak phase, finding such a targ
 
 The weak containers (`weak_map.h`, `weak_set.h`, `detail/weak_table.h`) are hash tables keyed by weak pointers, hashed and compared by the cell's word read without a lock: the word holds the object's address while the object lives, and the weak phase clears it before the sweep frees the slot, so a word never names a slot's earlier occupant and a cleared key equals nothing, its own entry included. The hash of a key changes when its object dies, which the table survives because it keeps the hash it placed each node with (the hash is not `noexcept`, which is what makes libstdc++ cache it). The dead entries are dropped by a pass over the table every so many insertions, as many as the table has entries.
 
-## The `gc::` family
+## The cells of the `root_ptr`s
 
-(`gc/tracked_ptr.h`, `cell_block.h`, `types.h`: `UniqueReleased`)
+(`root_ptr.h`, `detail/cell_block.h`, `detail/cell_allocator.h`, `types.h`: `UniqueReleased`)
 
-A `gc::tracked_ptr` is a `tracked_ptr` that may live in unmanaged memory. Its constructor decides where it is (the heap's range, then the thread's stack bounds from a thread-local): inside a managed object or on a stack it is a `tracked_ptr`, one word; anywhere else the word is the address of a cell with the sign bit set. A cell is a word of a block, a managed object of a cache line of pointers, handed out by the thread's allocator in order and zeroed; the pointer stores into it through the barrier, and its destructor writes the cell's own address back, the mark of a free cell. The block is `UniqueLock` while the allocator may still hand out a cell of it, `UniqueReleased` after: a root either way, traced by its words without a map, and freed by the cycle whose registration finds every cell free. The collector never sees the tagged form of the word: it exists only in memory the collector does not read.
+A `tracked_ptr` is the word itself: the address of the object, stored with the barrier. The collector finds such a word in exactly two places, inside a managed object (through the type's pointer map) and on a thread's stack (through the scan), and nowhere else: that is rule 1, and it is not a convention but the mechanism. A `tracked_ptr` in `new`/`malloc` memory, in a `std` container, in a global or in a plain coroutine frame is a word nothing reads; its object is garbage at the next cycle. A debug build asserts at the construction; a release build does not, and the object goes.
 
-The containers, atomics and coroutines of `gc::` are the `sgcl::` ones with a `gc::tracked_ptr` as the word by which they hold their memory; the elements they store are `sgcl::tracked_ptr`s in managed memory either way.
+A `root_ptr` is the root for those places: not a word but the address of a cell, a word of a block, a managed object of a cache line of pointers, handed out by the thread's cell allocator in order and zeroed. The cell is a `tracked_ptr` inside a managed object, and the `root_ptr` does everything through it: a store is the cell's store with the barrier, a read the cell's load, and the destructor writes the cell's own address back, the mark of a free cell. The block is `UniqueLock` while the allocator may still hand out a cell of it, `UniqueReleased` after: a root either way, traced by its words without a map (every word is a heap address, a free cell's its own), and freed by the cycle whose registration finds every cell free. A cell is given back on whatever thread destroys the `root_ptr`, so a block a thread made may be freed long after the thread is gone.
 
-## `sgcl::` against `gc::`: what differs, and when to use which
-
-Every name exists in both namespaces with one interface; what differs is the word a pointer is, and so where it may live and what a copy costs.
-
-An `sgcl::tracked_ptr` is the word itself: the address of the object, stored with the barrier. The collector finds such a word in exactly two places, inside a managed object (through the type's pointer map) and on a thread's stack (through the scan), and nowhere else: that is rule 1, and it is not a convention but the mechanism. An `sgcl::tracked_ptr` in `new`/`malloc` memory, in a `std` container, in a global or in a plain coroutine frame is a word nothing reads; its object is garbage at the next cycle. A debug build asserts at the construction; a release build does not, and the object goes.
-
-A `gc::tracked_ptr` is the same word where the word may live, and elsewhere the address of a cell in a managed block, which the collector reads. The price is paid where the mode is decided and where it is read:
-
-| | `sgcl::` | `gc::` |
-|---|---|---|
-| construction on the stack | a store with the barrier, 1.2 ns | the same, after the check of the address: the heap's range, then the thread's stack bounds from a thread-local, 1.7 ns (a thread-local read costs more on Apple silicon than on Linux) |
-| construction as a member of a managed object | the same | the same after the heap's range check, a few tenths |
-| construction in unmanaged memory | not allowed | a cell taken from the thread's block, 7 ns with its release |
-| a store into it | the word and the barrier, 1.4 ns | plus a test of the sign, 1.6 ns |
-| a read through it | a load, 0.42 ns | plus a test of the sign, 0.45 ns |
-| `weak_ptr::lock()` | 1.8 ns | 2.5 ns: the result is a `gc::tracked_ptr` built where the caller puts it |
-| a lock-free stack, one thread | 9.7 ns per operation | 12.7 ns: the loaded head and the new node are constructions on the stack |
-| binary-trees, a node of two pointers | 1× | 1.2×: every node is two members and three temporaries |
-| the containers | the same nodes and buffers; a `gc::` container pays the test on its root word, within the run-to-run spread | |
-
-The cost of `gc::` is concentrated in one place: the constructions on the stack, the temporaries, the values returned and the arguments passed, because each decides its mode with a thread-local read that the compiler cannot hoist out of a function call. Members of managed objects and the elements of containers cost almost nothing more, and a store or a read through either kind is within a tenth of a nanosecond.
-
-So the rule of thumb:
-
-- **`sgcl::` for the code that keeps its pointers where the collector looks anyway**: a node structure and the algorithms over it, a lock-free structure, a hot loop with pointer temporaries, the members of managed objects, coroutines on managed frames. This is most of a program's inner code, and it runs at the numbers of the `sgcl::` columns.
-- **`gc::` at the boundary, where rule 1 cannot be kept**: a global that holds a managed object, a `std::vector` or `std::map` of managed pointers, a `std::function` whose closure goes to the heap (an `sgcl::function` keeps it in a managed object), a plain coroutine, a plugin or a library that keeps managed objects in structures of its own, a `gc.new<T>` arena for another language. A `gc::` container is a container that lives in such a place; its elements are stored as `sgcl::tracked_ptr`s inside its managed buffer whichever type they are declared as.
-
-The two convert into each other at the cost of one direction only: a `gc::tracked_ptr` converts to the word it holds by (`operator sgcl::tracked_ptr<T>&`), a copy of a word, with no check; an `sgcl::tracked_ptr` converts to a `gc::tracked_ptr` with the check of the destination. The atomics take `sgcl::tracked_ptr`s inside and hand out the `value_type` of their kind; the containers store `sgcl::tracked_ptr`s and hand out references of the element type declared. A program written in `gc::` that has a hot loop may declare that loop's locals `sgcl::tracked_ptr` and lose nothing but the check; a program written in `sgcl::` keeps a `gc::` pointer for the one global and the one `std` container it has.
-
-What the choice never changes: the objects, the allocation, the cycles, the roots the collector sees, the destructors and when they run. A `gc::tracked_ptr` in a managed object *is* an `sgcl::tracked_ptr`, and the collector cannot tell a `gc::` program from an `sgcl::` one.
+What it costs, against a `tracked_ptr`: a construction takes a cell (a store of null into the block's next word and a bump of the index; the block itself is one managed allocation per line of cells), a destruction gives it back (one store), an access is one indirection more, and a copy is a cell of its own. A store or a read through the cell is the store or the read of a `tracked_ptr`. So the rule of thumb: `tracked_ptr` for the code that keeps its pointers where the collector looks anyway, a node structure and the algorithms over it, a lock-free structure, a hot loop with pointer temporaries, the members of managed objects, coroutines on managed frames; `root_ptr` at the boundary, where rule 1 cannot be kept: a global that holds a managed object, a `std::vector` or `std::map` of managed pointers, a `std::function` whose closure goes to the heap (an [`sgcl::function`](function.md) keeps it in a managed object), a plain coroutine, a plugin or a library that keeps managed objects in structures of its own, a handle table for another language. A container that must live in such a place goes into a managed object, held by a `root_ptr`.
 
 ## Allocation
 
@@ -271,6 +242,6 @@ The type's pointer map (`child_pointers.h`) starts full, every word a candidate,
 - The flip retires the states of the previous cycle without a pass, so a cycle begins with one store.
 - Objects created during a cycle are not registered by it: they are neither swept nor traced, and what they point to is reachable by state.
 - The stacks are scanned once, while the threads run; a thread that exits waits only for the scan of its own stack.
-- A `unique_ptr`'s object is a root by its state, wherever the `unique_ptr` is; a `gc::tracked_ptr`'s cell is a word of a root by state.
+- A `unique_ptr`'s object is a root by its state, wherever the `unique_ptr` is; a `root_ptr`'s cell is a word of a root by state.
 - The sweep runs destructors on the collector's threads, ordered after the cycle that found the object unreachable, and a destructor reads its dying peers through `if_alive()`.
 - The mutators wait on nothing of the collector's: a page from the heap under a mutex once per 64 KB, and the memory ceiling.

@@ -4,12 +4,8 @@
 #include "sgcl/concurrent_stack.h"   // or "sgcl/sgcl.h"
 
 namespace sgcl {
-    template<class T, template<class> class Ptr = tracked_ptr>
-    class concurrent_stack;
-}
-namespace gc {
     template<class T>
-    using concurrent_stack = sgcl::concurrent_stack<T, gc::tracked_ptr>;
+    class concurrent_stack;
 }
 ```
 
@@ -17,7 +13,7 @@ namespace gc {
 
 ## Rules
 
-- The container is one word, the atomic head. `sgcl::concurrent_stack` lives where a `tracked_ptr` may: on a thread's stack or inside a managed object ([The rules](../README.md#the-rules), 1); `gc::concurrent_stack` lives anywhere, a global, a `std::unique_ptr` or a member of a `std` container included, and pays the test of the mode on each access to the head ([The gc namespace](README.md#the-gc-namespace)).
+- The container is one word, the atomic head. The stack lives where a `tracked_ptr` may: on a thread's stack or inside a managed object ([The rules](../README.md#the-rules), 1).
 - Every operation is lock-free and may be called from any thread at any time; `push` and `try_pop` are linearizable at their compare-exchange. `pop` blocks while the stack is empty, on the head's `wait`; every `push` notifies.
 - A failed compare-exchange backs off before the retry, exponentially up to `config::BackoffMax` pause instructions (the backoff stack of Herlihy and Shavit): many threads at one word otherwise spend more on their retries than on their operations, and the backoff turns the storm into near-serial exchanges, sixteen threads at 23 ns per operation instead of 740 ([config](config.md#sgcl_backoff_max-backoffmax)). The cap bounds what one operation may wait under that contention.
 - An element is moved out of its node by the thread that pops it, into the `optional` returned, and destroyed in the node there and then: what `std::stack::pop` does, on the popping thread. The node is garbage from that moment. The move should not throw: an element whose move constructor throws is lost.
@@ -54,9 +50,9 @@ template<class... A> void emplace(A&&... a);
 Creates a node on the managed heap holding the element (constructed from `a...` in place for `emplace`), links it above the current head and publishes it with a compare-exchange, retrying against concurrent pushes and pops; then notifies one thread waiting in `pop`.
 
 ```cpp
-gc::concurrent_stack<gc::tracked_ptr<Task>> tasks;   // a global: gc::
-tasks.push(gc::make_tracked<Task>(1));
-tasks.emplace(gc::make_tracked<Task>(2));            // the element built from its arguments
+sgcl::concurrent_stack<sgcl::tracked_ptr<Task>> tasks;   // a global: sgcl::
+tasks.push(sgcl::make_tracked<Task>(1));
+tasks.emplace(sgcl::make_tracked<Task>(2));            // the element built from its arguments
 ```
 
 ### try_pop, pop
@@ -72,7 +68,7 @@ T pop();
 if (auto t = tasks.try_pop()) {
     (*t)->run();
 }
-gc::tracked_ptr next = tasks.pop();   // blocks until a push
+sgcl::tracked_ptr next = tasks.pop();   // blocks until a push
 ```
 
 ### empty, size
@@ -108,7 +104,7 @@ struct Job {
 
 int main() {
     sgcl::concurrent_stack<sgcl::tracked_ptr<Job>> jobs;   // on the stack: sgcl::
-    gc::atomic<int> done = 0;
+    sgcl::atomic<int> done = 0;
     std::vector<std::thread> threads;
     for (int p = 0; p < 4; ++p) {
         threads.emplace_back([&, p] {

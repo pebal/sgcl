@@ -4,12 +4,8 @@
 #include "sgcl/concurrent_unordered_map.h"   // or "sgcl/sgcl.h"
 
 namespace sgcl {
-    template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>, template<class> class Ptr = tracked_ptr>
-    class concurrent_unordered_map;
-}
-namespace gc {
     template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
-    using concurrent_unordered_map = sgcl::concurrent_unordered_map<Key, T, Hash, KeyEqual, gc::tracked_ptr>;
+    class concurrent_unordered_map;
 }
 ```
 
@@ -17,7 +13,7 @@ namespace gc {
 
 ## Rules
 
-- The container holds its bucket array, its head node and its counters by words of the `Ptr` kind. `sgcl::concurrent_unordered_map` lives where a `tracked_ptr` may: on a thread's stack or inside a managed object ([The rules](../README.md#the-rules), 1); `gc::concurrent_unordered_map` lives anywhere ([The gc namespace](README.md#the-gc-namespace)). Its iterators hold their node by a word of the same kind.
+- The container holds its bucket array, its head node and its counters by `tracked_ptr`s, so it lives where one may: on a thread's stack or inside a managed object ([The rules](../README.md#the-rules), 1). Its iterators hold their node by a `tracked_ptr`.
 - `insert`, `emplace`, `try_emplace` and `erase` are lock-free and linearizable: an insertion takes effect at the compare-exchange that links the node into the list, an erasure at the one that marks it. `find`, `contains` and `count` are wait-free and never write.
 - The count of the elements is striped over cache lines (Java's `LongAdder`): `size()` is the sum, a snapshot of no particular moment under concurrent modification, exact once the threads are quiet. The array doubles once the elements outnumber the buckets (a load factor of one), by the insertion that notices; `reserve(n)` doubles it up front.
 - Iteration is weakly consistent, as Java's: an iterator is valid whatever the other threads do, it skips the elements erased since it passed them and may or may not see the ones inserted meanwhile; the order is the list's, the bit reversal of the hashes, and it changes with nothing but the elements. The element an iterator addresses stays alive for as long as the iterator does, erased or not.
@@ -54,7 +50,7 @@ concurrent_unordered_map(const concurrent_unordered_map&) = delete;
 An empty map with 16 buckets (`buckets` rounded up to a power of two when given), or one filled from a range or a list by `insert`.
 
 ```cpp
-gc::concurrent_unordered_map<int, gc::tracked_ptr<Session>> sessions;   // a global: gc::
+sgcl::concurrent_unordered_map<int, sgcl::tracked_ptr<Session>> sessions;   // a global: sgcl::
 sgcl::concurrent_unordered_map<std::string, int> counts(1 << 16);      // 65536 buckets from the start
 ```
 
@@ -104,7 +100,7 @@ template<class... A> pair<iterator, bool> try_emplace(Key&& key, A&&... a);
 Inserts an element unless its key is taken: the element and `true`, or the one already there and `false`, as `std::unordered_map`. `emplace` builds the element first, in a node of its own, and drops the node when the key turns out to be taken; `try_emplace` looks the key up first and builds nothing when it is there. A concurrent insertion of the same key wins or loses at the compare-exchange: exactly one returns `true`.
 
 ```cpp
-auto [it, inserted] = sessions.try_emplace(42, gc::make_tracked<Session>());
+auto [it, inserted] = sessions.try_emplace(42, sgcl::make_tracked<Session>());
 ```
 
 ### erase, clear
@@ -129,7 +125,7 @@ Erases the element under `key` (1 or 0 erased), or the one `pos` addresses if it
 // A word count over many threads: every thread inserts or increments,
 // nobody locks, the table doubles under them as it fills
 struct Count {
-    gc::atomic<int> n = 0;
+    sgcl::atomic<int> n = 0;
 };
 
 int main() {

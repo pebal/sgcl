@@ -7,7 +7,7 @@
 // reference count, for unique_ptr the raw pointer a program built on it
 // hands around (unique_ptr itself has no copy). Tight loops, no
 // allocation in the loop.
-//   write_barrier <sgcl|gc|unique|shared> [threads=1] [mode=stack|heap] [targets=1] [shared]   (gc: gc::tracked_ptr)
+//   write_barrier <sgcl|unique|shared> [threads=1] [mode=stack|heap] [targets=1] [shared]
 //   mode stack: local = objs[i]         (root store)
 //   mode heap:  holder->next = objs[i]  (field store)
 //   targets: number of distinct pointees cycled through (1 = one hot line)
@@ -19,11 +19,9 @@
 #include <memory>
 
 namespace {
-    // Ptr: sgcl::tracked_ptr, or gc::tracked_ptr for the gc variant
-    template<template<class> class Ptr>
     struct SgclNode {
         long v;
-        Ptr<SgclNode> next;
+        sgcl::tracked_ptr<SgclNode> next;
     };
 
     struct SharedNode {
@@ -38,10 +36,9 @@ namespace {
 
     const long iters = 50'000'000;
 
-    template<template<class> class Ptr>
     double run_sgcl(int threads, const char* mode, int targets, bool shared) {
-        using Node = SgclNode<Ptr>;
-        sgcl::vector<Ptr<Node>, Ptr> shared_objs;
+        using Node = SgclNode;
+        sgcl::vector<sgcl::tracked_ptr<Node>> shared_objs;
         if (shared) {
             for (int i = 0; i < targets; ++i) {
                 shared_objs.push_back(sgcl::make_tracked<Node>());
@@ -51,16 +48,16 @@ namespace {
         auto t0 = bench::Clock::now();
         for (int t = 0; t < threads; ++t) {
             ws.emplace_back([&] {
-                sgcl::vector<Ptr<Node>, Ptr> own;
+                sgcl::vector<sgcl::tracked_ptr<Node>> own;
                 if (!shared) {
                     for (int i = 0; i < targets; ++i) {
                         own.push_back(sgcl::make_tracked<Node>());
                     }
                 }
                 auto& objs = shared ? shared_objs : own;
-                Ptr<Node> holder = sgcl::make_tracked<Node>();
+                sgcl::tracked_ptr<Node> holder = sgcl::make_tracked<Node>();
                 if (!std::strcmp(mode, "stack")) {
-                    Ptr<Node> dst;
+                    sgcl::tracked_ptr<Node> dst;
                     for (long i = 0; i < iters; ++i) {
                         dst = objs[i % targets];
                     }
@@ -156,16 +153,15 @@ namespace {
 
 int main(int argc, char** argv) {
     const char* variant = argc > 1 ? argv[1] : "sgcl";
-    if (!bench::has_variant(variant, {"sgcl", "gc", "unique", "shared"})) {
-        std::fprintf(stderr, "usage: write_barrier <sgcl|gc|unique|shared> [threads] [stack|heap] [targets] [shared]\n");
+    if (!bench::has_variant(variant, {"sgcl", "unique", "shared"})) {
+        std::fprintf(stderr, "usage: write_barrier <sgcl|unique|shared> [threads] [stack|heap] [targets] [shared]\n");
         return 2;
     }
     int threads = argc > 2 ? std::atoi(argv[2]) : 1;
     const char* mode = argc > 3 ? argv[3] : "stack";
     int targets = argc > 4 ? std::atoi(argv[4]) : 1;
     bool shared = argc > 5 && !std::strcmp(argv[5], "shared");
-    double ns = !std::strcmp(variant, "sgcl") ? run_sgcl<sgcl::tracked_ptr>(threads, mode, targets, shared)
-        : !std::strcmp(variant, "gc") ? run_sgcl<gc::tracked_ptr>(threads, mode, targets, shared)
+    double ns = !std::strcmp(variant, "sgcl") ? run_sgcl(threads, mode, targets, shared)
         : !std::strcmp(variant, "unique") ? run_unique(threads, mode, targets, shared)
         : run_shared(threads, mode, targets, shared);
     std::printf("%s threads=%d mode=%s targets=%d%s ns/copy=%.2f\n", variant, threads, mode, targets, shared ? " shared" : "", ns);

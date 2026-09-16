@@ -5,7 +5,7 @@
 //------------------------------------------------------------------------------
 // Cost of a weak pointer: SGCL's weak_ptr (a tracked_ptr to a cell the
 // collector clears) against std::weak_ptr (a second reference count).
-//   weak_ptr <sgcl|gc|shared> [threads=1] [op=lock|copy|make|expired]   (gc: gc::tracked_ptr and gc::weak_ptr)
+//   weak_ptr <sgcl|shared> [threads=1] [op=lock|copy|make|expired]
 //   lock: a weak pointer to a live object locked, the strong pointer dropped
 //   expired: a weak pointer to a dead object locked: the null answer
 //   copy: a weak pointer copied into a local
@@ -24,16 +24,16 @@ namespace {
     // A weak pointer whose object is dropped: made on a thread of its
     // own, which exits, so that no stale word of any live stack keeps the
     // object (README, "Stack roots"); the weak pointer comes back through
-    // a gc::weak_ptr, which may live in a local of another thread's frame
+    // a local of this frame, assigned from the other thread
     template<class Strong, class Weak, class Make>
     Weak make_dropped(Make& make) {
         if constexpr (std::is_same_v<Strong, std::shared_ptr<Node>>) {
             return Weak(make());   // the count drops to zero here
         } else {
-            gc::weak_ptr<Node> out;
+            sgcl::weak_ptr<Node> out;
             std::thread([&] {
                 Strong strong = make();
-                out = gc::weak_ptr<Node>(strong);
+                out = sgcl::weak_ptr<Node>(strong);
             }).join();
             return Weak(out);
         }
@@ -102,16 +102,14 @@ namespace {
 }
 int main(int argc, char** argv) {
     const char* variant = argc > 1 ? argv[1] : "sgcl";
-    if (!bench::has_variant(variant, {"sgcl", "gc", "shared"})) {
-        std::fprintf(stderr, "usage: weak_ptr <sgcl|gc|shared> [threads] [lock|copy|make|expired]\n");
+    if (!bench::has_variant(variant, {"sgcl", "shared"})) {
+        std::fprintf(stderr, "usage: weak_ptr <sgcl|shared> [threads] [lock|copy|make|expired]\n");
         return 2;
     }
     int threads = argc > 2 ? std::atoi(argv[2]) : 1;
     const char* op = argc > 3 ? argv[3] : "lock";
     double ns = !std::strcmp(variant, "sgcl")
         ? run<sgcl::tracked_ptr<Node>, sgcl::weak_ptr<Node>>(threads, op, [] { return sgcl::make_tracked<Node>(); })
-        : !std::strcmp(variant, "gc")
-        ? run<gc::tracked_ptr<Node>, gc::weak_ptr<Node>>(threads, op, [] { return gc::make_tracked<Node>(); })
         : run<std::shared_ptr<Node>, std::weak_ptr<Node>>(threads, op, [] { return std::make_shared<Node>(); });
     std::printf("%s threads=%d op=%s ns/op=%.2f\n", variant, threads, op, ns);
     return 0;

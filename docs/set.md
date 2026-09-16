@@ -4,14 +4,12 @@
 #include "sgcl/set.h"   // or "sgcl/sgcl.h"
 
 namespace sgcl {
-    template<class Key, class Compare = std::less<Key>, template<class> class Ptr = tracked_ptr>
+    template<class Key, class Compare = std::less<Key>>
     class set;
 }
 ```
 
 `sgcl::set<Key, Compare>` is `std::set` on a red-black tree whose nodes are managed objects: the same tree as [map](map.md), holding keys alone. The interface is the one of `std::set` (constructors, `insert`, `emplace`, `erase`, `extract`, `merge`, node handles, the lookups with transparent comparators, bidirectional iterators, `key_comp`/`value_comp`, `swap`, `==` and `<=>`, `std::erase_if`), and so is the behaviour: unique keys in `Compare` order, elements that cannot be modified through an iterator (`iterator` is `const_iterator`), an element destroyed the moment it is erased.
-
-`Ptr`, the last parameter, is the kind of the word by which the container holds its memory: `tracked_ptr` by default, so that the container lives where a `tracked_ptr` may (on a stack or inside a managed object), or [`gc::tracked_ptr`](gc/tracked_ptr.md), so that it lives anywhere, at the cost of a `gc::tracked_ptr` on each access to that word; `gc::set` ([gc/gc.h](README.md#the-gc-namespace)) names the latter. The nodes and buffers are the same managed objects either way, and the elements are a choice apart; an element type that names a `tracked_type` (`gc::tracked_ptr<T>` names `sgcl::tracked_ptr<T>`) is stored as that type, one word in the same mode, and handed out as the type it was given, so a container of `gc::tracked_ptr`s costs what one of `sgcl::tracked_ptr`s does ([the gc namespace](README.md#the-gc-namespace)).
 
 What differs from `std` is where the memory lives. The set object holds one `tracked_ptr` (to a header node), a count and the comparator, so it lives where a `tracked_ptr` may live; the nodes are managed objects linked by tracked pointers and traced from the header, so a `set<tracked_ptr<T>>` is a set of traced pointers (`tracked_ptr` compares with `<=>` and hashes, so it is a key as it is), and a cycle through a set is collected like any other. Nothing is freed by hand: an `erase` destroys the element and unlinks the node, the collector reclaims the node later. Iterators are one raw node pointer each, trivially copyable, storable anywhere, valid while their element is in the set. Lookups and iteration read raw pointers and pay no write barrier; insertions, erasures and rebalancing store tracked pointers and pay the barrier on each link they relink ([README: Containers](../README.md#containers)). The header is allocated on the first insertion: an empty set costs nothing.
 
@@ -62,11 +60,11 @@ set(set&& other) noexcept(std::is_nothrow_move_constructible_v<Compare>);
 The default constructor allocates nothing. The range and list constructors insert in order with `end()` as the hint (sorted input costs one comparison per element); duplicates are dropped. A copy has nodes of its own; a move takes the tree over and leaves `other` empty. A constructor or comparator that throws destroys the elements built so far.
 
 ```cpp
-gc::set<int> primes = {5, 3, 2, 7, 3};                          // 2 3 5 7
-gc::set<int, std::greater<int>> desc(std::greater<int>{});
+sgcl::set<int> primes = {5, 3, 2, 7, 3};                          // 2 3 5 7
+sgcl::set<int, std::greater<int>> desc(std::greater<int>{});
 std::vector<std::string> words = {"b", "a"};
-gc::set<std::string> from_range(words.begin(), words.end());    // a b
-gc::set<int> taken = std::move(primes);                         // primes is empty now
+sgcl::set<std::string> from_range(words.begin(), words.end());    // a b
+sgcl::set<int> taken = std::move(primes);                         // primes is empty now
 ```
 
 ### Destructor
@@ -88,7 +86,7 @@ set& operator=(std::initializer_list<value_type> ilist);
 Copy assignment clears this set (destroying its elements at once), takes `other`'s comparator and inserts copies; move assignment clears and takes the tree over; the list form clears and inserts.
 
 ```cpp
-gc::set<int> a = {1, 2}, b;
+sgcl::set<int> a = {1, 2}, b;
 b = a;
 b = {5, 6};                  // the old elements die here
 a = std::move(b);            // a is 5 6, b is empty
@@ -104,7 +102,7 @@ value_compare value_comp() const;
 Copies of the comparator (the same type for both, as in `std::set`).
 
 ```cpp
-gc::set<int> s = {1, 2};
+sgcl::set<int> s = {1, 2};
 bool less = s.value_comp()(*s.begin(), *s.rbegin());   // true
 ```
 
@@ -120,7 +118,7 @@ reverse_iterator rend() const noexcept;          const_reverse_iterator crend() 
 `iterator` and `const_iterator` are one type, yielding `const Key&`: a key is never modified in place. `begin()` is the smallest key in O(1), `--end()` the largest. Before the first insertion `begin()` and `end()` are both null iterators, equal to each other, neither of which may be dereferenced or moved; an `end()` taken then does not compare equal to `end()` after the first insertion. Iterators are raw node pointers: copying and advancing costs a load, and they may be kept in unmanaged memory (a `std::vector<iterator>`) while their element is in the set.
 
 ```cpp
-gc::set<std::string> s = {"b", "a", "c"};
+sgcl::set<std::string> s = {"b", "a", "c"};
 std::string joined;
 for (const auto& key : s) {             // a b c
     joined += key;
@@ -147,7 +145,7 @@ void clear() noexcept;
 Destroys every element at once and unlinks every node; the header stays. The nodes are reclaimed by the collector.
 
 ```cpp
-gc::set<std::string> s = {"a", "b"};
+sgcl::set<std::string> s = {"a", "b"};
 s.clear();                     // both strings are destroyed here
 bool gone = s.empty();         // true
 ```
@@ -168,12 +166,12 @@ iterator insert(const_iterator hint, node_type&& nh);
 As in `std::set`: the single-element forms return the element with the key and whether it was inserted, and nothing is built for a key already there. The hinted forms are O(1) amortized when the key belongs right before `hint`; an append in sorted order at `end()` costs one comparison. The range and list forms insert one by one with `end()` as the hint. The node-handle forms link the node of `nh` without copying the element: on success `nh` is empty afterwards; on a duplicate key the returned `node` (or `nh`, for the hinted form) keeps it and `position` is the element in the way. An empty handle inserts nothing (`position == end()`, `inserted == false`).
 
 ```cpp
-gc::set<std::string> s;
+sgcl::set<std::string> s;
 auto [it, inserted] = s.insert("a");                  // inserted: true
 inserted = s.insert("a").second;                      // false
 s.insert(s.end(), "z");                               // an append: one comparison
 s.insert({"b", "c"});
-gc::set<std::string> other = {"q"};
+sgcl::set<std::string> other = {"q"};
 auto r = s.insert(other.extract("q"));                // relinked, no copy: r.inserted is true
 ```
 
@@ -187,7 +185,7 @@ template<class... A> iterator emplace_hint(const_iterator hint, A&&... a);
 Builds the key from `a...` in a new node before its place is known, as in `std`; if the key is already there the new element is destroyed and the existing one returned. A comparator that throws destroys the new element and leaves the set as it was.
 
 ```cpp
-gc::set<std::string> s;
+sgcl::set<std::string> s;
 s.emplace(3, 'x');                          // "xxx"
 auto [it, fresh] = s.emplace("xxx");        // fresh: false
 s.emplace_hint(s.end(), "zzz");
@@ -204,7 +202,7 @@ size_type erase(const key_type& key);
 Destroys the element at once, unlinks the node (the collector reclaims it later) and returns the iterator after it. Erasing `[begin(), end())` is a `clear()`. The key form returns 0 or 1. There is no transparent `erase`.
 
 ```cpp
-gc::set<int> s = {1, 2, 3, 4};
+sgcl::set<int> s = {1, 2, 3, 4};
 s.erase(2);
 for (auto it = s.begin(); it != s.end();) {
     it = *it % 2 ? s.erase(it) : std::next(it);   // 1 and 3 go
@@ -222,7 +220,7 @@ friend void swap(set& lhs, set& rhs) noexcept(noexcept(lhs.swap(rhs)));   // fre
 Exchanges the trees, counts and comparators; no element is touched, and every iterator keeps pointing at its element, now in the other set.
 
 ```cpp
-gc::set<int> a = {1}, b = {2};
+sgcl::set<int> a = {1}, b = {2};
 auto it = a.begin();
 swap(a, b);                       // it still points at 1, which is in b now
 bool moved = it == b.begin();     // true
@@ -238,7 +236,7 @@ node_type extract(const key_type& key);
 Unlinks the node and hands it over in a node handle, the element untouched; the handle destroys the element if it dies unused. The key form returns an empty handle when the key is absent. See [node_type](#node_type-the-node-handle).
 
 ```cpp
-gc::set<std::string> s = {"a", "b"};
+sgcl::set<std::string> s = {"a", "b"};
 auto nh = s.extract("a");         // s holds "b"
 nh.value() += "!";                // the key may change outside a set
 s.insert(std::move(nh));          // "a!" "b"; no string was copied
@@ -247,15 +245,15 @@ s.insert(std::move(nh));          // "a!" "b"; no string was copied
 ### merge
 
 ```cpp
-template<class Traits2> void merge(detail::RbTree<Traits2>& source);    // any gc::set or multiset<Key, C2>
+template<class Traits2> void merge(detail::RbTree<Traits2>& source);    // any sgcl::set or multiset<Key, C2>
 template<class Traits2> void merge(detail::RbTree<Traits2>&& source);
 ```
 
 Relinks the nodes of `source` whose keys are not yet here into this set; a node whose key is already here stays in `source`. No element is copied or destroyed; iterators follow their nodes. `source` may be a `sgcl::set` or `sgcl::multiset` with the same `Key` and any comparator.
 
 ```cpp
-gc::set<int> a = {1, 3};
-gc::multiset<int> b = {2, 3, 3};
+sgcl::set<int> a = {1, 3};
+sgcl::multiset<int> b = {2, 3, 3};
 a.merge(b);                       // a: 1 2 3;  b keeps both 3s
 ```
 
@@ -273,7 +271,7 @@ template<class K> bool contains(const K& key) const;          //   "
 O(log n), reading raw pointers only. `count` is 0 or 1. The `K` overloads exist for a transparent comparator (`std::less<>`).
 
 ```cpp
-gc::set<std::string, std::less<>> s = {"apple"};
+sgcl::set<std::string, std::less<>> s = {"apple"};
 std::string_view key = "apple";
 bool has = s.contains(key);        // no std::string is built
 ```
@@ -292,7 +290,7 @@ template<class K> iterator upper_bound(const K& key) const;                     
 As in `std::set`: `lower_bound` is the first element not less than `key`, `upper_bound` the first greater, `equal_range` both.
 
 ```cpp
-gc::set<int> s = {10, 20, 30};
+sgcl::set<int> s = {10, 20, 30};
 auto from = s.lower_bound(15);    // 20
 auto to = s.upper_bound(25);      // 30
 auto between = std::distance(from, to);   // 1
@@ -308,7 +306,7 @@ friend auto operator<=>(const set& lhs, const set& rhs);
 Element-wise in order, as for `std::set`: `==` compares sizes first; `<=>` is lexicographical with the synthesized three-way comparison, so `!=`, `<`, `<=`, `>` and `>=` follow.
 
 ```cpp
-gc::set<int> a = {1, 2}, b = {1, 3};
+sgcl::set<int> a = {1, 2}, b = {1, 3};
 bool less = a < b;                                // true
 auto ord = a <=> b;                               // std::strong_ordering::less
 ```
@@ -352,7 +350,7 @@ namespace std { using sgcl::erase_if; }
 Erases every element for which `pred(*it)` is true and returns how many.
 
 ```cpp
-gc::set<int> s = {1, 2, 3, 4};
+sgcl::set<int> s = {1, 2, 3, 4};
 auto n = std::erase_if(s, [](int x) { return x % 2 == 0; });   // 2; s is 1 3
 ```
 
@@ -366,10 +364,10 @@ set(std::initializer_list<Key>, Compare = Compare()) -> set<Key, Compare>;
 ```
 
 ```cpp
-gc::set s = {3, 1, 2};                                // set<int>
+sgcl::set s = {3, 1, 2};                                // set<int>
 std::vector<std::string> src = {"b", "a"};
-gc::set from_range(src.begin(), src.end());           // set<std::string>
-gc::set greater({3, 1}, std::greater<int>());         // set<int, std::greater<int>>
+sgcl::set from_range(src.begin(), src.end());           // set<std::string>
+sgcl::set greater({3, 1}, std::greater<int>());         // set<int, std::greater<int>>
 ```
 
 From an iterator pair or an initializer list, as for `std::set`; an initializer list of a map spells its pairs out (`std::pair{1, 2.0}`), since a braced pair alone names no type.
@@ -383,21 +381,21 @@ From an iterator pair or an initializer list, as for `std::set`; an initializer 
 
 struct Node {
     std::string name;
-    gc::set<gc::tracked_ptr<Node>> peers;       // a set of traced pointers inside a managed object
+    sgcl::set<sgcl::tracked_ptr<Node>> peers;       // a set of traced pointers inside a managed object
 };
 
 int main() {
     // A graph whose edges are sets: each node is reachable from its peers
-    gc::tracked_ptr a = gc::make_tracked<Node>("a");
-    gc::tracked_ptr b = gc::make_tracked<Node>("b");
-    gc::tracked_ptr c = gc::make_tracked<Node>("c");
+    sgcl::tracked_ptr a = sgcl::make_tracked<Node>("a");
+    sgcl::tracked_ptr b = sgcl::make_tracked<Node>("b");
+    sgcl::tracked_ptr c = sgcl::make_tracked<Node>("c");
     a->peers.insert(b);
     b->peers.insert(a);                         // a cycle
     b->peers.insert(c);
     b->peers.insert(c);                         // a duplicate: nothing is inserted
 
     // A set of values on the stack: keys in order, each exactly once
-    gc::set<std::string> names;
+    sgcl::set<std::string> names;
     for (const auto& peer : b->peers) {         // pointers compare by address: any order
         names.insert(peer->name);
     }
@@ -414,8 +412,8 @@ int main() {
     a = b = c = nullptr;
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
-    gc::collector::force_collect(true);
-    std::cout << gc::collector::get_live_object_count() << " live objects\n";     // the header and three nodes of `names`
+    sgcl::collector::force_collect(true);
+    std::cout << sgcl::collector::get_live_object_count() << " live objects\n";     // the header and three nodes of `names`
     return node_count == 3 ? 0 : 1;
 }
 ```

@@ -20,19 +20,18 @@ namespace sgcl {
     // the entry; a value holding a strong pointer to its own key keeps
     // the key alive, and the entry with it. The sweeps run every so many
     // insertions, as many as the map has entries, and on sweep(); size()
-    // counts the entries a sweep has not yet dropped. Ptr is the kind of
-    // the map's pointers, and so where the map lives: tracked_ptr on a
-    // stack or in a managed object, gc::tracked_ptr (gc::weak_map)
-    // anywhere. weak_multimap holds several values per object.
-    template<class Key, class T, template<class> class Ptr = tracked_ptr>
-    class weak_map : public detail::WeakTable<Key, unordered_map<weak_ptr<Key, Ptr>, T, detail::WeakHash<Key, Ptr>, detail::WeakEqual<Key, Ptr>, Ptr>, Ptr> {
-        using Base = detail::WeakTable<Key, unordered_map<weak_ptr<Key, Ptr>, T, detail::WeakHash<Key, Ptr>, detail::WeakEqual<Key, Ptr>, Ptr>, Ptr>;
+    // counts the entries a sweep has not yet dropped. The map lives where
+    // a tracked_ptr may: on a stack or in a managed object. weak_multimap
+    // holds several values per object.
+    template<class Key, class T>
+    class weak_map : public detail::WeakTable<Key, unordered_map<weak_ptr<Key>, T, detail::WeakHash<Key>, detail::WeakEqual<Key>>> {
+        using Base = detail::WeakTable<Key, unordered_map<weak_ptr<Key>, T, detail::WeakHash<Key>, detail::WeakEqual<Key>>>;
         using Table = typename Base::table_type;
         using Base::_table;
 
     public:
         using key_type = Key;
-        using key_pointer = Ptr<Key>;
+        using key_pointer = tracked_ptr<Key>;
         using mapped_type = T;
         using size_type = size_t;
 
@@ -44,7 +43,7 @@ namespace sgcl {
                 return {object, entry.second};
             }
         };
-        using iterator = detail::WeakIterator<typename Table::iterator, Key, Ptr, reference>;
+        using iterator = detail::WeakIterator<typename Table::iterator, Key, reference>;
 
         weak_map() = default;
 
@@ -67,7 +66,7 @@ namespace sgcl {
             assert(object && "a weak_map has no entry for a null pointer");
             auto it = _table.find(object);
             if (it == _table.end()) {
-                it = _table.emplace(weak_ptr<Key, Ptr>(object), T()).first;
+                it = _table.emplace(weak_ptr<Key>(object), T()).first;
                 this->_inserted_one();
             }
             return it->second;
@@ -81,7 +80,7 @@ namespace sgcl {
             if (it != _table.end()) {
                 return {iterator(it, _table.end()), false};
             }
-            it = _table.emplace(weak_ptr<Key, Ptr>(object), T(std::forward<A>(a)...)).first;
+            it = _table.emplace(weak_ptr<Key>(object), T(std::forward<A>(a)...)).first;
             this->_inserted_one();
             return {iterator(it, _table.end()), true};
         }
@@ -111,15 +110,15 @@ namespace sgcl {
         using Base::erase;
     };
 
-    template<class Key, class T, template<class> class Ptr = tracked_ptr>
-    class weak_multimap : public detail::WeakTable<Key, unordered_multimap<weak_ptr<Key, Ptr>, T, detail::WeakHash<Key, Ptr>, detail::WeakEqual<Key, Ptr>, Ptr>, Ptr> {
-        using Base = detail::WeakTable<Key, unordered_multimap<weak_ptr<Key, Ptr>, T, detail::WeakHash<Key, Ptr>, detail::WeakEqual<Key, Ptr>, Ptr>, Ptr>;
+    template<class Key, class T>
+    class weak_multimap : public detail::WeakTable<Key, unordered_multimap<weak_ptr<Key>, T, detail::WeakHash<Key>, detail::WeakEqual<Key>>> {
+        using Base = detail::WeakTable<Key, unordered_multimap<weak_ptr<Key>, T, detail::WeakHash<Key>, detail::WeakEqual<Key>>>;
         using Table = typename Base::table_type;
         using Base::_table;
 
     public:
         using key_type = Key;
-        using key_pointer = Ptr<Key>;
+        using key_pointer = tracked_ptr<Key>;
         using mapped_type = T;
         using size_type = size_t;
 
@@ -130,7 +129,7 @@ namespace sgcl {
                 return {object, entry.second};
             }
         };
-        using iterator = detail::WeakIterator<typename Table::iterator, Key, Ptr, reference>;
+        using iterator = detail::WeakIterator<typename Table::iterator, Key, reference>;
 
         weak_multimap() = default;
 
@@ -160,7 +159,7 @@ namespace sgcl {
         template<class... A>
         iterator emplace(const key_pointer& object, A&&... a) {
             assert(object && "a weak_multimap has no entry for a null pointer");
-            auto it = _table.emplace(weak_ptr<Key, Ptr>(object), T(std::forward<A>(a)...));
+            auto it = _table.emplace(weak_ptr<Key>(object), T(std::forward<A>(a)...));
             this->_inserted_one();
             return iterator(it, _table.end());
         }

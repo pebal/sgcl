@@ -4,9 +4,9 @@
 #include "sgcl/weak_map.h"   // or "sgcl/sgcl.h"
 
 namespace sgcl {
-    template<class Key, class T, template<class> class Ptr = tracked_ptr>
+    template<class Key, class T>
     class weak_map;
-    template<class Key, class T, template<class> class Ptr = tracked_ptr>
+    template<class Key, class T>
     class weak_multimap;
 }
 ```
@@ -15,11 +15,9 @@ namespace sgcl {
 
 The entries are hashed and compared by the object's address, which the weak pointer's cell holds while the object lives and the collector clears before the address can be handed out again (the weak phase runs before the sweep that frees the slot: [Weak pointers](../README.md#weak-pointers)). So a dead entry equals nothing, its own key included, and can neither be found nor block the entry of the object that takes the slot next. Dead entries are swept out every so many insertions, as many as the map has entries, so that a pass costs less than the insertions that paid for it, and on `sweep()`; `size()` counts the entries a sweep has not yet dropped. The values are the map's own, destroyed with the entry. A value holding a strong pointer to its own key keeps the key alive, and the entry with it: the map has no ephemerons.
 
-`Ptr`, the last parameter, is the kind of the map's pointers: the weak pointers of the keys, the strong pointers the iteration hands out, the word by which the underlying hash table holds its memory, and so where the map lives: `tracked_ptr` by default, on a stack or inside a managed object; [`gc::tracked_ptr`](gc/tracked_ptr.md) anywhere, at the cost of a `gc::tracked_ptr` on each access; `gc::weak_map` and `gc::weak_multimap` ([gc/gc.h](README.md#the-gc-namespace)) name the latter.
-
 ## Rules
 
-- A `weak_map` holds tracked pointers, so it lives on a stack or inside a managed object; a `gc::weak_map` lives anywhere ([The rules](../README.md#the-rules), 1).
+- A `weak_map` holds tracked pointers, so it lives on a stack or inside a managed object ([The rules](../README.md#the-rules), 1).
 - The values may be, or hold, tracked pointers: the nodes are managed objects. A value that reaches its own key keeps the key, and so the entry, alive for as long as the entry is in the map.
 - An entry is dead once a cycle has found its object unreachable; between the object becoming unreachable and that cycle, it is found and visited like any other: the lag of any garbage collector.
 - The iteration hands out the object as a strong pointer, held while the iterator stands on the entry: the entry cannot die under it. An iterator is a tracked object then, and lives where the map's pointers may.
@@ -32,9 +30,9 @@ The entries are hashed and compared by the object's address, which the weak poin
 
 ```cpp
 using key_type = Key;
-using key_pointer = Ptr<Key>;               // tracked_ptr<Key>, or gc::tracked_ptr<Key>
+using key_pointer = tracked_ptr<Key>;               // tracked_ptr<Key>, or sgcl::tracked_ptr<Key>
 using mapped_type = T;
-using weak_type = weak_ptr<Key, Ptr>;
+using weak_type = weak_ptr<Key>;
 using size_type = size_t;
 struct reference { key_pointer key; T& value; };   // what an iterator gives out
 using iterator = /* forward iterator over the live entries */;
@@ -62,10 +60,10 @@ The live entries, in no particular order, each once; the dead ones are passed ov
 
 ```cpp
 struct Node { int value; };
-gc::weak_map<Node, std::string> names;
-gc::tracked_ptr node = gc::make_tracked<Node>(1);
+sgcl::weak_map<Node, std::string> names;
+sgcl::tracked_ptr node = sgcl::make_tracked<Node>(1);
 names[node] = "one";
-for (auto [key, value] : names) {   // key: gc::tracked_ptr<Node>, value: std::string&
+for (auto [key, value] : names) {   // key: sgcl::tracked_ptr<Node>, value: std::string&
     std::cout << key->value << ' ' << value << '\n';
 }
 ```
@@ -89,7 +87,7 @@ T& operator[](const key_pointer& object);
 The value of the object, a `T()` made and inserted if the object has none. A null pointer is not an object (debug builds assert).
 
 ```cpp
-gc::weak_map<Node, int> visits;
+sgcl::weak_map<Node, int> visits;
 visits[node] += 1;
 ```
 
@@ -159,17 +157,17 @@ struct Node {
 int main() {
     // Metadata attached to any object, as many strings as needed: the map
     // holds its objects weakly, and the entries die with the object.
-    gc::weak_multimap<Node, std::string> meta;   // lives anywhere, as every gc type
+    sgcl::weak_multimap<Node, std::string> meta;   // on the stack, as any tracked pointer
     {
-        gc::tracked_ptr node = gc::make_tracked<Node>(42);
+        sgcl::tracked_ptr node = sgcl::make_tracked<Node>(42);
         meta.insert(node, "created by the parser");
         meta.insert(node, "checked");
         for (auto [first, last] = meta.equal_range(node); first != last; ++first) {
             std::cout << first->key->value << ": " << first->value << "\n";
         }
     }   // the last strong pointer is gone
-    gc::collector::clear_stack();          // the dead frame zeroed, so that the conservative scan keeps nothing
-    gc::collector::force_collect(true);    // optional, for the demonstration: the cycle clears the key
+    sgcl::collector::clear_stack();          // the dead frame zeroed, so that the conservative scan keeps nothing
+    sgcl::collector::force_collect(true);    // optional, for the demonstration: the cycle clears the key
     std::cout << meta.size() << " entries, " << meta.sweep() << " swept, " << meta.size() << " left\n";
 }
 ```

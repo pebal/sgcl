@@ -9,7 +9,6 @@
 #include "atomic.h"
 #include "config.h"
 #include "detail/backoff.h"
-#include "detail/managed.h"
 #include "make_tracked.h"
 #include "tracked_ptr.h"
 
@@ -24,8 +23,8 @@ namespace sgcl {
     // holds it, so there is no ABA, no hazard pointer to publish, no epoch
     // to enter and no reclamation scheme of any kind in this file. The
     // container holds one word, the atomic head; it lives where a
-    // tracked_ptr may (on a stack or inside a managed object), and the
-    // gc:: one (gc/gc.h) anywhere. The nodes are managed objects, linked
+    // tracked_ptr may (on a stack or inside a managed object). The nodes
+    // are managed objects, linked
     // by plain tracked_ptrs: a node's link is written once, before the node
     // is published by the compare-exchange, and read after an acquire load
     // of the head. An element is moved out of its node by the thread that
@@ -39,12 +38,8 @@ namespace sgcl {
     // word the retries of many threads otherwise cost more than the
     // operations, and the backoff turns the storm back into a queue of
     // near-serial exchanges.
-    template<class V, template<class> class Ptr>
+    template<class T>
     class concurrent_stack {
-        // What a node holds (vector.h, detail/managed.h): V, or the word V
-        // names as its tracked_type; the interface is V
-        using T = detail::managed_t<V>;
-
         struct Node {
             template<class... A>
             explicit Node(std::in_place_t, A&&... a)
@@ -56,18 +51,18 @@ namespace sgcl {
         };
 
     public:
-        using value_type = V;
+        using value_type = T;
         using size_type = size_t;
 
         concurrent_stack() noexcept = default;
         concurrent_stack(const concurrent_stack&) = delete;
         concurrent_stack& operator=(const concurrent_stack&) = delete;
 
-        void push(const V& value) {
+        void push(const T& value) {
             emplace(value);
         }
 
-        void push(V&& value) {
+        void push(T&& value) {
             emplace(std::move(value));
         }
 
@@ -84,7 +79,7 @@ namespace sgcl {
 
         // The top element, or nothing when the stack is empty at the
         // moment of the load.
-        optional<V> try_pop() {
+        optional<T> try_pop() {
             tracked_ptr<Node> node = _head.load(std::memory_order_acquire);
             detail::Backoff backoff;
             while (node && !_head.compare_exchange_weak(node, node->next, std::memory_order_acquire, std::memory_order_acquire)) {
@@ -93,13 +88,13 @@ namespace sgcl {
             if (!node) {
                 return nullopt;
             }
-            optional<V> value(std::in_place, std::move(*node->value));
+            optional<T> value(std::in_place, std::move(*node->value));
             node->value.reset();
             return value;
         }
 
         // The top element, waiting for one when the stack is empty
-        V pop() {
+        T pop() {
             for (;;) {
                 if (auto value = try_pop()) {
                     return std::move(*value);
@@ -135,6 +130,6 @@ namespace sgcl {
         }
 
     private:
-        atomic<Ptr<Node>> _head;
+        atomic<tracked_ptr<Node>> _head;
     };
 }

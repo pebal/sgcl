@@ -5,7 +5,6 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "detail/managed.h"
 #include "detail/synth_three_way.h"
 #include "make_tracked.h"
 #include "tracked_ptr.h"
@@ -103,12 +102,8 @@ namespace sgcl {
     // references valid but invalidates iterators, and any other insertion
     // or erasure invalidates both; an invalid iterator must not be used,
     // as in std.
-    template<class V, template<class> class Ptr>
+    template<class T>
     class deque {
-        // What the blocks hold (vector.h, detail/managed.h): V, or the word
-        // V names as its tracked_type; the interface is V
-        using T = detail::managed_t<V>;
-
         static constexpr size_t BlockSize = std::bit_floor(std::max<size_t>(1, 4096 / sizeof(T)));
 
         using Block = detail::DequeBlock<T, BlockSize>;
@@ -261,19 +256,19 @@ namespace sgcl {
             }
 
             template<class> friend class Iterator;
-            template<class, template<class> class> friend class deque;
+            template<class> friend class deque;
         };
 
     public:
-        using value_type = V;
+        using value_type = T;
         using size_type = size_t;
         using difference_type = ptrdiff_t;
-        using reference = V&;
-        using const_reference = const V&;
-        using pointer = V*;
-        using const_pointer = const V*;
-        using iterator = Iterator<V>;
-        using const_iterator = Iterator<const V>;
+        using reference = T&;
+        using const_reference = const T&;
+        using pointer = T*;
+        using const_pointer = const T*;
+        using iterator = Iterator<T>;
+        using const_iterator = Iterator<const T>;
         using reverse_iterator = std::reverse_iterator<iterator>;
         using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
@@ -294,7 +289,7 @@ namespace sgcl {
             }
         }
 
-        deque(size_type count, const V& value)
+        deque(size_type count, const T& value)
         : deque() {
             try {
                 assign(count, value);
@@ -317,7 +312,7 @@ namespace sgcl {
             }
         }
 
-        deque(std::initializer_list<V> ilist)
+        deque(std::initializer_list<T> ilist)
         : deque(ilist.begin(), ilist.end()) {
         }
 
@@ -368,12 +363,12 @@ namespace sgcl {
             return *this;
         }
 
-        deque& operator=(std::initializer_list<V> ilist) {
+        deque& operator=(std::initializer_list<T> ilist) {
             assign(ilist);
             return *this;
         }
 
-        void assign(size_type count, const V& value) {
+        void assign(size_type count, const T& value) {
             size_type i = 0;
             for (; i < count && i < _size; ++i) {
                 _elem(i) = value;
@@ -400,7 +395,7 @@ namespace sgcl {
             }
         }
 
-        void assign(std::initializer_list<V> ilist) {
+        void assign(std::initializer_list<T> ilist) {
             assign(ilist.begin(), ilist.end());
         }
 
@@ -529,15 +524,15 @@ namespace sgcl {
             _size = 0;
         }
 
-        iterator insert(const_iterator pos, const V& value) {
+        iterator insert(const_iterator pos, const T& value) {
             return emplace(pos, value);
         }
 
-        iterator insert(const_iterator pos, V&& value) {
+        iterator insert(const_iterator pos, T&& value) {
             return emplace(pos, std::move(value));
         }
 
-        iterator insert(const_iterator pos, size_type count, const V& value) {
+        iterator insert(const_iterator pos, size_type count, const T& value) {
             size_type index = pos._index - _start;
             if (!count) {
                 return begin() + index;
@@ -585,7 +580,7 @@ namespace sgcl {
             }
         }
 
-        iterator insert(const_iterator pos, std::initializer_list<V> ilist) {
+        iterator insert(const_iterator pos, std::initializer_list<T> ilist) {
             return insert(pos, ilist.begin(), ilist.end());
         }
 
@@ -639,11 +634,11 @@ namespace sgcl {
             return begin() + index;
         }
 
-        void push_back(const V& value) {
+        void push_back(const T& value) {
             emplace_back(value);
         }
 
-        void push_back(V&& value) {
+        void push_back(T&& value) {
             emplace_back(std::move(value));
         }
 
@@ -687,11 +682,11 @@ namespace sgcl {
             }
         }
 
-        void push_front(const V& value) {
+        void push_front(const T& value) {
             emplace_front(value);
         }
 
-        void push_front(V&& value) {
+        void push_front(T&& value) {
             emplace_front(std::move(value));
         }
 
@@ -755,7 +750,7 @@ namespace sgcl {
         }
 
     private:
-        Ptr<BlockPtr> _map;   // the root: a tracked_ptr, or a gc::tracked_ptr for a deque that lives anywhere
+        tracked_ptr<BlockPtr> _map;   // the root
         size_t _map_size;   // entries in the map, not counting the null one past them
         size_t _start;      // slot index of the first element, at most _map_size * BlockSize
         size_t _size;
@@ -765,16 +760,11 @@ namespace sgcl {
             return _map.get()[index / BlockSize].get()->elems[index % BlockSize];
         }
 
-        // The element as the interface sees it: V over T, one word each
-        V& _value(size_type i) const noexcept {
-            return reinterpret_cast<V&>(_elem(i));
+        T& _value(size_type i) const noexcept {
+            return _elem(i);
         }
 
-        static V& _value(T& e) noexcept {
-            return reinterpret_cast<V&>(e);
-        }
-
-        static V& _value(V& e) noexcept requires (!std::is_same_v<T, V>) {
+        static T& _value(T& e) noexcept {
             return e;
         }
 
@@ -983,27 +973,27 @@ namespace sgcl {
         }
     };
 
-    template<class T, template<class> class Ptr>
-    class deque<unique_ptr<T>, Ptr> : public std::deque<unique_ptr<T>> {
+    template<class T>
+    class deque<unique_ptr<T>> : public std::deque<unique_ptr<T>> {
     public:
         using std::deque<unique_ptr<T>>::deque;
     };
 
-    template<class T, template<class> class Ptr>
-    inline void swap(deque<T, Ptr>& lhs, deque<T, Ptr>& rhs) noexcept {
+    template<class T>
+    inline void swap(deque<T>& lhs, deque<T>& rhs) noexcept {
         lhs.swap(rhs);
     }
 
-    template<class T, template<class> class Ptr, class Pred>
-    inline typename deque<T, Ptr>::size_type erase_if(deque<T, Ptr>& c, Pred pred) {
+    template<class T, class Pred>
+    inline typename deque<T>::size_type erase_if(deque<T>& c, Pred pred) {
         auto it = std::remove_if(c.begin(), c.end(), pred);
         auto removed = c.end() - it;
         c.erase(it, c.end());
         return removed;
     }
 
-    template<class T, template<class> class Ptr, class U>
-    inline typename deque<T, Ptr>::size_type erase(deque<T, Ptr>& c, const U& value) {
+    template<class T, class U>
+    inline typename deque<T>::size_type erase(deque<T>& c, const U& value) {
         return erase_if(c, [&value](const T& v) { return v == value; });
     }
 }

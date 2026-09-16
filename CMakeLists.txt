@@ -10,12 +10,12 @@ option(SGCL_BUILD_BENCHMARKS "Build benchmarks (always optimized)" ON)
 set(SGCL_SANITIZER "" CACHE STRING "Sanitizer for tests/examples: address, thread or empty")
 set_property(CACHE SGCL_SANITIZER PROPERTY STRINGS "" address thread)
 
-file(GLOB_RECURSE SGCL_SOURCES "sgcl/*.h" "gc/*.h")
+file(GLOB_RECURSE SGCL_SOURCES "sgcl/*.h")
 add_library(sgcl INTERFACE
     ${SGCL_SOURCES}
 )
 
-# The include path is the tree's root: "sgcl/sgcl.h", "gc/gc.h". Not the
+# The include path is the tree's root: "sgcl/sgcl.h". Not the
 # sgcl directory itself, whose headers are named after their std
 # counterparts (string.h among them) and would shadow the C headers.
 target_include_directories(sgcl INTERFACE
@@ -30,11 +30,6 @@ install(DIRECTORY sgcl/
 
 install(DIRECTORY sgcl/detail/
     DESTINATION include/sgcl/detail
-    FILES_MATCHING PATTERN "*.h"
-)
-
-install(DIRECTORY gc/
-    DESTINATION include/gc
     FILES_MATCHING PATTERN "*.h"
 )
 

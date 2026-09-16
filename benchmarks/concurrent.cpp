@@ -13,10 +13,10 @@
 // ConcurrentSkipListSet and ConcurrentHashMap). An element is an Item
 // object of one long: what the containers hold in every language, a
 // pointer to an object; the set holds the longs.
-//   concurrent <queue|stack> <sgcl|gc|mutex|shared> [threads=4] [mode=mixed] [n=200000]
-//   concurrent <map|umap|set> <sgcl|gc|mutex|rwlock> [threads=4] [keys=200000] [n=200000]
-//   concurrent cow <sgcl|gc|shared|rwlock> [threads=16] [n=2000000]
-//   concurrent chan <sgcl|gc|mutex> [threads=4] [capacity=64] [n=200000]
+//   concurrent <queue|stack> <sgcl|mutex|shared> [threads=4] [mode=mixed] [n=200000]
+//   concurrent <map|umap|set> <sgcl|mutex|rwlock> [threads=4] [keys=200000] [n=200000]
+//   concurrent cow <sgcl|shared|rwlock> [threads=16] [n=2000000]
+//   concurrent chan <sgcl|mutex> [threads=4] [capacity=64] [n=200000]
 // queue, stack: mixed, every thread pushes an item and pops one, n times
 // over; pairs, half the threads push n items each, the other half pop n
 // each. mutex: the std container of shared_ptr under a std::mutex, the
@@ -66,10 +66,8 @@ namespace {
         long value;
     };
 
-    // Ptr: sgcl::tracked_ptr, or gc::tracked_ptr for the gc variant
-    template<template<class> class Ptr>
     struct SgclQueue {
-        sgcl::concurrent_queue<Ptr<Item>, Ptr> q;
+        sgcl::concurrent_queue<sgcl::tracked_ptr<Item>> q;
         void push(long v) {
             q.emplace(sgcl::make_tracked<Item>(v));
         }
@@ -79,9 +77,8 @@ namespace {
         }
     };
 
-    template<template<class> class Ptr>
     struct SgclStack {
-        sgcl::concurrent_stack<Ptr<Item>, Ptr> s;
+        sgcl::concurrent_stack<sgcl::tracked_ptr<Item>> s;
         void push(long v) {
             s.emplace(sgcl::make_tracked<Item>(v));
         }
@@ -91,9 +88,8 @@ namespace {
         }
     };
 
-    template<template<class> class Ptr>
     struct SgclMap {
-        sgcl::concurrent_map<long, Ptr<Item>, std::less<long>, Ptr> m;
+        sgcl::concurrent_map<long, sgcl::tracked_ptr<Item>> m;
         bool insert(long k) {
             return m.try_emplace(k, sgcl::make_tracked<Item>(k)).second;
         }
@@ -225,9 +221,8 @@ namespace {
         }
     };
 
-    template<template<class> class Ptr>
     struct SgclUmap {
-        sgcl::concurrent_unordered_map<long, Ptr<Item>, std::hash<long>, std::equal_to<long>, Ptr> m;
+        sgcl::concurrent_unordered_map<long, sgcl::tracked_ptr<Item>> m;
         bool insert(long k) {
             return m.try_emplace(k, sgcl::make_tracked<Item>(k)).second;
         }
@@ -240,9 +235,8 @@ namespace {
         }
     };
 
-    template<template<class> class Ptr>
     struct SgclSet {
-        sgcl::concurrent_set<long, std::less<long>, Ptr> s;
+        sgcl::concurrent_set<long> s;
         bool insert(long k) {
             return s.insert(k).second;
         }
@@ -302,9 +296,8 @@ namespace {
 
     using Values = std::array<long, 64>;
 
-    template<template<class> class Ptr>
     struct SgclCow {
-        sgcl::copy_on_write<Values, Ptr> v;
+        sgcl::copy_on_write<Values> v;
         SgclCow() : v(Values{}) {}
         long read() {
             auto s = v.load();
@@ -363,8 +356,8 @@ namespace {
     void run_cow(int threads, long n) {
         C c;
         std::vector<std::thread> ws;
-        gc::atomic<bool> stop = {false};
-        gc::atomic<long> writes = {0};
+        sgcl::atomic<bool> stop = {false};
+        sgcl::atomic<long> writes = {0};
         double write_time = 0;
         auto t0 = bench::Clock::now();
         for (int t = 0; t < threads - 1; ++t) {
@@ -397,9 +390,8 @@ namespace {
         std::printf("cow threads=%d ns/read=%.1f ns/write=%.1f writes=%ld reads/s=%.0f wall=%.2fs cpu=%.2fs\n", threads, wall * 1e9 / reads, writes ? write_time * 1e9 / (double)writes : 0.0, writes.load(), reads / wall, wall, bench::cpu_seconds());
     }
 
-    template<template<class> class Ptr>
     struct SgclChan {
-        sgcl::channel<Ptr<Item>, Ptr> ch;
+        sgcl::channel<sgcl::tracked_ptr<Item>> ch;
         explicit SgclChan(size_t cap) : ch(cap) {}
         void send(long v) {
             ch.send(sgcl::make_tracked<Item>(v));
@@ -455,7 +447,7 @@ namespace {
         C c(cap);
         int producers = std::max(1, threads / 2), consumers = std::max(1, threads / 2);
         std::vector<std::thread> ws;
-        gc::atomic<int> done = {0};
+        sgcl::atomic<int> done = {0};
         auto t0 = bench::Clock::now();
         for (int t = 0; t < producers; ++t) {
             ws.emplace_back([&] {
@@ -650,17 +642,15 @@ int main(int argc, char** argv) {
     std::string v = argc > 2 ? argv[2] : "";
     int threads = argc > 3 ? std::atoi(argv[3]) : 4;
     if (what == "map" || what == "umap" || what == "set") {
-        if (!bench::has_variant(v.c_str(), {"sgcl", "gc", "mutex", "rwlock"})) {
-            std::fprintf(stderr, "usage: concurrent <map|umap|set> <sgcl|gc|mutex|rwlock> [threads] [keys] [n]\n");
+        if (!bench::has_variant(v.c_str(), {"sgcl", "mutex", "rwlock"})) {
+            std::fprintf(stderr, "usage: concurrent <map|umap|set> <sgcl|mutex|rwlock> [threads] [keys] [n]\n");
             return 2;
         }
         long keys = argc > 4 ? std::atol(argv[4]) : 200'000;
         long n = argc > 5 ? std::atol(argv[5]) : 200'000;
         if (what == "map") {
             if (v == "sgcl") {
-                run_map<SgclMap<sgcl::tracked_ptr>>("map", threads, keys, n);
-            } else if (v == "gc") {
-                run_map<SgclMap<gc::tracked_ptr>>("map", threads, keys, n);
+                run_map<SgclMap>("map", threads, keys, n);
             } else if (v == "mutex") {
                 run_map<MutexMap>("map", threads, keys, n);
             } else {
@@ -668,9 +658,7 @@ int main(int argc, char** argv) {
             }
         } else if (what == "umap") {
             if (v == "sgcl") {
-                run_map<SgclUmap<sgcl::tracked_ptr>>("umap", threads, keys, n);
-            } else if (v == "gc") {
-                run_map<SgclUmap<gc::tracked_ptr>>("umap", threads, keys, n);
+                run_map<SgclUmap>("umap", threads, keys, n);
             } else if (v == "mutex") {
                 run_map<Locked<std::unordered_map<long, std::shared_ptr<Item>>, std::mutex, Exclusive>>("umap", threads, keys, n);
             } else {
@@ -678,9 +666,7 @@ int main(int argc, char** argv) {
             }
         } else {
             if (v == "sgcl") {
-                run_map<SgclSet<sgcl::tracked_ptr>>("set", threads, keys, n);
-            } else if (v == "gc") {
-                run_map<SgclSet<gc::tracked_ptr>>("set", threads, keys, n);
+                run_map<SgclSet>("set", threads, keys, n);
             } else if (v == "mutex") {
                 run_map<Locked<std::set<long>, std::mutex, Exclusive>>("set", threads, keys, n);
             } else {
@@ -690,32 +676,28 @@ int main(int argc, char** argv) {
         return 0;
     }
     if (what == "chan") {
-        if (!bench::has_variant(v.c_str(), {"sgcl", "gc", "mutex"})) {
-            std::fprintf(stderr, "usage: concurrent chan <sgcl|gc|mutex> [threads] [capacity] [n]\n");
+        if (!bench::has_variant(v.c_str(), {"sgcl", "mutex"})) {
+            std::fprintf(stderr, "usage: concurrent chan <sgcl|mutex> [threads] [capacity] [n]\n");
             return 2;
         }
         size_t cap = argc > 4 ? (size_t)std::atol(argv[4]) : 64;
         long n = argc > 5 ? std::atol(argv[5]) : 200'000;
         if (v == "sgcl") {
-            run_chan<SgclChan<sgcl::tracked_ptr>>(threads, cap, n);
-        } else if (v == "gc") {
-            run_chan<SgclChan<gc::tracked_ptr>>(threads, cap, n);
+            run_chan<SgclChan>(threads, cap, n);
         } else {
             run_chan<MutexChan>(threads, cap, n);
         }
         return 0;
     }
     if (what == "cow") {
-        if (!bench::has_variant(v.c_str(), {"sgcl", "gc", "shared", "rwlock"})) {
-            std::fprintf(stderr, "usage: concurrent cow <sgcl|gc|shared|rwlock> [threads] [n]\n");
+        if (!bench::has_variant(v.c_str(), {"sgcl", "shared", "rwlock"})) {
+            std::fprintf(stderr, "usage: concurrent cow <sgcl|shared|rwlock> [threads] [n]\n");
             return 2;
         }
         int t = argc > 3 ? std::atoi(argv[3]) : 16;
         long n = argc > 4 ? std::atol(argv[4]) : 2'000'000;
         if (v == "sgcl") {
-            run_cow<SgclCow<sgcl::tracked_ptr>>(t, n);
-        } else if (v == "gc") {
-            run_cow<SgclCow<gc::tracked_ptr>>(t, n);
+            run_cow<SgclCow>(t, n);
         } else if (v == "shared") {
             run_cow<SharedCow>(t, n);
         } else {
@@ -725,17 +707,15 @@ int main(int argc, char** argv) {
     }
     std::string mode = argc > 4 ? argv[4] : "mixed";
     long n = argc > 5 ? std::atol(argv[5]) : 200'000;
-    if ((what != "queue" && what != "stack") || !bench::has_variant(v.c_str(), {"sgcl", "gc", "mutex", "shared"})
+    if ((what != "queue" && what != "stack") || !bench::has_variant(v.c_str(), {"sgcl", "mutex", "shared"})
         || (mode != "mixed" && mode != "pairs") || (mode == "pairs" && threads % 2)) {
-        std::fprintf(stderr, "usage: concurrent <queue|stack> <sgcl|gc|mutex|shared> [threads] [mixed|pairs (an even number of threads)] [n]\n"
-                             "       concurrent map <sgcl|gc|mutex|rwlock> [threads] [keys] [n]\n");
+        std::fprintf(stderr, "usage: concurrent <queue|stack> <sgcl|mutex|shared> [threads] [mixed|pairs (an even number of threads)] [n]\n"
+                             "       concurrent map <sgcl|mutex|rwlock> [threads] [keys] [n]\n");
         return 2;
     }
     if (what == "queue") {
         if (v == "sgcl") {
-            run_container<SgclQueue<sgcl::tracked_ptr>>("queue", threads, mode, n);
-        } else if (v == "gc") {
-            run_container<SgclQueue<gc::tracked_ptr>>("queue", threads, mode, n);
+            run_container<SgclQueue>("queue", threads, mode, n);
         } else if (v == "mutex") {
             run_container<MutexQueue>("queue", threads, mode, n);
         } else {
@@ -743,9 +723,7 @@ int main(int argc, char** argv) {
         }
     } else {
         if (v == "sgcl") {
-            run_container<SgclStack<sgcl::tracked_ptr>>("stack", threads, mode, n);
-        } else if (v == "gc") {
-            run_container<SgclStack<gc::tracked_ptr>>("stack", threads, mode, n);
+            run_container<SgclStack>("stack", threads, mode, n);
         } else if (v == "mutex") {
             run_container<MutexStack>("stack", threads, mode, n);
         } else {

@@ -13,23 +13,19 @@
 #include <atomic>
 
 namespace sgcl::detail {
-    // The operations of an atomic tracked word, for the four atomics
-    // (atomic.h, atomic_ref.h): Derived supplies the word (_ptr(), a
-    // detail::Pointer&), and Value is the type the operations return
-    // outside, tracked_ptr<T> or gc::tracked_ptr<T> (a parameter, not
-    // Derived::value_type: Derived is incomplete where the base is
-    // instantiated). Inside, sgcl::tracked_ptr only: a value passed is
-    // taken by value, a copy on the stack that roots the target for the
-    // length of the call (a gc::tracked_ptr argument converts to the word
-    // it holds and is copied from it, with no check of a location); an
-    // expected value binds as the word the caller's pointer holds its
-    // object by, wherever that pointer is; _load builds the value on the
-    // stack under the hazard pointer, as an sgcl::tracked_ptr without a
-    // check, or, for load(), as the Value itself (one construction, with
-    // the check of a gc::tracked_ptr where Value is one). No ABA: a node
-    // is never reused while a thread holds it.
-    template<class Derived, class T, class Value>
+    // The operations of an atomic tracked word, for the atomics (atomic.h,
+    // atomic_ref.h): Derived supplies the word (_ptr(), a detail::Pointer&),
+    // and the operations take and return a tracked_ptr<T>: a value passed
+    // is taken by value, a copy on the stack that roots the target for
+    // the length of the call; an expected value binds as the word the
+    // caller's pointer holds its object by (a root_ptr converts to it,
+    // root_ptr.h); _load builds the value on the stack under the hazard
+    // pointer, as a tracked_ptr without a check. No ABA: a node is never
+    // reused while a thread holds it.
+    template<class Derived, class T>
     class AtomicWord {
+        using Value = tracked_ptr<T>;
+
     public:
         static constexpr bool is_always_lock_free = RawPointer::is_always_lock_free;
 
@@ -40,7 +36,7 @@ namespace sgcl::detail {
         }
 
         Value load(const std::memory_order m = std::memory_order_seq_cst) const noexcept {
-            return _load<Value>(m);
+            return _load(m);
         }
 
         operator Value() const noexcept {
@@ -152,10 +148,8 @@ namespace sgcl::detail {
         // that the collector, which reads the hazards after a pass over
         // the states, either sees the hazard or sees the value in the
         // word: the object is held from the moment the load agrees, and
-        // the value (V: tracked_ptr<T>, or the Value of load()) is built
-        // while it is.
-        template<class V = tracked_ptr<T>>
-        V _load(const std::memory_order m) const noexcept {
+        // the value is built while it is.
+        Value _load(const std::memory_order m) const noexcept {
             auto& thread = current_thread();
             std::memory_order order = m > std::memory_order::acquire ? m : std::memory_order::acquire;
             auto l = (T*)_ptr().load(order);
@@ -165,7 +159,7 @@ namespace sgcl::detail {
                 thread.set_hazard_pointer(l);
                 l = (T*)_ptr().load(order);
             } while(l != t);
-            V p(l, OnRegisteredThread{});
+            Value p(l, OnRegisteredThread{});
             thread.clear_hazard_pointer();
             return p;
         }

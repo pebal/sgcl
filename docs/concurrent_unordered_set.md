@@ -4,12 +4,8 @@
 #include "sgcl/concurrent_unordered_set.h"   // or "sgcl/sgcl.h"
 
 namespace sgcl {
-    template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>, template<class> class Ptr = tracked_ptr>
-    class concurrent_unordered_set;
-}
-namespace gc {
     template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
-    using concurrent_unordered_set = sgcl::concurrent_unordered_set<Key, Hash, KeyEqual, gc::tracked_ptr>;
+    class concurrent_unordered_set;
 }
 ```
 
@@ -62,8 +58,8 @@ key_equal key_eq() const;
 
 // Threads claim ids: insert succeeds for exactly one of them per id
 int main() {
-    gc::concurrent_unordered_set<int> claimed;
-    gc::atomic<int> wins = 0;
+    sgcl::concurrent_unordered_set<int> claimed;
+    sgcl::atomic<int> wins = 0;
     std::vector<std::thread> threads;
     for (int t = 0; t < 8; ++t) {
         threads.emplace_back([&] {

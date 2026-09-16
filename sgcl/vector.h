@@ -6,7 +6,6 @@
 #pragma once
 
 #include "detail/contiguous_iterator.h"
-#include "detail/managed.h"
 #include "detail/synth_three_way.h"
 #include "make_tracked.h"
 #include "tracked_ptr.h"
@@ -35,24 +34,16 @@ namespace sgcl {
     // referenced only through a pointer to its first element, the one the
     // vector holds: a pointer to an element does not keep the buffer, so it
     // dangles once the vector is gone, as in std (README, "Containers").
-    // The buffer is held by a word of the kind Ptr: a tracked_ptr, so that
-    // the vector lives where one may, on a stack or inside a managed
-    // object; or a gc::tracked_ptr (gc::vector), so that it lives anywhere, its
-    // buffer read through the test of a gc::tracked_ptr.
-    template<class V, template<class> class Ptr>
+    // The buffer is held by a tracked_ptr, so the vector lives where one
+    // may: on a stack or inside a managed object.
+    template<class T>
     class vector {
-        // What the buffer holds: V, or the word V names as its tracked_type
-        // (detail/managed.h: a gc::tracked_ptr is stored as an
-        // sgcl::tracked_ptr). The buffer is T; the interface, and every
-        // reference and pointer into the buffer, is V: the same word.
-        using T = detail::managed_t<V>;
-
     public:
-        using value_type = V;
-        using reference = V&;
-        using const_reference = const V&;
-        using pointer = V*;
-        using const_pointer = const V*;
+        using value_type = T;
+        using reference = T&;
+        using const_reference = const T&;
+        using pointer = T*;
+        using const_pointer = const T*;
         using size_type = size_t;
         using difference_type = ptrdiff_t;
         using iterator = detail::ContiguousIterator<value_type>;
@@ -66,7 +57,7 @@ namespace sgcl {
             _construct_default(count);
         }
 
-        vector(size_type count, const V& value) {
+        vector(size_type count, const T& value) {
             _construct_fill(count, value);
         }
 
@@ -75,7 +66,7 @@ namespace sgcl {
             _construct_range(first, last);
         }
 
-        vector(std::initializer_list<V> ilist)
+        vector(std::initializer_list<T> ilist)
         : vector(ilist.begin(), ilist.end()) {
         }
 
@@ -120,12 +111,12 @@ namespace sgcl {
             return *this;
         }
 
-        vector& operator=(std::initializer_list<V> ilist) {
+        vector& operator=(std::initializer_list<T> ilist) {
             assign(ilist.begin(), ilist.end());
             return *this;
         }
 
-        void assign(size_type count, const V& value) {
+        void assign(size_type count, const T& value) {
             if (_inside(&value)) {
                 T copy(value);
                 assign(count, copy);
@@ -181,7 +172,7 @@ namespace sgcl {
             }
         }
 
-        void assign(std::initializer_list<V> ilist) {
+        void assign(std::initializer_list<T> ilist) {
             assign(ilist.begin(), ilist.end());
         }
 
@@ -223,11 +214,11 @@ namespace sgcl {
             return _values()[size() - 1];
         }
 
-        V* data() noexcept {
+        T* data() noexcept {
             return _values();
         }
 
-        const V* data() const noexcept {
+        const T* data() const noexcept {
             return _values();
         }
 
@@ -319,15 +310,15 @@ namespace sgcl {
             _destroy(_data(), size());
         }
 
-        iterator insert(const_iterator pos, const V& value) {
+        iterator insert(const_iterator pos, const T& value) {
             return emplace(pos, value);
         }
 
-        iterator insert(const_iterator pos, V&& value) {
+        iterator insert(const_iterator pos, T&& value) {
             return emplace(pos, std::move(value));
         }
 
-        iterator insert(const_iterator pos, size_type count, const V& value) {
+        iterator insert(const_iterator pos, size_type count, const T& value) {
             auto index = (size_type)(pos - cbegin());
             if (!count) {
                 return begin() + index;
@@ -403,7 +394,7 @@ namespace sgcl {
             }
         }
 
-        iterator insert(const_iterator pos, std::initializer_list<V> ilist) {
+        iterator insert(const_iterator pos, std::initializer_list<T> ilist) {
             return insert(pos, ilist.begin(), ilist.end());
         }
 
@@ -458,11 +449,11 @@ namespace sgcl {
             return begin() + index;
         }
 
-        void push_back(const V& value) {
+        void push_back(const T& value) {
             emplace_back(value);
         }
 
-        void push_back(V&& value) {
+        void push_back(T&& value) {
             emplace_back(std::move(value));
         }
 
@@ -547,7 +538,7 @@ namespace sgcl {
         // instruction, which the 8-byte store of the count cannot feed
         // (a stall of a dozen cycles per push).
         size_type _size = 0;
-        Ptr<T> _ptr;
+        tracked_ptr<T> _ptr;
         size_type _capacity = 0;
 
         // The slow path of push_back and emplace_back, out of line: a larger
@@ -575,13 +566,12 @@ namespace sgcl {
             return (Header*)data - 1;
         }
 
-        // The buffer as the interface sees it: V over T, one word each
-        V* _values() const noexcept {
-            return reinterpret_cast<V*>(_data());
+        T* _values() const noexcept {
+            return _data();
         }
 
-        static V& _value(T* p) noexcept {
-            return *reinterpret_cast<V*>(p);
+        static T& _value(T* p) noexcept {
+            return *p;
         }
 
         T* _data() const noexcept {
@@ -791,7 +781,7 @@ namespace sgcl {
             }
         }
 
-        void _construct_fill(size_type count, const V& value) {
+        void _construct_fill(size_type count, const T& value) {
             if (!count) {
                 return;
             }
@@ -839,15 +829,12 @@ namespace sgcl {
         }
     };
 
-    // Ptr in the guide, so that the gc alias (gc/gc.h) derives its own
-    // guide from it: a result type that names the default kind would not
-    // match the alias
-    template<std::input_iterator InputIt, template<class> class Ptr = tracked_ptr>
-    vector(InputIt, InputIt) -> vector<std::iter_value_t<InputIt>, Ptr>;
+    template<std::input_iterator InputIt>
+    vector(InputIt, InputIt) -> vector<std::iter_value_t<InputIt>>;
 
     // unique_ptr owns its object and needs no tracing: a plain std::vector.
-    template<typename T, template<class> class Ptr>
-    class vector<unique_ptr<T>, Ptr> : public std::vector<unique_ptr<T>> {
+    template<typename T>
+    class vector<unique_ptr<T>> : public std::vector<unique_ptr<T>> {
     public:
         using std::vector<unique_ptr<T>>::vector;
         using std::vector<unique_ptr<T>>::operator=;
@@ -855,16 +842,16 @@ namespace sgcl {
 }
 
 namespace std {
-    template<class T, template<class> class Ptr, class U>
-    size_t erase(sgcl::vector<T, Ptr>& v, const U& value) {
+    template<class T, class U>
+    size_t erase(sgcl::vector<T>& v, const U& value) {
         auto it = std::remove(v.begin(), v.end(), value);
         auto n = (size_t)(v.end() - it);
         v.erase(it, v.end());
         return n;
     }
 
-    template<class T, template<class> class Ptr, class Pred>
-    size_t erase_if(sgcl::vector<T, Ptr>& v, Pred pred) {
+    template<class T, class Pred>
+    size_t erase_if(sgcl::vector<T>& v, Pred pred) {
         auto it = std::remove_if(v.begin(), v.end(), pred);
         auto n = (size_t)(v.end() - it);
         v.erase(it, v.end());

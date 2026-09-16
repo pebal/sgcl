@@ -15,17 +15,6 @@
 #include <vector>
 
 namespace {
-    // The count with the thread's block of cells let go of first
-    // (tests/gc_tracked_ptr.cpp): a gc::tracked_ptr in unmanaged memory
-    // holds a cell of a managed block, and a block is an object of the
-    // count until every cell of it is given back.
-    SGCL_ALWAYS_INLINE size_t live_without_cells() {
-        sgcl::detail::cell_allocator.release();
-        collector::clear_stack(SIZE_MAX);
-        collector::force_collect(true);
-        return collector::get_live_object_count();
-    }
-
     template<class M>
     std::vector<int> sorted_keys(const M& m) {
         std::vector<int> keys;
@@ -222,29 +211,6 @@ TEST(ConcurrentUnorderedMap_Test, NodesAndObjectsReclaimed) {
     });
 }
 
-TEST(ConcurrentUnorderedMap_Test, GcMapLivesAnywhere) {
-    const size_t before = collector::get_live_object_count();
-    auto m = std::make_unique<gc::concurrent_unordered_map<std::string, gc::tracked_ptr<Baz>>>();   // in unmanaged memory
-    std::vector<gc::concurrent_unordered_map<std::string, gc::tracked_ptr<Baz>>::iterator> its;
-    off_frame([&] {
-        for (int i = 0; i < 10; ++i) {
-            m->try_emplace(std::to_string(i), gc::make_tracked<Baz>(i));
-        }
-        for (auto it = m->begin(); it != m->end(); ++it) {
-            its.push_back(it);
-        }
-        ASSERT_EQ(its.size(), 10u);
-        EXPECT_EQ(m->find("3")->second->value, 3);
-        m->clear();
-        EXPECT_TRUE(m->empty());
-    });
-    off_frame([&] {
-        its.clear();
-    });
-    m.reset();
-    EXPECT_EQ(live_without_cells(), before);
-}
-
 TEST(ConcurrentUnorderedMap_Test, MapInsideManagedObject) {
     struct Holder {
         sgcl::concurrent_unordered_map<int, tracked_ptr<Baz>> m;
@@ -290,7 +256,7 @@ TEST(ConcurrentUnorderedMap_Test, SameKeysManyThreads) {
     const int threads = 8;
     const int n = 5000;
     sgcl::concurrent_unordered_map<int, int> m;
-    gc::atomic<int> inserted = {0};
+    sgcl::atomic<int> inserted = {0};
     off_frame([&] {
         std::vector<std::thread> ws;
         for (int t = 0; t < threads; ++t) {
@@ -324,7 +290,7 @@ TEST(ConcurrentUnorderedMap_Test, ChurnManyThreads) {
     const int ops = 40000;
     off_frame([&] {
         sgcl::concurrent_unordered_map<int, tracked_ptr<Baz>> m;
-        gc::atomic<bool> bad = {false};
+        sgcl::atomic<bool> bad = {false};
         std::vector<std::thread> ws;
         for (int t = 0; t < threads; ++t) {
             ws.emplace_back([&, t] {
@@ -404,7 +370,7 @@ TEST(ConcurrentUnorderedSet_Test, InsertFindErase) {
     sgcl::concurrent_unordered_set<std::string> names = {"b", "a", "c", "a"};
     EXPECT_EQ(names.size(), 3u);
     EXPECT_TRUE(names.contains("a"));
-    gc::concurrent_unordered_set<int> g;
+    sgcl::concurrent_unordered_set<int> g;
     for (int i = 0; i < 1000; ++i) {
         g.insert(i);
     }
@@ -419,7 +385,7 @@ TEST(ConcurrentUnorderedSet_Test, ChurnManyThreads) {
     const size_t before = collector::get_live_object_count();
     off_frame([&] {
         sgcl::concurrent_unordered_set<int> s;
-        gc::atomic<bool> bad = {false};
+        sgcl::atomic<bool> bad = {false};
         std::vector<std::thread> ws;
         for (int t = 0; t < threads; ++t) {
             ws.emplace_back([&, t] {

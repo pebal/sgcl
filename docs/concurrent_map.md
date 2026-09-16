@@ -4,12 +4,8 @@
 #include "sgcl/concurrent_map.h"   // or "sgcl/sgcl.h"
 
 namespace sgcl {
-    template<class Key, class T, class Compare = std::less<Key>, template<class> class Ptr = tracked_ptr>
-    class concurrent_map;
-}
-namespace gc {
     template<class Key, class T, class Compare = std::less<Key>>
-    using concurrent_map = sgcl::concurrent_map<Key, T, Compare, gc::tracked_ptr>;
+    class concurrent_map;
 }
 ```
 
@@ -19,7 +15,7 @@ A node is one managed object: the bottom link and the element, then the links of
 
 ## Rules
 
-- The container holds the head node (a sentinel of the maximum height, no element) by a word of the `Ptr` kind and the number of levels in use. `sgcl::concurrent_map` lives where a `tracked_ptr` may: on a thread's stack or inside a managed object ([The rules](../README.md#the-rules), 1); `gc::concurrent_map` lives anywhere ([The gc namespace](README.md#the-gc-namespace)). Its iterators hold their node by a word of the same kind and live where the map may.
+- The container holds the head node (a sentinel of the maximum height, no element) by a `tracked_ptr` and the number of levels in use, so it lives where a `tracked_ptr` may: on a thread's stack or inside a managed object ([The rules](../README.md#the-rules), 1). Its iterators hold their node by a `tracked_ptr` and live where the map may.
 - `insert`, `emplace`, `try_emplace` and `erase` are lock-free and linearizable: an insertion takes effect at the compare-exchange that links the node into the bottom list, an erasure at the one that marks it there. `find`, `contains`, `count`, `lower_bound` and `upper_bound` are wait-free and never write.
 - Iteration is weakly consistent, as Java's: an iterator is valid whatever the other threads do, it skips the elements erased since it passed them, and it may or may not see the ones inserted meanwhile. The element an iterator addresses stays alive for as long as the iterator does, erased or not: its key is immutable, its mapped value is what the threads make of it.
 - An element is destroyed by the collector with its node, once nothing holds the node: not at the erase, which other threads may be reading it across. This is the one container of the library whose elements outlive their erasure ([Containers](../README.md#containers)); an element that must be released promptly is held by a `tracked_ptr` whose object does its own cleanup, or watched by an [expiry_queue](expiry_queue.md).
@@ -42,7 +38,7 @@ using iterator = /* forward iterator over value_type */;
 using const_iterator = /* forward iterator over const value_type */;
 ```
 
-An iterator is a forward iterator holding its node by a `Ptr<...>` word; `*it` is a `value_type&` (a `const value_type&` for a `const_iterator`), `it->first` the key, `it->second` the mapped value. An `iterator` converts to a `const_iterator`.
+An iterator is a forward iterator holding its node by a `tracked_ptr<...>` word; `*it` is a `value_type&` (a `const value_type&` for a `const_iterator`), `it->first` the key, `it->second` the mapped value. An `iterator` converts to a `const_iterator`.
 
 ### Constructors
 
@@ -57,7 +53,7 @@ concurrent_map(const concurrent_map&) = delete;
 An empty map (the head node on the managed heap), or one filled from a range or a list by `insert`.
 
 ```cpp
-gc::concurrent_map<int, gc::tracked_ptr<Session>> sessions;              // a global: gc::
+sgcl::concurrent_map<int, sgcl::tracked_ptr<Session>> sessions;              // a global: sgcl::
 sgcl::concurrent_map<std::string, int, std::greater<std::string>> by_name_desc;
 sgcl::concurrent_map<int, int> m = {{1, 10}, {2, 20}};
 ```
@@ -138,7 +134,7 @@ template<class... A> pair<iterator, bool> try_emplace(Key&& key, A&&... a);
 Inserts an element unless its key is taken: the element and `true`, or the one already there and `false`, as `std::map`. `emplace` builds the element from `a...` first, in a node of its own, and drops the node when the key turns out to be taken (the collector reclaims it); `try_emplace` looks the key up first and builds nothing when it is there, then builds the element from the key and `a...`. A concurrent insertion of the same key wins or loses at the compare-exchange on the bottom list: exactly one of them returns `true`.
 
 ```cpp
-auto [it, inserted] = sessions.try_emplace(42, gc::make_tracked<Session>());
+auto [it, inserted] = sessions.try_emplace(42, sgcl::make_tracked<Session>());
 if (!inserted) {
     // another thread's session under 42: it->second
 }
@@ -190,14 +186,14 @@ struct Entry {
 };
 
 int main() {
-    gc::concurrent_map<int, gc::tracked_ptr<Entry>> registry;   // could as well be a global
-    gc::atomic<long> found = 0;
+    sgcl::concurrent_map<int, sgcl::tracked_ptr<Entry>> registry;   // could as well be a global
+    sgcl::atomic<long> found = 0;
     std::vector<std::thread> threads;
     for (int w = 0; w < 4; ++w) {
         threads.emplace_back([&, w] {
             for (int i = 0; i < 250; ++i) {
                 int id = i * 4 + w;                              // 1000 keys between the four writers
-                registry.try_emplace(id, gc::make_tracked<Entry>(id));
+                registry.try_emplace(id, sgcl::make_tracked<Entry>(id));
             }
             for (int id = w; id < 1000; id += 8) {
                 registry.erase(id);                              // half of this writer's keys taken out again

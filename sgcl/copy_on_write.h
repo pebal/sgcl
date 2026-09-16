@@ -31,10 +31,9 @@ namespace sgcl {
     // rare next to readers (a configuration, a routing table, a list of
     // listeners), and with many of them a mutex serializes them cheaper.
     // The container holds one word, the atomic pointer; it lives where a
-    // tracked_ptr may (on a stack or inside a managed object), the gc::
-    // one (gc/gc.h) anywhere; its snapshots are of the same kind and live
-    // where that kind may.
-    template<class T, template<class> class Ptr>
+    // tracked_ptr may (on a stack or inside a managed object), and so do
+    // its snapshots.
+    template<class T>
     class copy_on_write {
         static_assert(std::is_copy_constructible_v<T>, "copy_on_write copies the value on every update");
 
@@ -42,7 +41,7 @@ namespace sgcl {
         using value_type = T;
         // The current value, immutable, held alive: a pointer of the
         // container's kind to const T
-        using snapshot = Ptr<const T>;
+        using snapshot = tracked_ptr<const T>;
 
         copy_on_write()
         : _value(make_tracked<T>()) {
@@ -128,6 +127,6 @@ namespace sgcl {
             return false;
         }
 
-        atomic<Ptr<T>> _value;
+        atomic<tracked_ptr<T>> _value;
     };
 }

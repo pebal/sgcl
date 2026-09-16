@@ -4,7 +4,7 @@
 #include "sgcl/string.h"   // or "sgcl/sgcl.h"
 
 namespace sgcl {
-    template<class CharT, class Traits = std::char_traits<CharT>, template<class> class Ptr = tracked_ptr>
+    template<class CharT, class Traits = std::char_traits<CharT>>
     class basic_string;
     using string = basic_string<char>;
     using wstring = basic_string<wchar_t>;
@@ -18,13 +18,13 @@ namespace sgcl {
 
 What it is for: text that is kept, shared and compared. Copying one between managed objects costs a word and the write barrier; a `std::string` past its small buffer costs an allocation per copy and a `free` per destruction, in the sweep. Hashing one as a map key costs a load after the first time: the hash (`std::hash` of the characters) is computed once and kept in the string's object, as Java's `String` keeps its `hashCode`. What it is not for: a scratch buffer, or text of a few characters made and dropped at once, where `std::string` costs no allocation at all; `std::string` remains the right member for those, in a managed object as anywhere ([README: string](../README.md#string) has the numbers).
 
-The interface is the read side of `std::string` and all of `std::string_view`: `size`, `data`, `c_str`, `[]`, `at`, `front`, `back`, the iterators, `compare`, `starts_with`, `ends_with`, `contains`, the six `find`s, `substr` (a new string, or the same object for the whole), the comparisons and `<=>` with a string of either kind, a `string_view` or a literal, `operator+` (a new string), `std::hash`, `operator<<`, the conversions to `string_view` and to `std::string` (`str()`); the constructors from a literal, `(s, n)`, a `string_view`, a `std::string` or anything a `string_view` is made of, `(n, ch)`, a range, an initializer list. No mutation, no `capacity`: a string is built as a `std::string` or a `string_view` and made once. The length is kept in 32 bits.
+The interface is the read side of `std::string` and all of `std::string_view`: `size`, `data`, `c_str`, `[]`, `at`, `front`, `back`, the iterators, `compare`, `starts_with`, `ends_with`, `contains`, the six `find`s, `substr` (a new string, or the same object for the whole), the comparisons and `<=>` with a string, a `string_view` or a literal, `operator+` (a new string), `std::hash`, `operator<<`, the conversions to `string_view` and to `std::string` (`str()`); the constructors from a literal, `(s, n)`, a `string_view`, a `std::string` or anything a `string_view` is made of, `(n, ch)`, a range, an initializer list. No mutation, no `capacity`: a string is built as a `std::string` or a `string_view` and made once. The length is kept in 32 bits.
 
-`Ptr` is the kind of the word, and so where the string lives, as for the containers: `sgcl::string` on a stack or inside a managed object, `gc::string` ([gc/gc.h](README.md#the-gc-namespace)) anywhere. The two kinds convert into each other and share the object.
+The word is a `tracked_ptr`, so a string lives where one may, as the containers do: on a stack or inside a managed object.
 
 ## Rules
 
-- A `string` is a tracked pointer, so it lives where one may: on a stack or inside a managed object; a `gc::string` anywhere ([The rules](../README.md#the-rules), 1).
+- A `string` is a tracked pointer, so it lives where one may: on a stack or inside a managed object ([The rules](../README.md#the-rules), 1).
 - Threads share a `string` the way they share a `tracked_ptr` ([The rules](../README.md#the-rules), 6): the object itself is immutable and read from any thread without synchronization, and a string variable that one thread replaces while others read it is an [`atomic<string>`](atomic.md#atomicbasic_string), one word, a load for the string as it was and a store for a new one. The hash is computed by the first thread that asks and stored relaxed: every thread computes the same value.
 - `data()` and the iterators are valid while some string holds the object: a `string_view` taken from a temporary dangles as it would from a `std::string`.
 - A string's object is never traced and never zeroed: its bytes are characters and nothing else.
@@ -45,7 +45,6 @@ basic_string(size_type n, CharT c);
 template<std::input_iterator It> basic_string(It first, It last);
 basic_string(std::initializer_list<CharT>);
 basic_string(const basic_string&) noexcept;               // the same object
-basic_string(const basic_string<CharT, Traits, P>&) noexcept;   // the other kind: the same object
 basic_string& operator=(...);                             // the same set
 
 const CharT* data() const noexcept;  const CharT* c_str() const noexcept;   // terminated; the empty string's is a terminator
@@ -62,7 +61,7 @@ basic_string substr(size_type pos = 0, size_type n = npos) const;   // a new str
 void swap(basic_string&) noexcept;
 size_t hash() const noexcept;                             // std::hash of the characters, computed once, kept in the object
 const void* object() const noexcept;                      // the object's address: the identity; null when empty
-template<class P> bool equals(const basic_string<CharT, Traits, P>&) const noexcept;   // what == does
+bool equals(const basic_string&) const noexcept;   // what == does
 bool operator==(view_type) const noexcept;  bool operator==(const CharT*) const noexcept;
 std::strong_ordering operator<=>(view_type) const noexcept;  std::strong_ordering operator<=>(const CharT*) const noexcept;
 ```
@@ -70,8 +69,8 @@ std::strong_ordering operator<=>(view_type) const noexcept;  std::strong_orderin
 The free functions, in `sgcl`:
 
 ```cpp
-bool operator==(const basic_string<CharT, Traits, P1>&, const basic_string<CharT, Traits, P2>&) noexcept;   // the same object, or the lengths, the hashes when known, the characters
-std::strong_ordering operator<=>(const basic_string<CharT, Traits, P1>&, const basic_string<CharT, Traits, P2>&) noexcept;
+bool operator==(const basic_string<CharT, Traits>&, const basic_string<CharT, Traits>&) noexcept;   // the same object, or the lengths, the hashes when known, the characters
+std::strong_ordering operator<=>(const basic_string<CharT, Traits>&, const basic_string<CharT, Traits>&) noexcept;
 basic_string operator+(string, string);  (string, view);  (view, string);  (string, const CharT*);  (const CharT*, string);  (string, CharT);  (CharT, string);
 std::basic_ostream& operator<<(std::basic_ostream&, const basic_string&);
 void swap(basic_string&, basic_string&) noexcept;
@@ -86,9 +85,9 @@ sgcl::string same = name;                     // the same object
 sgcl::string other("alice");                  // another object, equal contents
 assert(same.object() == name.object() && other == name && other.object() != name.object());
 assert(name.starts_with("al") && name.substr(1, 3) == "lic" && name + "!" == "alice!");
-std::unordered_map<gc::string, int> ages;     // gc::string in a std container, the hash kept in the string's object
-ages[gc::string(name)] = 30;
-assert(ages[gc::string("alice")] == 30);
+std::unordered_map<sgcl::string, int> ages;     // sgcl::string in a std container, the hash kept in the string's object
+ages[sgcl::string(name)] = 30;
+assert(ages[sgcl::string("alice")] == 30);
 ```
 
 ## Example
@@ -101,19 +100,19 @@ assert(ages[gc::string("alice")] == 30);
 // same string object, and a name compares by the word before it compares
 // by the characters. Nothing is freed by hand, nothing is counted.
 struct Element {
-    gc::string name;
-    gc::string text;
-    gc::vector<gc::tracked_ptr<Element>> children;
+    sgcl::string name;
+    sgcl::string text;
+    sgcl::vector<sgcl::tracked_ptr<Element>> children;
 };
 
-gc::tracked_ptr<Element> make(gc::string name, gc::string text = {}) {
-    gc::tracked_ptr e = gc::make_tracked<Element>();
+sgcl::tracked_ptr<Element> make(sgcl::string name, sgcl::string text = {}) {
+    sgcl::tracked_ptr e = sgcl::make_tracked<Element>();
     e->name = name;                             // a word: the name's object is shared
     e->text = text;
     return e;
 }
 
-int count(const gc::tracked_ptr<Element>& e, const gc::string& name) {
+int count(const sgcl::tracked_ptr<Element>& e, const sgcl::string& name) {
     int n = e->name == name ? 1 : 0;            // the same object: a comparison of two words
     for (auto& child : e->children) {
         n += count(child, name);
@@ -122,12 +121,12 @@ int count(const gc::tracked_ptr<Element>& e, const gc::string& name) {
 }
 
 int main() {
-    gc::string p = "p", div = "div";            // the names, made once
-    gc::tracked_ptr root = make(div);
+    sgcl::string p = "p", div = "div";            // the names, made once
+    sgcl::tracked_ptr root = make(div);
     for (int i = 0; i < 3; ++i) {
-        gc::tracked_ptr section = make(div);
+        sgcl::tracked_ptr section = make(div);
         for (int j = 0; j < 4; ++j) {
-            section->children.push_back(make(p, "paragraph " + gc::string(std::to_string(j))));
+            section->children.push_back(make(p, "paragraph " + sgcl::string(std::to_string(j))));
         }
         root->children.push_back(section);
     }

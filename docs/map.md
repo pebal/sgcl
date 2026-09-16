@@ -4,14 +4,12 @@
 #include "sgcl/map.h"   // or "sgcl/sgcl.h"
 
 namespace sgcl {
-    template<class Key, class T, class Compare = std::less<Key>, template<class> class Ptr = tracked_ptr>
+    template<class Key, class T, class Compare = std::less<Key>>
     class map;
 }
 ```
 
 `sgcl::map<Key, T, Compare>` is `std::map` on a red-black tree whose nodes are managed objects. The interface is the one of `std::map`: constructors, `insert`, `emplace`, `try_emplace`, `insert_or_assign`, `operator[]`, `at`, `erase`, `extract`, `merge`, node handles, the lookups with transparent comparators, bidirectional iterators (`std::ranges` algorithms work), `key_comp`/`value_comp`, `swap`, `==` and `<=>`, `std::erase_if`. The behaviour is the one of `std::map` too: unique keys in `Compare` order, an element destroyed the moment it is erased, iterators that stay valid until their element is erased.
-
-`Ptr`, the last parameter, is the kind of the word by which the container holds its memory: `tracked_ptr` by default, so that the container lives where a `tracked_ptr` may (on a stack or inside a managed object), or [`gc::tracked_ptr`](gc/tracked_ptr.md), so that it lives anywhere, at the cost of a `gc::tracked_ptr` on each access to that word; `gc::map` ([gc/gc.h](README.md#the-gc-namespace)) names the latter. The nodes and buffers are the same managed objects either way, and the elements are a choice apart; an element type that names a `tracked_type` (`gc::tracked_ptr<T>` names `sgcl::tracked_ptr<T>`) is stored as that type, one word in the same mode, and handed out as the type it was given, so a container of `gc::tracked_ptr`s costs what one of `sgcl::tracked_ptr`s does ([the gc namespace](README.md#the-gc-namespace)).
 
 What differs is where the memory lives. The map object holds one `tracked_ptr` (to a header node whose parent is the root, plus a count and the comparator), so it lives where a `tracked_ptr` may live. Every node is a managed object and the links between nodes are tracked pointers: the whole tree hangs off the header and is traced from there, so a `map<Key, tracked_ptr<T>>` or a map inside a managed object is traced like any other managed data, and a cycle through a map is collected like any other cycle. Nothing is freed by hand: an `erase` destroys the element and unlinks the node, and the collector reclaims the node's memory later. Iterators are one raw node pointer each, trivially copyable, and may live anywhere, a `std::vector` of them included: the map roots every node it holds, and a raw pointer in a stack frame is a root of its own under the conservative scan. A lookup, an iteration and an iterator copy read raw pointers only and pay no write barrier; an insertion, an erasure and a rebalancing store tracked pointers and pay the barrier on each link they relink ([README: Containers](../README.md#containers)).
 
@@ -67,11 +65,11 @@ map(map&& other) noexcept(std::is_nothrow_move_constructible_v<Compare>);
 The default constructor allocates nothing. The range and list constructors insert in order, with `end()` as the hint, so sorted input costs one comparison per element; a key seen twice keeps its first value. A copy has nodes of its own, in the same order; a move takes the tree over and leaves `other` empty (and its comparator moved-from). An element constructor or comparator that throws while a constructor runs destroys the elements built so far and the map holds nothing.
 
 ```cpp
-gc::map<std::string, int> ages = {{"ann", 31}, {"bob", 27}};
-gc::map<int, int, std::greater<int>> desc(std::greater<int>{});       // 3 2 1 order
+sgcl::map<std::string, int> ages = {{"ann", 31}, {"bob", 27}};
+sgcl::map<int, int, std::greater<int>> desc(std::greater<int>{});       // 3 2 1 order
 std::vector<std::pair<int, int>> src = {{2, 20}, {1, 10}};
-gc::map<int, int> from_range(src.begin(), src.end());
-gc::map<std::string, int> taken = std::move(ages);                   // ages is empty now
+sgcl::map<int, int> from_range(src.begin(), src.end());
+sgcl::map<std::string, int> taken = std::move(ages);                   // ages is empty now
 ```
 
 ### Destructor
@@ -93,7 +91,7 @@ map& operator=(std::initializer_list<value_type> ilist);
 Copy assignment clears this map (destroying its elements at once), takes `other`'s comparator and inserts copies of its elements; self-assignment is a no-op. Move assignment clears and takes the tree over. The list form clears and inserts.
 
 ```cpp
-gc::map<int, int> a = {{1, 1}}, b;
+sgcl::map<int, int> a = {{1, 1}}, b;
 b = a;                       // copies
 b = {{5, 5}, {6, 6}};        // the old elements die here
 a = std::move(b);            // a holds 5 and 6, b is empty
@@ -109,7 +107,7 @@ value_compare value_comp() const;
 Copies of the comparator: `key_comp()` compares keys, `value_comp()` compares two `value_type` by their keys.
 
 ```cpp
-gc::map<int, int> m = {{1, 1}, {2, 2}};
+sgcl::map<int, int> m = {{1, 1}, {2, 2}};
 bool by_key = m.key_comp()(1, 2);                          // true
 bool by_value = m.value_comp()(*m.begin(), *m.rbegin());   // true
 ```
@@ -128,7 +126,7 @@ const_reverse_iterator crbegin() const noexcept; const_reverse_iterator crend() 
 `begin()` is the smallest key, in O(1) (the header keeps the leftmost node); `end()` is the header, and `--end()` the largest key. Before the first insertion there is no header: `begin()` and `end()` are both null iterators, equal to each other, neither of which may be dereferenced or moved, and an `end()` taken then does not compare equal to `end()` after the first insertion. An iterator is one raw node pointer: copying and advancing it costs a load, never a write barrier, and it may be kept in unmanaged memory (a `std::vector<iterator>`) for as long as its element is in the map.
 
 ```cpp
-gc::map<std::string, int> m = {{"b", 2}, {"a", 1}, {"c", 3}};
+sgcl::map<std::string, int> m = {{"b", 2}, {"a", 1}, {"c", 3}};
 for (auto& [key, value] : m) {          // a b c
     value *= 10;
 }
@@ -156,7 +154,7 @@ void clear() noexcept;
 Destroys every element at once and unlinks every node; the header stays, so iterators taken from `end()` remain equal to `end()`. The nodes are reclaimed by the collector.
 
 ```cpp
-gc::map<int, std::string> m = {{1, "a"}, {2, "b"}};
+sgcl::map<int, std::string> m = {{1, "a"}, {2, "b"}};
 m.clear();                     // both strings are destroyed here
 bool gone = m.empty();         // true
 ```
@@ -181,12 +179,12 @@ iterator insert(const_iterator hint, node_type&& nh);
 As in `std::map`. The single-element forms return the element with the key and whether it was inserted; nothing is built when the key is already there (the `P&&` forms go through `emplace`, which builds the element first and destroys it again on a duplicate). The hinted forms insert in O(1) amortized when the key belongs right before `hint`, and appending in sorted order at `end()` costs one comparison. The range and list forms insert one by one with `end()` as the hint. The node-handle forms link the node of `nh` without copying the element: on success `nh` is empty afterwards; on a duplicate key the returned `node` (or `nh`, for the hinted form) keeps it, and `position` points at the element in the way. An empty handle inserts nothing (`position == end()`, `inserted == false`).
 
 ```cpp
-gc::map<std::string, int> m;
+sgcl::map<std::string, int> m;
 auto [it, inserted] = m.insert({"a", 1});                       // inserted: true
 inserted = m.insert(std::pair<const char*, int>("a", 2)).second;   // false: "a" stays 1
 m.insert(m.end(), {"z", 26});                                    // an append: one comparison
 m.insert({{"b", 2}, {"c", 3}});
-gc::map<std::string, int> other = {{"q", 17}};
+sgcl::map<std::string, int> other = {{"q", 17}};
 auto r = m.insert(other.extract("q"));                          // relinked, no copy: r.inserted is true
 ```
 
@@ -200,7 +198,7 @@ template<class... A> iterator emplace_hint(const_iterator hint, A&&... a);
 Builds the `value_type` from `a...` in a new node before its place is known, as in `std`; if the key is already there the new element is destroyed and the existing one returned (the node is garbage for the collector). A comparator that throws destroys the new element and leaves the map as it was.
 
 ```cpp
-gc::map<std::string, std::string> m;
+sgcl::map<std::string, std::string> m;
 m.emplace("k", "v");
 m.emplace(std::piecewise_construct, std::forward_as_tuple("p"), std::forward_as_tuple(3, 'x'));   // "p" -> "xxx"
 auto it = m.emplace_hint(m.end(), "z", "last");
@@ -224,11 +222,11 @@ struct Pinned {
     Pinned(const Pinned&) = delete;
     Pinned& operator=(const Pinned&) = delete;
 };
-gc::map<int, Pinned> m;
+sgcl::map<int, Pinned> m;
 m.try_emplace(1, 10);                                       // Pinned(10) built inside the node
 auto [it, fresh] = m.try_emplace(1, 11);                    // fresh: false; no Pinned(11) was built
 m.try_emplace(m.end(), 2, 20);                              // the hinted form returns an iterator
-gc::map<std::string, std::unique_ptr<int>> owners;
+sgcl::map<std::string, std::unique_ptr<int>> owners;
 owners.try_emplace("a", new int(1));                        // a mapped type that cannot be copied
 ```
 
@@ -244,7 +242,7 @@ template<class M> iterator insert_or_assign(const_iterator hint, key_type&& key,
 Inserts `{key, obj}` when the key is new (`true`), otherwise assigns `obj` to the mapped value in place (`false`).
 
 ```cpp
-gc::map<std::string, int> m;
+sgcl::map<std::string, int> m;
 m.insert_or_assign("a", 1);                 // inserted
 auto [it, inserted] = m.insert_or_assign("a", 2);   // assigned: inserted is false, it->second is 2
 ```
@@ -261,7 +259,7 @@ mapped_type& operator[](key_type&& key);
 `at` throws `std::out_of_range` when the key is absent. `operator[]` inserts a value-initialized mapped value for a new key (built in place, through `try_emplace`) and returns a reference to it; for a `tracked_ptr` mapped type that is a null pointer.
 
 ```cpp
-gc::map<std::string, int> counts;
+sgcl::map<std::string, int> counts;
 ++counts["x"];                       // inserted as 0, now 1
 ++counts["x"];                       // 2
 int x = counts.at("x");              // 2
@@ -280,7 +278,7 @@ size_type erase(const key_type& key);
 Destroys the element at once, unlinks the node (the collector reclaims it later) and returns the iterator after it. Erasing `[begin(), end())` is a `clear()`. The key form returns 0 or 1. Erasing during an iteration is done as with `std::map`: `it = m.erase(it)`. There is no transparent `erase`: the key form takes a `key_type`.
 
 ```cpp
-gc::map<int, std::string> m = {{1, "a"}, {2, "b"}, {3, "c"}, {4, "d"}};
+sgcl::map<int, std::string> m = {{1, "a"}, {2, "b"}, {3, "c"}, {4, "d"}};
 m.erase(2);                                        // "b" is destroyed here
 for (auto it = m.begin(); it != m.end();) {
     it = it->first % 2 ? m.erase(it) : std::next(it);   // 1 and 3 go
@@ -298,7 +296,7 @@ friend void swap(map& lhs, map& rhs) noexcept(noexcept(lhs.swap(rhs)));   // fre
 Exchanges the trees, counts and comparators; no element is touched, and every iterator keeps pointing at its element, now in the other map.
 
 ```cpp
-gc::map<int, int> a = {{1, 1}}, b = {{2, 2}};
+sgcl::map<int, int> a = {{1, 1}}, b = {{2, 2}};
 auto it = a.begin();
 swap(a, b);                  // it still points at {1, 1}, which is in b now
 bool moved = it == b.begin();   // true
@@ -315,7 +313,7 @@ node_type extract(const key_type& key);
 Unlinks the node and hands it over in a node handle, the element untouched: the handle is the owner now, and destroys the element if it dies unused. The key form returns an empty handle when the key is absent. See [node_type](#node_type-the-node-handle).
 
 ```cpp
-gc::map<int, std::string> m = {{1, "a"}, {2, "b"}};
+sgcl::map<int, std::string> m = {{1, "a"}, {2, "b"}};
 auto nh = m.extract(1);           // m holds {2, "b"}; nh holds {1, "a"}
 nh.key() = 7;                     // the key may change outside a map
 m.insert(std::move(nh));          // {2, "b"}, {7, "a"}; no string was copied
@@ -324,15 +322,15 @@ m.insert(std::move(nh));          // {2, "b"}, {7, "a"}; no string was copied
 ### merge
 
 ```cpp
-template<class Traits2> void merge(detail::RbTree<Traits2>& source);    // any gc::map or multimap<Key, T, C2>
+template<class Traits2> void merge(detail::RbTree<Traits2>& source);    // any sgcl::map or multimap<Key, T, C2>
 template<class Traits2> void merge(detail::RbTree<Traits2>&& source);
 ```
 
 Relinks the nodes of `source` whose keys are not yet here, in `source`'s order, into this map; a node whose key is already here stays in `source`. No element is copied or destroyed, and every iterator follows its node. `source` may be a `sgcl::map` or `sgcl::multimap` with the same `Key` and `T` and any comparator. Merging a map into itself does nothing.
 
 ```cpp
-gc::map<int, int> a = {{1, 1}, {3, 3}};
-gc::multimap<int, int> b = {{2, 2}, {3, 30}, {3, 31}};
+sgcl::map<int, int> a = {{1, 1}, {3, 3}};
+sgcl::multimap<int, int> b = {{2, 2}, {3, 30}, {3, 31}};
 a.merge(b);                       // a: 1 2 3;  b keeps both 3s
 ```
 
@@ -352,7 +350,7 @@ template<class K> bool contains(const K& key) const;                    //   "
 O(log n), reading raw pointers only. `count` is 0 or 1. The `K` overloads exist for a transparent comparator (`std::less<>`), and let a `std::string_view` look up a `std::string` key without building one.
 
 ```cpp
-gc::map<std::string, int, std::less<>> m = {{"apple", 1}};
+sgcl::map<std::string, int, std::less<>> m = {{"apple", 1}};
 std::string_view key = "apple";
 bool has = m.contains(key);        // no std::string is built
 auto it = m.find(key);             // it->second == 1
@@ -375,7 +373,7 @@ template<class K> ... upper_bound(const K& key);      //   "
 As in `std::map`: `lower_bound` is the first element not less than `key`, `upper_bound` the first greater, `equal_range` both (an empty or a one-element range).
 
 ```cpp
-gc::map<int, char> m = {{10, 'a'}, {20, 'b'}, {30, 'c'}};
+sgcl::map<int, char> m = {{10, 'a'}, {20, 'b'}, {30, 'c'}};
 auto from = m.lower_bound(15);    // 20
 auto to = m.upper_bound(25);      // 30
 for (auto it = from; it != to; ++it) { /* 20 only */ }
@@ -391,7 +389,7 @@ friend auto operator<=>(const map& lhs, const map& rhs);
 Element-wise, as for `std::map`: `==` compares sizes first and then the elements in order; `<=>` is lexicographical with the synthesized three-way comparison (`<=>` of the element when it has one, else a `std::weak_ordering` built from `<`), so `!=`, `<`, `<=`, `>` and `>=` follow.
 
 ```cpp
-gc::map<int, int> a = {{1, 1}, {2, 2}}, b = {{1, 1}, {2, 3}};
+sgcl::map<int, int> a = {{1, 1}, {2, 2}}, b = {{1, 1}, {2, 3}};
 bool less = a < b;                                // true
 bool same = a == b;                               // false
 auto ord = a <=> b;                               // std::strong_ordering::less
@@ -438,7 +436,7 @@ namespace std { using sgcl::erase_if; }
 Erases every element for which `pred(*it)` is true and returns how many; each erased element is destroyed at once.
 
 ```cpp
-gc::map<int, int> m = {{1, 1}, {2, 2}, {3, 3}, {4, 4}};
+sgcl::map<int, int> m = {{1, 1}, {2, 2}, {3, 3}, {4, 4}};
 auto n = std::erase_if(m, [](const auto& p) { return p.first % 2 == 0; });   // 2; m is 1 3
 ```
 
@@ -452,9 +450,9 @@ map(std::initializer_list<std::pair<Key, T>>, Compare = Compare()) -> map<Key, T
 ```
 
 ```cpp
-gc::map m = {std::pair{1, 2.0}, std::pair{2, 3.0}};     // map<int, double>: the pairs spelled out
-gc::map from_range(m.begin(), m.end());                  // map<int, double>
-gc::map greater({std::pair{1, 2}}, std::greater<int>());     // map<int, int, std::greater<int>>
+sgcl::map m = {std::pair{1, 2.0}, std::pair{2, 3.0}};     // map<int, double>: the pairs spelled out
+sgcl::map from_range(m.begin(), m.end());                  // map<int, double>
+sgcl::map greater({std::pair{1, 2}}, std::greater<int>());     // map<int, int, std::greater<int>>
 ```
 
 From an iterator pair or an initializer list, as for `std::map`; an initializer list of a map spells its pairs out (`std::pair{1, 2.0}`), since a braced pair alone names no type.
@@ -469,26 +467,26 @@ From an iterator pair or an initializer list, as for `std::map`; an initializer 
 struct Account {
     std::string owner;
     int balance;
-    gc::tracked_ptr<Account> linked;     // a pointer inside an element: traced through the node
+    sgcl::tracked_ptr<Account> linked;     // a pointer inside an element: traced through the node
 };
 
 // The map object lives inside a managed object: the nodes hang off it and
 // die with it, elements included, when the Bank is collected.
 struct Bank {
-    gc::map<std::string, gc::tracked_ptr<Account>> accounts;
+    sgcl::map<std::string, sgcl::tracked_ptr<Account>> accounts;
 };
 
 int main() {
-    gc::tracked_ptr bank = gc::make_tracked<Bank>();
+    sgcl::tracked_ptr bank = sgcl::make_tracked<Bank>();
     for (const char* name : {"carol", "alice", "bob"}) {
         // operator[] inserts a null tracked_ptr; the object is made afterwards
-        bank->accounts[name] = gc::make_tracked<Account>(name, 100);
+        bank->accounts[name] = sgcl::make_tracked<Account>(name, 100);
     }
     bank->accounts["alice"]->linked = bank->accounts["bob"];
     bank->accounts["bob"]->linked = bank->accounts["alice"];   // a cycle: collected like any other
 
     // A map on the stack, keys in order; the iterator follows the node
-    gc::map<std::string, int> balances;
+    sgcl::map<std::string, int> balances;
     for (auto& [name, account] : bank->accounts) {             // alice bob carol
         balances.emplace(name, account->balance);
     }
@@ -503,9 +501,9 @@ int main() {
     bank->accounts.erase("bob");
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
-    gc::collector::force_collect(true);
+    sgcl::collector::force_collect(true);
     std::cout << bank->accounts.size() << " account left, "
-              << gc::collector::get_live_object_count() << " live objects\n";
+              << sgcl::collector::get_live_object_count() << " live objects\n";
     return balances.size() == 2 && bank->accounts.size() == 1 ? 0 : 1;
 }
 ```

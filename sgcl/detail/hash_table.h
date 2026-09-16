@@ -9,7 +9,6 @@
 #include "../unique_ptr.h"
 #include "maker.h"
 #include "anchor.h"
-#include "managed.h"
 #include "slot.h"
 
 #include <algorithm>
@@ -228,10 +227,9 @@ namespace sgcl::detail {
         : _node(node) {
         }
 
-        // The element dies as it was constructed, as the stored type
         void _release() {
             if (auto node = _node.get()) {
-                reinterpret_cast<HashNode<managed_value_t<value_type>>*>(node)->slot.destroy();
+                reinterpret_cast<HashNode<value_type>*>(node)->slot.destroy();
                 _node = nullptr;
             }
         }
@@ -245,19 +243,13 @@ namespace sgcl::detail {
         typename Equal::is_transparent;
     };
 
-    // Root: the kind of the word by which the container holds its bucket
-    // array and its sentinel, tracked_ptr or gc::tracked_ptr (types.h); the links
-    // between the nodes are tracked_ptrs whatever it is.
-    template<class Key, class T, class Hash, class Equal, bool Unique, template<class> class Root>
+    template<class Key, class T, class Hash, class Equal, bool Unique>
     struct HashMapTraits {
         using key_type = Key;
         using mapped_type = T;
         using value_type = std::pair<const Key, T>;
-        // What a node stores (rb_tree.h: MapTraits)
-        using stored_type = managed_value_t<value_type>;
         using hasher = Hash;
         using key_equal = Equal;
-        template<class U> using root = Root<U>;
         static constexpr bool unique = Unique;
         static constexpr bool const_iterators = false;
 
@@ -266,15 +258,13 @@ namespace sgcl::detail {
         }
     };
 
-    template<class Key, class Hash, class Equal, bool Unique, template<class> class Root>
+    template<class Key, class Hash, class Equal, bool Unique>
     struct HashSetTraits {
         using key_type = Key;
         using mapped_type = void;
         using value_type = Key;
-        using stored_type = managed_value_t<value_type>;
         using hasher = Hash;
         using key_equal = Equal;
-        template<class U> using root = Root<U>;
         static constexpr bool unique = Unique;
         static constexpr bool const_iterators = true;   // a key is never modified in place, as in std
 
@@ -300,8 +290,7 @@ namespace sgcl::detail {
     // extract, merge, clear).
     template<class Traits>
     class HashTable {
-        using Node = HashNode<typename Traits::value_type>;         // the view of a node: its value as the interface sees it
-        using StoredNode = HashNode<typename Traits::stored_type>;  // the node as allocated, constructed and destroyed
+        using Node = HashNode<typename Traits::value_type>;
         using NodePtr = tracked_ptr<Node>;          // an element node held by its maker or handle
         using LinkPtr = tracked_ptr<HashNodeBase>;  // a link, a bucket entry, the sentinel
 
@@ -484,7 +473,7 @@ namespace sgcl::detail {
             LinkPtr next;   // one stack root for the loop, assigned per node
             while (p) {
                 auto node = p.get();
-                _stored(_node(node))->slot.destroy();
+                _node(node)->slot.destroy();
                 next = node->next;
                 node->next = nullptr;
                 p = next;
@@ -822,12 +811,6 @@ namespace sgcl::detail {
     protected:
         // The element node behind a link: every linked node but the
         // sentinel is one, and the sentinel is never reached this way.
-        // The node as stored, for its construction and destruction (a
-        // handle destroys its value as the interface type, the same word)
-        static StoredNode* _stored(Node* n) noexcept {
-            return reinterpret_cast<StoredNode*>(n);
-        }
-
         static Node* _node(HashNodeBase* p) noexcept {
             return static_cast<Node*>(p);
         }
@@ -946,8 +929,8 @@ namespace sgcl::detail {
     private:
         static constexpr size_type MinBucketCount = 8;
 
-        typename Traits::template root<LinkPtr> _buckets;        // managed array: each entry the node before its bucket's first
-        typename Traits::template root<HashNodeBase> _before_begin;   // sentinel: its next is the first node
+        tracked_ptr<LinkPtr> _buckets;        // managed array: each entry the node before its bucket's first
+        tracked_ptr<HashNodeBase> _before_begin;   // sentinel: its next is the first node
         size_type _bucket_count = 0;
         size_type _mask = 0;
         size_type _size = 0;
@@ -990,8 +973,8 @@ namespace sgcl::detail {
         template<class... A>
         NodePtr _make_node(A&&... a) {
             static_assert(sizeof(Array<sizeof(Node)>) <= PageDataSize, "Element is too large");
-            auto node = unique_ptr<Node>(UniquePtr<Node>(_node(Maker<StoredNode>::make_tracked().release())));
-            _stored(node.get())->slot.construct(std::forward<A>(a)...);
+            auto node = unique_ptr<Node>(UniquePtr<Node>(_node(Maker<Node>::make_tracked().release())));
+            node.get()->slot.construct(std::forward<A>(a)...);
             return NodePtr(std::move(node));
         }
 
@@ -1109,12 +1092,12 @@ namespace sgcl::detail {
                 prev = _find_before(hash, _key(node.get()));
             }
             catch (...) {
-                _stored(node.get())->slot.destroy();
+                node.get()->slot.destroy();
                 throw;
             }
             if constexpr(unique) {
                 if (prev) {
-                    _stored(node.get())->slot.destroy();
+                    node.get()->slot.destroy();
                     return std::pair<iterator, bool>(iterator(prev->next.get()), false);
                 }
                 _link_fresh(hash, node, nullptr);
@@ -1132,7 +1115,7 @@ namespace sgcl::detail {
                 _link_new(hash, node, prev);
             }
             catch (...) {
-                _stored(node.get())->slot.destroy();
+                node.get()->slot.destroy();
                 throw;
             }
         }

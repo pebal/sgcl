@@ -21,8 +21,8 @@ namespace sgcl::detail {
     // address, names a live object, and the address of a live object
     // names it alone: the weak containers compare and hash by it.
     struct WeakIdentity {
-        template<class T, template<class> class Ptr>
-        static const void* of(const weak_ptr<T, Ptr>& w) noexcept {
+        template<class T>
+        static const void* of(const weak_ptr<T>& w) noexcept {
             auto cell = w._cell.get();
             return cell ? cell->target.load(std::memory_order_acquire) : nullptr;
         }
@@ -46,13 +46,13 @@ namespace sgcl::detail {
     // gone), so the table must keep the hash it placed the node with:
     // libc++ and MSVC always do, libstdc++ only for a hash that may
     // throw, which is why the operator on a key is not noexcept.
-    template<class Key, template<class> class Ptr>
+    template<class Key>
     struct WeakHash {
         using is_transparent = void;
-        size_t operator()(const weak_ptr<Key, Ptr>& w) const {
+        size_t operator()(const weak_ptr<Key>& w) const {
             return weak_hash(WeakIdentity::of(w));
         }
-        size_t operator()(const Ptr<Key>& p) const noexcept {
+        size_t operator()(const tracked_ptr<Key>& p) const noexcept {
             return weak_hash(p.get());
         }
         size_t operator()(const Key* p) const noexcept {
@@ -60,11 +60,11 @@ namespace sgcl::detail {
         }
     };
 
-    template<class Key, template<class> class Ptr>
+    template<class Key>
     struct WeakEqual {
         using is_transparent = void;
-        static const void* of(const weak_ptr<Key, Ptr>& w) noexcept { return WeakIdentity::of(w); }
-        static const void* of(const Ptr<Key>& p) noexcept { return p.get(); }
+        static const void* of(const weak_ptr<Key>& w) noexcept { return WeakIdentity::of(w); }
+        static const void* of(const tracked_ptr<Key>& p) noexcept { return p.get(); }
         static const void* of(const Key* p) noexcept { return p; }
         template<class A, class B>
         bool operator()(const A& a, const B& b) const noexcept {
@@ -77,12 +77,12 @@ namespace sgcl::detail {
     // (the Table: unordered_map, unordered_multimap or unordered_set of
     // them), the entries of dead objects swept out every so many
     // insertions, and an iterator that passes the dead ones over.
-    template<class Key, class Table, template<class> class Ptr>
+    template<class Key, class Table>
     class WeakTable {
     public:
         using key_type = Key;
-        using key_pointer = Ptr<Key>;
-        using weak_type = weak_ptr<Key, Ptr>;
+        using key_pointer = tracked_ptr<Key>;
+        using weak_type = weak_ptr<Key>;
         using table_type = Table;
         using size_type = size_t;
 
