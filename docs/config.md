@@ -167,6 +167,19 @@ The parallel marking traces the objects it pops from its stack through a window 
 clang++ -std=c++20 -DSGCL_MARK_PREFETCH_WINDOW=16 app.cpp
 ```
 
+### SGCL_BACKOFF_MAX, BackoffMax
+
+```cpp
+#define SGCL_BACKOFF_MAX 4096    // arm64; 1024 on x86; 65536 without a pause instruction
+static constexpr unsigned BackoffMax = SGCL_BACKOFF_MAX;
+```
+
+The longest wait of the exponential backoff of a failed compare-exchange on a contended word ([concurrent_stack](concurrent_stack.md)), in pause instructions: a thread that loses the exchange pauses once before its next attempt, twice as long after each next loss, up to this many. The cap is a time, some 40 µs, and the default count is that time over the cost of the platform's pause: `isb` on arm64 takes 9 ns on an Apple M2 (4096), `pause` on x86 about 40 ns on Skylake and later and a few on older cores (1024), and where there is no pause instruction a turn of the loop takes a nanosecond or less (65536). Sixteen threads at one word take the Treiber stack from 740 ns per operation to 23 with 4096 on arm64 and to 40 with 1024; what one operation may wait under that contention is the cap. `0` retries at once.
+
+```sh
+clang++ -std=c++20 -DSGCL_BACKOFF_MAX=1024 app.cpp
+```
+
 ### SGCL_HELPERS_GROWTH_THRESHOLD, HelpersGrowthThreshold
 
 ```cpp

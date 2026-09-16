@@ -449,6 +449,21 @@ namespace sgcl::detail::os {
     }
 #endif
 
+    // A pause in a spin: the hint that keeps a waiting core out of the
+    // pipeline's way and the memory system's. On arm64 it is isb (yield
+    // is a no-op on Apple silicon), on x86 pause; elsewhere nothing.
+    SGCL_ALWAYS_INLINE void spin_pause() noexcept {
+#if defined(__aarch64__) || defined(_M_ARM64)
+        asm volatile("isb" ::: "memory");
+#elif defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
+#if defined(_MSC_VER)
+        _mm_pause();
+#else
+        __builtin_ia32_pause();
+#endif
+#endif
+    }
+
     // Makes the address of an object known to "someone": from here on the
     // compiler must keep the object in memory and perform its atomic
     // operations there. Without it a local tracked_ptr whose address never

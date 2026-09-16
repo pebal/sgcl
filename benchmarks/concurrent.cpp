@@ -1,0 +1,411 @@
+//------------------------------------------------------------------------------
+// SGCL: Smart Garbage Collection Library
+// Copyright (c) 2022-2026 Sebastian Nibisz
+// SPDX-License-Identifier: Apache-2.0
+//------------------------------------------------------------------------------
+// The lock-free containers shared by every thread: concurrent_queue
+// (Michael–Scott), concurrent_stack (Treiber) and concurrent_map (a skip
+// list), against what C++ has without a collector and against Go and Java
+// (benchmarks/go/concurrent, benchmarks/java/Concurrent.java: the same
+// shapes, Java's ConcurrentLinkedQueue, ConcurrentLinkedDeque and
+// ConcurrentSkipListMap). An element is an Item object of one long: what
+// the containers hold in every language, a pointer to an object.
+//   concurrent <queue|stack> <sgcl|gc|mutex|shared> [threads=4] [mode=mixed] [n=200000]
+//   concurrent map <sgcl|gc|mutex|rwlock> [threads=4] [keys=200000] [n=200000]
+// queue, stack: mixed, every thread pushes an item and pops one, n times
+// over; pairs, half the threads push n items each, the other half pop n
+// each. mutex: the std container of shared_ptr under a std::mutex, the
+// classic answer without a collector; shared: the same lock-free
+// algorithm on the standard library's atomic operations on shared_ptr
+// (a lock inside), as far as they take it.
+// map: three phases, each timed on its own: insert, the threads insert
+// `keys` disjoint keys; find, every thread looks up n random keys of
+// those; mixed, every thread does n operations over twice the key range,
+// 80% lookups, 10% insertions, 10% erasures. mutex: std::map of
+// shared_ptr under a std::mutex; rwlock: the same under a
+// std::shared_mutex, the lookups as readers.
+// Prints nanoseconds per operation and the process CPU time.
+#include "common.h"
+#include "sgcl/sgcl.h"
+
+#include <atomic>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <queue>
+#include <random>
+#include <shared_mutex>
+#include <stack>
+#include <thread>
+#include <vector>
+
+namespace {
+    struct Item {
+        long value;
+    };
+
+    // Ptr: sgcl::tracked_ptr, or gc::tracked_ptr for the gc variant
+    template<template<class> class Ptr>
+    struct SgclQueue {
+        sgcl::concurrent_queue<Ptr<Item>, Ptr> q;
+        void push(long v) {
+            q.emplace(sgcl::make_tracked<Item>(v));
+        }
+        long pop() {
+            auto p = q.try_pop();
+            return p ? (*p)->value : -1;
+        }
+    };
+
+    template<template<class> class Ptr>
+    struct SgclStack {
+        sgcl::concurrent_stack<Ptr<Item>, Ptr> s;
+        void push(long v) {
+            s.emplace(sgcl::make_tracked<Item>(v));
+        }
+        long pop() {
+            auto p = s.try_pop();
+            return p ? (*p)->value : -1;
+        }
+    };
+
+    template<template<class> class Ptr>
+    struct SgclMap {
+        sgcl::concurrent_map<long, Ptr<Item>, std::less<long>, Ptr> m;
+        bool insert(long k) {
+            return m.try_emplace(k, sgcl::make_tracked<Item>(k)).second;
+        }
+        long find(long k) {
+            auto it = m.find(k);
+            return it != m.end() ? it->second->value : -1;
+        }
+        bool erase(long k) {
+            return m.erase(k) != 0;
+        }
+    };
+
+    struct MutexQueue {
+        std::queue<std::shared_ptr<Item>> q;
+        std::mutex mutex;
+        void push(long v) {
+            auto p = std::make_shared<Item>(v);
+            std::lock_guard lock(mutex);
+            q.push(std::move(p));
+        }
+        long pop() {
+            std::shared_ptr<Item> p;
+            {
+                std::lock_guard lock(mutex);
+                if (q.empty()) {
+                    return -1;
+                }
+                p = std::move(q.front());
+                q.pop();
+            }
+            return p->value;
+        }
+    };
+
+    struct MutexStack {
+        std::stack<std::shared_ptr<Item>> s;
+        std::mutex mutex;
+        void push(long v) {
+            auto p = std::make_shared<Item>(v);
+            std::lock_guard lock(mutex);
+            s.push(std::move(p));
+        }
+        long pop() {
+            std::shared_ptr<Item> p;
+            {
+                std::lock_guard lock(mutex);
+                if (s.empty()) {
+                    return -1;
+                }
+                p = std::move(s.top());
+                s.pop();
+            }
+            return p->value;
+        }
+    };
+
+    // The Michael–Scott queue on shared_ptr: the head, the tail and every
+    // link an atomic shared_ptr through the free functions of <memory>,
+    // which the standard library implements with a lock. The element is
+    // read before the head is swung, as the paper has it, since the node
+    // may be freed by another consumer's release right after.
+    struct SharedQueue {
+        struct Node {
+            std::shared_ptr<Node> next;
+            std::unique_ptr<Item> item;
+        };
+        std::shared_ptr<Node> head = std::make_shared<Node>();
+        std::shared_ptr<Node> tail = head;
+        void push(long v) {
+            auto n = std::make_shared<Node>();
+            n->item = std::make_unique<Item>(v);
+            for (;;) {
+                auto t = std::atomic_load(&tail);
+                auto next = std::atomic_load(&t->next);
+                if (next) {
+                    std::atomic_compare_exchange_weak(&tail, &t, next);
+                    continue;
+                }
+                std::shared_ptr<Node> null;
+                if (std::atomic_compare_exchange_weak(&t->next, &null, n)) {
+                    std::atomic_compare_exchange_strong(&tail, &t, n);
+                    return;
+                }
+            }
+        }
+        long pop() {
+            for (;;) {
+                auto h = std::atomic_load(&head);
+                auto next = std::atomic_load(&h->next);
+                if (!next) {
+                    return -1;
+                }
+                auto t = std::atomic_load(&tail);
+                if (h == t) {
+                    std::atomic_compare_exchange_weak(&tail, &t, next);
+                    continue;
+                }
+                long v = next->item->value;
+                if (std::atomic_compare_exchange_weak(&head, &h, next)) {
+                    return v;
+                }
+            }
+        }
+    };
+
+    // the backoff of the SGCL stack, so that the algorithms are the same
+    struct SharedStack {
+        struct Node {
+            std::shared_ptr<Node> next;
+            std::unique_ptr<Item> item;
+        };
+        std::shared_ptr<Node> head;
+        void push(long v) {
+            auto n = std::make_shared<Node>();
+            n->item = std::make_unique<Item>(v);
+            n->next = std::atomic_load(&head);
+            sgcl::detail::Backoff backoff;
+            while (!std::atomic_compare_exchange_weak(&head, &n->next, n)) {
+                backoff();
+            }
+        }
+        long pop() {
+            auto h = std::atomic_load(&head);
+            sgcl::detail::Backoff backoff;
+            while (h && !std::atomic_compare_exchange_weak(&head, &h, h->next)) {
+                backoff();
+            }
+            return h ? h->item->value : -1;
+        }
+    };
+
+    struct MutexMap {
+        std::map<long, std::shared_ptr<Item>> m;
+        std::mutex mutex;
+        bool insert(long k) {
+            auto p = std::make_shared<Item>(k);
+            std::lock_guard lock(mutex);
+            return m.try_emplace(k, std::move(p)).second;
+        }
+        long find(long k) {
+            std::lock_guard lock(mutex);
+            auto it = m.find(k);
+            return it != m.end() ? it->second->value : -1;
+        }
+        bool erase(long k) {
+            std::shared_ptr<Item> p;
+            std::lock_guard lock(mutex);
+            auto it = m.find(k);
+            if (it == m.end()) {
+                return false;
+            }
+            p = std::move(it->second);
+            m.erase(it);
+            return true;
+        }
+    };
+
+    struct RwlockMap {
+        std::map<long, std::shared_ptr<Item>> m;
+        std::shared_mutex mutex;
+        bool insert(long k) {
+            auto p = std::make_shared<Item>(k);
+            std::unique_lock lock(mutex);
+            return m.try_emplace(k, std::move(p)).second;
+        }
+        long find(long k) {
+            std::shared_lock lock(mutex);
+            auto it = m.find(k);
+            return it != m.end() ? it->second->value : -1;
+        }
+        bool erase(long k) {
+            std::shared_ptr<Item> p;
+            std::unique_lock lock(mutex);
+            auto it = m.find(k);
+            if (it == m.end()) {
+                return false;
+            }
+            p = std::move(it->second);
+            m.erase(it);
+            return true;
+        }
+    };
+
+    // queue and stack: the loops of benchmarks/lockfree_stack.cpp
+    template<class C>
+    void run_container(const char* what, int threads, const std::string& mode, long n) {
+        C c;
+        std::vector<std::thread> ws;
+        bool pairs = mode == "pairs";
+        auto t0 = bench::Clock::now();
+        for (int t = 0; t < threads; ++t) {
+            ws.emplace_back([&, t] {
+                long sum = 0;
+                if (!pairs) {
+                    for (long i = 0; i < n; ++i) {
+                        c.push(i);
+                        sum += c.pop();
+                    }
+                } else if (t % 2 == 0) {
+                    for (long i = 0; i < n; ++i) {
+                        c.push(i);
+                    }
+                } else {
+                    for (long i = 0; i < n;) {
+                        auto v = c.pop();
+                        if (v >= 0) {
+                            sum += v;
+                            ++i;
+                        } else {
+                            std::this_thread::yield();
+                        }
+                    }
+                }
+                if (sum == -1) {
+                    std::printf("?");
+                }
+            });
+        }
+        for (auto& w : ws) {
+            w.join();
+        }
+        double wall = bench::seconds_since(t0);
+        double ops = pairs ? (double)n * threads : 2.0 * n * threads;
+        std::printf("%s threads=%d mode=%s ns/op=%.1f ops/s=%.0f wall=%.2fs cpu=%.2fs\n", what, threads, mode.c_str(), wall * 1e9 / ops, ops / wall, wall, bench::cpu_seconds());
+    }
+
+    template<class M>
+    void run_map(int threads, long keys, long n) {
+        M m;
+        std::vector<std::thread> ws;
+        auto phase = [&](auto&& body) {
+            auto t0 = bench::Clock::now();
+            for (int t = 0; t < threads; ++t) {
+                ws.emplace_back([&, t] { body(t); });
+            }
+            for (auto& w : ws) {
+                w.join();
+            }
+            ws.clear();
+            return bench::seconds_since(t0);
+        };
+        // insert: disjoint keys, interleaved between the threads
+        double insert = phase([&](int t) {
+            for (long k = t; k < keys; k += threads) {
+                m.insert(k);
+            }
+        });
+        // find: random keys of those, every one present
+        double find = phase([&](int t) {
+            std::mt19937_64 rng(1234 + t);
+            long sum = 0;
+            for (long i = 0; i < n; ++i) {
+                sum += m.find(long(rng() % uint64_t(keys)));
+            }
+            if (sum == -1) {
+                std::printf("?");
+            }
+        });
+        // mixed: 80% lookups, 10% insertions, 10% erasures, over twice the range
+        double mixed = phase([&](int t) {
+            std::mt19937_64 rng(4321 + t);
+            long sum = 0;
+            for (long i = 0; i < n; ++i) {
+                auto r = rng();
+                long k = long((r >> 8) % uint64_t(2 * keys));
+                auto op = r & 0xFF;
+                if (op < 205) {
+                    sum += m.find(k);
+                } else if (op < 230) {
+                    sum += m.insert(k);
+                } else {
+                    sum += m.erase(k);
+                }
+            }
+            if (sum == -1) {
+                std::printf("?");
+            }
+        });
+        double ops = (double)n * threads;
+        std::printf("map threads=%d keys=%ld insert=%.1f find=%.1f mixed=%.1f wall=%.2fs cpu=%.2fs\n", threads, keys, insert * 1e9 / (double)keys, find * 1e9 / ops, mixed * 1e9 / ops, insert + find + mixed, bench::cpu_seconds());
+    }
+}
+
+int main(int argc, char** argv) {
+    std::string what = argc > 1 ? argv[1] : "";
+    std::string v = argc > 2 ? argv[2] : "";
+    int threads = argc > 3 ? std::atoi(argv[3]) : 4;
+    if (what == "map") {
+        if (!bench::has_variant(v.c_str(), {"sgcl", "gc", "mutex", "rwlock"})) {
+            std::fprintf(stderr, "usage: concurrent map <sgcl|gc|mutex|rwlock> [threads] [keys] [n]\n");
+            return 2;
+        }
+        long keys = argc > 4 ? std::atol(argv[4]) : 200'000;
+        long n = argc > 5 ? std::atol(argv[5]) : 200'000;
+        if (v == "sgcl") {
+            run_map<SgclMap<sgcl::tracked_ptr>>(threads, keys, n);
+        } else if (v == "gc") {
+            run_map<SgclMap<gc::tracked_ptr>>(threads, keys, n);
+        } else if (v == "mutex") {
+            run_map<MutexMap>(threads, keys, n);
+        } else {
+            run_map<RwlockMap>(threads, keys, n);
+        }
+        return 0;
+    }
+    std::string mode = argc > 4 ? argv[4] : "mixed";
+    long n = argc > 5 ? std::atol(argv[5]) : 200'000;
+    if ((what != "queue" && what != "stack") || !bench::has_variant(v.c_str(), {"sgcl", "gc", "mutex", "shared"})
+        || (mode != "mixed" && mode != "pairs") || (mode == "pairs" && threads % 2)) {
+        std::fprintf(stderr, "usage: concurrent <queue|stack> <sgcl|gc|mutex|shared> [threads] [mixed|pairs (an even number of threads)] [n]\n"
+                             "       concurrent map <sgcl|gc|mutex|rwlock> [threads] [keys] [n]\n");
+        return 2;
+    }
+    if (what == "queue") {
+        if (v == "sgcl") {
+            run_container<SgclQueue<sgcl::tracked_ptr>>("queue", threads, mode, n);
+        } else if (v == "gc") {
+            run_container<SgclQueue<gc::tracked_ptr>>("queue", threads, mode, n);
+        } else if (v == "mutex") {
+            run_container<MutexQueue>("queue", threads, mode, n);
+        } else {
+            run_container<SharedQueue>("queue", threads, mode, n);
+        }
+    } else {
+        if (v == "sgcl") {
+            run_container<SgclStack<sgcl::tracked_ptr>>("stack", threads, mode, n);
+        } else if (v == "gc") {
+            run_container<SgclStack<gc::tracked_ptr>>("stack", threads, mode, n);
+        } else if (v == "mutex") {
+            run_container<MutexStack>("stack", threads, mode, n);
+        } else {
+            run_container<SharedStack>("stack", threads, mode, n);
+        }
+    }
+    return 0;
+}

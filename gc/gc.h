@@ -112,6 +112,14 @@ namespace gc {
     using unordered_multiset = sgcl::unordered_multiset<Key, Hash, KeyEqual, tracked_ptr>;
     template<class T, class Container = deque<T>>
     using stack = sgcl::stack<T, Container>;
+    // the lock-free containers: their root words of the gc kind, their
+    // nodes managed and linked by sgcl::tracked_ptr either way
+    template<class T>
+    using concurrent_queue = sgcl::concurrent_queue<T, tracked_ptr>;
+    template<class T>
+    using concurrent_stack = sgcl::concurrent_stack<T, tracked_ptr>;
+    template<class Key, class T, class Compare = std::less<Key>>
+    using concurrent_map = sgcl::concurrent_map<Key, T, Compare, tracked_ptr>;
     template<class T, class Container = deque<T>>
     using queue = sgcl::queue<T, Container>;
     template<class T, class Container = vector<T>, class Compare = std::less<typename Container::value_type>>

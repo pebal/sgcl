@@ -11,6 +11,10 @@
 // atomic_compare_exchange on a shared_ptr, which the library implements
 // with a lock); with unique_ptr the nodes have one owner, so the stack is
 // guarded by a mutex, the classic answer without a collector.
+// Every compare-exchange variant backs off exponentially after a lost
+// exchange (sgcl/detail/backoff.h, config::BackoffMax pauses at most; Go
+// and Java the same), the answer of Herlihy and Shavit to many threads at
+// one word.
 //   lockfree_stack <sgcl|gc|shared|unique> [threads=4] [mode=mixed] [n=1000000]   (gc: gc::tracked_ptr)
 // mixed: every thread pushes a node and pops one, n times over.
 // pairs: half the threads push n nodes each, the other half pop n each
@@ -39,12 +43,16 @@ namespace {
             Ptr<Node> n = sgcl::make_tracked<Node>();
             n->value = v;
             n->next = head.load(std::memory_order_relaxed);
+            sgcl::detail::Backoff backoff;
             while (!head.compare_exchange_weak(n->next, n, std::memory_order_release)) {
+                backoff();
             }
         }
         long pop() {
             auto h = head.load(std::memory_order_acquire);
+            sgcl::detail::Backoff backoff;
             while (h && !head.compare_exchange_weak(h, h->next, std::memory_order_acquire)) {
+                backoff();
             }
             return h ? h->value : -1;
         }
@@ -60,12 +68,16 @@ namespace {
             auto n = std::make_shared<Node>();
             n->value = v;
             n->next = std::atomic_load(&head);
+            sgcl::detail::Backoff backoff;
             while (!std::atomic_compare_exchange_weak(&head, &n->next, n)) {
+                backoff();
             }
         }
         long pop() {
             auto h = std::atomic_load(&head);
+            sgcl::detail::Backoff backoff;
             while (h && !std::atomic_compare_exchange_weak(&head, &h, h->next)) {
+                backoff();
             }
             return h ? h->value : -1;
         }

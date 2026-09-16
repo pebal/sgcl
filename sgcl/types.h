@@ -21,6 +21,12 @@ namespace sgcl {
     // tracked_ptr by default, gc::tracked_ptr for one that lives anywhere (gc.h).
     template<class, size_t, template<class> class = tracked_ptr>
     struct array;
+    template<class, class, class, template<class> class>
+    class concurrent_map;
+    template<class, template<class> class = tracked_ptr>
+    class concurrent_queue;
+    template<class, template<class> class = tracked_ptr>
+    class concurrent_stack;
     template<class, template<class> class = tracked_ptr>
     class deque;
     template<class, template<class> class = tracked_ptr>

@@ -23,18 +23,35 @@ type node struct {
 
 var head atomic.Pointer[node]
 
+// The backoff of sgcl/detail/backoff.h: a spin that doubles after every
+// lost exchange, up to backoffMax pauses: an isb on arm64 (isb_arm64.s,
+// the pause of the C++ variants), the loop alone elsewhere
+const backoffMax = 4096
+
+func backoff(pauses *int) {
+	for i := 0; i < *pauses; i++ {
+		isb()
+	}
+	if *pauses < backoffMax {
+		*pauses *= 2
+	}
+}
+
 func push(v int64) {
 	n := &node{value: v}
+	pauses := 1
 	for {
 		h := head.Load()
 		n.next = h
 		if head.CompareAndSwap(h, n) {
 			return
 		}
+		backoff(&pauses)
 	}
 }
 
 func pop() int64 {
+	pauses := 1
 	for {
 		h := head.Load()
 		if h == nil {
@@ -43,6 +60,7 @@ func pop() int64 {
 		if head.CompareAndSwap(h, h.next) {
 			return h.value
 		}
+		backoff(&pauses)
 	}
 }
 

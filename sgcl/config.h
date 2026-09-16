@@ -88,6 +88,27 @@ namespace sgcl::config {
 #define SGCL_MARK_PREFETCH_WINDOW 8
 #endif
     [[maybe_unused]] static constexpr unsigned MarkPrefetchWindow = SGCL_MARK_PREFETCH_WINDOW;
+    // The longest wait of the exponential backoff of a failed
+    // compare-exchange on a contended word (concurrent_stack.h), in pause
+    // instructions (detail/os.h: spin_pause): the wait doubles from one
+    // pause per failure up to this. The cap is a time, some 40 µs, and the
+    // count is that time over the cost of the platform's pause: isb on
+    // arm64 takes 9 ns (Apple M2: 4096), pause on x86 40 ns on Skylake and
+    // later (140 cycles; a few on older cores: 1024), and where there is no
+    // pause instruction a turn of the loop takes a nanosecond or less
+    // (65536). On 16 threads at one word the Treiber stack goes from 740
+    // ns per operation to 23 with 4096 on arm64, to 40 with 1024; the tail
+    // of one operation under that contention is the cap. 0 retries at once.
+#ifndef SGCL_BACKOFF_MAX
+#if defined(__aarch64__) || defined(_M_ARM64)
+#define SGCL_BACKOFF_MAX 4096
+#elif defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
+#define SGCL_BACKOFF_MAX 1024
+#else
+#define SGCL_BACKOFF_MAX 65536
+#endif
+#endif
+    [[maybe_unused]] static constexpr unsigned BackoffMax = SGCL_BACKOFF_MAX;
     // Whether the helpers are used at all is decided by growth, not by
     // allocation: a collector that keeps up leaves the live memory flat
     // however much is allocated. When it grows by HelpersGrowthThreshold

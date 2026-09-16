@@ -73,6 +73,32 @@ for t in 1 4 16; do
 done
 
 echo
+echo "## concurrent queue and stack, mixed, ns per push or pop, 200 k per thread (best of $RUNS)"
+echo "| container, threads | sgcl | gc | std::shared_ptr | atomic shared_ptr |"
+echo "|---|---|---|---|---|"
+for c in queue stack; do
+    for t in 1 4 16; do
+        line="| $c, $t"
+        for v in sgcl gc mutex shared; do
+            line="$line | $(best ns/op "$BIN/bench_concurrent" $c $v "$t" mixed)"
+        done
+        echo "$line |"
+    done
+done
+
+echo
+echo "## concurrent map, 200 k keys, ns per insert / find / mixed op, 200 k ops per thread (best of $RUNS)"
+echo "| threads | sgcl | gc | std::map, std::mutex | std::map, std::shared_mutex |"
+echo "|---|---|---|---|---|"
+for t in 1 4 16; do
+    line="| $t"
+    for v in sgcl gc mutex rwlock; do
+        line="$line | $(best insert "$BIN/bench_concurrent" map $v "$t") / $(best find "$BIN/bench_concurrent" map $v "$t") / $(best mixed "$BIN/bench_concurrent" map $v "$t")"
+    done
+    echo "$line |"
+done
+
+echo
 echo "## binary-trees, depth 18, wall / cpu seconds (best wall of $RUNS)"
 echo "| threads | sgcl | gc | shared_ptr | unique_ptr | raw |"
 echo "|---|---|---|---|---|---|"
