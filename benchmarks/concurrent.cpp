@@ -4,26 +4,30 @@
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 // The lock-free containers shared by every thread: concurrent_queue
-// (Michael–Scott), concurrent_stack (Treiber) and concurrent_map (a skip
-// list), against what C++ has without a collector and against Go and Java
-// (benchmarks/go/concurrent, benchmarks/java/Concurrent.java: the same
-// shapes, Java's ConcurrentLinkedQueue, ConcurrentLinkedDeque and
-// ConcurrentSkipListMap). An element is an Item object of one long: what
-// the containers hold in every language, a pointer to an object.
+// (Michael–Scott), concurrent_stack (Treiber), concurrent_map and
+// concurrent_set (a skip list) and concurrent_unordered_map (a
+// split-ordered list), against what C++ has without a collector and
+// against Go and Java (benchmarks/go/concurrent,
+// benchmarks/java/Concurrent.java: the same shapes, Java's
+// ConcurrentLinkedQueue, ConcurrentLinkedDeque, ConcurrentSkipListMap,
+// ConcurrentSkipListSet and ConcurrentHashMap). An element is an Item
+// object of one long: what the containers hold in every language, a
+// pointer to an object; the set holds the longs.
 //   concurrent <queue|stack> <sgcl|gc|mutex|shared> [threads=4] [mode=mixed] [n=200000]
-//   concurrent map <sgcl|gc|mutex|rwlock> [threads=4] [keys=200000] [n=200000]
+//   concurrent <map|umap|set> <sgcl|gc|mutex|rwlock> [threads=4] [keys=200000] [n=200000]
 // queue, stack: mixed, every thread pushes an item and pops one, n times
 // over; pairs, half the threads push n items each, the other half pop n
 // each. mutex: the std container of shared_ptr under a std::mutex, the
 // classic answer without a collector; shared: the same lock-free
 // algorithm on the standard library's atomic operations on shared_ptr
 // (a lock inside), as far as they take it.
-// map: three phases, each timed on its own: insert, the threads insert
-// `keys` disjoint keys; find, every thread looks up n random keys of
-// those; mixed, every thread does n operations over twice the key range,
-// 80% lookups, 10% insertions, 10% erasures. mutex: std::map of
-// shared_ptr under a std::mutex; rwlock: the same under a
-// std::shared_mutex, the lookups as readers.
+// map, umap, set: three phases, each timed on its own: insert, the
+// threads insert `keys` disjoint keys; find, every thread looks up n
+// random keys of those; mixed, every thread does n operations over twice
+// the key range, 80% lookups, 10% insertions, 10% erasures. mutex: the
+// std container (std::map, std::unordered_map of shared_ptr, std::set)
+// under a std::mutex; rwlock: the same under a std::shared_mutex, the
+// lookups as readers.
 // Prints nanoseconds per operation and the process CPU time.
 #include "common.h"
 #include "sgcl/sgcl.h"
@@ -35,8 +39,10 @@
 #include <optional>
 #include <queue>
 #include <random>
+#include <set>
 #include <shared_mutex>
 #include <stack>
+#include <unordered_map>
 #include <thread>
 #include <vector>
 
@@ -204,6 +210,84 @@ namespace {
         }
     };
 
+    template<template<class> class Ptr>
+    struct SgclUmap {
+        sgcl::concurrent_unordered_map<long, Ptr<Item>, std::hash<long>, std::equal_to<long>, Ptr> m;
+        bool insert(long k) {
+            return m.try_emplace(k, sgcl::make_tracked<Item>(k)).second;
+        }
+        long find(long k) {
+            auto it = m.find(k);
+            return it != m.end() ? it->second->value : -1;
+        }
+        bool erase(long k) {
+            return m.erase(k) != 0;
+        }
+    };
+
+    template<template<class> class Ptr>
+    struct SgclSet {
+        sgcl::concurrent_set<long, std::less<long>, Ptr> s;
+        bool insert(long k) {
+            return s.insert(k).second;
+        }
+        long find(long k) {
+            return s.contains(k) ? k : -1;
+        }
+        bool erase(long k) {
+            return s.erase(k) != 0;
+        }
+    };
+
+    // the std container under a lock: M the container, Mutex the lock,
+    // Reader the guard of a lookup (a shared_lock under a shared_mutex)
+    template<class M, class Mutex, template<class> class Reader>
+    struct Locked {
+        M m;
+        Mutex mutex;
+        bool insert(long k) {
+            if constexpr (requires { m.try_emplace(k, std::shared_ptr<Item>()); }) {
+                auto p = std::make_shared<Item>(k);
+                std::unique_lock lock(mutex);
+                return m.try_emplace(k, std::move(p)).second;
+            } else {
+                std::unique_lock lock(mutex);
+                return m.insert(k).second;
+            }
+        }
+        long find(long k) {
+            Reader<Mutex> lock(mutex);
+            auto it = m.find(k);
+            if (it == m.end()) {
+                return -1;
+            }
+            if constexpr (requires { it->second; }) {
+                return it->second->value;
+            } else {
+                return *it;
+            }
+        }
+        bool erase(long k) {
+            std::unique_lock lock(mutex);
+            auto it = m.find(k);
+            if (it == m.end()) {
+                return false;
+            }
+            if constexpr (requires { it->second; }) {
+                auto p = std::move(it->second);   // the Item released outside the lock
+                m.erase(it);
+                lock.unlock();
+                return true;
+            } else {
+                m.erase(it);
+                return true;
+            }
+        }
+    };
+
+    template<class M> using Exclusive = std::unique_lock<M>;
+    template<class M> using Shared = std::shared_lock<M>;
+
     struct MutexMap {
         std::map<long, std::shared_ptr<Item>> m;
         std::mutex mutex;
@@ -300,7 +384,7 @@ namespace {
     }
 
     template<class M>
-    void run_map(int threads, long keys, long n) {
+    void run_map(const char* what, int threads, long keys, long n) {
         M m;
         std::vector<std::thread> ws;
         auto phase = [&](auto&& body) {
@@ -352,7 +436,7 @@ namespace {
             }
         });
         double ops = (double)n * threads;
-        std::printf("map threads=%d keys=%ld insert=%.1f find=%.1f mixed=%.1f wall=%.2fs cpu=%.2fs\n", threads, keys, insert * 1e9 / (double)keys, find * 1e9 / ops, mixed * 1e9 / ops, insert + find + mixed, bench::cpu_seconds());
+        std::printf("%s threads=%d keys=%ld insert=%.1f find=%.1f mixed=%.1f wall=%.2fs cpu=%.2fs\n", what, threads, keys, insert * 1e9 / (double)keys, find * 1e9 / ops, mixed * 1e9 / ops, insert + find + mixed, bench::cpu_seconds());
     }
 }
 
@@ -360,21 +444,43 @@ int main(int argc, char** argv) {
     std::string what = argc > 1 ? argv[1] : "";
     std::string v = argc > 2 ? argv[2] : "";
     int threads = argc > 3 ? std::atoi(argv[3]) : 4;
-    if (what == "map") {
+    if (what == "map" || what == "umap" || what == "set") {
         if (!bench::has_variant(v.c_str(), {"sgcl", "gc", "mutex", "rwlock"})) {
-            std::fprintf(stderr, "usage: concurrent map <sgcl|gc|mutex|rwlock> [threads] [keys] [n]\n");
+            std::fprintf(stderr, "usage: concurrent <map|umap|set> <sgcl|gc|mutex|rwlock> [threads] [keys] [n]\n");
             return 2;
         }
         long keys = argc > 4 ? std::atol(argv[4]) : 200'000;
         long n = argc > 5 ? std::atol(argv[5]) : 200'000;
-        if (v == "sgcl") {
-            run_map<SgclMap<sgcl::tracked_ptr>>(threads, keys, n);
-        } else if (v == "gc") {
-            run_map<SgclMap<gc::tracked_ptr>>(threads, keys, n);
-        } else if (v == "mutex") {
-            run_map<MutexMap>(threads, keys, n);
+        if (what == "map") {
+            if (v == "sgcl") {
+                run_map<SgclMap<sgcl::tracked_ptr>>("map", threads, keys, n);
+            } else if (v == "gc") {
+                run_map<SgclMap<gc::tracked_ptr>>("map", threads, keys, n);
+            } else if (v == "mutex") {
+                run_map<MutexMap>("map", threads, keys, n);
+            } else {
+                run_map<RwlockMap>("map", threads, keys, n);
+            }
+        } else if (what == "umap") {
+            if (v == "sgcl") {
+                run_map<SgclUmap<sgcl::tracked_ptr>>("umap", threads, keys, n);
+            } else if (v == "gc") {
+                run_map<SgclUmap<gc::tracked_ptr>>("umap", threads, keys, n);
+            } else if (v == "mutex") {
+                run_map<Locked<std::unordered_map<long, std::shared_ptr<Item>>, std::mutex, Exclusive>>("umap", threads, keys, n);
+            } else {
+                run_map<Locked<std::unordered_map<long, std::shared_ptr<Item>>, std::shared_mutex, Shared>>("umap", threads, keys, n);
+            }
         } else {
-            run_map<RwlockMap>(threads, keys, n);
+            if (v == "sgcl") {
+                run_map<SgclSet<sgcl::tracked_ptr>>("set", threads, keys, n);
+            } else if (v == "gc") {
+                run_map<SgclSet<gc::tracked_ptr>>("set", threads, keys, n);
+            } else if (v == "mutex") {
+                run_map<Locked<std::set<long>, std::mutex, Exclusive>>("set", threads, keys, n);
+            } else {
+                run_map<Locked<std::set<long>, std::shared_mutex, Shared>>("set", threads, keys, n);
+            }
         }
         return 0;
     }

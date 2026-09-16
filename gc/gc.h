@@ -120,6 +120,12 @@ namespace gc {
     using concurrent_stack = sgcl::concurrent_stack<T, tracked_ptr>;
     template<class Key, class T, class Compare = std::less<Key>>
     using concurrent_map = sgcl::concurrent_map<Key, T, Compare, tracked_ptr>;
+    template<class Key, class Compare = std::less<Key>>
+    using concurrent_set = sgcl::concurrent_set<Key, Compare, tracked_ptr>;
+    template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
+    using concurrent_unordered_map = sgcl::concurrent_unordered_map<Key, T, Hash, KeyEqual, tracked_ptr>;
+    template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
+    using concurrent_unordered_set = sgcl::concurrent_unordered_set<Key, Hash, KeyEqual, tracked_ptr>;
     template<class T, class Container = deque<T>>
     using queue = sgcl::queue<T, Container>;
     template<class T, class Container = vector<T>, class Compare = std::less<typename Container::value_type>>

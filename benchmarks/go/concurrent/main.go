@@ -6,7 +6,10 @@
 // and Shavit with marker nodes for the deletions; the collector takes
 // care of ABA and of the memory. An element is an item of one int64.
 //   concurrent <queue|stack> [threads=4] [mode=mixed] [n=200000]
-//   concurrent map [threads=4] [keys=200000] [n=200000]
+//   concurrent <map|umap|set> [threads=4] [keys=200000] [n=200000]
+// umap is sync.Map, the concurrent map of Go's library (a hash map with
+// reads from a snapshot and writes under a lock, its keys boxed in any);
+// set the skip list holding keys alone.
 package main
 
 import (
@@ -403,22 +406,62 @@ func phase(threads int, body func(t int)) float64 {
 	return time.Since(t0).Seconds()
 }
 
-func runMap(threads int, keys, n int64) {
-	m := newSkipList()
+type keyed interface {
+	insert(k int64) bool
+	find(k int64) int64
+	erase(k int64) bool
+}
+
+type skipMap struct{ m *skiplist }
+
+func (s skipMap) insert(k int64) bool { return s.m.insert(k, &item{value: k}) }
+func (s skipMap) find(k int64) int64 {
+	if it := s.m.get(k); it != nil {
+		return it.value
+	}
+	return -1
+}
+func (s skipMap) erase(k int64) bool { return s.m.erase(k) }
+
+type skipSet struct{ m *skiplist }
+
+func (s skipSet) insert(k int64) bool { return s.m.insert(k, nil) }
+func (s skipSet) find(k int64) int64 {
+	if n := s.m.search(k); n != nil && !(k < n.key) {
+		return k
+	}
+	return -1
+}
+func (s skipSet) erase(k int64) bool { return s.m.erase(k) }
+
+type syncMap struct{ m sync.Map }
+
+func (s *syncMap) insert(k int64) bool {
+	_, loaded := s.m.LoadOrStore(k, &item{value: k})
+	return !loaded
+}
+func (s *syncMap) find(k int64) int64 {
+	if v, ok := s.m.Load(k); ok {
+		return v.(*item).value
+	}
+	return -1
+}
+func (s *syncMap) erase(k int64) bool {
+	_, loaded := s.m.LoadAndDelete(k)
+	return loaded
+}
+
+func runMap(what string, m keyed, threads int, keys, n int64) {
 	insert := phase(threads, func(t int) {
 		for k := int64(t); k < keys; k += int64(threads) {
-			m.insert(k, &item{value: k})
+			m.insert(k)
 		}
 	})
 	find := phase(threads, func(t int) {
 		rng := rand.New(rand.NewPCG(1234, uint64(t)))
 		var sum int64
 		for i := int64(0); i < n; i++ {
-			if it := m.get(rng.Int64N(keys)); it != nil {
-				sum += it.value
-			} else {
-				sum--
-			}
+			sum += m.find(rng.Int64N(keys))
 		}
 		if sum == -1 {
 			fmt.Print("?")
@@ -432,13 +475,9 @@ func runMap(threads int, keys, n int64) {
 			k := int64((r >> 8) % uint64(2*keys))
 			op := r & 0xFF
 			if op < 205 {
-				if it := m.get(k); it != nil {
-					sum += it.value
-				} else {
-					sum--
-				}
+				sum += m.find(k)
 			} else if op < 230 {
-				if m.insert(k, &item{value: k}) {
+				if m.insert(k) {
 					sum++
 				}
 			} else if m.erase(k) {
@@ -450,7 +489,7 @@ func runMap(threads int, keys, n int64) {
 		}
 	})
 	ops := float64(n) * float64(threads)
-	fmt.Printf("map threads=%d keys=%d insert=%.1f find=%.1f mixed=%.1f wall=%.2fs cpu=%.2fs\n", threads, keys, insert*1e9/float64(keys), find*1e9/ops, mixed*1e9/ops, insert+find+mixed, cpuSeconds())
+	fmt.Printf("%s threads=%d keys=%d insert=%.1f find=%.1f mixed=%.1f wall=%.2fs cpu=%.2fs\n", what, threads, keys, insert*1e9/float64(keys), find*1e9/ops, mixed*1e9/ops, insert+find+mixed, cpuSeconds())
 }
 
 func main() {
@@ -463,7 +502,7 @@ func main() {
 		threads, _ = strconv.Atoi(os.Args[2])
 	}
 	runtime.GOMAXPROCS(runtime.NumCPU())
-	if what == "map" {
+	if what == "map" || what == "umap" || what == "set" {
 		keys, n := int64(200000), int64(200000)
 		if len(os.Args) > 3 {
 			keys, _ = strconv.ParseInt(os.Args[3], 10, 64)
@@ -471,7 +510,16 @@ func main() {
 		if len(os.Args) > 4 {
 			n, _ = strconv.ParseInt(os.Args[4], 10, 64)
 		}
-		runMap(threads, keys, n)
+		var m keyed
+		switch what {
+		case "map":
+			m = skipMap{newSkipList()}
+		case "umap":
+			m = &syncMap{}
+		default:
+			m = skipSet{newSkipList()}
+		}
+		runMap(what, m, threads, keys, n)
 		return
 	}
 	mode, n := "mixed", int64(200000)

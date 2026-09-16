@@ -3,17 +3,20 @@
 // ConcurrentLinkedQueue (Michael–Scott), ConcurrentLinkedDeque at one end
 // (a stack) and ConcurrentSkipListMap, holding Item objects of one long.
 //   java Concurrent <queue|stack> [threads=4] [mode=mixed] [n=200000]
-//   java Concurrent map [threads=4] [keys=200000] [n=200000]
+//   java Concurrent <map|umap|set> [threads=4] [keys=200000] [n=200000]
 // queue, stack: mixed, every thread pushes an item and pops one, n times
 // over; pairs, half the threads push n each, the other half pop n each.
 // map: insert, the threads insert `keys` disjoint keys; find, every thread
 // looks up n random keys of those; mixed, every thread does n operations
 // over twice the range, 80% lookups, 10% insertions, 10% erasures. The
-// keys are Long: boxed, as a Java map's are.
+// keys are Long: boxed, as a Java map's are. map is ConcurrentSkipListMap,
+// umap ConcurrentHashMap, set ConcurrentSkipListSet.
 import java.util.SplittableRandom;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 
 public final class Concurrent {
     static final class Item { final long value; Item(long v) { value = v; } }
@@ -67,15 +70,37 @@ public final class Concurrent {
         return (System.nanoTime() - t0) / 1e9;
     }
 
-    static void runMap(int threads, long keys, long n) throws Exception {
+    interface Keyed { boolean insert(long k); long find(long k); boolean erase(long k); }
+
+    static final class SkipMap implements Keyed {
         final ConcurrentSkipListMap<Long, Item> m = new ConcurrentSkipListMap<>();
+        public boolean insert(long k) { return m.putIfAbsent(k, new Item(k)) == null; }
+        public long find(long k) { Item it = m.get(k); return it == null ? -1 : it.value; }
+        public boolean erase(long k) { return m.remove(k) != null; }
+    }
+
+    static final class HashMap implements Keyed {
+        final ConcurrentHashMap<Long, Item> m = new ConcurrentHashMap<>();
+        public boolean insert(long k) { return m.putIfAbsent(k, new Item(k)) == null; }
+        public long find(long k) { Item it = m.get(k); return it == null ? -1 : it.value; }
+        public boolean erase(long k) { return m.remove(k) != null; }
+    }
+
+    static final class SkipSet implements Keyed {
+        final ConcurrentSkipListSet<Long> s = new ConcurrentSkipListSet<>();
+        public boolean insert(long k) { return s.add(k); }
+        public long find(long k) { return s.contains(k) ? k : -1; }
+        public boolean erase(long k) { return s.remove(k); }
+    }
+
+    static void runMap(String what, Keyed m, int threads, long keys, long n) throws Exception {
         double insert = phase(threads, t -> {
-            for (long k = t; k < keys; k += threads) m.putIfAbsent(k, new Item(k));
+            for (long k = t; k < keys; k += threads) m.insert(k);
         });
         double find = phase(threads, t -> {
             SplittableRandom rng = new SplittableRandom(1234 + t);
             long sum = 0;
-            for (long i = 0; i < n; ++i) { Item it = m.get(rng.nextLong(keys)); sum += it == null ? -1 : it.value; }
+            for (long i = 0; i < n; ++i) sum += m.find(rng.nextLong(keys));
             if (sum == -1) System.out.print("?");
         });
         double mixed = phase(threads, t -> {
@@ -85,23 +110,23 @@ public final class Concurrent {
                 long r = rng.nextLong();
                 long k = Long.remainderUnsigned(r >>> 8, 2 * keys);
                 long op = r & 0xFF;
-                if (op < 205) { Item it = m.get(k); sum += it == null ? -1 : it.value; }
-                else if (op < 230) { sum += m.putIfAbsent(k, new Item(k)) == null ? 1 : 0; }
-                else { sum += m.remove(k) != null ? 1 : 0; }
+                if (op < 205) sum += m.find(k);
+                else if (op < 230) sum += m.insert(k) ? 1 : 0;
+                else sum += m.erase(k) ? 1 : 0;
             }
             if (sum == -1) System.out.print("?");
         });
         double ops = (double) n * threads;
-        System.out.printf("map threads=%d keys=%d insert=%.1f find=%.1f mixed=%.1f wall=%.2fs cpu=%.2fs%n", threads, keys, insert * 1e9 / keys, find * 1e9 / ops, mixed * 1e9 / ops, insert + find + mixed, Common.cpuSeconds());
+        System.out.printf("%s threads=%d keys=%d insert=%.1f find=%.1f mixed=%.1f wall=%.2fs cpu=%.2fs%n", what, threads, keys, insert * 1e9 / keys, find * 1e9 / ops, mixed * 1e9 / ops, insert + find + mixed, Common.cpuSeconds());
     }
 
     public static void main(String[] args) throws Exception {
         String what = args.length > 0 ? args[0] : "queue";
         int threads = args.length > 1 ? Integer.parseInt(args[1]) : 4;
-        if (what.equals("map")) {
+        if (what.equals("map") || what.equals("umap") || what.equals("set")) {
             long keys = args.length > 2 ? Long.parseLong(args[2]) : 200_000L;
             long n = args.length > 3 ? Long.parseLong(args[3]) : 200_000L;
-            runMap(threads, keys, n);
+            runMap(what, what.equals("map") ? new SkipMap() : what.equals("umap") ? new HashMap() : new SkipSet(), threads, keys, n);
             return;
         }
         String mode = args.length > 2 ? args[2] : "mixed";

@@ -53,6 +53,9 @@ Structures shared by any number of threads without a lock, the textbook algorith
 | [concurrent_queue](concurrent_queue.md) | `sgcl/concurrent_queue.h` | the Michael–Scott queue: unbounded, FIFO, `push`, `try_pop`, a blocking `pop` |
 | [concurrent_stack](concurrent_stack.md) | `sgcl/concurrent_stack.h` | the Treiber stack: one word, `push`, `try_pop`, a blocking `pop` |
 | [concurrent_map](concurrent_map.md) | `sgcl/concurrent_map.h` | the lock-free skip list of Herlihy and Shavit: an ordered map with `find`, `insert`, `try_emplace`, `erase`, weakly consistent iteration |
+| [concurrent_set](concurrent_set.md) | `sgcl/concurrent_set.h` | the same skip list with the key as the element |
+| [concurrent_unordered_map](concurrent_unordered_map.md) | `sgcl/concurrent_unordered_map.h` | the split-ordered list of Shalev and Shavit: a lock-free hash map that doubles its bucket array without moving a node |
+| [concurrent_unordered_set](concurrent_unordered_set.md) | `sgcl/concurrent_unordered_set.h` | the same table with the key as the element |
 
 ## The gc namespace
 

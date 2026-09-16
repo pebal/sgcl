@@ -25,6 +25,12 @@ namespace sgcl {
     class concurrent_map;
     template<class, template<class> class = tracked_ptr>
     class concurrent_queue;
+    template<class, class, template<class> class>
+    class concurrent_set;
+    template<class, class, class, class, template<class> class>
+    class concurrent_unordered_map;
+    template<class, class, class, template<class> class>
+    class concurrent_unordered_set;
     template<class, template<class> class = tracked_ptr>
     class concurrent_stack;
     template<class, template<class> class = tracked_ptr>

@@ -87,15 +87,17 @@ for c in queue stack; do
 done
 
 echo
-echo "## concurrent map, 200 k keys, ns per insert / find / mixed op, 200 k ops per thread (best of $RUNS)"
-echo "| threads | sgcl | gc | std::map, std::mutex | std::map, std::shared_mutex |"
+echo "## concurrent map, umap and set, 200 k keys, ns per insert / find / mixed op, 200 k ops per thread (best of $RUNS)"
+echo "| container, threads | sgcl | gc | std, std::mutex | std, std::shared_mutex |"
 echo "|---|---|---|---|---|"
-for t in 1 4 16; do
-    line="| $t"
-    for v in sgcl gc mutex rwlock; do
-        line="$line | $(best insert "$BIN/bench_concurrent" map $v "$t") / $(best find "$BIN/bench_concurrent" map $v "$t") / $(best mixed "$BIN/bench_concurrent" map $v "$t")"
+for c in map umap set; do
+    for t in 1 4 16; do
+        line="| $c, $t"
+        for v in sgcl gc mutex rwlock; do
+            line="$line | $(best insert "$BIN/bench_concurrent" $c $v "$t") / $(best find "$BIN/bench_concurrent" $c $v "$t") / $(best mixed "$BIN/bench_concurrent" $c $v "$t")"
+        done
+        echo "$line |"
     done
-    echo "$line |"
 done
 
 echo

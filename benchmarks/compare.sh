@@ -106,14 +106,14 @@ for c in queue stack; do for t in 1 4 16; do
     want java-zgc && { run "${JAVA[@]}" -Xmx256m Concurrent $c $t mixed 200000; echo "conc|$c|$t|java-zgc|$(field ns/op)"; }
 done; done
 KEY=wall
-echo "# concurrent map, 200 k keys, 200 k operations per thread: conc|map|threads|variant|ns per insert|ns per find|ns per mixed op|cpu s|rss MB (std::map of shared_ptr under a mutex, then under a shared_mutex)"
-mline() { echo "conc|map|$1|$2|$(field insert)|$(field find)|$(field mixed)|$(field cpu)|$RSS"; }
-for t in 1 4 16; do
-    for v in sgcl gc; do want $v && { run "$BIN/bench_concurrent" map $v $t 200000 200000; mline $t $v; }; done
-    want shared && { run "$BIN/bench_concurrent" map mutex $t 200000 200000; mline $t mutex; run "$BIN/bench_concurrent" map rwlock $t 200000 200000; mline $t rwlock; }
-    want go && { run "$T/concurrent" map $t 200000 200000; mline $t go; }
-    want java-zgc && { run "${JAVA[@]}" -Xmx128m Concurrent map $t 200000 200000; mline $t java-zgc; }
-done
+echo "# concurrent map (a skip list), umap (a hash map) and set (a skip list), 200 k keys, 200 k operations per thread: conc|map or umap or set|threads|variant|ns per insert|ns per find|ns per mixed op|cpu s|rss MB (mutex: the std container under a mutex, rwlock: under a shared_mutex; umap in Go: sync.Map)"
+mline() { echo "conc|$1|$2|$3|$(field insert)|$(field find)|$(field mixed)|$(field cpu)|$RSS"; }
+for c in map umap set; do for t in 1 4 16; do
+    for v in sgcl gc; do want $v && { run "$BIN/bench_concurrent" $c $v $t 200000 200000; mline $c $t $v; }; done
+    want shared && { run "$BIN/bench_concurrent" $c mutex $t 200000 200000; mline $c $t mutex; run "$BIN/bench_concurrent" $c rwlock $t 200000 200000; mline $c $t rwlock; }
+    want go && { run "$T/concurrent" $c $t 200000 200000; mline $c $t go; }
+    want java-zgc && { run "${JAVA[@]}" -Xmx128m Concurrent $c $t 200000 200000; mline $c $t java-zgc; }
+done; done
 fi
 
 if case_ bt; then
