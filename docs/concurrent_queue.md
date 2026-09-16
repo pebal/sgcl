@@ -113,7 +113,7 @@ struct Stage {
 
 int main() {
     sgcl::tracked_ptr stage = sgcl::make_tracked<Stage>();
-    std::atomic<int> received = 0, out_of_order = 0;
+    gc::atomic<int> received = 0, out_of_order = 0;
     std::vector<std::thread> threads;
     for (int p = 0; p < 4; ++p) {
         threads.emplace_back([&, p] {

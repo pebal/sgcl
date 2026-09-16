@@ -30,7 +30,7 @@ namespace {
     };
 
     struct Counted {
-        static inline std::atomic<int> alive = 0;
+        static inline gc::atomic<int> alive = 0;
         Counted() { ++alive; }
         ~Counted() { --alive; }
         int value = 7;
@@ -201,8 +201,8 @@ TEST_P(Stepping, AThreadExitingBeforeTheScanFreesItsObjects) {
     arm(s);
     settle(s);
     Counted::alive = 0;
-    std::atomic<bool> go = false;
-    std::atomic<bool> ready = false;
+    gc::atomic<bool> go = false;
+    gc::atomic<bool> ready = false;
     std::thread other([&] {
         tracked_ptr held = make_tracked<Counted>();     // on this thread's stack only
         ready = true;
@@ -229,8 +229,8 @@ TEST_P(Stepping, AThreadExitingAfterTheScanKeepsItsObjectsForTheCycle) {
     arm(s);
     settle(s);
     Counted::alive = 0;
-    std::atomic<bool> go = false;
-    std::atomic<bool> ready = false;
+    gc::atomic<bool> go = false;
+    gc::atomic<bool> ready = false;
     std::thread other([&] {
         tracked_ptr held = make_tracked<Counted>();
         ready = true;

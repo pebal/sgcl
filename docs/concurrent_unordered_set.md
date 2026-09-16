@@ -63,7 +63,7 @@ key_equal key_eq() const;
 // Threads claim ids: insert succeeds for exactly one of them per id
 int main() {
     gc::concurrent_unordered_set<int> claimed;
-    std::atomic<int> wins = 0;
+    gc::atomic<int> wins = 0;
     std::vector<std::thread> threads;
     for (int t = 0; t < 8; ++t) {
         threads.emplace_back([&] {

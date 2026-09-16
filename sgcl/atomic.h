@@ -11,6 +11,18 @@
 #include "tracked_ptr.h"
 
 namespace sgcl {
+    // sgcl::atomic<T> is std::atomic<T> for every T but the ones below: the
+    // tracked pointers of either kind and the strings, whose atomics are
+    // the library's own, over the word each of them is. So a program
+    // written against gc:: or sgcl:: names one atomic for its flags, its
+    // counters and its pointers alike.
+    template<class T>
+    class atomic : public std::atomic<T> {
+    public:
+        using std::atomic<T>::atomic;
+        using std::atomic<T>::operator=;
+    };
+
     // The atomic of a tracked_ptr: the operations of detail::AtomicWord on
     // the word it holds, one word, as a tracked_ptr is. It lives where a
     // tracked_ptr may: on a stack or inside a managed object.

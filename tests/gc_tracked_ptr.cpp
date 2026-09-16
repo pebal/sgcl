@@ -21,7 +21,7 @@ namespace {
     };
 
     struct Counted {
-        static inline std::atomic<int> alive = 0;
+        static inline gc::atomic<int> alive = 0;
         Counted() { ++alive; }
         ~Counted() { --alive; }
     };
@@ -29,8 +29,8 @@ namespace {
     struct Peer;
     struct Owner {
         gc::tracked_ptr<Peer> peer;
-        static inline std::atomic<int> seen_dead = 0;
-        static inline std::atomic<int> seen_alive = 0;
+        static inline gc::atomic<int> seen_dead = 0;
+        static inline gc::atomic<int> seen_alive = 0;
         ~Owner() {
             if (peer.if_alive()) {
                 ++seen_alive;
@@ -341,7 +341,7 @@ TEST(GcTrackedPtr_Tests, IfAliveInADestructor) {
 
 TEST(GcTrackedPtr_Tests, SharedBetweenThreadsFromUnmanagedMemory) {
     struct Hits {
-        std::atomic<int> hits = {0};
+        gc::atomic<int> hits = {0};
     };
     auto live0 = live_after_collect();
     auto shared = std::make_shared<gc::tracked_ptr<Hits>>();
@@ -437,7 +437,7 @@ TEST(GcTrackedPtr_Tests, AtomicInEveryPlace) {
 }
 
 TEST(GcTrackedPtr_Tests, AtomicSharedBetweenThreads) {
-    struct Counter { std::atomic<int> hits = {0}; };
+    struct Counter { gc::atomic<int> hits = {0}; };
     auto live0 = live_after_collect();
     auto shared = std::make_shared<atomic<gc::tracked_ptr<Counter>>>();
     std::vector<std::thread> threads;

@@ -67,7 +67,7 @@ namespace sgcl {
 
             atomic<tracked_ptr<Node>> next;
             optional<T> value;                 // disengaged once taken
-            std::atomic<bool> taken = {false};   // the claim on the element: one pop wins it
+            atomic<bool> taken = {false};   // the claim on the element: one pop wins it
         };
 
     public:

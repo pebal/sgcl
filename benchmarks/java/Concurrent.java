@@ -5,6 +5,7 @@
 //   java Concurrent <queue|stack> [threads=4] [mode=mixed] [n=200000]
 //   java Concurrent <map|umap|set> [threads=4] [keys=200000] [n=200000]
 //   java Concurrent cow [threads=16] [n=2000000]
+//   java Concurrent chan [threads=4] [capacity=64] [n=200000]
 // queue, stack: mixed, every thread pushes an item and pops one, n times
 // over; pairs, half the threads push n each, the other half pop n each.
 // map: insert, the threads insert `keys` disjoint keys; find, every thread
@@ -14,7 +15,10 @@
 // umap ConcurrentHashMap, set ConcurrentSkipListSet. cow is a
 // CopyOnWriteArrayList of 64 Longs: threads - 1 readers sum it n times
 // each through its snapshot iterator, one writer sets an element as fast
-// as it can meanwhile (a copy of the array under the list's lock).
+// as it can meanwhile (a copy of the array under the list's lock). chan
+// is a BlockingQueue of Items, ArrayBlockingQueue of the capacity or
+// SynchronousQueue for 0, between threads / 2 producers of n items each
+// and threads / 2 consumers, a null Item as the end.
 import java.util.SplittableRandom;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -23,6 +27,9 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.SynchronousQueue;
 
 public final class Concurrent {
     static final class Item { final long value; Item(long v) { value = v; } }
@@ -158,8 +165,41 @@ public final class Concurrent {
         System.out.printf("cow threads=%d ns/read=%.1f ns/write=%.1f writes=%d reads/s=%.0f wall=%.2fs cpu=%.2fs%n", threads, wall * 1e9 / reads, writes[0] > 0 ? writeTime[0] * 1e9 / writes[0] : 0.0, writes[0], reads / wall, wall, Common.cpuSeconds());
     }
 
+    static final Item END = new Item(-1);
+
+    static void runChan(int threads, int capacity, long n) throws Exception {
+        final BlockingQueue<Item> q = capacity > 0 ? new ArrayBlockingQueue<>(capacity) : new SynchronousQueue<>();
+        int producers = Math.max(1, threads / 2), consumers = Math.max(1, threads / 2);
+        Thread[] ps = new Thread[producers], cs = new Thread[consumers];
+        long t0 = System.nanoTime();
+        for (int t = 0; t < producers; ++t) {
+            ps[t] = new Thread(() -> {
+                try { for (long i = 0; i < n; ++i) q.put(new Item(i)); } catch (InterruptedException e) { throw new RuntimeException(e); }
+            });
+            ps[t].start();
+        }
+        for (int t = 0; t < consumers; ++t) {
+            cs[t] = new Thread(() -> {
+                long sum = 0;
+                try { for (;;) { Item it = q.take(); if (it == END) break; sum += it.value; } } catch (InterruptedException e) { throw new RuntimeException(e); }
+                if (sum == -1) System.out.print("?");
+            });
+            cs[t].start();
+        }
+        for (Thread p : ps) p.join();
+        for (int t = 0; t < consumers; ++t) q.put(END);
+        for (Thread c : cs) c.join();
+        double wall = (System.nanoTime() - t0) / 1e9;
+        double ops = (double) n * producers;
+        System.out.printf("chan threads=%d capacity=%d ns/op=%.1f ops/s=%.0f wall=%.2fs cpu=%.2fs%n", threads, capacity, wall * 1e9 / ops, ops / wall, wall, Common.cpuSeconds());
+    }
+
     public static void main(String[] args) throws Exception {
         String what = args.length > 0 ? args[0] : "queue";
+        if (what.equals("chan")) {
+            runChan(args.length > 1 ? Integer.parseInt(args[1]) : 4, args.length > 2 ? Integer.parseInt(args[2]) : 64, args.length > 3 ? Long.parseLong(args[3]) : 200_000L);
+            return;
+        }
         if (what.equals("cow")) {
             runCow(args.length > 1 ? Integer.parseInt(args[1]) : 16, args.length > 2 ? Long.parseLong(args[2]) : 2_000_000L);
             return;

@@ -140,7 +140,7 @@ TEST(CopyOnWrite_Test, InsideManagedObject) {
 // lands exactly once, whatever the retries
 TEST(CopyOnWrite_Test, UpdatesAreLinearizable) {
     sgcl::copy_on_write<long> n(0);
-    std::atomic<long> retries = {0};
+    gc::atomic<long> retries = {0};
     off_frame([&] {
         std::vector<std::thread> ws;
         for (int t = 0; t < 8; ++t) {
@@ -164,8 +164,8 @@ TEST(CopyOnWrite_Test, UpdatesAreLinearizable) {
 // of a Pair are always equal in a snapshot
 TEST(CopyOnWrite_Test, SnapshotsAreWhole) {
     sgcl::copy_on_write<Pair> p;
-    std::atomic<bool> torn = {false};
-    std::atomic<bool> stop = {false};
+    gc::atomic<bool> torn = {false};
+    gc::atomic<bool> stop = {false};
     off_frame([&] {
         std::vector<std::thread> ws;
         for (int t = 0; t < 6; ++t) {

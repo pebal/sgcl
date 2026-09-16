@@ -16,7 +16,7 @@ namespace {
         explicit Node(int v) : value(v) { ++alive; }
         ~Node() { value = -1; --alive; }
         int value;
-        inline static std::atomic<int> alive = {0};
+        inline static gc::atomic<int> alive = {0};
     };
 
     struct Holder {
@@ -34,7 +34,7 @@ namespace {
         ~Counted() { --alive; }
         int operator()() const { return 1; }
         tracked_ptr<Node> node;
-        inline static std::atomic<int> alive = {0};
+        inline static gc::atomic<int> alive = {0};
     };
 
     // Inlined into the test's frame: a frame of its own would sit where

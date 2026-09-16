@@ -139,10 +139,10 @@ TEST(WeakGcTrackedPtr_Tests, LockRacesWithTheClearing) {
     struct Shared {
         std::mutex mutex;
         weak_ptr<Node> weak;
-        std::atomic<bool> stop = {false};
+        gc::atomic<bool> stop = {false};
     };
     tracked_ptr<Shared> shared = make_tracked<Shared>();
-    std::atomic<size_t> locked = {0};
+    gc::atomic<size_t> locked = {0};
     std::vector<std::thread> readers;
     for (int t = 0; t < 4; ++t) {
         // a raw pointer: this thread's tracked_ptr keeps the object, and a

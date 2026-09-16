@@ -111,8 +111,8 @@ struct Route {
 
 int main() {
     gc::copy_on_write<gc::vector<Route>> table(gc::vector<Route>{{1, 10}, {2, 20}});
-    std::atomic<bool> stop = false;
-    std::atomic<long> lookups = 0, inconsistent = 0;
+    gc::atomic<bool> stop = false;
+    gc::atomic<long> lookups = 0, inconsistent = 0;
     std::vector<std::thread> readers;
     for (int r = 0; r < 8; ++r) {
         readers.emplace_back([&] {

@@ -113,6 +113,20 @@ for t in 4 16; do
 done
 
 echo
+echo "## channel, ns per item, threads / 2 producers of 200 k items each, threads / 2 consumers (best of $RUNS)"
+echo "| capacity, threads | sgcl | gc | std::queue + mutex + condition variables |"
+echo "|---|---|---|---|"
+for cap in 0 64; do
+    for t in 2 4 16; do
+        line="| $cap, $t"
+        for v in sgcl gc mutex; do
+            line="$line | $(best ns/op "$BIN/bench_concurrent" chan $v "$t" $cap)"
+        done
+        echo "$line |"
+    done
+done
+
+echo
 echo "## binary-trees, depth 18, wall / cpu seconds (best wall of $RUNS)"
 echo "| threads | sgcl | gc | shared_ptr | unique_ptr | raw |"
 echo "|---|---|---|---|---|---|"

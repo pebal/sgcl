@@ -133,8 +133,8 @@ TEST(Referrers_Tests, HeldByACellOfAGcPointerInUnmanagedMemory) {
 }
 
 TEST(Referrers_Tests, AnotherThreadsStackIsARoot) {
-    std::atomic<Leaf*> shared = nullptr;
-    std::atomic<bool> done = false;
+    gc::atomic<Leaf*> shared = nullptr;
+    gc::atomic<bool> done = false;
     std::thread other([&] {
         tracked_ptr leaf = make_tracked<Leaf>();         // held by this thread's stack only
         shared = leaf.get();

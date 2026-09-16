@@ -8,6 +8,7 @@
 #include "array.h"
 #include "atomic.h"
 #include "atomic_ref.h"
+#include "channel.h"
 #include "collector.h"
 #include "concurrent_map.h"
 #include "concurrent_queue.h"

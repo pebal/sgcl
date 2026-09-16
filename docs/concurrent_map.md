@@ -191,7 +191,7 @@ struct Entry {
 
 int main() {
     gc::concurrent_map<int, gc::tracked_ptr<Entry>> registry;   // could as well be a global
-    std::atomic<long> found = 0;
+    gc::atomic<long> found = 0;
     std::vector<std::thread> threads;
     for (int w = 0; w < 4; ++w) {
         threads.emplace_back([&, w] {

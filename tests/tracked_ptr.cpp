@@ -349,7 +349,7 @@ TEST(TrackedGcTrackedPtr_Tests, ToSharedOfNullAndOfAnAlias) {
 
 TEST(TrackedGcTrackedPtr_Tests, ToSharedAcrossThreads) {
     struct Node {
-        std::atomic<int> hits = {0};
+        gc::atomic<int> hits = {0};
     };
     std::shared_ptr<Node> shared;
     {

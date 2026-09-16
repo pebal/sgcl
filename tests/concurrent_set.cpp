@@ -124,7 +124,7 @@ TEST(ConcurrentSet_Test, ChurnManyThreads) {
     const size_t before = collector::get_live_object_count();
     off_frame([&] {
         sgcl::concurrent_set<int> s;
-        std::atomic<bool> bad = {false};
+        gc::atomic<bool> bad = {false};
         std::vector<std::thread> ws;
         for (int t = 0; t < threads; ++t) {
             ws.emplace_back([&, t] {

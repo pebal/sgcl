@@ -79,8 +79,8 @@ assert(*p == 1 && !a.load());
 ### is_always_lock_free, required_alignment, is_lock_free
 
 ```cpp
-static constexpr bool is_always_lock_free;        // std::atomic<void*>::is_always_lock_free
-static constexpr std::size_t required_alignment;  // alignof(std::atomic<void*>)
+static constexpr bool is_always_lock_free;        // gc::atomic<void*>::is_always_lock_free
+static constexpr std::size_t required_alignment;  // alignof(gc::atomic<void*>)
 bool is_lock_free() const noexcept;
 ```
 

@@ -141,8 +141,8 @@ namespace sgcl::detail {
 
         struct Counters {
             struct Cell {
-                std::atomic<long> n = {0};
-                unsigned char _pad[config::CacheLineSize - sizeof(std::atomic<long>)] = {};
+                atomic<long> n = {0};
+                unsigned char _pad[config::CacheLineSize - sizeof(atomic<long>)] = {};
             };
 
             Cell cell[Stripes];
@@ -595,7 +595,7 @@ namespace sgcl::detail {
         // stripe the sum is looked at, and the array doubled once the
         // elements outnumber the buckets
         void _count(long delta, Buckets& b) {
-            static std::atomic<unsigned> next_stripe = {0};
+            static atomic<unsigned> next_stripe = {0};
             thread_local unsigned stripe = next_stripe.fetch_add(1, std::memory_order_relaxed) % Stripes;
             long n = _counters->cell[stripe].n.fetch_add(delta, std::memory_order_relaxed) + delta;
             if (delta > 0 && (n & 63) == 0 && size() > b.slots.size()) {

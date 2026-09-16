@@ -19,7 +19,7 @@ namespace {
         int v;
         Payload(int x) : v(x) { ++alive; }
         ~Payload() { v = -1; --alive; }
-        inline static std::atomic<int> alive = {0};
+        inline static gc::atomic<int> alive = {0};
     };
 
     struct Holder {
@@ -223,8 +223,8 @@ TEST(Generational_Tests, YoungStoresFromManyThreads) {
         table[t] = make_tracked<Holder>();
     }
     full_cycle();   // table and holders are old
-    std::atomic<int> go = {0};
-    std::atomic<int> done = {0};
+    gc::atomic<int> go = {0};
+    gc::atomic<int> done = {0};
     std::vector<std::thread> workers;
     for (int t = 0; t < Threads; ++t) {
         workers.emplace_back([&, t] {

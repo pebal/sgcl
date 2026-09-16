@@ -65,7 +65,7 @@ TEST(Atomic_Test, WaitNotifyOne) {
     sgcl::tracked_ptr sp2 = sgcl::make_tracked<int>(2);
     atomicPtr.store(sp1);
 
-    std::atomic<bool> threadWoke{false};
+    gc::atomic<bool> threadWoke{false};
 
     std::thread t([&]{
         atomicPtr.wait(sp1);
@@ -88,7 +88,7 @@ TEST(Atomic_Test, WaitNotifyAll) {
     sgcl::tracked_ptr sp2 = sgcl::make_tracked<int>(2);
     atomicPtr.store(sp1);
 
-    std::atomic<int> wakeCount{0};
+    gc::atomic<int> wakeCount{0};
 
     auto waitFunc = [&]{
         atomicPtr.wait(sp1);

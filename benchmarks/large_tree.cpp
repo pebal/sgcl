@@ -69,7 +69,7 @@ namespace {
         auto large = Tree::make(big);
         auto built = bench::seconds_since(t0);
         auto stats0 = sgcl::collector::get_statistics();
-        std::atomic<long> sum = {0};
+        gc::atomic<long> sum = {0};
         auto t1 = bench::Clock::now();
         std::vector<std::thread> ws;
         for (int t = 0; t < threads; ++t) {

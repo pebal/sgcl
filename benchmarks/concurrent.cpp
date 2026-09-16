@@ -16,6 +16,7 @@
 //   concurrent <queue|stack> <sgcl|gc|mutex|shared> [threads=4] [mode=mixed] [n=200000]
 //   concurrent <map|umap|set> <sgcl|gc|mutex|rwlock> [threads=4] [keys=200000] [n=200000]
 //   concurrent cow <sgcl|gc|shared|rwlock> [threads=16] [n=2000000]
+//   concurrent chan <sgcl|gc|mutex> [threads=4] [capacity=64] [n=200000]
 // queue, stack: mixed, every thread pushes an item and pops one, n times
 // over; pairs, half the threads push n items each, the other half pop n
 // each. mutex: the std container of shared_ptr under a std::mutex, the
@@ -35,12 +36,18 @@
 // std::shared_ptr<const array> with the atomic operations of <memory>;
 // rwlock: the array under a std::shared_mutex, the readers as readers,
 // the writer changing it in place.
+// chan: a channel of the given capacity (0: a rendezvous) between
+// threads / 2 producers, each sending n items, and threads / 2
+// consumers; mutex: std::queue under a std::mutex with two condition
+// variables, the classic bounded queue. Go: its channel; Java:
+// ArrayBlockingQueue, SynchronousQueue for capacity 0.
 // Prints nanoseconds per operation and the process CPU time.
 #include "common.h"
 #include "sgcl/sgcl.h"
 
 #include <array>
 #include <atomic>
+#include <condition_variable>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -356,8 +363,8 @@ namespace {
     void run_cow(int threads, long n) {
         C c;
         std::vector<std::thread> ws;
-        std::atomic<bool> stop = {false};
-        std::atomic<long> writes = {0};
+        gc::atomic<bool> stop = {false};
+        gc::atomic<long> writes = {0};
         double write_time = 0;
         auto t0 = bench::Clock::now();
         for (int t = 0; t < threads - 1; ++t) {
@@ -388,6 +395,99 @@ namespace {
         double wall = bench::seconds_since(t0);
         double reads = (double)n * (threads - 1);
         std::printf("cow threads=%d ns/read=%.1f ns/write=%.1f writes=%ld reads/s=%.0f wall=%.2fs cpu=%.2fs\n", threads, wall * 1e9 / reads, writes ? write_time * 1e9 / (double)writes : 0.0, writes.load(), reads / wall, wall, bench::cpu_seconds());
+    }
+
+    template<template<class> class Ptr>
+    struct SgclChan {
+        sgcl::channel<Ptr<Item>, Ptr> ch;
+        explicit SgclChan(size_t cap) : ch(cap) {}
+        void send(long v) {
+            ch.send(sgcl::make_tracked<Item>(v));
+        }
+        long receive() {
+            auto p = ch.receive();
+            return p ? (*p)->value : -1;
+        }
+        void close() {
+            ch.close();
+        }
+    };
+
+    // the classic bounded queue: a mutex, a queue, a condition variable
+    // for each side; capacity 0 taken as 1
+    struct MutexChan {
+        std::queue<std::shared_ptr<Item>> q;
+        std::mutex mutex;
+        std::condition_variable not_empty, not_full;
+        size_t cap;
+        bool closed = false;
+        explicit MutexChan(size_t c) : cap(c ? c : 1) {}
+        void send(long v) {
+            auto p = std::make_shared<Item>(v);
+            std::unique_lock lock(mutex);
+            not_full.wait(lock, [&] { return q.size() < cap; });
+            q.push(std::move(p));
+            not_empty.notify_one();
+        }
+        long receive() {
+            std::shared_ptr<Item> p;
+            {
+                std::unique_lock lock(mutex);
+                not_empty.wait(lock, [&] { return !q.empty() || closed; });
+                if (q.empty()) {
+                    return -1;
+                }
+                p = std::move(q.front());
+                q.pop();
+                not_full.notify_one();
+            }
+            return p->value;
+        }
+        void close() {
+            std::lock_guard lock(mutex);
+            closed = true;
+            not_empty.notify_all();
+        }
+    };
+
+    template<class C>
+    void run_chan(int threads, size_t cap, long n) {
+        C c(cap);
+        int producers = std::max(1, threads / 2), consumers = std::max(1, threads / 2);
+        std::vector<std::thread> ws;
+        gc::atomic<int> done = {0};
+        auto t0 = bench::Clock::now();
+        for (int t = 0; t < producers; ++t) {
+            ws.emplace_back([&] {
+                for (long i = 0; i < n; ++i) {
+                    c.send(i);
+                }
+                if (++done == producers) {
+                    c.close();
+                }
+            });
+        }
+        for (int t = 0; t < consumers; ++t) {
+            ws.emplace_back([&] {
+                long sum = 0;
+                for (;;) {
+                    long v = c.receive();
+                    if (v < 0) {
+                        break;
+                    }
+                    sum += v;
+                }
+                if (sum == -1) {
+                    std::printf("?");
+                }
+            });
+        }
+        for (auto& w : ws) {
+            w.join();
+        }
+        double wall = bench::seconds_since(t0);
+        double ops = (double)n * producers;
+        std::printf("chan threads=%d capacity=%zu ns/op=%.1f ops/s=%.0f wall=%.2fs cpu=%.2fs\n", threads, cap, wall * 1e9 / ops, ops / wall, wall, bench::cpu_seconds());
     }
 
     template<class M> using Exclusive = std::unique_lock<M>;
@@ -586,6 +686,22 @@ int main(int argc, char** argv) {
             } else {
                 run_map<Locked<std::set<long>, std::shared_mutex, Shared>>("set", threads, keys, n);
             }
+        }
+        return 0;
+    }
+    if (what == "chan") {
+        if (!bench::has_variant(v.c_str(), {"sgcl", "gc", "mutex"})) {
+            std::fprintf(stderr, "usage: concurrent chan <sgcl|gc|mutex> [threads] [capacity] [n]\n");
+            return 2;
+        }
+        size_t cap = argc > 4 ? (size_t)std::atol(argv[4]) : 64;
+        long n = argc > 5 ? std::atol(argv[5]) : 200'000;
+        if (v == "sgcl") {
+            run_chan<SgclChan<sgcl::tracked_ptr>>(threads, cap, n);
+        } else if (v == "gc") {
+            run_chan<SgclChan<gc::tracked_ptr>>(threads, cap, n);
+        } else {
+            run_chan<MutexChan>(threads, cap, n);
         }
         return 0;
     }

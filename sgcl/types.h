@@ -34,6 +34,8 @@ namespace sgcl {
     template<class, template<class> class = tracked_ptr>
     class concurrent_stack;
     template<class, template<class> class = tracked_ptr>
+    class channel;
+    template<class, template<class> class = tracked_ptr>
     class copy_on_write;
     template<class, template<class> class = tracked_ptr>
     class deque;

@@ -138,7 +138,7 @@ TEST(ConcurrentStack_Test, MixedPushPopManyThreads) {
     const size_t before = collector::get_live_object_count();
     off_frame([&] {
         sgcl::concurrent_stack<tracked_ptr<Baz>> s;
-        std::atomic<long> popped = {0};
+        gc::atomic<long> popped = {0};
         std::vector<std::thread> ws;
         for (int t = 0; t < threads; ++t) {
             ws.emplace_back([&, t] {
@@ -177,7 +177,7 @@ TEST(ConcurrentStack_Test, MixedPushPopManyThreads) {
 TEST(ConcurrentStack_Test, ProducersAndBlockingConsumers) {
     const int pairs = 4;
     const int n = 20000;
-    std::vector<std::atomic<int>> seen(size_t(pairs * n));
+    std::vector<gc::atomic<int>> seen(size_t(pairs * n));
     off_frame([&] {
         sgcl::concurrent_stack<tracked_ptr<Baz>> s;
         std::vector<std::thread> ws;

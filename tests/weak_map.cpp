@@ -17,7 +17,7 @@ namespace {
         ~Node() { value = -1; --alive; }
         int value;
         tracked_ptr<Node> next;
-        inline static std::atomic<int> alive = {0};
+        inline static gc::atomic<int> alive = {0};
     };
 
     // Inlined into the test's frame: a frame of its own would sit where

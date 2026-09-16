@@ -15,7 +15,7 @@ namespace {
         int v;
         Payload(int x) : v(x) { ++alive; }
         ~Payload() { v = -1; --alive; }
-        inline static std::atomic<int> alive = {0};
+        inline static gc::atomic<int> alive = {0};
     };
 
     struct Mixed {

@@ -16,7 +16,7 @@ namespace {
         int v;
         Payload(int x) : v(x) { ++alive; }
         ~Payload() { v = -1; --alive; }
-        inline static std::atomic<int> alive = {0};
+        inline static gc::atomic<int> alive = {0};
     };
 
     struct Holder {
@@ -45,7 +45,7 @@ namespace {
 TEST(Stack_Tests, RootInThreadThatNeverAllocates) {
     tracked_ptr<Holder> holder = make_tracked<Holder>();
     holder->ptr = make_tracked<Payload>(42);
-    std::atomic<int> phase = {0};
+    gc::atomic<int> phase = {0};
     int seen = 0;
     std::thread worker([&] {
         tracked_ptr<Payload> local = holder->ptr;   // the thread's first contact with the library
@@ -133,7 +133,7 @@ TEST(Stack_Tests, ArbitraryWordsAreHarmless) {
 // Threads that hold roots and exit while the collector scans: the exit
 // handshake keeps the scan off a stack that is going away.
 TEST(Stack_Tests, ThreadExitDuringScan) {
-    std::atomic<bool> stop = {false};
+    gc::atomic<bool> stop = {false};
     std::thread collector_thread([&] {
         while (!stop.load()) {
             collector::force_collect(true);
@@ -174,7 +174,7 @@ TEST(Stack_Tests, YoungObjectKeepsItsChildAcrossCycles) {
     struct Link {
         tracked_ptr<Payload> child;
     };
-    std::atomic<bool> stop = {false};
+    gc::atomic<bool> stop = {false};
     std::thread collector_thread([&] {
         while (!stop.load()) {
             collector::force_collect(true);
@@ -203,7 +203,7 @@ TEST(Stack_Tests, YoungObjectKeepsItsChildAcrossCycles) {
 // runs on the helper threads (reading only), and every root must still be
 // found.
 namespace {
-    SGCL_NOINLINE int deep_roots(int depth, int id, std::atomic<int>& ready, std::atomic<bool>& release) {
+    SGCL_NOINLINE int deep_roots(int depth, int id, gc::atomic<int>& ready, gc::atomic<bool>& release) {
         volatile char pad[4096];             // 4 KB per frame: 64 frames = 256 KB per thread (std::thread stacks are 512 KB on macOS)
         sgcl::detail::os::escape((const void*)pad);   // keeps the frames real: the optimizer turns such a recursion into a loop otherwise
         for (int i = 0; i < 4096; i += 64) {  // touch every line: the pages must really be used
@@ -227,8 +227,8 @@ TEST(Stack_Tests, BigStacksAreScannedOnHelpers) {
     constexpr int Threads = 20;   // 20 x ~300 KB used: above config::StackScanThreshold (4 MB)
     constexpr int Depth = 64;
     const auto scans_before = sgcl::detail::collector_instance().parallel_stack_scans();
-    std::atomic<int> ready = {0};
-    std::atomic<bool> release = {false};
+    gc::atomic<int> ready = {0};
+    gc::atomic<bool> release = {false};
     std::vector<std::thread> workers;
     std::vector<int> results(Threads, -1);
     for (int t = 0; t < Threads; ++t) {

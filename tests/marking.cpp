@@ -74,7 +74,7 @@ SGCL_NOINLINE static void build_churn_and_check(size_t before) {
             big[i] = i;
         }
     });
-    std::atomic<bool> stop = {false};
+    gc::atomic<bool> stop = {false};
     std::thread churn([&] {                         // >= 32 MB of garbage per cycle
         while (!stop.load()) {
             for (int i = 0; i < 2000; ++i) {

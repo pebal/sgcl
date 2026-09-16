@@ -5,6 +5,8 @@
 
 namespace sgcl {
     template<class T>
+    class atomic;   // std::atomic<T>, for every T but the three below
+    template<class T>
     class atomic<tracked_ptr<T>>;
     template<class T>
     class atomic<gc::tracked_ptr<T>>;
@@ -13,9 +15,9 @@ namespace sgcl {
 }
 ```
 
-`atomic<tracked_ptr<T>>` is `std::atomic` for a [`tracked_ptr`](tracked_ptr.md): a word that several threads read and write without a lock, with `load`, `store`, `compare_exchange_weak`, `compare_exchange_strong`, `wait` and `notify` taking a `std::memory_order`. It is the answer to rule 6: a `tracked_ptr` written by one thread and read by another needs `atomic`, `atomic_ref` or the program's own synchronization. `atomic<gc::tracked_ptr<T>>` is the same interface with `gc::tracked_ptr<T>` as its `value_type`, on the word a [`gc::tracked_ptr`](gc/tracked_ptr.md) holds its object by: the `tracked_ptr` itself inside a managed object or on a stack, the cell's word in any other memory, so that a global shared pointer is simply `static sgcl::atomic<gc::tracked_ptr<Config>> current;`. Its cell is taken in the constructor, not on the first store, so that no store allocates under a concurrent load. Inside, both atomics work with `sgcl::tracked_ptr`: the parameters below are `tracked_ptr<T>` in both (a `gc::tracked_ptr` argument converts to the word it holds and is copied from it, with no check of a location; an expected value that is a `gc::tracked_ptr` binds as that word, wherever the pointer is); what comes out, `load()`, the conversion and the assignment, is the `value_type`, a `gc::tracked_ptr` built on the stack with the location check of its constructor. The third specialization is the atomic of a [`string`](string.md) (below); no other exists: `sgcl::atomic<int>` is not a type, and a value shared whole between threads is a [`copy_on_write`](copy_on_write.md).
+`atomic<tracked_ptr<T>>` is `std::atomic` for a [`tracked_ptr`](tracked_ptr.md): a word that several threads read and write without a lock, with `load`, `store`, `compare_exchange_weak`, `compare_exchange_strong`, `wait` and `notify` taking a `std::memory_order`. It is the answer to rule 6: a `tracked_ptr` written by one thread and read by another needs `atomic`, `atomic_ref` or the program's own synchronization. `atomic<gc::tracked_ptr<T>>` is the same interface with `gc::tracked_ptr<T>` as its `value_type`, on the word a [`gc::tracked_ptr`](gc/tracked_ptr.md) holds its object by: the `tracked_ptr` itself inside a managed object or on a stack, the cell's word in any other memory, so that a global shared pointer is simply `static sgcl::atomic<gc::tracked_ptr<Config>> current;`. Its cell is taken in the constructor, not on the first store, so that no store allocates under a concurrent load. Inside, both atomics work with `sgcl::tracked_ptr`: the parameters below are `tracked_ptr<T>` in both (a `gc::tracked_ptr` argument converts to the word it holds and is copied from it, with no check of a location; an expected value that is a `gc::tracked_ptr` binds as that word, wherever the pointer is); what comes out, `load()`, the conversion and the assignment, is the `value_type`, a `gc::tracked_ptr` built on the stack with the location check of its constructor. The third specialization is the atomic of a [`string`](string.md) (below). For every other type, `sgcl::atomic<T>` (and `gc::atomic<T>`) is `std::atomic<T>`, derived from it with its constructors and assignments, so that a program names one atomic for its flags, its counters and its pointers alike; a value shared whole between threads, an object rather than a word, is a [`copy_on_write`](copy_on_write.md).
 
-The difference from `std::atomic<std::shared_ptr<T>>` is that it is lock-free, one word, and safe against reuse: a `load()` publishes a hazard pointer for the length of the load, so that the collector cannot reclaim the object between the read of the word and the construction of the `tracked_ptr` that holds it, and once held the object cannot be reclaimed at all. A compare-exchange therefore has no ABA problem: a node is never freed and reused while any thread holds a `tracked_ptr` to it, so the address it compares against is the node it means. A lock-free stack or queue needs no hazard pointers or epochs of its own (`examples/lock_free_stack.cpp`, and "Lock-free stack" in the [Benchmarks](../README.md#lock-free-stack)).
+The difference from `gc::atomic<std::shared_ptr<T>>` is that it is lock-free, one word, and safe against reuse: a `load()` publishes a hazard pointer for the length of the load, so that the collector cannot reclaim the object between the read of the word and the construction of the `tracked_ptr` that holds it, and once held the object cannot be reclaimed at all. A compare-exchange therefore has no ABA problem: a node is never freed and reused while any thread holds a `tracked_ptr` to it, so the address it compares against is the node it means. A lock-free stack or queue needs no hazard pointers or epochs of its own (`examples/lock_free_stack.cpp`, and "Lock-free stack" in the [Benchmarks](../README.md#lock-free-stack)).
 
 ## Rules
 
@@ -75,7 +77,7 @@ assert(*p == 1 && !a.load());
 ### is_always_lock_free, is_lock_free
 
 ```cpp
-static constexpr bool is_always_lock_free;   // std::atomic<void*>::is_always_lock_free
+static constexpr bool is_always_lock_free;   // gc::atomic<void*>::is_always_lock_free
 bool is_lock_free() const noexcept;
 ```
 

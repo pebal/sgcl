@@ -77,7 +77,7 @@ namespace {
         }
     }
 
-    void churn(Roots& roots, Shared& shared, int thread_index, int iterations, std::atomic<int>& next_id) {
+    void churn(Roots& roots, Shared& shared, int thread_index, int iterations, gc::atomic<int>& next_id) {
         std::mt19937 rng(1234 + thread_index);
         std::uniform_int_distribution<int> pick_root(0, RootCount - 1);
         std::uniform_int_distribution<int> pick_shared(0, SharedCount - 1);
@@ -116,7 +116,7 @@ TEST(Stress_Tests, CyclicGraphChurn) {
     const int iterations = 20000 * stress_scale();
     const size_t before = collector::get_live_object_count();
     off_frame([&] {
-        std::atomic<int> next_id = {0};
+        gc::atomic<int> next_id = {0};
         tracked_ptr<Roots> roots[threads];
         tracked_ptr<Shared> shared = make_tracked<Shared>();
         std::vector<std::thread> workers;
@@ -162,7 +162,7 @@ TEST(Stress_Tests, ContainerGraphChurn) {
     const size_t before = collector::get_live_object_count();
     {
         std::vector<std::thread> workers;
-        std::atomic<bool> failed = {false};
+        gc::atomic<bool> failed = {false};
         for (int t = 0; t < threads; ++t) {
             workers.emplace_back([&, t] {
                 std::mt19937 rng(99 + t);
@@ -243,11 +243,11 @@ TEST(Stress_Tests, LockFreeStackProducersConsumers) {
     const size_t before = collector::get_live_object_count();
     {
         tracked_ptr<Stack> stack = make_tracked<Stack>();
-        std::atomic<int64_t> pushed = {0};
-        std::atomic<int64_t> popped = {0};
-        std::atomic<int> pushed_count = {0};
-        std::atomic<int> popped_count = {0};
-        std::atomic<bool> producing = {true};
+        gc::atomic<int64_t> pushed = {0};
+        gc::atomic<int64_t> popped = {0};
+        gc::atomic<int> pushed_count = {0};
+        gc::atomic<int> popped_count = {0};
+        gc::atomic<bool> producing = {true};
         std::vector<std::thread> workers;
         for (int p = 0; p < producers; ++p) {
             workers.emplace_back([&, p] {
@@ -314,7 +314,7 @@ TEST(Stress_Tests, ThreadChurn) {
     const size_t before = collector::get_live_object_count();
     {
         tracked_ptr<Roots> keep = make_tracked<Roots>();
-        std::atomic<int> next_id = {0};
+        gc::atomic<int> next_id = {0};
         for (int r = 0; r < rounds; ++r) {
             std::vector<std::thread> workers;
             for (int t = 0; t < 8; ++t) {

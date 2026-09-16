@@ -23,9 +23,9 @@ namespace {
         tracked_ptr<Peer> peer;
         tracked_ptr<Survivor> survivor;
         char pad[40];
-        inline static std::atomic<long> destroyed = {0};
-        inline static std::atomic<long> peer_not_null = {0};
-        inline static std::atomic<long> survivor_bad = {0};
+        inline static gc::atomic<long> destroyed = {0};
+        inline static gc::atomic<long> peer_not_null = {0};
+        inline static gc::atomic<long> survivor_bad = {0};
         ~Peer() {
             destroyed.fetch_add(1, std::memory_order_relaxed);
             if (peer.if_alive()) {
@@ -69,7 +69,7 @@ TEST(Sweep_Tests, ParallelSweepDestroysEachObjectOnce) {
 namespace {
     struct Allocating {
         tracked_ptr<Survivor> made;
-        inline static std::atomic<long> destroyed = {0};
+        inline static gc::atomic<long> destroyed = {0};
         ~Allocating() {
             tracked_ptr<Survivor> local = make_tracked<Survivor>();
             made = local;

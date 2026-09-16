@@ -22,7 +22,7 @@ T=$(mktemp -d)
 JAVA=("$JBIN/java" -XX:+UseZGC -XX:+UnlockDiagnosticVMOptions -XX:OnSpinWaitInst=isb -Duser.language=en -Duser.country=US -cp "$T/jout")
 CORES=$(getconf _NPROCESSORS_ONLN)
 VARIANTS=${VARIANTS:-sgcl gc unique shared std go java-zgc}
-CASES=${CASES:-alloc copy weak stack conc bt graph lt string}
+CASES=${CASES:-alloc copy weak stack queue cstack cmap umap set cow chan bt graph lt string}
 want() { [[ " $VARIANTS " == *" $1 "* ]]; }
 case_() { [[ " $CASES " == *" $1 "* ]]; }
 
@@ -96,24 +96,36 @@ for t in 1 4 16; do
 done
 fi
 
-if case_ conc; then
+if case_ queue || case_ cstack; then
 KEY=ns/op
 echo "# concurrent queue and stack, mixed, 200 k per thread: conc|queue or stack|threads|variant|ns per op (mutex: the std container of shared_ptr under a mutex; shared: the algorithm on atomic shared_ptr)"
-for c in queue stack; do for t in 1 4 16; do
-    for v in sgcl gc; do want $v && { run "$BIN/bench_concurrent" $c $v $t mixed 200000; echo "conc|$c|$t|$v|$(field ns/op)"; }; done
-    want shared && { for v in mutex shared; do run "$BIN/bench_concurrent" $c $v $t mixed 200000; echo "conc|$c|$t|$v|$(field ns/op)"; done; }
-    want go && { run "$T/concurrent" $c $t mixed 200000; echo "conc|$c|$t|go|$(field ns/op)"; }
-    want java-zgc && { run "${JAVA[@]}" -Xmx256m Concurrent $c $t mixed 200000; echo "conc|$c|$t|java-zgc|$(field ns/op)"; }
-done; done
+for c in queue stack; do
+    { [ $c = queue ] && case_ queue; } || { [ $c = stack ] && case_ cstack; } || continue
+    for t in 1 4 16; do
+        for v in sgcl gc; do want $v && { run "$BIN/bench_concurrent" $c $v $t mixed 200000; echo "conc|$c|$t|$v|$(field ns/op)"; }; done
+        want shared && { for v in mutex shared; do run "$BIN/bench_concurrent" $c $v $t mixed 200000; echo "conc|$c|$t|$v|$(field ns/op)"; done; }
+        want go && { run "$T/concurrent" $c $t mixed 200000; echo "conc|$c|$t|go|$(field ns/op)"; }
+        want java-zgc && { run "${JAVA[@]}" -Xmx256m Concurrent $c $t mixed 200000; echo "conc|$c|$t|java-zgc|$(field ns/op)"; }
+    done
+done
+fi
+
+if case_ cmap || case_ umap || case_ set; then
 KEY=wall
 echo "# concurrent map (a skip list), umap (a hash map) and set (a skip list), 200 k keys, 200 k operations per thread: conc|map or umap or set|threads|variant|ns per insert|ns per find|ns per mixed op|cpu s|rss MB (mutex: the std container under a mutex, rwlock: under a shared_mutex; umap in Go: sync.Map)"
 mline() { echo "conc|$1|$2|$3|$(field insert)|$(field find)|$(field mixed)|$(field cpu)|$RSS"; }
-for c in map umap set; do for t in 1 4 16; do
-    for v in sgcl gc; do want $v && { run "$BIN/bench_concurrent" $c $v $t 200000 200000; mline $c $t $v; }; done
-    want shared && { run "$BIN/bench_concurrent" $c mutex $t 200000 200000; mline $c $t mutex; run "$BIN/bench_concurrent" $c rwlock $t 200000 200000; mline $c $t rwlock; }
-    want go && { run "$T/concurrent" $c $t 200000 200000; mline $c $t go; }
-    want java-zgc && { run "${JAVA[@]}" -Xmx128m Concurrent $c $t 200000 200000; mline $c $t java-zgc; }
-done; done
+for c in map umap set; do
+    { [ $c = map ] && case_ cmap; } || { [ $c = umap ] && case_ umap; } || { [ $c = set ] && case_ set; } || continue
+    for t in 1 4 16; do
+        for v in sgcl gc; do want $v && { run "$BIN/bench_concurrent" $c $v $t 200000 200000; mline $c $t $v; }; done
+        want shared && { run "$BIN/bench_concurrent" $c mutex $t 200000 200000; mline $c $t mutex; run "$BIN/bench_concurrent" $c rwlock $t 200000 200000; mline $c $t rwlock; }
+        want go && { run "$T/concurrent" $c $t 200000 200000; mline $c $t go; }
+        want java-zgc && { run "${JAVA[@]}" -Xmx128m Concurrent $c $t 200000 200000; mline $c $t java-zgc; }
+    done
+done
+fi
+
+if case_ cow; then
 KEY=ns/read
 echo "# copy_on_write over 64 longs, threads - 1 readers of 2 M snapshots each, one writer: conc|cow|threads|variant|ns per read|ns per write|writes (shared: shared_ptr with the atomic operations of <memory>; rwlock: the array under a shared_mutex, changed in place)"
 cline() { echo "conc|cow|$1|$2|$(field ns/read)|$(field ns/write)|$(field writes)"; }
@@ -123,6 +135,17 @@ for t in 4 16; do
     want go && { run "$T/concurrent" cow $t 2000000; cline $t go; }
     want java-zgc && { run "${JAVA[@]}" -Xmx128m Concurrent cow $t 2000000; cline $t java-zgc; }
 done
+fi
+
+if case_ chan; then
+KEY=ns/op
+echo "# channel, threads / 2 producers of 200 k items each, threads / 2 consumers: conc|chan|capacity|threads|variant|ns per item (mutex: std::queue under a mutex with condition variables; Go: its channel; Java: ArrayBlockingQueue, SynchronousQueue for 0)"
+for cap in 0 64; do for t in 2 4 16; do
+    for v in sgcl gc; do want $v && { run "$BIN/bench_concurrent" chan $v $t $cap 200000; echo "conc|chan|$cap|$t|$v|$(field ns/op)"; }; done
+    want shared && { run "$BIN/bench_concurrent" chan mutex $t $cap 200000; echo "conc|chan|$cap|$t|mutex|$(field ns/op)"; }
+    want go && { run "$T/concurrent" chan $t $cap 200000; echo "conc|chan|$cap|$t|go|$(field ns/op)"; }
+    want java-zgc && { run "${JAVA[@]}" -Xmx128m Concurrent chan $t $cap 200000; echo "conc|chan|$cap|$t|java-zgc|$(field ns/op)"; }
+done; done
 fi
 
 if case_ bt; then

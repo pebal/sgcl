@@ -305,7 +305,7 @@ TEST(ConcurrentMap_Test, SameKeysManyThreads) {
     const int threads = 8;
     const int n = 5000;
     sgcl::concurrent_map<int, int> m;
-    std::atomic<int> inserted = {0};
+    gc::atomic<int> inserted = {0};
     off_frame([&] {
         std::vector<std::thread> ws;
         for (int t = 0; t < threads; ++t) {
@@ -340,7 +340,7 @@ TEST(ConcurrentMap_Test, ChurnManyThreads) {
     const size_t before = collector::get_live_object_count();
     off_frame([&] {
         sgcl::concurrent_map<int, tracked_ptr<Baz>> m;
-        std::atomic<bool> bad = {false};
+        gc::atomic<bool> bad = {false};
         std::vector<std::thread> ws;
         for (int t = 0; t < threads; ++t) {
             ws.emplace_back([&, t] {

@@ -14,7 +14,7 @@ namespace {
         explicit Node(int v) : value(v) { ++alive; }
         ~Node() { value = -1; --alive; }
         int value;
-        inline static std::atomic<int> alive = {0};
+        inline static gc::atomic<int> alive = {0};
     };
 
     using Result = expected<tracked_ptr<Node>, std::string>;

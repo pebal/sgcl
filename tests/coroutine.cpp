@@ -16,7 +16,7 @@ namespace {
         ~Node() { value = -1; --alive; }
         int value;
         tracked_ptr<Node> next;
-        inline static std::atomic<int> alive = {0};
+        inline static gc::atomic<int> alive = {0};
     };
 
     // A node made in the coroutine and held across a suspension

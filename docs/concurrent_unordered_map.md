@@ -129,7 +129,7 @@ Erases the element under `key` (1 or 0 erased), or the one `pos` addresses if it
 // A word count over many threads: every thread inserts or increments,
 // nobody locks, the table doubles under them as it fills
 struct Count {
-    std::atomic<int> n = 0;
+    gc::atomic<int> n = 0;
 };
 
 int main() {

@@ -111,7 +111,7 @@ namespace {
         }
         auto long_lived = V::make(max_depth);
         std::vector<std::string> lines((max_depth - min_depth) / 2 + 1);
-        std::atomic<int> next = {0};
+        gc::atomic<int> next = {0};
         auto worker = [&] {
             for (;;) {
                 int i = next.fetch_add(1);

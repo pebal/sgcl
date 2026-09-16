@@ -8,12 +8,16 @@
 //   concurrent <queue|stack> [threads=4] [mode=mixed] [n=200000]
 //   concurrent <map|umap|set> [threads=4] [keys=200000] [n=200000]
 //   concurrent cow [threads=16] [n=2000000]
+//   concurrent chan [threads=4] [capacity=64] [n=200000]
 // umap is sync.Map, the concurrent map of Go's library (a hash map with
 // reads from a snapshot and writes under a lock, its keys boxed in any);
 // set the skip list holding keys alone. cow is Go's idiom for a value
 // read by many and replaced whole: an atomic.Pointer to an array of 64
 // int64, the readers loading and summing it n times each, one writer
 // copying, changing an element and swapping it in as fast as it can.
+// chan is Go's channel of *item with the given capacity (0: unbuffered)
+// between threads / 2 producers of n items each and threads / 2
+// consumers.
 package main
 
 import (
@@ -400,6 +404,41 @@ func runCow(threads int, n int64) {
 	fmt.Printf("cow threads=%d ns/read=%.1f ns/write=%.1f writes=%d reads/s=%.0f wall=%.2fs cpu=%.2fs\n", threads, wall*1e9/reads, perWrite, writes, reads/wall, wall, cpuSeconds())
 }
 
+func runChan(threads int, capacity int, n int64) {
+	ch := make(chan *item, capacity)
+	producers, consumers := max(1, threads/2), max(1, threads/2)
+	var pw, cw sync.WaitGroup
+	t0 := time.Now()
+	for t := 0; t < producers; t++ {
+		pw.Add(1)
+		go func() {
+			defer pw.Done()
+			for i := int64(0); i < n; i++ {
+				ch <- &item{value: i}
+			}
+		}()
+	}
+	for t := 0; t < consumers; t++ {
+		cw.Add(1)
+		go func() {
+			defer cw.Done()
+			var sum int64
+			for it := range ch {
+				sum += it.value
+			}
+			if sum == -1 {
+				fmt.Print("?")
+			}
+		}()
+	}
+	pw.Wait()
+	close(ch)
+	cw.Wait()
+	wall := time.Since(t0).Seconds()
+	ops := float64(n) * float64(producers)
+	fmt.Printf("chan threads=%d capacity=%d ns/op=%.1f ops/s=%.0f wall=%.2fs cpu=%.2fs\n", threads, capacity, wall*1e9/ops, ops/wall, wall, cpuSeconds())
+}
+
 func cpuSeconds() float64 {
 	var ru syscall.Rusage
 	syscall.Getrusage(syscall.RUSAGE_SELF, &ru)
@@ -564,6 +603,17 @@ func main() {
 		threads, _ = strconv.Atoi(os.Args[2])
 	}
 	runtime.GOMAXPROCS(runtime.NumCPU())
+	if what == "chan" {
+		capacity, n := 64, int64(200000)
+		if len(os.Args) > 3 {
+			capacity, _ = strconv.Atoi(os.Args[3])
+		}
+		if len(os.Args) > 4 {
+			n, _ = strconv.ParseInt(os.Args[4], 10, 64)
+		}
+		runChan(threads, capacity, n)
+		return
+	}
 	if what == "cow" {
 		n := int64(2000000)
 		if len(os.Args) > 3 {

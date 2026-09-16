@@ -108,7 +108,7 @@ struct Job {
 
 int main() {
     sgcl::concurrent_stack<sgcl::tracked_ptr<Job>> jobs;   // on the stack: sgcl::
-    std::atomic<int> done = 0;
+    gc::atomic<int> done = 0;
     std::vector<std::thread> threads;
     for (int p = 0; p < 4; ++p) {
         threads.emplace_back([&, p] {

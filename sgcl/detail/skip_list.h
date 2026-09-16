@@ -616,7 +616,7 @@ namespace sgcl::detail {
         }
 
         Ptr<Head> _head;
-        std::atomic<unsigned> _top = 1;   // the levels in use: a search starts at the top one
+        atomic<unsigned> _top = 1;   // the levels in use: a search starts at the top one
         [[no_unique_address]] Compare _comp;
     };
 }

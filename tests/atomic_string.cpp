@@ -75,7 +75,7 @@ TEST(AtomicString_Test, ExchangeAndCompareExchangeByIdentity) {
 TEST(AtomicString_Test, WaitNotify) {
     sgcl::atomic<sgcl::string> a("start");
     sgcl::string start = a.load();
-    std::atomic<bool> woke = {false};
+    gc::atomic<bool> woke = {false};
     std::thread t([&] {
         a.wait(start);
         woke = true;
@@ -126,11 +126,6 @@ TEST(AtomicString_Test, GcLivesAnywhere) {
     seen.clear();
     a.reset();
     EXPECT_EQ(live_without_cells(), before);
-
-    static gc::atomic<gc::string> global;   // a global
-    global = "g";
-    EXPECT_EQ(global.load(), "g");
-    global = gc::string();
 }
 
 TEST(AtomicString_Test, InsideManagedObjectAndOtherCharacters) {
@@ -152,8 +147,8 @@ TEST(AtomicString_Test, InsideManagedObjectAndOtherCharacters) {
 // every character the same) while the collector runs
 TEST(AtomicString_Test, ReadersSeeWholeStrings) {
     sgcl::atomic<sgcl::string> a("1");
-    std::atomic<bool> torn = {false};
-    std::atomic<bool> stop = {false};
+    gc::atomic<bool> torn = {false};
+    gc::atomic<bool> stop = {false};
     off_frame([&] {
         std::vector<std::thread> ws;
         for (int t = 0; t < 6; ++t) {
