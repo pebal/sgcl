@@ -44,7 +44,7 @@ int main() {
     for (auto i = arr.rbegin(); i != arr.rend(); ++i) {
         *i = 12;
     }
-    for (size_t i = 0; i < arr.size(); ++i) {
+    for (size_t i : sgcl::range(arr.size())) {
         std::cout << arr[i] << " ";
     }
     std::cout << std::endl;
@@ -70,7 +70,7 @@ int main() {
     std::cout << std::endl << "bar: " << bar->value << std::endl;
 
     // Using an atomic pointer
-    sgcl::atomic<sgcl::tracked_ptr<int>> atomic = sgcl::make_tracked<int>(2);
+    sgcl::atomic atomic = sgcl::make_tracked<int>(2);
 
     // Using an atomic reference
     sgcl::tracked_ptr<int> value;

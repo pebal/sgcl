@@ -52,14 +52,14 @@ public:
 
 int main() {
     Stack<sgcl::tracked_ptr<Node>> ready;
-    std::vector<std::thread> workers;
-    for (int t = 0; t < 4; ++t) {
+    sgcl::vector<sgcl::thread> workers;
+    for (int t : sgcl::range(4)) {
         // A thread registers itself the first time it copies a managed pointer
         workers.emplace_back([&ready, t] {
-            for (int round = 0; round < 1000; ++round) {
+            for (int round : sgcl::range(1000)) {
                 sgcl::tracked_ptr root = sgcl::make_tracked<Node>(t);
                 sgcl::tracked_ptr<Node> prev = root;
-                for (int i = 1; i < 100; ++i) {
+                for (int i : sgcl::range(1, 100)) {
                     sgcl::tracked_ptr node = sgcl::make_tracked<Node>(i);
                     node->peer = prev;
                     prev->edges.push_back(node);

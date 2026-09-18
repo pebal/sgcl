@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: Smart Garbage Collection Library
+// SGCL: a C++20 application framework
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------

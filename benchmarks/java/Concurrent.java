@@ -6,6 +6,15 @@
 //   java Concurrent <map|umap|set> [threads=4] [keys=200000] [n=200000]
 //   java Concurrent cow [threads=16] [n=2000000]
 //   java Concurrent chan [threads=4] [capacity=64] [n=200000]
+//   java Concurrent pqueue [threads=4] [mode=mixed] [n=200000] [prefill=0]
+//   java Concurrent intern [threads=4] [distinct=1000] [n=1000000]
+//   java Concurrent wmap [threads=4] [objects=10000] [n=1000000]
+// pqueue is PriorityBlockingQueue of Items: every thread pushes a
+// pseudo-random priority and pops the least, n times. intern is
+// String.intern on strings drawn from a pool of `distinct` (each a new
+// String, not a literal), n per thread. wmap is a WeakHashMap under
+// Collections.synchronizedMap keyed by `objects` live Items: n operations
+// per thread on random ones, half putIfAbsent and half get.
 // queue, stack: mixed, every thread pushes an item and pops one, n times
 // over; pairs, half the threads push n each, the other half pop n each.
 // map: insert, the threads insert `keys` disjoint keys; find, every thread
@@ -27,7 +36,11 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Collections;
+import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.SynchronousQueue;
 
@@ -42,13 +55,74 @@ public final class Concurrent {
         public long pop() { Item i = q.poll(); return i == null ? -1 : i.value; }
     }
 
+    static long priorityOf(long v) { return (v * 0x9E3779B97F4A7C15L) >>> 34; }
+
+    static final class PQueue implements Container {
+        final PriorityBlockingQueue<Item> q = new PriorityBlockingQueue<>(64, (a, b) -> Long.compare(a.value, b.value));
+        public void push(long v) { q.add(new Item(priorityOf(v))); }
+        public long pop() { Item i = q.poll(); return i == null ? -1 : i.value; }
+    }
+
+    static void runIntern(int threads, int distinct, long n) throws Exception {
+        final String[] pool = new String[distinct];
+        for (int i = 0; i < distinct; ++i) pool[i] = new String("key" + i + "-value");
+        Thread[] ws = new Thread[threads];
+        long t0 = System.nanoTime();
+        for (int t = 0; t < threads; ++t) {
+            final int id = t;
+            ws[t] = new Thread(() -> {
+                long x = 88172645463325252L + id;
+                long sum = 0;
+                for (long i = 0; i < n; ++i) {
+                    x ^= x << 13; x ^= x >>> 7; x ^= x << 17;
+                    String s = pool[(int)Long.remainderUnsigned(x, distinct)].intern();
+                    sum += s.length();
+                }
+                if (sum == -1) System.out.print("?");
+            });
+            ws[t].start();
+        }
+        for (Thread w : ws) w.join();
+        double wall = (System.nanoTime() - t0) / 1e9;
+        double ops = (double)n * threads;
+        System.out.printf("intern threads=%d distinct=%d ns/op=%.1f ops/s=%.0f wall=%.2fs cpu=%.2fs%n", threads, distinct, wall * 1e9 / ops, ops / wall, wall, Common.cpuSeconds());
+    }
+
+    static void runWmap(int threads, int objects, long n) throws Exception {
+        final Item[] pool = new Item[objects];
+        for (int i = 0; i < objects; ++i) pool[i] = new Item(i);
+        final Map<Item, Long> m = Collections.synchronizedMap(new WeakHashMap<>());
+        Thread[] ws = new Thread[threads];
+        long t0 = System.nanoTime();
+        for (int t = 0; t < threads; ++t) {
+            final int id = t;
+            ws[t] = new Thread(() -> {
+                long x = 88172645463325252L + id;
+                long sum = 0;
+                for (long i = 0; i < n; ++i) {
+                    x ^= x << 13; x ^= x >>> 7; x ^= x << 17;
+                    Item o = pool[(int)Long.remainderUnsigned(x, objects)];
+                    if ((x & 1) != 0) { if (m.putIfAbsent(o, i) == null) ++sum; }
+                    else { Long v = m.get(o); if (v != null) sum += v; }
+                }
+                if (sum == -1) System.out.print("?");
+            });
+            ws[t].start();
+        }
+        for (Thread w : ws) w.join();
+        double wall = (System.nanoTime() - t0) / 1e9;
+        double ops = (double)n * threads;
+        System.out.printf("wmap threads=%d objects=%d ns/op=%.1f ops/s=%.0f wall=%.2fs cpu=%.2fs%n", threads, objects, wall * 1e9 / ops, ops / wall, wall, Common.cpuSeconds());
+    }
+
     static final class Stack implements Container {
         final ConcurrentLinkedDeque<Item> d = new ConcurrentLinkedDeque<>();
         public void push(long v) { d.push(new Item(v)); }
         public long pop() { Item i = d.poll(); return i == null ? -1 : i.value; }
     }
 
-    static void runContainer(String what, Container c, int threads, String mode, long n) throws Exception {
+    static void runContainer(String what, Container c, int threads, String mode, long n, long prefill) throws Exception {
+        for (long i = 0; i < prefill; ++i) c.push(i);   // a queue already holding elements (the priority queue's long regime)
         boolean pairs = mode.equals("pairs");
         Thread[] ws = new Thread[threads];
         long t0 = System.nanoTime();
@@ -66,7 +140,7 @@ public final class Concurrent {
         for (Thread w : ws) w.join();
         double wall = (System.nanoTime() - t0) / 1e9;
         double ops = (double) n * threads * (pairs ? 1 : 2);
-        System.out.printf("%s threads=%d mode=%s ns/op=%.1f ops/s=%.0f wall=%.2fs cpu=%.2fs%n", what, threads, mode, wall * 1e9 / ops, ops / wall, wall, Common.cpuSeconds());
+        System.out.printf("%s threads=%d mode=%s prefill=%d ns/op=%.1f ops/s=%.0f wall=%.2fs cpu=%.2fs%n", what, threads, mode, prefill, wall * 1e9 / ops, ops / wall, wall, Common.cpuSeconds());
     }
 
     interface Body { void run(int t); }
@@ -205,6 +279,14 @@ public final class Concurrent {
             return;
         }
         int threads = args.length > 1 ? Integer.parseInt(args[1]) : 4;
+        if (what.equals("intern")) {
+            runIntern(threads, args.length > 2 ? Integer.parseInt(args[2]) : 1000, args.length > 3 ? Long.parseLong(args[3]) : 1_000_000L);
+            return;
+        }
+        if (what.equals("wmap")) {
+            runWmap(threads, args.length > 2 ? Integer.parseInt(args[2]) : 10_000, args.length > 3 ? Long.parseLong(args[3]) : 1_000_000L);
+            return;
+        }
         if (what.equals("map") || what.equals("umap") || what.equals("set")) {
             long keys = args.length > 2 ? Long.parseLong(args[2]) : 200_000L;
             long n = args.length > 3 ? Long.parseLong(args[3]) : 200_000L;
@@ -213,6 +295,7 @@ public final class Concurrent {
         }
         String mode = args.length > 2 ? args[2] : "mixed";
         long n = args.length > 3 ? Long.parseLong(args[3]) : 200_000L;
-        runContainer(what, what.equals("stack") ? new Stack() : new Queue(), threads, mode, n);
+        long prefill = args.length > 4 ? Long.parseLong(args[4]) : 0;
+        runContainer(what, what.equals("stack") ? new Stack() : what.equals("pqueue") ? new PQueue() : new Queue(), threads, mode, n, prefill);
     }
 }

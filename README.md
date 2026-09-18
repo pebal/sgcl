@@ -1,258 +1,43 @@
 # SGCL
-## About SGCL
-SGCL (Smart Garbage Collection Library) is a concurrent, generational garbage collector for C++20 in a header-only library. It gives the language what Go and Java have and `shared_ptr` does not: objects that live as long as anything reaches them, cycles included, allocated and passed around without reference counts, with a collector that runs concurrently with the program. What it keeps from C++ is the rest: deterministic destruction where it is wanted (`unique_ptr`), objects that never move, stack objects and raw pointers as they are, containers with the interfaces of `std`, and no runtime beyond the library itself.
 
-The point of the design is that the program never stops for the collector. There is no stop-the-world phase, no safepoint a thread has to reach, no handshake in the hot path, no allocation that waits for a cycle and no write barrier that does more than store a byte. A mutator thread runs at the same speed whether the collector is idle or in the middle of a cycle; the collector and its helpers take cores of their own and the memory that accumulates between two cycles. That trade is stated exactly in the benchmarks below, against `shared_ptr`, Go and Java with ZGC.
+## What it is
+SGCL is a C++20 application framework: one library, header-only, with no dependency beyond the standard library, that means to give a C++ program what Qt gives it and what Go's standard library gives a Go program, from the pointer up to the network and, in time, the screen. The name is from where it started, a Smart Garbage Collection Library, and the collector is still the foundation: every part of the framework is built on objects that live as long as anything reaches them, cycles included, allocated and passed around without reference counts, with a collector that runs concurrently with the program and never stops it. That foundation is what lets the rest be written the way Go and Java write it and C++ could not: lock-free structures with the textbook algorithms and no reclamation scheme, coroutines whose frames are managed objects, channels that threads and tasks share, closures that capture the objects they work on, and a declarative user interface whose view trees are rebuilt rather than patched.
 
-Everything is in one namespace: `sgcl::tracked_ptr<T>` is the pointer, `sgcl::make_tracked<T>(...)` creates the object, and `sgcl::vector`, `sgcl::map`, `sgcl::weak_ptr`, `sgcl::atomic`, `sgcl::task` and the rest are the containers, observers and coroutines. They have one restriction: a `tracked_ptr`, and every type that holds one, lives inside managed objects and on stacks only, never in unmanaged memory, which is where the collector cannot see them. For the places outside, a global, a `std::vector`, a lambda on the heap, there is `sgcl::root_ptr<T>`: a root that lives anywhere, holding its object through a cell of a managed block, and converting to the `tracked_ptr` it holds it by.
+What it keeps from C++ is the rest: deterministic destruction where it is wanted (`unique_ptr`), objects that never move, stack objects and raw pointers as they are, containers with the interfaces of `std`, values and pointers as C++ has them, and no runtime beyond the headers themselves. Everything is in one namespace, `sgcl` (the standard library's style, `tracked_ptr`, `make_tracked`, `vector`, `channel`, `task`), and once more behind an object-oriented face, `Sgcl` (`Ptr`, `Make`, `List`, `Channel`, `Task`), for a program written in the style of C# or Java; the two are one library and mix freely ([Two interfaces](#two-interfaces) below).
 
-## Next to the alternatives
-| | SGCL | `shared_ptr` / `unique_ptr` | Go | Java, ZGC |
-|---|---|---|---|---|
-| Pauses, safepoints | none: no thread is ever stopped or asked to reach a point | none | short stop-the-world phases, preemption at safepoints | short pauses at phase changes, safepoints |
-| What a mutator waits for | nothing in the collector: a page from the heap under a mutex (once per 64 KB), the memory ceiling | the destructor cascade of what it releases | allocation assists when the collector is behind | allocation stalls when the collector is behind |
-| Pointer copy | a store and a byte of state, 1.4 ns onto the stack and 1.8 into an object (the card), the same when a thread copies a shared object's pointer | a reference count update, 5 ns alone and 100–300 ns on a shared object | a store, 0.6 ns, plus the barrier while marking | a store and a load barrier, 1 ns |
-| Allocation | 5 ns, a per-thread bitmap, no lock | 21 ns, malloc | 7 ns, assists included | 3 ns, TLAB |
-| Cycles | collected | leak unless broken by hand | collected | collected |
-| Objects | never move | never move | never move | relocated, with load barriers |
-| Heap | precise, through pointer maps the collector builds itself | | precise, stack maps from the compiler | precise |
-| Stacks | conservative | | precise | precise |
-| Destructors | deterministic through `unique_ptr`, otherwise on the collector's threads | deterministic | finalizers | cleaners |
-| Weak pointers | `weak_ptr`, one word, cleared by the cycle that finds the object unreachable | `weak_ptr`, a second count | `weak.Pointer` | `WeakReference` |
-| Lock-free structures | `concurrent_queue`, `concurrent_stack`, `concurrent_map`, `concurrent_set`, `concurrent_unordered_map`, `concurrent_unordered_set`, `copy_on_write`, `channel`: the textbook algorithms with no reclamation scheme | hazard pointers, epochs or counted pointers, by hand or from a library | channels (a lock and a buffer) and `sync.Map` (a hash map: reads from a snapshot, writes under a lock); anything lock-free by hand on `atomic.Pointer` | `java.util.concurrent` |
-| Generations | young cycles with sticky marks and cards, full cycles on a schedule; full cycles only as an option | | none (a non-generational collector by design) | young and old, ZGC generational |
-| Memory | a cycle every quarter of growth; no throttling, the memory grows when the program outruns the collector | exact | kept near `GOGC` by throttling the mutators | kept under the heap ceiling by stalling the mutators |
-| Runtime | this header-only library | the standard library | the Go runtime | the JVM |
+## The engine
+The collector is a concurrent, non-moving, generational mark-and-sweep with a Dijkstra insertion barrier. The program never stops for it: there is no stop-the-world phase, no safepoint a thread has to reach, no handshake in the hot path, no allocation that waits for a cycle and no write barrier that does more than store a byte. A mutator thread runs at the same speed whether the collector is idle or in the middle of a cycle; the collector and its helpers take cores of their own and the memory that accumulates between two cycles. In numbers, on an Apple M2 Ultra: a pointer copy is 1.4 ns onto the stack and 1.8 ns into an object (`shared_ptr`: 5 ns alone, 100–300 ns on a shared object), an allocation 4 ns (malloc: 21 ns), and the tails of a mutator's latency are the scheduler's, not the collector's.
 
-## How it works
-The collector is a concurrent, non-moving, generational mark-and-sweep with a Dijkstra insertion barrier. A cycle begins with a flip of the epoch, one atomic store that retires every state the barrier set before it (a state carries the parity of the epoch it was set in), and the registration of the objects created before the flip; the roots are the used pages of every registered thread's stack, scanned conservatively while the threads keep running, plus the objects a `unique_ptr` owns; the heap is traced precisely, through a map per type of the words that may hold a pointer, which the collector builds by elimination as it goes (below, "Pointer maps"). Marking runs until a pass over the pages finds no unmarked object with a state the barrier set meanwhile; then the unmarked registered objects are swept, their destructors run, and their slots and pages go back to the allocators and the heap.
-
-The mechanism in full, phase by phase and with the invariants it rests on, is in [docs/how-it-works.md](docs/how-it-works.md).
-
-What the mutators do for all this is small and never blocking. Creating an object is a bitmap pop in a per-thread allocator and one byte of state. Copying a pointer into an object or onto a stack is the store of the word and the barrier: a byte of state on the target, a flag on its page, both conditional, so that threads copying pointers to the same object do not fight over a line. Nothing registers a constructor, nothing counts references, nothing is looked up. A thread that has never touched the library is registered the first time it copies a pointer, with a thread-local flag; when it exits it waits at most for a stack scan in progress to finish reading its stack. That handshake and the mutex a thread takes once per 64 KB page it gets from the heap are the only places a mutator can wait on anything, and neither involves the collector's work.
-
-The collector side scales with cores instead. Marking runs on a pool of helper threads, each tracing the pages it holds in address order and the rest from a stack of its own, stealing from the others, once a cycle has enough to mark; the passes over the pages (registration, the search for barrier states, the sweep with its destructors, the rebuild of free bitmaps) are split over the same pool once the collector falls behind the allocation. The states of eight slots are read and tested at once. A cycle starts when the pages allocated since the last one reach a quarter of what it left in use, so what waits for a sweep is bounded by the live heap; the collector never throttles a mutator to keep that bound, which is where its memory goes above Go's on a program that allocates faster than any collector sweeps (binary-trees with four mutators: 495 MB against Go's 224 MB, in half the time).
-
-The cycles are generational by default (sticky mark bits): a young cycle traces only the objects created since the previous cycle and the old objects a pointer was stored into since, which the barrier records by stamping a card of the page written to (a shift and a byte read); a full cycle runs every eighth cycle, when the live heap has doubled, under memory pressure and on request. `-DSGCL_GENERATIONAL=0` builds a collector with full cycles only and a barrier without the card.
-
-## Features
 - **No reference counts**: a `tracked_ptr` is one word, copied with a store and a byte of state; the objects it points to may form any graph, cycles included.
 - **One word, one place**: a `tracked_ptr` lives in managed objects and on stacks, where the collector looks; `root_ptr` is the root for everywhere else, a global or a `std` container, over a cell of a managed block.
-- **No pauses**: no stop-the-world, no safepoints, no assists, no allocation that waits for a cycle; the tails of a mutator's latency are the scheduler's, not the collector's (the graph benchmark below).
 - **Deterministic where it matters**: `unique_ptr` destroys its object at scope exit, on the thread that owns it; a `tracked_ptr` hands the destructor to the collector.
-- **Containers**: `vector`, `array`, `deque`, `list`, `forward_list`, the maps and sets, ordered and unordered, with the interfaces of `std`, their nodes and buffers managed.
-- **Lock-free atomic pointers**: `atomic<tracked_ptr<T>>` and `atomic_ref` with compare-exchange, and no ABA: a node is never reused while a thread holds it.
-- **Lock-free containers**: `concurrent_queue` (Michael–Scott), `concurrent_stack` (Treiber), `concurrent_map` and `concurrent_set` (a skip list, the structure of Java's `ConcurrentSkipListMap`), `concurrent_unordered_map` and `concurrent_unordered_set` (a split-ordered list, the resizable lock-free hash table) `copy_on_write<T>` (a value read by many and replaced whole, Java's `CopyOnWriteArrayList` for any type) and `channel<T>` (Go's channel: buffered or rendezvous, threads and coroutines waiting on either side), the textbook algorithms with no reclamation scheme in them, because the collector is one: what `java.util.concurrent` has and C++ has had only with hazard pointers or epochs written by hand.
-- **Coroutines**: a promise type derived from `managed_frame` gets its frames from the managed heap, so the `tracked_ptr` locals, parameters and promise members of a suspended coroutine are roots; `task<T>` and `generator<T>` come ready.
-- **Weak pointers**: `weak_ptr<T>` with `lock()` and `expired()`, one word, copied for the price of a `tracked_ptr`; cleared by the collector, never dangling, never a reference count. `expiry_queue<T>` hands an object found unreachable to a function of your choice, on a thread of your choice, alive one last time: a cleanup, or a return to life. `weak_map`, `weak_multimap` and `weak_set` attach values to objects, or register them, without keeping them alive.
+- **Precise heap, conservative stacks**: the heap is traced through a map per type of the words that may hold a pointer, which the collector builds by elimination as it goes, so constructors register nothing; the stacks are scanned while the threads keep running.
+- **Weak pointers** one word wide, cleared by the cycle that finds the object unreachable; `expiry_queue` hands an object found unreachable to a function of your choice, alive one last time.
 - **Dynamic type**: `type()`, `is<U>()` and `as<U>()` on any pointer, including `tracked_ptr<void>`, without virtual functions.
-- **Diagnostics**: cycle counters and phase times, live objects and bytes by type, the live objects themselves, what holds an object and what it retains, and the collector one gate at a time for the tests of the engine; read without stopping the collector or after a cycle it runs for the question ("Methods useful for state analysis" below, [docs/diagnostics.md](docs/diagnostics.md)).
-- **Memory under control**: a committed-memory ceiling (90% of the cgroup or physical limit by default), a collection forced before it and `std::bad_alloc` instead of the OOM killer past it; the whole managed heap is one reservation, backed lazily and returned in 2 MB chunks.
+- **Diagnostics**: cycle counters and phase times, live objects and bytes by type, what holds an object and what it retains, LLDB formatters; read without stopping the collector.
+- **Memory under control**: a committed-memory ceiling (90% of the cgroup or physical limit by default), a collection forced before it and `std::bad_alloc` instead of the OOM killer past it.
 
-## Reference
-Every public class and function has a page of its own in [docs/](docs/README.md): every member with its signature, the rules that apply, and examples that compile. The sections below are the guide; the reference is where to look up a member, and [docs/diagnostics.md](docs/diagnostics.md) is where to start when the memory grows, an object lives too long or dies too early, or a cycle costs more than it should.
+The chapter [docs/garbage_collector/](docs/garbage_collector/README.md) has the rest: [the engine in short](docs/garbage_collector/overview.md), [how it works](docs/garbage_collector/how-it-works.md) phase by phase, [next to the alternatives](docs/garbage_collector/alternatives.md) (`shared_ptr`, Go, Java with ZGC, in one table), [the benchmarks](docs/garbage_collector/benchmarks.md) and [the diagnostics](docs/garbage_collector/diagnostics.md).
 
-## The pointer and its places
-`sgcl/sgcl.h` declares the namespace `sgcl`. The word by which every type holds its memory is `tracked_ptr<T>`: the pointer the collector follows, one word, a store and a byte of state per copy. The collector finds such words in two places only, inside managed objects and on the stacks it scans, so a `tracked_ptr`, and every container, atomic, weak pointer or coroutine handle, lives there and nowhere else: never in `new`/`malloc` memory, a `std` container, a global, a `thread_local` or a lambda copied to the heap (rule 1 below). Debug builds assert it.
+## Modules
+The framework is modules, one directory and one header each, every module depending only on those before it in the table; `#include "sgcl/sgcl.h"` brings them all in, `#include "sgcl/async/async.h"` one of them with what it needs. Each has a README that is its guide, what the classes are, the rules, what to reach for, before it lists the classes, and a page per class with every member and an example that compiles. The Go column names the counterpart in Go's standard library, the measure the framework is written against.
 
-For those places there is `root_ptr<T>`: a root that lives anywhere, over a cell, a word of a managed block of a cache line of them that is the object's root, taken by the constructor from the thread's allocator, given back by the destructor, the `root_ptr`'s own in between. The cell is a `tracked_ptr` inside a managed object, so the `root_ptr` reads and writes through it, with its barrier, and hands it out by reference (`ptr()`) for the code that lives where a `tracked_ptr` may; no store allocates and no move takes a cell from another `root_ptr`, so threads race on the cell's word exactly as on a `tracked_ptr`, never on the making of a cell; a block is one managed allocation per sixteen cells and is freed by the collector once every cell of it is given back. A container that must live in such a place goes into a managed object under a `root_ptr` ([docs/root_ptr.md](docs/root_ptr.md)).
+| module | Go | what it holds |
+|---|---|---|
+| [core](docs/sgcl/core/README.md) | runtime | the collector; `tracked_ptr`, `unique_ptr`, `root_ptr`, `weak_ptr`, `make_tracked`; `variant`, `any`, `function`, `expected` that keep the pointers apart from the data; `string`, immutable, one word, shared by copying, with `split`, `join`, `trim`, `replace`, `parse`, and `string_view`, a piece of it that holds the object; `range`; the dynamic type; the diagnostics; `config` |
+| [containers](docs/sgcl/containers/README.md) | container/* | `vector`, `array`, `deque`, `list`, `forward_list`, `stack`, `queue`, the maps and sets, ordered and unordered, with the interfaces of `std` and their nodes and buffers managed; `ordered_map` and `ordered_set` in insertion order (Java's `LinkedHashMap`); `weak_map`, `weak_set`, `expiry_queue` |
+| [concurrent](docs/sgcl/concurrent/README.md) | sync | `atomic<tracked_ptr>` and `atomic_ref` with compare-exchange and no ABA; `concurrent_queue` (Michael–Scott), `concurrent_stack` (Treiber), `concurrent_map` and `concurrent_set` (a skip list), `concurrent_unordered_map` and `concurrent_unordered_set` (a split-ordered list): the textbook algorithms with no reclamation scheme in them, because the collector is one; `copy_on_write` |
+| [async](docs/sgcl/async/README.md) | goroutines, chan, context, time | coroutines whose frames are managed objects (`task`, `generator`, `async_generator`), a pool of workers that runs the tasks (`spawn`, `go`, `yield`), `channel` and `select` as Go has them, `sleep`, `after`, `tick`, `timeout`, `stop_token` for cancellation with deadlines, `when_all` and `when_any`, `mutex`, `semaphore`, `event`, `wait_group`, `once` that park a task without a thread, `readable` and `writable` on a file descriptor: the reactor |
 
-## The classes
+What comes next, in this order and each on the ones before it: `io` (files, directories, async streams, the serialization of object graphs), `net` (TCP, UDP, DNS, HTTP/1.1 and HTTP/2 over the reactor and the scheduler), `text` (a linear-time regexp, templates, formatting), `time`, `encoding` (JSON into managed object graphs, XML, CSV, base64), `compress`, `hash` and `crypto` (with TLS 1.3), `codec` (the images decoded here, the video through the platform), `math`, `db`, and `ui`: a reactive state, a view as a function of it, a diff, a flex layout and events on the scheduler, over a small renderer of its own per platform.
 
-- `unique_ptr<T>`: what `make_tracked<T>(...)` returns. A specialization of `std::unique_ptr` whose object lives on the managed heap: destroyed at scope exit like any `unique_ptr`, and the root of whatever it owns meanwhile; lives anywhere. Converts into a `tracked_ptr`, after which the object belongs to the collector.
-- `tracked_ptr<T>`: the pointer the collector follows. Copies, converts to base classes, compares, `reset()` and `reset(T*)`, `get()`; `type()`, `is<U>()` and `as<U>()` for the dynamic type of the object; `if_alive()` for the one situation a pointer may be dangling, a destructor reading a peer that may be dying in the same sweep ("Pointer maps" below); `to_shared()` is a `std::shared_ptr` that holds the object from unmanaged memory, through a managed holder its control block owns ("The rules" below).
-- `root_ptr<T>`: a root that lives anywhere (a global, a `std::vector`, a handle table, a lambda on the heap): a cell of a managed block under it, the object reachable while the `root_ptr` exists; `ptr()` is the `tracked_ptr` it holds its object by, for the code that lives where one may, and for an `atomic_ref` over the root.
-- `atomic<tracked_ptr<T>>` and `atomic_ref<tracked_ptr<T>>`: `load`, `store`, `compare_exchange_weak` and `compare_exchange_strong` with `std::memory_order`, plus `wait`/`notify`; lock-free, the loaded object protected by a hazard pointer for the length of the load. A global shared pointer is a `root_ptr` under an `atomic_ref`. `atomic<string>` is the same over the word of a `string`: a string variable that one thread replaces while others read it, one word, no copy. For any other type `atomic<T>` is `std::atomic<T>`, so that a program names one atomic for its flags, counters and pointers.
-- `managed_frame`, `frame_ptr<Promise>`, `task<T>`, `generator<T>`: coroutines with frames on the managed heap ("Coroutines" below).
-- `expiry_queue<T>`: `watch(object, f)` is an entry, `f` kept for the day nothing else reaches the object (its handle cancels the entry, or gives a `weak_ptr`); `drain()` calls the `f` of every such entry with the object, alive one last time ("Weak pointers" below).
-- `weak_ptr<T>`: a pointer that keeps nothing alive. `lock()` is the object as a `tracked_ptr` while it is reachable and null once a cycle has found it unreachable; `expired()`, `reset()`; made from a `tracked_ptr` or another `weak_ptr` ("Weak pointers" below).
-- `weak_map<Key, T>`, `weak_multimap<Key, T>`, `weak_set<Key>`: containers keyed by objects they do not keep alive; an entry dies with its object ("Weak containers" below).
-- `variant<Ts...>`, `any`, `function<R(Args...)>`, `move_only_function`, `expected<T, E>`: the interfaces of their `std` namesakes, safe to hold a `tracked_ptr` or a `weak_ptr` next to other alternatives, values, captures or errors, which the `std` ones are not ("variant, any, function and expected" below). `optional`, `pair` and `tuple` hold one correctly as they are and are aliased under the library's names, so that the safe set is one namespace.
-- `string` (`basic_string<CharT>`, `wstring`, `u8string`, `u16string`, `u32string`): an immutable string on the managed heap, one word, shared by copying, compared and hashed by its contents, no destructor ("string" below).
-- `concurrent_queue<T>`, `concurrent_stack<T>`, `concurrent_map<Key, T>`, `concurrent_set<Key>`, `concurrent_unordered_map<Key, T>`, `concurrent_unordered_set<Key>`: lock-free structures shared by any number of threads, with `push`/`try_pop`/`pop`, and `find`/`insert`/`try_emplace`/`erase` with weakly consistent iteration for the maps and sets; `copy_on_write<T>`: a value loaded as an immutable snapshot and replaced whole by a copy and a compare-exchange; `channel<T>`: `send`/`receive` with the waiting of both sides, `try_*`, `async_*` for coroutines, `close` ("Lock-free containers" below).
-- The containers, listed below.
+## Two interfaces
+The whole library exists twice, and the two are one implementation. The namespace `sgcl` is the standard library's style: snake_case, `tracked_ptr`, `make_tracked`, `vector`, `unordered_map`, `channel`, iterators and algorithms as `std` has them, so that a C++ program adopts it a class at a time, a `sgcl::vector` where a `std::vector` was, and so that what the framework offers reads as what it is, the standard library with a collector under it. The namespace `Sgcl` (`sgcl/Sgcl/Sgcl.h`; the framework's name in the case of its style) is the same library behind an object-oriented face: PascalCase types and methods, `Ptr`, `Make`, `List`, `Dictionary`, `String`, `Channel`, `Task`, `list.Add(x)`, `dictionary.Find(key)` (a pointer, null when absent), `ch.Send(v)`, `Spawn(task())`, for a program written in the style of C# or Java rather than of the standard library, and for the kind of program an application framework is for, where the code is read more than it is written and `Add`, `Contains`, `Join` are what the reader expects.
 
-## Containers
-`vector`, `array`, `deque`, `list`, `forward_list`, `map`, `set`, `multimap`, `multiset`, `unordered_map`, `unordered_set`, `unordered_multimap`, `unordered_multiset` and the adapters `stack`, `queue`, `priority_queue`, in `sgcl::` and in `sgcl::`, follow the interfaces of their `std` namesakes, including iterator categories (`std::ranges` algorithms work on them), transparent lookup, node handles, `std::erase`/`std::erase_if`, and three-way comparison. They differ from the standard containers in where their memory lives and when elements die:
-
-- A container holds its buffer or its root node by a `tracked_ptr`, so it lives where one may: on a stack or inside a managed object, never in `new`/`malloc` memory or in a standard container ("The pointer and its places" above). Iterators are plain pointers, valid exactly when their `std` counterparts are, and may live anywhere: the container roots every element it holds, and a raw pointer in a stack frame is a root of its own under the conservative scan.
-- Nodes and buffers are managed objects: an `erase` unlinks a node and the collector reclaims it later; nothing is ever freed by hand, so a cycle through a container is collected like any other cycle.
-- The collector reads the elements only where they may hold pointers. A buffer whose element type cannot hold a `tracked_ptr` (trivially default constructible, or smaller than a pointer: `int`, `double`, a plain struct) gets an empty pointer map when it is created, so the marking never reads its contents: a `vector<int>` of a million elements costs a cycle what one object does, and its buffer is not even zeroed on allocation. A node holds links and an element; the words of an element that turn out to be data leave the node type's map at the first node found holding some ("Pointer maps" below), and from then on the marking reads the links alone.
-- The node containers (`list`, `forward_list`, the maps and sets) destroy an element the moment it is erased, cleared, assigned over or the container is destroyed, exactly like `std`. An iterator to an erased element is invalid as in `std`; it keeps the node's memory mapped but not the element. The one exception is a container dying in a sweep, inside a managed object nobody refers to any more: its nodes are garbage of the same sweep, and each destroys its element when the sweep reaches it.
-- `vector` and `array` destroy their elements themselves, exactly when `std` does: on removal (`erase`, `pop_back`, `clear`, `resize`, `assign`), on a reallocation (the moved-from elements), in the destructor, wherever that runs, on a stack or in a sweep inside a dying managed object. The collector never destroys a buffer: it only frees one nothing refers to, and it never needs to know how many elements a buffer holds. A buffer is referred to only through a pointer to its first element: a `tracked_ptr` or reference to an element does not keep it, so once the container is gone such a pointer dangles, as in `std`. `clear()` keeps the capacity, like `std::vector`; `shrink_to_fit()` on an empty vector drops the buffer. A `vector` is three words (the buffer, the count, the capacity), an `array<T>` two; the buffer's own header holds only its metadata and the capacity the size class granted.
-- `array<T, N>` keeps its elements inline, like `std::array`: an aggregate (`sgcl::array<sgcl::tracked_ptr<T>, 4> roots = {}`) with the tuple interface and costs nothing beyond the elements. `array<T>` (no `N`) is a buffer whose size is fixed when it is created (`array<T>(n)`, `array<T>(n, value)`, from a range or an initializer list): the cheapest managed sequence, a single word to hold, copied deeply and moved by handing the buffer over.
-- Elements aligned beyond 16 bytes are not supported in buffers; `vector<bool>` is a plain vector of `bool`.
-
-## Lock-free containers
-`concurrent_queue<T>`, `concurrent_stack<T>`, `concurrent_map<Key, T, Compare>`, `concurrent_set<Key, Compare>`, `concurrent_unordered_map<Key, T, Hash, KeyEqual>` and `concurrent_unordered_set<Key, Hash, KeyEqual>` are structures shared by any number of threads without a lock: the Michael–Scott queue (the algorithm of Java's `ConcurrentLinkedQueue`), the Treiber stack, the lock-free skip list of Herlihy and Shavit (the structure of Java's `ConcurrentSkipListMap` and `ConcurrentSkipListSet`) and the split-ordered list of Shalev and Shavit (the resizable lock-free hash table, what Java's `ConcurrentHashMap` is for), each written as the paper has it. What a collector changes in these algorithms is everything that is not the algorithm: in C++ they come with hazard pointers, epochs or counted pointers, a reclamation scheme that decides when a node another thread may still be reading can be freed, and that scheme is where the difficulty and the bugs are. Here a node is never reused while a thread holds it, so a link is a `tracked_ptr` in an `atomic`, a compare-exchange is a compare-exchange, and a popped or unlinked node is garbage the collector reclaims. A hazard pointer exists in the library, one per thread inside `atomic::load` for the length of the load ("The classes" above), and nothing in the containers or in a program using them knows of it.
-
-- The queue and the stack are two and one atomic words; `push`, `emplace` and `try_pop` are lock-free and linearizable, `pop` waits on an empty container (the atomic's `wait`), `empty` is a load or a short walk, `size` a walk. The stack backs off exponentially after a failed compare-exchange, up to `config::BackoffMax` pauses (`-DSGCL_BACKOFF_MAX`), which is what keeps sixteen threads at one word from spending their time on retries. An element is moved out of its node by the thread that pops it and destroyed there, as `std::queue::pop` and `std::stack::pop` destroy theirs. The queue is the Michael–Scott queue in the form Java's `ConcurrentLinkedQueue` gives it: the head and the tail lag a node behind and are swung every second node, a pop claims an element with an exchange on its node's flag, and a node the head has passed is linked to itself, so that an old head a thread still holds retains nothing; the head and the tail are kept a cache line apart.
-- The map is a sorted bottom list holding every element, with a quarter of the nodes rising to each next level, so that a search descends from the top in logarithmic time; a node is one managed object holding its element and all its links. `insert`, `emplace`, `try_emplace` and `erase` are lock-free and linearizable, `find`, `contains`, `lower_bound` and `upper_bound` wait-free. A logical deletion is a marker node linked after the deleted one at each of its levels (Java's way of marking a link without stealing a bit from the pointer, which the pointer maps could not follow), and the next search that passes a marked node unlinks it. Iteration is weakly consistent, as Java's: an iterator holds its node by a word of the container's kind, so it is valid whatever the other threads do, it skips the elements erased since it passed them and may or may not see the ones inserted meanwhile. An erased element lives on while an iterator holds its node and dies with the node at a sweep: the one container of the library whose elements outlive their erasure, because the thread erasing cannot know who is reading. There is no `operator[]`, `at`, `insert_or_assign` or node handle.
-- The hash map is one sorted list holding every element, ordered by the bit reversal of its hash, with an array of buckets pointing into it at dummy nodes made on first use; the array doubles once the elements outnumber the buckets, and doubling moves no node: the old slots are copied, the rest made on use, and the old array is garbage once nothing walks it. That old array, and every node a walk may be standing on, is exactly what a reclamation scheme has to guard in C++ without a collector, and why a resizable lock-free hash table is the structure that needs one most. `find` is wait-free, `insert`, `try_emplace` and `erase` linearizable; the count is striped over cache lines (Java's `LongAdder`), `size()` its sum; iteration is weakly consistent in the order of the list. The sets are the same structures with the key as the element, the elements const.
-- `copy_on_write<T>` is the simplest of them and the one C++ has needed longest: a value read on every request by many threads and changed once in a while by one, a configuration, a routing table, a list of listeners. `load()` is one atomic load and gives a snapshot, a pointer to `const T` that stays what it is, and alive, for as long as it is held; `update(f)` copies the value, applies `f` to the copy and swings the pointer with a compare-exchange, and the old value is garbage once its last snapshot is dropped. That is the whole of RCU, and of every `shared_ptr` swapped under a lock, with the one question those exist for, when the old value may be freed, answered by the collector.
-- `channel<T>` is the channel of Go: a queue with the synchronization of both ends. A channel of capacity *n* buffers *n* elements, one of capacity 0 buffers none and a send waits until a receive takes the element (a rendezvous); a receive on an empty channel waits, a send on a full one waits, so a producer ahead of its consumer stops; `close()` ends the stream, what was sent still received and then nothing. The waiting side is a thread, on an atomic of its own, or a coroutine: `co_await ch.async_receive()` suspends a `task<T>` with its handle on the channel's list of waiters, and the send that serves it resumes it. The buffer is a lock-free ring (Vyukov's bounded queue: a slot with a sequence number each, one compare-exchange per operation, no allocation per element), the lists of waiters are `concurrent_queue`s and every waiter is a managed object: no lock anywhere, and a waiter served or cancelled is the collector's. A `channel<void>` carries signals. What is not there yet is `select`, the wait on several channels at once.
-- A container lives where a `tracked_ptr` may, on a stack or inside a managed object; the structures a whole program shares go into one managed object under a `root_ptr`, a global. Iterators of the maps and sets, and the snapshots of a `copy_on_write`, are `tracked_ptr`s and live where their container may.
-
-```cpp
-struct Server {                                             // what every thread shares, in one managed object
-    sgcl::concurrent_map<int, sgcl::tracked_ptr<Session>> sessions;
-    sgcl::concurrent_queue<sgcl::tracked_ptr<Request>> requests;
-    sgcl::copy_on_write<Config> config;
-    sgcl::channel<sgcl::tracked_ptr<Request>> inbox{64};    // a channel: producers wait when it is full
-};
-static sgcl::root_ptr<Server> server = sgcl::make_tracked<Server>();   // a global: a root
-
-// any thread
-auto [it, fresh] = server->sessions.try_emplace(id, sgcl::make_tracked<Session>());
-server->requests.emplace(sgcl::make_tracked<Request>(id));
-// a worker
-while (auto r = server->requests.try_pop()) {
-    if (auto s = server->sessions.find((*r)->id); s != server->sessions.end()) {   // s holds the node: valid even if erased meanwhile
-        s->second->handle(*r);
-    }
-}
-server->sessions.erase(id);   // marked, unlinked by the next search; the Session dies when nothing holds it
-auto c = server->config.load();                            // a snapshot: one load, immutable, alive while c is
-server->config.update([](Config& x) { ++x.generation; });  // a copy, changed, swapped in; the old one dies with its last snapshot
-
-sgcl::task<> worker() {
-    while (auto r = co_await server->inbox.async_receive()) {   // the coroutine sleeps on the channel, resumed by a send
-        handle(*r);
-    }
-}
-```
-
-The containers are measured against `std` under a mutex, Go and Java in the benchmarks below.
-
-## make_tracked
-`sgcl::make_tracked<T>(args...)` creates an object on the managed heap and returns a `unique_ptr<T>`: deterministic until it is converted into a `tracked_ptr` or dropped. Managed arrays are not a public type: `sgcl::vector` and `sgcl::array<T>` own their buffers on the managed heap.
-
-## variant, any, function and expected
-`std::variant` keeps every alternative at the same offset and `std::any` keeps a small value in a buffer inside itself: a `tracked_ptr` there shares its word with the data of the other alternatives or values, the collector's pointer map, built by elimination, finds data at that offset in some object and drops the offset for good, and the pointer is no longer followed ("Pointer maps" below). `sgcl::variant<Ts...>` and `sgcl::any` have the same interfaces (`get`, `get_if`, `holds_alternative`, `visit`, `emplace`, `any_cast`, `make_any`, the comparisons, `std::hash`, the exceptions of `std`) and lay their contents out by what they hold: a pointer word (`tracked_ptr` of either kind, `weak_ptr`) goes into a word that holds null or an address and nothing else, the alternatives of a `variant` that may hold pointers among their data get places of their own, and the alternatives and values that cannot hold a pointer share the data storage. An `any` holds a small pointer-free value (16 bytes) inline and anything else, a container with pointers included, in a managed node of its own, held by a pointer in the same word and traced through its own pointer map, so that a value pointing back at the `any`'s owner is a cycle collected like any other; the value is destroyed the moment the `any` drops it, as a container destroys an erased element, and the node is reclaimed later. `function<R(Args...)>` and `move_only_function` (with the signature's `const` and `noexcept`) keep a closure the same way: a small one without pointers inline, one capturing tracked pointers in a node of its own, which is what lets a callback, an observer or an `expiry_queue` entry capture the objects it works on, a closure capturing its own owner included; 32 bytes, like `std::function`. `expected<T, E>` (the C++23 interface, with `unexpected`, `unexpect`, `bad_expected_access` and the monadic operations) is a `variant` of the value and the error. `any` and `function` take the kind of their word as their last parameter, like the containers: `sgcl::any` and `sgcl::function` live where a `tracked_ptr` may, `sgcl::any` and `sgcl::function` anywhere. `variant` and `expected` have no word of their own, so where one may live is decided by what it holds: with `sgcl::tracked_ptr`s inside, where a `tracked_ptr` may; with `sgcl::tracked_ptr`s inside, anywhere; `sgcl::variant` and `sgcl::expected` are the same types. The `variant` and the `expected` are not `constexpr`, and the ones of pointer-free alternatives are what the `std` types are for. `optional`, `pair` and `tuple` keep a pointer at a fixed offset of its own and are safe as they are: `sgcl::optional`, `sgcl::pair`, `sgcl::tuple` (and under `sgcl::`) name the `std` types, so that the safe set is one namespace (`sgcl/aliases.h`).
-
-```cpp
-struct Node { int value; };
-sgcl::variant<int, sgcl::tracked_ptr<Node>, std::string> v = sgcl::make_tracked<Node>(1);   // the pointer in a word of its own
-v = 5;                                                   // the int elsewhere: the word is null now
-sgcl::any a = sgcl::vector<sgcl::tracked_ptr<Node>>{sgcl::make_tracked<Node>(2)};   // the vector in a managed node of its own
-if (auto p = sgcl::any_cast<sgcl::vector<sgcl::tracked_ptr<Node>>>(&a)) {
-    std::cout << (*p)[0]->value << "\n";
-}
-sgcl::tracked_ptr node = sgcl::make_tracked<Node>(3);
-sgcl::function<int()> f = [node] { return node->value; };   // the closure in a managed node of its own: node lives while f holds it
-sgcl::expected<sgcl::tracked_ptr<Node>, std::string> r = sgcl::unexpected("not found");   // the pointer and the string laid out apart
-std::cout << f() << " " << r.error() << "\n";
-```
-
-## string
-`sgcl::string` is an immutable string on the managed heap: one word, a pointer to an object holding the length, the characters and a terminator, and the hash once something has asked for it, of exactly that size (a string of ten characters is an object of 20 bytes). What a string is in Java or Go rather than in C++: made once, never modified, shared by copying the word, compared and hashed by its contents, reclaimed by the collector, with no destructor and no reference count. The empty string is null. There is no small-string optimization, and the string is not a buffer to build in: text is built as a `std::string` or a `string_view` and made a `string` once; the read side of `std::string` and all of `std::string_view` are there (`size`, `[]`, the `find`s, `starts_with`, `substr` as a new string, `+` as a new string, the comparisons and `<=>`, `std::hash`, `operator<<`, the conversions), and so are `wstring`, `u8string`, `u16string`, `u32string`. `sgcl::string` lives anywhere; the two kinds convert into each other and share the object ([docs/string.md](docs/string.md)). A string shared between threads and replaced at run time is an `atomic<string>` (`static sgcl::atomic<sgcl::string> host;`): the atomic of the string's word, a load for the string as it was, a store for a new one, compare-exchange by identity.
-
-```cpp
-struct Element { sgcl::string name; sgcl::vector<sgcl::tracked_ptr<Element>> children; };
-sgcl::string p = "p";                                // one object, made once
-sgcl::tracked_ptr e = sgcl::make_tracked<Element>();
-e->name = p;                                       // a word copied: the object shared
-assert(e->name == p && e->name.object() == p.object() && e->name == "p");
-std::unordered_map<sgcl::string, int> counts;        // the hash computed once, kept in the string's object
-++counts[p];
-```
-
-What it costs, in nanoseconds per operation, against a `std::string` member, Go's string and Java's `String` (`benchmarks/string.cpp` and its Go and Java counterparts, the setup of the "Benchmarks" section, one thread): 2 M strings of 10 and of 100 characters made from a text buffer and stored in nodes, copied from node to node, hashed once each as a map key would be, and hashed eight times in a row (a key used again and again); `sgcl::string` in the same managed nodes:
-
-| operation, length | `sgcl::string` | `std::string` | Go string | Java `String` |
-|---|---|---|---|---|
-| make, 10 | 10.2 | 2.9 | 10.1 | 23.3 |
-| make, 100 | 18.0 | 20.6 | 22.3 | 32.4 |
-| copy, 10 | 1.9 | 1.9 | 1.3 | 1.1 |
-| copy, 100 | 1.9 | 24.0 | 1.4 | 6.6 |
-| hash once, 10 | 2.8 | 1.8 | 5.4 | 5.0 |
-| hash once, 100 | 12.3 | 11.4 | 8.7 | 14.6 |
-| hash 8 times, 10 | 0.9 | 1.8 | 5.5 | 0.9 |
-| hash 8 times, 100 | 2.3 | 9.4 | 7.3 | 1.9 |
-
-Below its small buffer (22 characters in libc++, 15 in libstdc++ and MSVC) a `std::string` costs no allocation, and no type that allocates can match that: a `string` of a few characters costs a managed allocation to make (README: "Allocation"), as a Go string does. Past the buffer, a `std::string` costs an allocation to make, an allocation and a copy per copy (24 ns for 100 characters), and a `free` in the sweep for each; a `string` costs the same allocation once, a word and the barrier per copy (1.9 ns, whatever the length, the same as a small `std::string`'s 24 bytes), and nothing in the sweep. A copy in Go is two words without a barrier while the collector is idle; in Java a reference through ZGC's store barrier. The first hash reads the characters everywhere (the `string`'s is `std::hash` of the characters, plus the store that keeps it: a nanosecond over `std::string`'s); the `string` and Java's `String` keep it in the object and pay a load from then on (the eight-times row: one computation and seven loads), where `std::string` and Go read the characters every time. What the table does not show is the sweep: two million nodes with 100-character strings freed in 31 ms with `string`s and 46 ms with `std::string`s, whose buffers `free` returns one by one, and the other way round for ten characters (24 ms against 17: two million more objects, where the `std::string`s lay inside their nodes). So `std::string` remains the member for text of a few characters made and dropped, and `string` is the member for text that is kept, shared and compared: names, keys, symbols, the leaves of a document.
-
-## Pointer aliases
-A `tracked_ptr` may point into the middle of a managed object: to a member or to a base subobject. Such an alias behaves like the aliasing constructor of `std::shared_ptr`: the object it points into stays alive for as long as the alias does.
-
-```cpp
-struct Item { int value; std::string name; };
-sgcl::tracked_ptr item = sgcl::make_tracked<Item>();
-sgcl::tracked_ptr<int> alias(&item->value);
-item = nullptr;                    // the Item lives on: the alias keeps it
-```
-
-What a `tracked_ptr` may not address is an element of a container's buffer (`sgcl::vector`, `sgcl::array<T>`): a buffer is rooted only through the pointer to its first element that the container holds, an alias into it would keep nothing, and debug builds assert on the attempt. A pointer or reference to an element of any `sgcl` container is exactly as valid as with its `std` counterpart: until the element is removed, the container reallocates, or the container is destroyed.
-
-## Weak pointers
-`weak_ptr<T>` is a pointer the collector does not follow: the object lives as long as something else reaches it, and `lock()` says which. It is one word, a `tracked_ptr` to a small cell on the managed heap that holds the target as a word the collector clears instead of tracing; a `weak_ptr` made from a `tracked_ptr` gets a cell of its own, copies share it, and the cell is collected with the last copy. It lives wherever a `tracked_ptr` may, and threads share it the way they share a `tracked_ptr` (rule 6).
-
-```cpp
-struct Item { std::string name; };
-sgcl::tracked_ptr item = sgcl::make_tracked<Item>("x");
-sgcl::weak_ptr cached = item;                  // a cell, allocated once
-if (auto p = cached.lock()) {                  // the Item, held by p
-    p->name = "y";
-}
-item = nullptr;                                // unreachable now
-sgcl::collector::force_collect(true);          // optional, for the demonstration only: the next cycle clears it anyway
-assert(cached.expired() && !cached.lock());    // cleared, never dangling
-```
-
-The clearing is a phase of the cycle: once the marking has converged, every cell whose target the cycle found unreachable has its word cleared, before the sweep. So `lock()` never hands out an object the sweep will destroy or the slot it will be reused for; and when `lock()` races with the clearing it either sees the null or wins, holding the object for at least one more cycle, through the same hazard pointer as `atomic<tracked_ptr>::load` (a cell is cleared before the collector reads the hazards, a lock publishes its hazard before it reads the cell again). `expired()` is true once the cell is cleared; between the object becoming unreachable and the cycle that notices, `lock()` still returns it, which is the same lag as any garbage collector's. A program without weak pointers pays nothing: the phase is a test of an empty list.
-
-Nanoseconds per operation against `std::weak_ptr`, Go's `weak.Pointer` and Java's `WeakReference`, one thread and four threads on objects of their own (`benchmarks/weak_ptr.cpp` and its Go and Java counterparts, the setup of the "Benchmarks" section):
-
-| operation, threads | `sgcl::weak_ptr` | `std::weak_ptr` | Go `weak.Pointer` | Java `WeakReference` |
-|---|---|---|---|---|
-| lock, 1 | 1.8 | 12.1 | 6.1 | 1.0 |
-| lock, 4 | 1.9 | 12.7 | 6.2 | 1.1 |
-| lock of an expired pointer, 1 | 0.9 | 1.4 | 5.2 | 1.0 |
-| lock of an expired pointer, 4 | 1.0 | 1.5 | 4.0 | 1.1 |
-| copy, 1 | 1.4 | 8.6 | 6.3 | 0.8 |
-| copy, 4 | 1.5 | 8.8 | 6.4 | 0.9 |
-| make from a strong pointer, 1 | 7.4 | 8.5 | 18.4 | 3.6 |
-| make from a strong pointer, 4 | 7.8 | 8.8 | 18.7 | 7.2 |
-
-A lock is the cell read twice around a hazard store and a `tracked_ptr` built; on an expired pointer the same reads find the null and build a null pointer; a copy is a `tracked_ptr` copy; making one is a 16-byte allocation. `std::weak_ptr` pays two atomic count updates per lock and per copy, and contended ones when threads share an object. Go's `weak.Pointer` is a handle the runtime hands out and resolves in a call (`Value`), and making one allocates the handle; Java's `WeakReference` is an object whose referent is read through ZGC's load barrier, the cheapest lock of the four, and making one is an allocation the collector has to discover.
-
-### expiry_queue
-A destructor is the object's own business and runs on the collector's threads under the rules of destructors; what an observer wants done with an object once nothing else reaches it (a handle released, a cache entry dropped, a registry told, or the object kept after all) goes into an `expiry_queue<T>`. `watch(object, f)` makes a weak cell for the object and keeps `f` next to it, and returns the entry's handle (`cancel()`, or a `weak_ptr` to the object). When a cycle finds the object unreachable it does not destroy it: it keeps it alive for the queue, and `drain()` calls `f` with the object as a `tracked_ptr`, alive one last time, on the thread that calls `drain()`, at that moment, with the heap in a consistent state. `f` may read the object, release what it owns, or keep the pointer, which is the object's return to life (it can be watched again). Then the entry is dropped and the object dies with the next cycle that finds it unreachable, its destructor as ever. Until `drain()` the object stays alive, and its `weak_ptr`s lock it; the queue drains by itself every so many `watch` calls, as many as it has entries, and a thread that watches little and wants its cleanups on time calls `drain()` in its loop. `f` is an `sgcl::function` ("variant, any, function and expected" below): its closure may capture tracked pointers, which the collector follows; a closure holding a strong pointer to the watched object itself keeps it alive, and the entry never expires, which is why the object comes as the argument. Java's `Cleaner` and Go's `AddCleanup` do the cleanup on a thread of the runtime's and never show the object; here the program says where and when, and gets the object.
-
-```cpp
-struct Texture { GLuint id; };
-sgcl::expiry_queue<Texture> gone;                        // on the stack, or inside a managed object
-
-sgcl::tracked_ptr texture = sgcl::make_tracked<Texture>(upload(pixels));
-auto entry = gone.watch(texture, [](sgcl::tracked_ptr<Texture> t) { glDeleteTextures(1, &t->id); });
-// ... the texture is used, shared, dropped by everyone; or freed by hand: entry.cancel(), and the function is never called
-gone.drain();                                            // in the render loop: the GL name freed on this thread, the object destroyed by a later cycle
-```
-
-The cost, for a program without such queues, is a test of an empty list per cycle; with them, a pass over the cells per convergence of the marking and one more round of marking for the objects kept, plus their memory until the drain.
-
-### Weak containers
-`weak_map<Key, T>`, `weak_multimap<Key, T>` and `weak_set<Key>` are containers keyed by objects they do not keep alive: the key is the object itself, its identity and not its contents, looked up by a `tracked_ptr` to it and held by a `weak_ptr`. An entry whose object a cycle has found unreachable is dead: never found, passed over by the iteration, dropped by a sweep, which the container runs by itself every so many insertions (as many as it has entries) and on `sweep()`. Metadata attached to objects from outside, a cache keyed by the object, a registry that forgets. The iteration hands out the object as a strong pointer, held while the iterator stands on the entry, and the value by reference. A value holding a strong pointer to its own key keeps the key alive, and the entry with it: there are no ephemerons.
-
-```cpp
-struct Node { int value; };
-sgcl::weak_map<Node, std::string> names;   // a name for any object, kept outside it
-{
-    sgcl::tracked_ptr node = sgcl::make_tracked<Node>(42);
-    names[node] = "the answer";
-    if (auto it = names.find(node); it != names.end()) {
-        std::cout << it->key->value << ": " << it->value << "\n";   // 42: the answer
-    }
-}   // the last strong pointer is gone
-sgcl::collector::clear_stack();          // the dead frame zeroed, so that the conservative scan keeps nothing
-sgcl::collector::force_collect(true);    // optional, for the demonstration: the cycle clears the key
-std::cout << names.sweep() << " entry gone\n";   // 1
-```
-
-The entries are hashed and compared by the object's address, read from the weak pointer's cell without a lock: the cell holds the address while the object lives, and the weak phase clears it before the sweep frees the slot, so an address in a cell never names a slot's earlier occupant, a dead entry equals nothing (its own key included), and the object that takes the slot next gets an entry of its own. A `sgcl::multimap<const Node*, ...>` would not do: a raw address in a managed container is a word holding a heap address, which the pointer map built by elimination ("Pointer maps" below) follows like a `tracked_ptr`, so the map would keep every node alive by its key. The lookups cost those of `unordered_map` plus a load of the cell per key compared; the sweeps a pass over the entries, paid for by the insertions between them.
+Why two: a framework's interface is the thing its users live in, and the two audiences want different things from it, the C++ programmer the standard library's conventions and the programmer coming from a managed language the ones they know; one style is not a compromise for both. What keeps the two from being two libraries is the implementation: every `Sgcl` class holds the one `sgcl` object (`Inner()`), every method is an inline forward, so a `List` costs what a `vector` costs, byte for byte and nanosecond for nanosecond; the semantics, the rules and the diagnostics are the same, values and pointers are as in C++ (a `List<T>` is a value, a `Ptr<List<T>>` is shared), nothing is checked that `sgcl` does not check, and the two mix freely in one program, a `List<T>` holding an `sgcl::vector<T>` and a `Ptr<T>` being an `sgcl::tracked_ptr<T>`. The headers of `Sgcl` bring the namespace in, so nothing is prefixed. Every class has its page in both references, written side by side: [docs/sgcl/](docs/sgcl/README.md) and [docs/sgcl/Sgcl/](docs/sgcl/Sgcl/README.md).
 
 ## Examples
-The basics, in one file (`examples/example.cpp` has the long version):
+Every example twice, in `sgcl` and in `Sgcl`. The pointers and the containers, in one file (`examples/example.cpp` has the long version):
 
 ```cpp
 #include "sgcl/sgcl.h"
@@ -299,12 +84,12 @@ int main() {
 
     // Containers with the interfaces of std, their nodes and buffers managed
     sgcl::unordered_map<std::string, sgcl::tracked_ptr<Node>> index;
-    sgcl::list<int> numbers = {1, 2, 3};
+    sgcl::list numbers = {1, 2, 3};
     sgcl::vector<sgcl::tracked_ptr<Node>> nodes(10);
 
     // A tracked_ptr lives on a stack or inside a managed object; anywhere
     // else (a std container, a global, new memory) the root is a root_ptr
-    // ("The pointer and its places" above).
+    // ([The pointer and its places](docs/sgcl/core/README.md#the-pointer-and-its-places)).
     std::vector<sgcl::root_ptr<Node>> kept = {value.as<Node>()};    // fine: a cell roots the Node
     static sgcl::root_ptr<Node> root = nodes[0];                    // fine: a global
     auto holder = new sgcl::root_ptr<Node>(nodes[1]);               // fine: a root in new memory
@@ -314,7 +99,142 @@ int main() {
 }
 ```
 
-The frame of a coroutine is heap memory too. A `root_ptr` among its parameters, locals or promise is fine in any frame; a `tracked_ptr` is allowed only when the promise derives from `managed_frame`, which `task` and `generator` do, and a managed frame costs nothing at each use of the pointer ("Coroutines" below):
+The same in `Sgcl`:
+
+```cpp
+#include "sgcl/Sgcl/Sgcl.h"
+#include <iostream>
+#include <memory>
+#include <vector>
+
+struct Node {
+    int value;
+    List<Ptr<Node>> edges;                         // any graph, cycles included
+};
+
+int main() {
+    // Make returns a UniquePtr: destroyed at scope exit, deterministically
+    UniquePtr unique = Make<int>(42);
+    auto alsoUnique = Make<int>(2);                // the same type, deduced
+
+    // A Ptr hands the object to the collector: destroyed when unreachable
+    Ptr tracked = Make<int>(24);
+    tracked = std::move(unique);                   // the 42 now belongs to the collector
+
+    // A cycle, collected like anything else
+    Ptr a = Make<Node>(1);
+    Ptr b = Make<Node>(2);
+    a->edges.Add(b);
+    b->edges.Add(a);
+    a = b = nullptr;                               // garbage, no leak
+
+    // Base classes and the dynamic type
+    struct Shape { virtual ~Shape() = default; };
+    struct Circle : Shape { double r = 1; };
+    Ptr<Shape> shape = Make<Circle>();
+    if (shape.Is<Circle>()) {
+        Ptr<Circle> circle = shape.As<Circle>();
+        std::cout << "a circle of radius " << circle->r << '\n';
+    }
+    Ptr<void> any = shape;                         // Type() still knows: Circle
+
+    // An alias into a member keeps the whole object
+    Ptr node = Make<Node>(7);
+    Ptr<int> value(&node->value);
+    node = nullptr;
+    std::cout << *value << '\n';                   // 7, the Node lives on
+
+    // Containers with the names of a collection library, their nodes and buffers managed
+    Dictionary<std::string, Ptr<Node>> index;
+    LinkedList numbers = {1, 2, 3};
+    List<Ptr<Node>> nodes(10);
+
+    // A Ptr lives on a stack or inside a managed object; anywhere else
+    // (a std container, a global, new memory) the root is a RootPtr
+    std::vector<RootPtr<Node>> kept = {value.As<Node>()};   // fine: a cell roots the Node
+    static RootPtr<Node> root = nodes[0];                   // fine: a global
+    auto holder = new RootPtr<Node>(nodes[1]);              // fine: a root in new memory
+    // std::vector<Ptr<Node>> edges;                        // not allowed: never scanned, the object is lost
+    // static Ptr<Node> root;                               // not allowed: a global is neither a stack nor an object
+    delete holder;
+}
+```
+
+Tasks and a channel, the shape of a Go program: a coroutine on the scheduler receives managed objects from a thread and sends results back, waiting on either side without holding a thread, and nobody frees anything ([channel](docs/sgcl/async/channel.md), [coroutine](docs/sgcl/async/coroutine.md)):
+
+```cpp
+#include "sgcl/sgcl.h"
+#include <iostream>
+
+struct Job {
+    int id;
+};
+
+sgcl::task<> worker(sgcl::channel<sgcl::tracked_ptr<Job>>& jobs, sgcl::channel<int>& results) {
+    while (auto job = co_await jobs.async_receive()) {   // suspends while jobs is empty; empty once jobs is closed and drained
+        co_await results.async_send((*job)->id * 2);     // suspends while results is full
+    }
+    results.close();                                     // the stream ends downstream
+}
+
+int main() {
+    sgcl::channel<sgcl::tracked_ptr<Job>> jobs(8);
+    sgcl::channel<int> results(8);
+    sgcl::task w = sgcl::spawn(worker(jobs, results));   // runs on the pool of workers whenever a job comes
+    sgcl::thread producer([&] {
+        for (int i : sgcl::range(100)) {
+            jobs.send(sgcl::make_tracked<Job>(i));       // waits when the buffer of eight is full
+        }
+        jobs.close();
+    });
+    long sum = 0;
+    for (int r : results) {                              // until results is closed
+        sum += r;
+    }
+    producer.join();
+    w.join();
+    std::cout << sum << '\n';                            // 9900
+}
+```
+
+The same in `Sgcl` ([Channel](docs/sgcl/Sgcl/Async/Channel.md), [Task](docs/sgcl/Sgcl/Async/Task.md)):
+
+```cpp
+#include "sgcl/Sgcl/Sgcl.h"
+#include <iostream>
+
+struct Job {
+    int id;
+};
+
+Task<> Worker(Channel<Ptr<Job>>& jobs, Channel<int>& results) {
+    while (auto job = co_await jobs.AsyncReceive()) {    // suspends while jobs is empty; None once jobs is closed and drained
+        co_await results.AsyncSend((*job)->id * 2);      // suspends while results is full
+    }
+    results.Close();                                     // the stream ends downstream
+}
+
+int main() {
+    Channel<Ptr<Job>> jobs(8);
+    Channel<int> results(8);
+    Task w = Spawn(Worker(jobs, results));               // runs on the pool of workers whenever a job comes
+    Thread producer([&] {
+        for (int i : Range(100)) {
+            jobs.Send(Make<Job>(i));                     // waits when the buffer of eight is full
+        }
+        jobs.Close();
+    });
+    long sum = 0;
+    for (int r : results) {                              // until results is closed
+        sum += r;
+    }
+    producer.Join();
+    w.Join();
+    std::cout << sum << '\n';                            // 9900
+}
+```
+
+The frame of a coroutine is heap memory too. A `root_ptr` among its parameters, locals or promise is fine in any frame; a `tracked_ptr` is allowed only when the promise derives from `managed_frame`, which `task` and `generator` do (`Task` and `Generator` in `Sgcl`), and a managed frame costs nothing at each use of the pointer ([Coroutines](docs/sgcl/async/README.md#coroutines)):
 
 ```cpp
 std::generator<sgcl::root_ptr<Node>> chain(int count);       // a plain frame: each root_ptr in it roots its Node through a cell
@@ -322,393 +242,18 @@ sgcl::generator<sgcl::tracked_ptr<Node>> chain(int count);   // a managed frame:
 // std::generator<sgcl::tracked_ptr<Node>> chain(int count); // not allowed: a plain frame is never scanned
 ```
 
-## The rules
-Everything the collector relies on, in one place; the sections below say why.
-
-1. An `sgcl::tracked_ptr`, and every `sgcl` type that holds one (a container, an atomic, a weak pointer, a coroutine handle), lives inside a managed object or on a stack: never in `new`/`malloc` memory, a standard container, a global, a `thread_local`, a lambda copied to the heap, or the frame of a coroutine, unless the coroutine's promise derives from `managed_frame` ("Coroutines" below). Debug builds assert it. A `root_ptr` lives anywhere: it holds its object through a managed cell ("The pointer and its places" above).
-2. A `tracked_ptr` does not share storage with data: no `union` with a value, no `std::variant`, no small-buffer `std::function` or `std::any` holding one; `sgcl::variant`, `any`, `function` and `expected` are the ones that keep it apart. A union of two `tracked_ptr`s and `std::optional<tracked_ptr<T>>` are fine.
-3. A raw pointer, a reference or an iterator keeps nothing alive by itself; it is valid while a `tracked_ptr` or a container keeps its target, as with `std`.
-4. A `tracked_ptr` addresses a managed object or a part of it (a member, a base), never an element of a container's buffer. A `weak_ptr` follows the rules of a `tracked_ptr` (it is one, to a cell) and addresses an object no `unique_ptr` owns.
-5. A destructor reads its object's `tracked_ptr` members only through `if_alive()`; its `unique_ptr` members it may use freely.
-6. Objects shared between threads are shared the way any C++ objects are: a `tracked_ptr` written by one thread and read by another needs `atomic` or `atomic_ref`, or the program's own synchronization. The word itself is atomic, so a race on it is never a torn pointer, and the collector is correct under any interleaving.
-
-A global root is a `unique_ptr`: the object it owns is reachable, and so is everything reachable from it, for as long as the global lives. When the global has to point at an object that other threads share and that is replaced at run time (a current configuration, a snapshot), a `unique_ptr` is the wrong shape, since assigning it destroys the old object at once, under the threads still using it; the root is then a `root_ptr`, under an `atomic_ref` when the replacement races with the readers. Readers `load()`, a writer `store()`s, and the old configuration is collected when the last reader drops it:
-
-```cpp
-static sgcl::root_ptr<Config> current;                        // the root, for the life of the program: a global
-
-sgcl::atomic_ref a(current);                                  // the atomic of the root: the word of its cell
-sgcl::tracked_ptr<Config> config = a.load();                  // a reader: held until dropped
-a.store(sgcl::make_tracked<Config>(...));                     // a writer: the old one lives on for its readers
-```
-
-The same with the atomic inside is a `unique_ptr` to a managed object holding it: `static sgcl::unique_ptr current = sgcl::make_tracked<sgcl::atomic<sgcl::tracked_ptr<Config>>>();`, read and written through `current->`.
-
-A managed object held from anywhere else in unmanaged memory (a `std::vector`, a `new`ed object, a lambda run on another thread) is a `root_ptr`, or a `std::shared_ptr` from `to_shared()` where the holder has to be a `shared_ptr`: its control block owns a managed holder of the pointer, a root that lives exactly as long as the last copy of the `shared_ptr`, and the object stays managed, destroyed on the collector's threads once nothing reaches it. Two allocations per call, so a named function, not a conversion:
-
-```cpp
-std::vector<sgcl::root_ptr<Node>> kept;               // a std container: no tracked_ptr may live in it
-sgcl::tracked_ptr node = sgcl::make_tracked<Node>();
-kept.emplace_back(node);                              // a root_ptr: a cell on the managed heap, the Node's root
-std::vector<std::shared_ptr<Node>> shared;
-shared.push_back(node.to_shared());                   // or a shared_ptr: the Node lives while it does
-```
-
-## Threads
-Any thread may create and copy managed pointers; the library registers a thread's stack the first time the thread copies one, and forgets it when the thread exits, with a handshake so that a scan in progress finishes reading the stack first. The collector runs on a thread of its own, started with the first managed object, and on a pool of helpers that park between cycles; destructors of collected objects run on those threads, so a destructor must be prepared to run on a thread other than the one that created the object, and must not touch the dying peers of its object (rule 5). Nothing a mutator does waits for a cycle, and nothing a cycle does waits for a mutator: a thread blocked in a system call, spinning, or descheduled holds up no one; a thread that exits mid-scan waits for the scan of its own stack only.
-
-A `fork()` gives the child a copy-on-write snapshot of the managed heap and none of the threads: the child may read managed objects and `exec` or exit (the page headers live outside the pages, so the parent's marking does not copy the snapshot page by page), but the collector does not run in it, and a managed allocation that needs a page or a call into the collector terminates the child with a message rather than hang on a copied lock. A child that needs the collector is a `fork` before the first managed object, or an `exec`.
-
-## Coroutines
-The frame of a C++20 coroutine, where its parameters, locals and promise live between suspensions, is allocated with `operator new`: heap memory the collector does not see, so a `tracked_ptr` in a coroutine breaks rule 1 and its object may be collected under it. A promise type that derives from `sgcl::managed_frame` gets its frames from the managed heap instead: `operator new` of the promise allocates the frame as a buffer of words on the managed heap, and the collector traces such a buffer conservatively, every word that holds a managed address keeping its object, so whatever the coroutine holds is a root while its frame is held. The frame is held through a `frame_ptr<Promise>` (a `tracked_ptr` to the frame and the coroutine handle, move-only, destroys the coroutine when destroyed) that the promise's `get_return_object` makes from the handle. `task<T>` and `generator<T>` are two such coroutine types, complete enough to use and small enough to copy for a scheduler of your own:
-
-```cpp
-struct Node { int value; sgcl::tracked_ptr<Node> next; };
-
-sgcl::generator<sgcl::tracked_ptr<Node>> chain(int count) {
-    sgcl::tracked_ptr<Node> last;                 // a local in the frame: a root while suspended
-    for (int i = 0; i < count; ++i) {
-        sgcl::tracked_ptr n = sgcl::make_tracked<Node>(i, last);
-        last = n;
-        co_yield n;                               // suspended here, the chain is alive
-    }
-}
-
-sgcl::task<int> sum(sgcl::tracked_ptr<Node> head) {   // a parameter copied into the frame: a root too
-    int s = 0;
-    for (auto n = head; n; n = n->next) {
-        s += n->value;
-        co_await std::suspend_always{};           // cooperative: resume() continues
-    }
-    co_return s;
-}
-
-for (auto& n : chain(5)) { /* the generator's frame holds the chain */ }
-sgcl::task<int> t = sum(head);
-while (!t.done()) t.resume();
-int s = t.result();                               // or the exception the coroutine threw
-```
-
-The rules that follow: a `task` or `generator` (a `frame_ptr`) lives where a `tracked_ptr` may, on a stack, in a managed object, or in another managed frame; the coroutine is destroyed when its `frame_ptr` is, which runs the destructors of its locals and promise on the calling thread, and the frame's memory goes to the collector once nothing holds it, so no `coroutine_handle` may outlive the `frame_ptr`. The cost is the allocation of the frame as a managed buffer (a few tens of nanoseconds instead of `malloc`) and, per cycle, a conservative pass over the frame's words; a frame that holds no managed pointers costs the collector the same pass and nothing else.
-
-## Pointer maps
-The collector finds the pointers inside managed objects on its own; constructors do not register anything, and creating a `tracked_ptr` is a store of one word. For every type the collector keeps a map of the words that may hold a pointer. The map starts full and is narrowed by elimination: a word that holds a non-zero value which is not an address in the managed heap is data, and its offset leaves the map for good. A pointer field only ever holds null or a managed address, so it never leaves. A type that cannot hold a pointer at all (trivially default constructible, or smaller than a pointer) starts with an empty map and is never read: the buffers of the containers of such elements, and the objects `make_tracked<int>` makes, cost the marking their mark bit and nothing more. Three things follow:
-
-- A `tracked_ptr` must not share its storage with data: no `union` of a pointer with a value, no `std::variant`, no `std::function` or `std::any` with inline storage holding a `tracked_ptr`. The same offset would be data in one object and a pointer in another, and the collector would stop following it. A union of two `tracked_ptr`s is fine, so is `std::optional<tracked_ptr<T>>`; `sgcl::variant`, `any`, `function` and `expected` are the ones that keep the pointers apart ("variant, any, function and expected" above). Debug builds print a warning when they catch this.
-- A raw `T*` to a managed object is not a reference the collector honours, inside a managed object as much as anywhere else: the object it points to lives as long as some `tracked_ptr` (or `unique_ptr`) keeps it, and using the raw pointer after that is undefined. That the collector's map may follow such a word in some cycle is an implementation detail, never a guarantee.
-- A destructor must not read, dereference or copy the `tracked_ptr` members of the object it destroys, except through `if_alive()`. An object dies together with everything reachable only from it, in no particular order and on several threads, so a member may point at an object destroyed already; and the collector does not null such members beforehand, because its map is approximate and a store through it could hit data. `peer.if_alive()` is a copy of the pointer when the target is not dying in the same sweep and null when it is (outside a sweep it is always the copy: a live object's targets are live), so the way to reach a peer from a destructor is:
-
-  ```cpp
-  ~Node() {
-      if (auto p = peer.if_alive()) {   // a copy when the peer lives, null when it dies in the same sweep
-          p->detach(this);
-      }
-  }
-  ```
-
-  A live peer may be used and stored freely, a pointer to a dying one is never handed out. Owning `unique_ptr` members need no check: the owned object is alive until its owner destroys it, which is what `unique_ptr`'s destructor does. A container inside a dying object (a `list`, a `map`) leaves its nodes to the same sweep, which destroys the elements with them.
-
-## Stack roots
-An `sgcl::tracked_ptr` lives in one of two places: inside a managed object, where the collector finds it through the type's pointer map, or on a thread's stack, where the collector finds it by scanning the used part of the stack. Nowhere else: not in `new`/`malloc` memory, not in standard containers, not as a global or `thread_local` variable, not in a lambda that a `std::thread` or `std::function` copies to the heap (an `sgcl::function` keeps its closure in a managed object: there it may). Debug builds assert this rule in the constructor; release builds trust it, and a violation leaves the object unprotected. A `sgcl::tracked_ptr` is what to use in those places: it puts the pointer into a managed cell of its own, and the cell is a root. A `root_ptr` is the explicit form of the same: a managed holder of its own under a `unique_ptr`, a root by its type, for a handle table or a global that knows it stands outside the managed heap.
-
-The stack scan is conservative: every word of the stack that looks like a pointer into a live object counts as a root, and the mutator threads keep running meanwhile. An array (the buffer of a `vector` or `array`) is the exception: only a pointer to its first element counts, which is what its container holds; a word pointing at an element inside it is not a root, so a random word rarely retains a large buffer, and a pointer into a buffer whose container is gone is dangling, as in `std`. The cost of a `tracked_ptr` on the stack is therefore one word and a plain store; the only bookkeeping is a thread-local flag, so that a thread that has never touched the library gets its stack registered the first time it copies a pointer. Three consequences follow:
-
-- A raw pointer, a reference or an iterator that stays in a frame keeps its target alive, even after the object logically died, until the word is overwritten. This is delay, not a leak: the frame ends, the object goes.
-- `force_collect()` and the counting functions zero the unused stack below the caller's frame first (`config::StackClearSize`, 64 KB), so words left by dead frames do not distort a count taken right after a scope. What they cannot clear is the caller's own frame: a test that needs an exact count keeps the pointer-juggling code in a helper function.
-- Fibers, signal stacks and stacks the library does not know about are not scanned. Thread stacks are registered on first contact and unregistered at exit, with a handshake so that a scan in progress finishes before the stack disappears. Only the pages a stack has actually used are read. When the used parts of all stacks add up to more than 4 MB, helper threads read them in pieces and hand the words that point into the heap to the collector thread, which marks them; below that the collector thread does it alone.
-
-## Generations
-An object that has survived one cycle is not traced again by the next ones: its mark bit stays set (sticky mark bits), and a young cycle traces only the objects marked for the first time, sweeping the unmarked ones. What the young cycle must still see is a pointer stored into an old object since the previous cycle. The write barrier records that on the page of the object holding the pointer, and the young cycle traces the old objects of those pages again, which costs one flag test per old child. Nothing moves and no object changes generation by copying: a young object that survives a cycle is old from then on.
-
-The price is that garbage among the old objects waits for a full cycle. One runs after eight young cycles at the latest, sooner when the live memory has doubled since the last full cycle, under memory pressure, and for every `force_collect()` and the counting functions below, which therefore report complete collections. The knobs are `config::YoungCyclesMax` and `config::FullCycleGrowthPercent`.
-
-The generations are on by default. `-DSGCL_GENERATIONAL=0` builds the collector with full cycles only and a barrier that does no carding, for a program that links objects more than it allocates them and holds little: the card costs 0.3 ns per store of a pointer into a heap object (a shift, a byte read and a compare; a copy into a `tracked_ptr` on the stack costs nothing extra, because the barrier recognises a location near its own frame without reading memory, which the guard chunks at both ends of the heap's range make sound). What the generations buy shows in the large-tree benchmark below, where a young cycle's cost does not grow with the old heap; against the build with full cycles only, the same run with a large live set and four threads allocating takes a quarter less CPU and a third less memory, at 5 to 8% of the mutators' speed in code that does nothing but link objects.
-
-## Memory
-The managed heap is one range of virtual address space reserved at start-up (several times the physical memory, placed at 1 TB where no short ASCII string on a stack reads as an address into it) and backed by the operating system lazily, in 2 MB chunks. Small objects live in pools of 64 KB pages whose chunks grow from the bottom of the range; buffers larger than a page take contiguous page ranges from the top, so the two never interleave and a freed buffer's range coalesces with its neighbours (free ranges are kept in bins by size). The reservation shows up as the process' virtual size (VIRT); the memory actually in use is the committed part, available as `sgcl::collector::get_committed_memory()`.
-
-What the threads share is laid out by writer. The page header is one 128-byte line, the mutators' half (the fields a barrier reads, the flags a barrier or an allocation sets) in front of the collector's half (its lists and marks), and the slot states follow on lines of their own; the collector's mark words and the allocator's free bitmap are separate arrays; each thread's record, with the hazard pointer its atomic operations write, has a line of its own; and the heap's counters are pages, one relaxed `fetch_add` per page taken, on a line that nothing else touches. That last one is what the 24-thread allocation row above pays for: the four fenced updates it replaced cost a third of the time at that thread count.
-
-Committed memory has a ceiling: by default 90% of the cgroup memory limit on Linux (containers, systemd slices), or of the physical memory elsewhere. Above 75% of the ceiling the collector cycles more often and returns free chunks to the system at once. When an allocation would cross the ceiling, it first forces a full collection; if that does not free enough, it throws `std::bad_alloc` instead of letting the process run into the OOM killer.
-
-```cpp
-// Current committed size of the managed heap in bytes
-auto used = sgcl::collector::get_committed_memory();
-
-// Ceiling on the committed size; 0 disables it
-auto limit = sgcl::collector::get_memory_limit();
-sgcl::collector::set_memory_limit(size_t(4) << 30);   // 4 GB
-```
-## Methods useful for state analysis
-The tools by case, with what each costs, are in [docs/diagnostics.md](docs/diagnostics.md); the members, in [docs/collector.md](docs/collector.md).
-
-```cpp
-// Forcing a collection: optional, the collector runs its cycles by itself
-// (used in the examples and tests only to show or check a result at once)
-sgcl::collector::force_collect();
-
-// Forcing a collection and waiting for the cycle to complete
-sgcl::collector::force_collect(true);
-
-// Get number of live objects
-// Note: A full GC cycle is performed before returning the data
-auto live_object_count = sgcl::collector::get_live_object_count();
-std::cout << "live object count: " << live_object_count << std::endl;
-
-{
-    // Get list of live objects
-    // Note: A full GC cycle is performed before returning the data
-    // Note: pause_guard and std::vector with raw pointers is returned
-    //       The GC engine is paused until the pause guard is destroyed
-    auto [pause_guard, live_objects] = sgcl::collector::get_live_objects();
-    for (auto& v: live_objects) {
-        std::cout << v << " ";
-    }
-    std::cout << std::endl;
-} // The pause guard is destroyed at this point
-
-// Zero the unused stack below the current frame: pointers left behind by
-// dead frames stop keeping objects alive. Called automatically by
-// force_collect() and the counting functions above; clear_stack(SIZE_MAX)
-// zeroes down to the end of the thread's stack.
-sgcl::collector::clear_stack();
-
-// What the live heap is made of, by type, after a full cycle: objects by
-// their type, the buffers of the containers by their array type (T[]),
-// sorted by bytes. The answer to "what is growing".
-for (auto& t : sgcl::collector::get_type_statistics()) {
-    std::cout << (t.buffers ? "buffers of " : "") << t.type->name() << ": " << t.live_objects
-              << " x " << t.object_size << " B = " << t.live_bytes << " B"
-              << (t.buffers ? "" : ", " + std::to_string(t.pages) + " pages") << std::endl;
-}
-
-// Counters of the collector's work, without stopping it: cycles completed,
-// live objects and memory after the last cycle, its duration and phases, the helpers
-auto stats = sgcl::collector::get_statistics();
-std::cout << stats.cycles << " cycles, " << stats.live_objects << " objects, "
-          << stats.live_bytes / 1048576 << " MB, last cycle " << stats.last_cycle_ms << " ms, "
-          << stats.last_helpers_used << " helpers" << std::endl;
-for (int i = 0; i < 8; ++i) {                 // registration, states, roots, marking, updated, sweep, release, trim
-    std::cout << sgcl::collector::phase_names[i] << " " << stats.phases_ms[i] << " ms" << std::endl;
-}
-
-// What holds an object: a chain from it up to a root, as text (a full
-// cycle first, the collector paused for the walk), and what dies with it
-sgcl::collector::explain(node.get(), std::cout);
-// 0x100... is held by
-//   a Node at 0x100..., the word at byte 8
-//   a unique_ptr: the Node at 0x100... is its object
-// and keeps alive 3 objects, 48 bytes, itself included
-
-// The same as data: every word that points at the object (members,
-// buffer elements, cells, stack words, a unique_ptr, weak cells), the
-// chain, what the object retains. One pause_guard at a time.
-{
-    auto [guard, referrers] = sgcl::collector::get_referrers(node.get());
-    for (auto& r : referrers) {
-        std::cout << (r.type ? r.type->name() : "a stack word") << " at " << r.holder << " +" << r.offset << std::endl;
-    }
-}
-{
-    auto [guard, path] = sgcl::collector::get_path_to_root(node.get());   // [0] holds node, [1] holds [0]'s holder, ..., a root
-}
-auto [objects, bytes] = sgcl::collector::get_retained(node.get());
-
-// The collector one gate at a time, for the tests of the engine: no cycle
-// runs while the stepper lives; the calling thread is the mutator
-{
-    sgcl::collector::stepper s(false);                        // young cycles
-    s.advance_to(sgcl::collector::stepper::phase::roots);     // the stacks scanned, the dirty pages traced
-    holder->next = sgcl::make_tracked<Node>();                // a store in that window
-    s.finish_cycle();
-}
-
-// Stop the collector: cycles run until nothing dies any more, the threads exit.
-// Optional; afterwards no cycle runs and tracked garbage stays until exit.
-sgcl::collector::terminate();
-```
-## Benchmarks
-What the tables measure is the management of pointers and nothing else: loops that do nothing but allocate, copy and drop, the worst case for any collector and not the part of a program C++ is chosen for. A C++ program with SGCL allocates a fraction of what the same program allocates in Java, because everything that can be a value is one; the tables ask a narrower question, what the part that does hold managed pointers costs next to the best runtimes. SGCL is a library without the compiler's help, and every gap to Go and Java below has that one source: a local `tracked_ptr` writes a byte of state on every copy because the library cannot know it never escapes, a store into an object the thread has just created stamps a card the compiler would elide, the stacks are scanned conservatively and an atomic load takes a hazard pointer where a stack map would do, and an allocation is a call into a per-thread bitmap where a JIT inlines a bump pointer and removes some allocations altogether. The gap is structural, a nanosecond or two per operation, and it ends there: from a few threads up, allocation and a shared graph are faster than in Go and Java, no mutator ever waits, and the memory sits at the level of Go's, which throttles its mutators to hold it, and below `shared_ptr`'s in every large case (binary-trees at depth 21: 368 MB against 516; the large tree of 16 million nodes: 815 MB against 2.0 GB). That last one is the argument C++ has for `shared_ptr` turned around: the memory is as bounded, at a third of the cost of a copy and without the destructor cascades. In exchange the library asks nothing of the compiler, the platform or the ABI.
-
-The `benchmarks/` directory builds thirteen programs, each holding every C++ variant of one measurement (SGCL, then `unique_ptr`, `shared_ptr`, raw `new`/`delete` where it applies) and always compiled with `-O2 -DNDEBUG`; `benchmarks/run.sh <build-dir>` prints the C++ matrix. `benchmarks/go/` holds nine of the programs in Go and `benchmarks/java/` in Java, the same shapes, and `benchmarks/compare.sh` runs every environment over several sizes of each problem, each run a process of its own under `/usr/bin/time` for its peak resident memory, and prints the best of three. Numbers below: a Mac Studio with an Apple M2 Ultra (16 performance and 8 efficiency cores, 64 GB), macOS 26.5, Apple clang 21.0 with `-O2`, Go 1.27.1 at its default `GOGC=100`, OpenJDK 26.0.2 with the generational ZGC (`-XX:+UseZGC`) under a heap ceiling of about twice SGCL's peak memory in the same case (`-Xmx256m` to `-Xmx4g`; with the default ceiling of a quarter of the machine ZGC hardly collects in runs this short, and the numbers would be those of an allocator, not a collector; Java's numbers move with the ceiling, more room meaning fewer collections and less CPU, and `compare.sh` takes another). Go paces its collector by a ratio to the live heap and Java by a ceiling, so the two are not given the same budget; both are run the way they are shipped. Best of 3 unless said otherwise, each run a fresh process. What the timers cover: the wall time starts right before the measured algorithm and stops when its threads have joined, so the collector's start (the heap reservation, its thread and helpers, the first cycles) is inside the window, as are Go's collector and Java's JIT warm-up; the JVM's own start-up is outside it, like the loading of any process. The CPU time is the whole process, the collector's threads after the algorithm included. The memory is the process's peak resident size.
-
-The Boehm–Demers–Weiser collector, the one C++ has had for three decades, is not in the tables on purpose: it stops the world to find its roots and to mark, and its incremental mode buys shorter stops with page protection and a fault per first write. The runtimes SGCL is set against here are the concurrent ones, Go and Java's ZGC, whose mutators keep running while a cycle does its work; that is the class this library is in, and a comparison of allocation rates with a stop-the-world collector would say nothing about the pauses that separate the two.
-
-The environments are not the same size: a Java object carries a 12-byte header and the graph's node holds its links in a separate array, Go's runtime scans its stacks precisely, and the JVM's numbers include its warm-up. The scripts are in the tree to rerun with other versions and sizes.
-
-The SGCL column and the `std` column of the container table come from one run (`compare.sh` with `VARIANTS=sgcl` and `bench_containers`, the best of three), the other columns from a run of every variant the day before; the marking table from its own run the same day. The memory-bound container cases (the maps) move by a tenth or more from run to run; the rest within their rounding.
-
-The current version has been tested on Apple Silicon only. The code has no dependency on the architecture beyond what the standard library and the system calls in `detail/os.h` provide, but no number below has been reproduced on x86-64 or on Linux and Windows yet.
-
-### Allocation
-Nanoseconds per object; each allocation retires the previous one, so the collectors have to keep up:
-
-| size, threads | SGCL | `unique_ptr` | `shared_ptr` | Go | Java ZGC |
-|---|---|---|---|---|---|
-| 32 B, 1 | 5.1 | 22.1 | 22.5 | 7.2 | 3.6 |
-| 32 B, 4 | 5.5 | 35.9 | 41.4 | 33.3 | 7.0 |
-| 32 B, 24 | 9.4 | 81.2 | 133.0 | 294.7 | 25.7 |
-| 256 B, 1 | 5.6 | 20.9 | 23.7 | 98.3 | 9.5 |
-| 256 B, 4 | 7.3 | 33.3 | 48.5 | 293.7 | 25.5 |
-| 256 B, 24 | 48.9 | 100.0 | 124.1 | 2192.2 | 100.6 |
-
-On one thread Java's bump allocation in a thread-local buffer is the fastest (3.6 ns for 32 bytes against SGCL's 5.1); from four threads up SGCL is (5.5 ns against Java's 7.0 and Go's 33 at four, 9.4 against 26 and 295 at 24), because its mutators never wait for the collector and its per-thread page allocator hands out slots without a lock or a barrier. Go's allocator pays for 256-byte objects with its size classes and assists (98 ns on one thread, 2.2 µs on 24), Java's ZGC with its allocation barriers and, under its ceiling, the collections it has to run (26 ns at 24 threads, 101 ns for 256-byte objects), `unique_ptr` and `shared_ptr` with malloc (21 to 23 ns on one thread, 81 to 133 on 24) and the second with its control block. The allocation does not depend on the kind of the pointer that takes the object: the `sgcl::` variant of this benchmark measures the same within its rounding (the pointer is a local, an `sgcl::tracked_ptr` word once its constructor has checked the address), so the table has one SGCL column.
-
-### Pointer copy
-Nanoseconds per copy of a pointer to a live object, 50 million per thread: for SGCL the write barrier, for `shared_ptr` the reference count, for Go and Java the store with their barriers. `unique_ptr` has no copy: the column is the raw pointer a program built on `unique_ptr` hands around instead, the plain store every other column adds its bookkeeping to. "local" is a store into a variable on the stack, "field" into a member of a heap object; with four threads every thread copies pointers to the same object.
-
-| threads, store | SGCL | `unique_ptr` (raw pointer) | `shared_ptr` | Go | Java ZGC |
-|---|---|---|---|---|---|
-| 1, local | 1.4 | 0.6 | 4.7 | 0.6 | 0.9 |
-| 1, field | 1.9 | 0.6 | 4.7 | 0.6 | 1.0 |
-| 4, local, shared target | 1.4 | 0.6 | 124.1 | 0.6 | 0.9 |
-| 4, field, shared target | 1.9 | 0.6 | 232.4 | 0.7 | 1.1 |
-
-The raw pointer is the floor, 0.6 ns for the load and the store. SGCL adds a byte of state written on every copy (1.4 ns), and 0.4 to 0.5 ns more into a field for the card ("Generations" above; a build with `-DSGCL_GENERATIONAL=0` stores into a field in 1.46 ns). Go's write barrier is a flag test while no cycle is marking, and nothing allocates in this loop, so none is; a local costs Go nothing beyond the store, as its stacks are scanned precisely. Java pays ZGC's load barrier on the read of the pointer and its store barrier on the field. `shared_ptr` pays two atomic count updates, and a contended cache line when threads share the object: a hundred times SGCL's cost. A `sgcl::` store adds the test of the mode, 0.1 ns; it is the construction of a `sgcl::tracked_ptr` that costs, the check of its address (the range of the heap, then the thread's stack bounds from a thread-local), 0.6 ns on the stack and a cell taken from the thread's block in unmanaged memory.
-
-### Lock-free stack
-A Treiber stack (the shape of `examples/lock_free_stack.cpp`): a compare-exchange on the head, with a collector free of ABA because a node is never reused while a thread holds it, and with the backoff of Herlihy and Shavit after a lost exchange, a wait that doubles up to `config::BackoffMax` pause instructions, some 40 µs on any platform (`sgcl/detail/backoff.h`). Go's variant uses `atomic.Pointer`, Java's `AtomicReference`, each with the same backoff and the same pause: Go has no pause intrinsic, so the wait is an `isb` from an assembly stub (what Go's own runtime spins on), and Java's `Thread.onSpinWait()` is run as `isb` with `-XX:OnSpinWaitInst=isb` (HotSpot's default on arm64 is `yield`, a no-op on Apple silicon). The `shared_ptr` variant uses the standard library's atomic operations on a `shared_ptr` (`std::atomic_load`, `std::atomic_compare_exchange_weak`), which it implements with a lock, with the backoff; the `unique_ptr` variant, where every node has one owner, is a stack under a mutex, the classic answer without a collector. Every thread pushes a node and pops one, a million times; nanoseconds per push or pop:
-
-| threads | SGCL | `unique_ptr` | `shared_ptr` | Go | Java ZGC |
-|---|---|---|---|---|---|
-| 1 | 9.3 | 17.9 | 38.8 | 11.2 | 12.7 |
-| 4 | 9.6 | 52.1 | 131.8 | 11.8 | 27.5 |
-| 16 | 10.8 | 34.7 | 112.4 | 19.1 | 91.8 |
-
-The stack costs SGCL the same 9 to 11 ns on one thread and on sixteen: without the backoff sixteen threads at one word spend their time on lost exchanges (607 ns per operation in the previous version of this table, Go and Java the same), and the backoff turns that storm into near-serial exchanges, which is what a stack of one word can be at best; the mutex, which serializes the threads too, is at 35 ns, and the `shared_ptr` variant at 112, its lock inside every load and its count on every node. With the same pause Go is at 12 and 19 ns at four and sixteen threads, Java at 28 and 92: the backoff is the whole story of this table, and what is left between the three collectors at sixteen threads is how often an exchange is still lost (Java's `compareAndSet` goes through its barriers between the load and the exchange, a longer window). On one thread SGCL is the fastest of the three collectors (9.3 ns against Go's 10.9 and Java's 12.6): an operation costs a few `tracked_ptr` temporaries (the loaded head, the arguments of the compare-exchange, taken by value so that the target is held for the length of the call, as `sgcl::atomic<shared_ptr>` does), each a write barrier with its card, and a hazard pointer on every load. In a second mode, "pairs" (half the threads push a million nodes each, the other half pop them), the `shared_ptr` variant does not survive sixteen threads: a consumer descheduled while holding a popped node keeps every node popped after it alive through the `next` links, and releases the whole chain at once, recursively, off the end of its stack. A collector has no such chain to release. The `sgcl::` stack (its head a `sgcl::atomic`, its nodes linked by `sgcl::tracked_ptr`) pays the location check on the `sgcl::tracked_ptr`s the operation builds, the loaded head and the new node; the arguments of the compare-exchange are `sgcl::tracked_ptr`s inside the atomic, copied from the word a `sgcl::tracked_ptr` holds without a check: 3 ns per operation at any count.
-
-### Concurrent containers
-The lock-free containers ("Lock-free containers" above) shared by every thread, holding pointers to objects of one `long` (the sets the `long`s themselves; `benchmarks/concurrent.cpp`, `benchmarks/go/concurrent`, `benchmarks/java/Concurrent.java`). Java's are the structures the library's are modelled on, `ConcurrentLinkedQueue`, `ConcurrentLinkedDeque` used at one end, `ConcurrentSkipListMap`, `ConcurrentSkipListSet` and `ConcurrentHashMap`; Go has one of them in its library, `sync.Map` (a hash map with reads from a snapshot and writes under a lock, its keys boxed in `any`), so that is its hash-map column, and the others are the same algorithms written on `atomic.Pointer`, which its collector makes as short as SGCL does. The classic C++ answers, with the objects shared the way C++ shares them, by `shared_ptr`: the `std` container of `shared_ptr` under a `std::mutex`, and, for the queue and the stack, the same lock-free algorithm on the standard library's atomic operations on `shared_ptr`, which it implements with a lock; for the maps and the set, the `std` container under a `std::mutex` and under a `std::shared_mutex` with the lookups as readers. Every thread pushes an element and pops one, 200,000 times; nanoseconds per push or pop:
-
-| container, threads | SGCL | `std::shared_ptr` | atomic `shared_ptr` | Go | Java ZGC |
-|---|---|---|---|---|---|
-| queue, 1 | 29.6 | 22.4 | 71.1 | 13.8 | 37.7 |
-| queue, 4 | 94.7 | 63.5 | 197.8 | 76.0 | 99.6 |
-| queue, 16 | 153.9 | 44.3 | 603.8 | 342.5 | 169.8 |
-| stack, 1 | 17.2 | 21.5 | 52.0 | 13.2 | 49.1 |
-| stack, 4 | 17.7 | 64.2 | 161.3 | 13.8 | 124.7 |
-| stack, 16 | 22.6 | 43.4 | 114.5 | 38.1 | 310.4 |
-
-The maps and the set: 200,000 keys inserted by the threads (disjoint, interleaved), then 200,000 lookups per thread of random keys present, then 200,000 mixed operations per thread over twice the key range, 80% lookups, 10% insertions, 10% erasures; nanoseconds per insertion / lookup / mixed operation. The `std` columns are `std::map`, `std::unordered_map` and `std::set` under the lock named:
-
-| container, threads | SGCL | `std`, `std::mutex` | `std`, `std::shared_mutex` | Go | Java ZGC |
-|---|---|---|---|---|---|
-| map, 1 | 437 / 359 / 378 | 142 / 197 / 178 | 127 / 166 / 165 | 140 / 278 / 276 | 189 / 443 / 402 |
-| map, 4 | 144 / 94 / 118 | 223 / 523 / 716 | 469 / 298 / 823 | 54 / 78 / 97 | 153 / 131 / 173 |
-| map, 16 | 64 / 26 / 38 | 206 / 250 / 357 | 786 / 249 / 2323 | 57 / 23 / 36 | 367 / 66 / 153 |
-| unordered_map, 1 | 123 / 85 / 91 | 39 / 41 / 49 | 47 / 46 / 73 | 163 / 98 / 96 | 123 / 117 / 124 |
-| unordered_map, 4 | 58 / 25 / 29 | 120 / 139 / 187 | 261 / 151 / 463 | 77 / 20 / 25 | 134 / 49 / 54 |
-| unordered_map, 16 | 57 / 4.7 / 15 | 99 / 66 / 135 | 313 / 98 / 1080 | 55 / 5.7 / 7.6 | 224 / 57 / 58 |
-| set, 1 | 491 / 355 / 378 | 48 / 113 / 129 | 61 / 129 / 134 | 130 / 298 / 275 | 181 / 430 / 442 |
-| set, 4 | 157 / 94 / 122 | 181 / 417 / 639 | 382 / 290 / 753 | 55 / 76 / 96 | 214 / 141 / 134 |
-| set, 16 | 56 / 27 / 36 | 155 / 223 / 299 | 579 / 207 / 1872 | 55 / 22 / 34 | 245 / 64 / 142 |
-
-The queue and the stack are a compare-exchange on a word every thread contends for, and what a compare-exchange loses to a lock under that contention is the retries: sixteen threads at one word fail far more exchanges than they win, and Java's deque, which has no backoff, spends 300 ns per operation on them where the mutex serializes the threads at 43 (Go's stack, with the same backoff and pause as SGCL's, is at 38). The stack answers with the backoff of Herlihy and Shavit, a wait that doubles after every lost exchange up to `config::BackoffMax` pauses, which turns the storm into near-serial exchanges: 23 ns per operation at sixteen threads and 18 at four, the fastest column of the table at every count, and the same 17 ns on one thread, where nothing is ever lost and the backoff never runs. The queue answers with Java's hopping head and tail, which lag a node behind and are swung every second node, halving the exchanges on the two words: 154 ns at sixteen threads against 343 for the plain Michael–Scott queue in Go and 170 for Java's, though still three and a half times the mutex (a backoff gains the queue nothing, its retries being the walk to the first element rather than lost exchanges, and the map nothing either, whose threads lose an exchange only when they insert or erase neighbours under the same predecessor and whose search starts over from the top anyway; both measured). On one thread the container costs SGCL 30 and 17 ns (an `Item` and a node allocated per push, a hazard pointer per load), Go 14 and 13, Java 38 and 49, and the `std` container of `shared_ptr` under an uncontended mutex 22. What the table does not show is why a lock-free structure is there at all when a mutex serializes as fast: no thread ever waits for a thread that was descheduled, killed or blocked while holding the word, which is the property the collector itself is built on, and the one a signal handler or a real-time thread needs. The atomic `shared_ptr` column is the same algorithm with a lock inside every load.
-
-The map is where the contended word disappears, since threads work on different nodes, and there the lock-free structure is what it is for: from four threads up SGCL's map is faster than `std::map` under either lock on every operation, and at sixteen threads by five to sixty times (38 ns per mixed operation against 357 under the mutex and 2323 under the read-write lock, whose writers starve the readers); Java's `ConcurrentSkipListMap` is at 153. Go's hand-written skip list is the fastest at four threads and level with SGCL at sixteen: a link in Go is a plain load where SGCL's `atomic::load` takes a hazard pointer (a store and a load the processor may not reorder, a few nanoseconds per step of the search, and a search over 200,000 keys is some thirty steps; the byte of state the `tracked_ptr` built on the stack writes costs nothing measurable, being written once per object per cycle). That is the whole of the one-thread column, where SGCL is the slowest map of the table (359 ns per lookup against Go's 278, and 197 for the red-black tree under an uncontended mutex): a load-side cost, per step, that an asymmetric barrier (the fence on the collector's side instead of the mutator's) would take off the loads; without the hazard pointer the same search measures 285 ns. `copy_on_write` over an array of 64 `long`s, three or fifteen readers each taking 2,000,000 snapshots and summing them while one writer replaces the value as fast as it can (a copy with one element changed): nanoseconds per read across the readers / per write, against `std::shared_ptr` with the atomic operations of `<memory>`, the array under a `std::shared_mutex` changed in place, Go's `atomic.Pointer` to an array swapped the same way, and Java's `CopyOnWriteArrayList` of 64 `Long`s:
-
-| threads | SGCL | atomic `shared_ptr` | `std::shared_mutex` | Go | Java ZGC |
-|---|---|---|---|---|---|
-| 4 | 8.8 / 268 | 65.5 / 735 | 349 / 207 | 10.5 / 421 | 65.7 / 119 |
-| 16 | 2.7 / 500 | 29.8 / 2151 | 99.3 / 3258 | 2.7 / 918 | 35.5 / 804 |
-
-A read is a load and a sum of 64 words: SGCL and Go, whose readers touch nothing shared, take 2.7 ns per read across fifteen readers, which is the sum alone spread over them; the atomic `shared_ptr` pays its lock and its count on every load (30 ns), the `shared_mutex` its readers contending for the one word of the lock (99, and the writer starved to 3.3 µs per change), Java's list the iterator and the unboxing (35). A write is the copy of 64 words and the exchange, and its cost is the readers': the writer's store has to take the line of the pointer from the readers reloading it, and the faster they read, the more often. SGCL's readers are the fastest of the table, so its writer pays the most at four threads (268 ns against Java's 119, whose readers reload seven times less often; with the readers slowed down sixty-four times, measured, the same write takes 89 ns); with fifteen readers every column pays, SGCL 500, Java 800, Go 900. The copy and the exchange themselves are a small part of it: the writer with a plain store in place of the exchange, or without the copy, measures within 20%. The `shared_mutex` writer changes in place and takes longer still, waiting for the readers to leave.
-
-`channel<T>` between *threads* / 2 producers of 200,000 items each and as many consumers, a rendezvous (capacity 0) and a buffer of 64; nanoseconds per item end to end, against `std::queue` under a mutex with two condition variables (the classic bounded queue), Go's channel, and Java's `SynchronousQueue` and `ArrayBlockingQueue`:
-
-| capacity, threads | SGCL | `std::queue`, mutex | Go | Java ZGC |
-|---|---|---|---|---|
-| 0, 2 | 521 | 3634 | 148 | 233 |
-| 0, 4 | 707 | 3170 | 186 | 253 |
-| 0, 16 | 456 | 3501 | 318 | 1306 |
-| 64, 2 | 87 | 136 | 48 | 177 |
-| 64, 4 | 183 | 296 | 74 | 207 |
-| 64, 16 | 396 | 1091 | 101 | 347 |
-
-A rendezvous is a handoff between two threads, and its cost is waking the other side: SGCL parks a thread on its atomic and wakes it through the kernel, 450 to 700 ns per item against 3 to 4 µs for the mutex and the condition variables (two of them, and every hand-off through both), 150 to 320 for Go, whose goroutines park and wake in user space, and 230 to 1300 for Java. The buffered channel is a lock-free ring (the bounded queue of Vyukov: a slot with a sequence number each, one compare-exchange per operation, no allocation per element) against Go's lock and buffer: 87 ns per item at two threads against Go's 48 and the mutex queue's 136, 183 at four against 74 and 296, and at sixteen 396 against 101, where the ring is no longer the cost: eight producers and eight consumers over sixty-four slots find the buffer full and empty by turns, and every such turn is a managed waiter made, a park in the kernel and a wake, which Go's runtime does between goroutines in user space. The ring took the buffered channel from 250 to 340 ns down to 87 to 183 at two and four threads, level with Go on a quiet machine (these columns were measured on a busy one, and a rendezvous is the measurement most sensitive to that: with the cores free, SGCL and Go both come to 50 ns per item at two and four threads); the waiters are the next cost to take away.
-
-The hash map is the structure where a lookup is a few steps, not thirty, and there the table turns: at sixteen threads SGCL's `concurrent_unordered_map` looks up in 4.7 ns and does a mixed operation in 15, level with Go's `sync.Map` (5.7 and 7.6, a map built for reads from a snapshot), four times ahead of Java's `ConcurrentHashMap` (57 and 58) and fourteen ahead of `std::unordered_map` under a mutex (66 and 135); on one thread it is at 85 ns per lookup against the mutex map's 41, the hazard pointer of every one of its four or five loads, and level with Go and Java. The set is the skip list again, the map's numbers within their spread. The `sgcl::` maps and sets cost nothing measurable beyond `sgcl::` at four threads and above, their root words read once per operation, and the check of the iterator's word on one thread (121 against 85 ns per lookup of the hash map); the `sgcl::` queue and stack pay the location check on the loaded head and the new node, 5 to 6 ns per operation. These runs are short by design, a few tenths of a second each, so the collector's start and the first faults of the heap are a visible part of the one-thread columns.
-
-### binary-trees
-The benchmarks-game program: a long-lived tree of the maximum depth held for the whole run while trees of every smaller depth are built and dropped, on one thread or on four in parallel. Wall time / process CPU time in seconds / peak resident memory; for SGCL the destruction runs on the collector's thread, so it moves from the wall time into the CPU time:
-
-| depth, threads | SGCL | `unique_ptr` | `shared_ptr` | Go | Java ZGC |
-|---|---|---|---|---|---|
-| 16, 1 | 0.11 / 0.19 / 26 MB | 0.38 / 0.39 / 6 MB | 0.42 / 0.42 / 18 MB | 0.16 / 0.40 / 18 MB | 0.09 / 0.21 / 243 MB |
-| 16, 4 | 0.04 / 0.18 / 56 MB | 0.21 / 0.70 / 7 MB | 0.22 / 0.77 / 24 MB | 0.10 / 0.55 / 23 MB | 0.05 / 0.29 / 220 MB |
-| 18, 1 | 0.49 / 0.91 / 86 MB | 1.77 / 1.77 / 18 MB | 1.94 / 1.94 / 66 MB | 0.70 / 2.13 / 42 MB | 0.31 / 0.62 / 437 MB |
-| 18, 4 | 0.14 / 0.85 / 262 MB | 0.88 / 3.22 / 24 MB | 0.98 / 3.49 / 116 MB | 0.37 / 2.73 / 51 MB | 0.16 / 1.05 / 582 MB |
-| 21, 1 | 4.51 / 9.85 / 340 MB | 15.95 / 15.90 / 130 MB | 17.70 / 17.68 / 516 MB | 6.25 / 22.83 / 219 MB | 2.51 / 5.59 / 1.1 GB |
-| 21, 4 | 1.59 / 8.91 / 375 MB | 6.97 / 22.40 / 150 MB | 7.69 / 23.81 / 645 MB | 3.35 / 26.63 / 232 MB | 1.63 / 8.93 / 1.1 GB |
-
-Java is the fastest in wall time on one thread (2.5 s at depth 21 against SGCL's 4.5) and the cheapest in CPU (5.6 and 8.9 s against SGCL's 9.9 and 8.9); on four threads the two are level (1.63 s against SGCL's 1.59). SGCL's CPU is the young cycles at work over the four million nodes of the long-lived tree, which they leave alone, and the sweep of everything else. Go's loop is 40% slower than SGCL's in wall time and pays twice the CPU (23 s on one thread), its assists throttling the mutator to what the collector traces. Memory: `unique_ptr` holds only the live trees (130 and 150 MB), SGCL 340 and 375 MB (the garbage among the old objects waits for a full cycle), Go 219 and 232 MB, `shared_ptr` 516 and 645 MB (malloc keeps what the cascades free), Java at its ceiling, 1.1 GB. At depth 16 the runs are too short to mean much (the Java ones include the JIT's warm-up). The `sgcl::` tree is the case the family pays most for: a node is two `sgcl::tracked_ptr` members, each constructed with the location check, linked through two stores that test the mode, and read through the test of the sign, and the program does nothing else; 1.2 times the wall time of `sgcl::`, still faster than `unique_ptr`'s frees.
-
-The price of SGCL's wall time is CPU: at depth 18 the program allocates 134 million objects per second on one thread, and keeping up takes the collector's thread plus helpers. A cycle starts once the pages allocated since the last one reach a quarter of what it left in use (4 MB at least), so the garbage waiting for a sweep is bounded by the live heap, not by the collector's speed. The passes over pages are shared with a pool of helpers only while the collector is behind (the memory in use grew by 16 MB and the mutators keep allocating), and marking joins them once a cycle marks a million objects (`config::MarkObjectThreshold`): at depth 18 one mutator marks on one thread and peaks at 86 MB, four mutators push the cycle onto the pool and peak at 262 MB.
-
-The marking, on one thread or on the pool, is one pass. The pages the roots reached are dealt out one at a time and traced in page order: a thread holds the page while it loops over the words of reachable bits, marking and tracing the objects in the order of their slots, a few prefetched ahead, and a child on the same page becomes a bit the loop takes next, so that a structure laid out by its allocation is read in address order. A child on another page goes on the thread's stack, traced depth first once the page is done, through a window of eight, each object prefetched as it enters and traced as it leaves (`config::MarkPrefetchWindow`): the depth-first order over a graph laid out at random misses the cache at every object, and the window lets the misses overlap, which halves the marking of the random graph of the next section. A child found on the traced object's page during that drain gets a bit and lists the page for the thread. The mark bit is set with one relaxed `fetch_or` after a plain test that spares the objects marked already; half of a thread's stack and pages, the older half, goes to a shared pile whenever another thread is parked for want of work, and the pass ends when every thread is parked. `bench_marking` builds a binary tree of 2 million or 8 million nodes and forces cycles on the stable heap; the marking pass alone, in milliseconds, by the number of helpers (a build with `-DSGCL_MARK_STATS` reports it, see the file):
-
-| live objects | one thread | 1 helper | 2 helpers | 4 helpers | 8 helpers |
-|---|---|---|---|---|---|
-| 2 M | 17.9 (8.5 ns/object) | 9.2 | 6.4 | 4.0 | 2.3 (1.1 ns/object) |
-| 8 M | 72.1 (8.6 ns/object) | 37.5 | 25.0 | 15.6 | 8.7 (1.0 ns/object) |
-
-Every helper adds its share of CPU: at eight helpers the pass costs 1.1 times the CPU of one thread (the sequential marker this pass replaced did the 8 M tree in 66 ms, and a random graph in twice the time of this pass alone). What it buys is a shorter cycle, which matters when the collector is behind. binary-trees at depth 21 keeps a tree of 4 million nodes alive, and its one mutator allocates faster than the collector's thread can mark and sweep: marking alone (`SGCL_MARK_WORKERS=0` in a `-DSGCL_MARK_STATS` build), a full cycle marks for 32 ms, the collector runs 338 cycles in the 4.6 s of the run, and the garbage waiting for a cycle peaks at 539 MB of resident memory. With marking on the pool a full cycle marks for 4.7 ms, the collector runs 442 cycles, the peak drops to 337 MB, and the process CPU time rises from 9.2 s to 10.1 s. The wall time is the same (4.6 s), because no mutator ever waits for the collector. With four mutators at that depth the peak goes from 671 MB to 407 MB for 9.1 s against 8.2 s of CPU. The threshold keeps the smaller heaps, where a cycle is short anyway, on one thread.
-
-### A shared graph
-Latency of single operations on a graph shared by 16 threads for 3 seconds, nanoseconds (the clock ticks every 42 ns on this machine). "insert" allocates a node linked to four random nodes and replaces a random root of the thread's own (4096 or 65536 roots per thread, the size of the live set); "walk" follows 32 random links copying the pointer at every step; "drop-all" clears every root at the end and times the longest clear. The `unique_ptr` variant does not exist: a node of this graph has as many owners as links to it.
-
-| roots per thread | variant | insert p50 / p99 / p99.9 | walk p50 / p99 / p99.9 | drop-all | ops/s | RSS |
-|---|---|---|---|---|---|---|
-| 4096 | SGCL | 42 / 250 / 2709 | 1125 / 2500 / 5125 | 1 µs | 18.7 M | 1.5 GB |
-| 4096 | `shared_ptr` | 167 / 2084 / 3792 | 1750 / 3375 / 8042 | 71.7 ms | 11.9 M | 1.3 GB |
-| 4096 | Go | 42 / 959 / 4958 | 1167 / 2792 / 6583 | 6 µs | 16.2 M | 1.3 GB |
-| 4096 | Java ZGC | 333 / 3292 / 6625 | 1625 / 4916 / 11916 | 212 µs | 11.1 M | 1.5 GB |
-| 65536 | SGCL | 83 / 458 / 2875 | 834 / 2667 / 4416 | 26 µs | 21.3 M | 2.0 GB |
-| 65536 | `shared_ptr` | 292 / 2458 / 4458 | 834 / 2708 / 4625 | 169.1 ms | 18.1 M | 2.3 GB |
-| 65536 | Go | 42 / 1042 / 5125 | 708 / 2292 / 4125 | 15 µs | 18.4 M | 1.2 GB |
-| 65536 | Java ZGC | 458 / 3292 / 8666 | 1083 / 3625 / 24875 | 11.7 ms | 13.9 M | 1.9 GB |
-
-The medians are close; the tails and the throughput tell the story. With the live set large and shared, SGCL has the highest throughput (18.7 to 21.3 million operations per second against Go's 16.2 to 18.4 and Java's 11.1 to 13.9), the lowest insert latency at the median and p99 (42 and 250 ns with 4096 roots against Go's 42 and 959), and Go the lowest walk latency with 65536 roots (708 ns against 834). Java's insert is two allocations (a node and its array of links) with ZGC's barriers on every reference load, which is what its p50 of 333 ns is, and its walk tail (12 to 25 µs at p99.9) is where the mutators wait for the collector under the ceiling; its numbers time one insert and one walk in eight, since `System.nanoTime()` on macOS serializes the threads when called twice per operation. `shared_ptr` pays the destructor cascade in the mutator thread the moment a large graph is dropped: 72 and 169 ms for a drop-all that costs the collectors microseconds. What a collector does cost is cores: SGCL's thread and, on this graph, its marking helpers compete with sixteen mutators for sixteen performance cores, which is where its p99.9 comes from; the CPU time of every variant is close to the 50 to 64 s of sixteen threads for three seconds. Memory is even, 1.2 to 2.3 GB across the board. The table has one SGCL row per size: on this graph the `sgcl::` variant measures within the run-to-run spread of `sgcl::` (the walk is a chain of loads whose pointer test is hidden under the cache misses, and an insert is an allocation).
-
-### Containers
-`benchmarks/containers.sh` runs each container case in a process of its own against the `std` counterpart: one million elements, nanoseconds per operation, the footprint of the built container and the peak resident size of the run. The footprint is what the container occupies once the garbage of building it is gone: for SGCL the pages holding live managed objects after a full collection (free slots left in a page by erasures stay counted, they are reusable by objects of that type), for `std` the bytes malloc reports in use (blocks freed and kept by malloc are not counted). The peak RSS adds what waits for a collection on one side and what malloc keeps on the other.
-
-The node containers cost what `std`'s do or less, the maps within their spread: allocation is the collector's, iteration is a plain load per step, a node is as big as its `std` counterpart and pays no malloc rounding (a 24-byte list node takes 32 bytes from malloc). A `push_back` compares two words of the vector object, stores the element and stores the count; the count is reloaded on the next push (a store the compiler cannot keep in a register across the growth call), which `std::vector` avoids with its end pointer, and a fresh buffer is fresh pages, faulted in on first touch, where `malloc` hands back memory it already touched. The maps pay for the write barriers on the links they relink. The table has one SGCL column: a `sgcl::` container pays the test of the mode on its root word and nothing per element (a `sgcl::vector<sgcl::tracked_ptr<T>>` stores `sgcl::tracked_ptr`s, since an element type that names a `tracked_type` is stored as that type, one word in the same mode inside a managed buffer or node, and hands them out as `sgcl::tracked_ptr<T>&`), and the `sgcl::` variant of `bench_containers` measures within the run-to-run spread of the `sgcl::` one.
-
-| case | SGCL ns | `std` ns | SGCL footprint | `std` footprint | SGCL peak | `std` peak |
-|---|---|---|---|---|---|---|
-| vector push_back | 2.7 | 1.4 | 8.8 MB | 8.0 MB | 18 MB | 17 MB |
-| vector of pointers, copy and walk | 2.7 | 9.1 (`shared_ptr`) | 16.4 MB | 31.3 MB | 42 MB | 64 MB |
-| deque push both ends | 1.8 | 1.4 | 8.9 MB | 7.7 MB | 11 MB | 9 MB |
-| list push_back / iterate | 16.0 / 1.9 | 25.3 / 1.9 | 23.0 MB | 30.5 MB | 27 MB | 32 MB |
-| list erase every other | 17.8 | 24.9 | 23.0 MB | 15.3 MB | 27 MB | 32 MB |
-| forward_list push_front | 12.3 | 21.8 | 15.4 MB | 15.3 MB | 19 MB | 17 MB |
-| map insert / find / iterate | 313 / 244 / 133 | 339 / 261 / 125 | 45.9 MB | 45.8 MB | 58 MB | 55 MB |
-| set insert | 280 | 311 | 38.2 MB | 45.8 MB | 50 MB | 55 MB |
-| unordered_map insert / find | 146 / 171 | 128 / 173 | 39.3 MB | 43.1 MB | 83 MB | 65 MB |
-| unordered_map erase half | 342 | 327 | 39.3 MB | 27.8 MB | 72 MB | 65 MB |
-| unordered_map of pointers | 81 | 120 (`shared_ptr`) | 47.0 MB | 88.9 MB | 91 MB | 111 MB |
-
-### A large live tree
-The case a tracing collector likes least: a tree of 4 or 16 million nodes (depth 22 or 24, 128 or 512 MB of nodes) held for the whole run while one or four threads make and drop 500,000 small trees each (depth 8, 511 nodes, 255 million allocations per thread). Every full cycle has to trace the large tree again; a young cycle ("Generations" above) traces the young objects and the old pages written since the last cycle instead. Java ZGC under `-Xmx1g` for the 4 million nodes and `-Xmx4g` for the 16 million. Wall time of the loop / process CPU time / peak resident memory:
-
-| nodes, threads | SGCL | `unique_ptr` | `shared_ptr` | Go | Java ZGC |
-|---|---|---|---|---|---|
-| 4 M, 1 | 1.81 s / 3.9 s / 209 MB | 6.56 s / 6.7 s / 130 MB | 6.96 s / 7.1 s / 516 MB | 2.54 s / 9.8 s / 285 MB | 1.36 s / 4.1 s / 1.1 GB |
-| 4 M, 4 | 1.92 s / 14.7 s / 312 MB | 7.63 s / 30.4 s / 131 MB | 11.02 s / 44.1 s / 516 MB | 4.83 s / 45.4 s / 303 MB | 1.93 s / 8.2 s / 1.1 GB |
-| 16 M, 1 | 1.82 s / 4.5 s / 797 MB | 6.52 s / 7.1 s / 516 MB | 6.96 s / 7.7 s / 2.0 GB | 2.58 s / 11.5 s / 1.1 GB | 2.53 s / 12.4 s / 4.1 GB |
-| 16 M, 4 | 2.01 s / 15.6 s / 1.0 GB | 7.38 s / 29.7 s / 516 MB | 11.64 s / 47.0 s / 2.0 GB | 4.97 s / 47.4 s / 1.1 GB | 4.05 s / 20.5 s / 4.1 GB |
-
-- **The mutators do not feel the live set.** SGCL's loop takes the same 1.8 to 2.0 s over 4 million nodes as over 16 million, on one thread and on four (a million small trees per second on four threads, 3.8 times one thread): no thread ever waits for a cycle, and a cycle only takes longer on the collector's cores. The loop took 101 young cycles and 12 full ones over the 4 million nodes on one thread, 308 and 39 on four; 25 and 4, 85 and 11 over the 16 million. Go's loop is 40% slower on one thread and two and a half times as slow on four, where the assists throttle the mutators to what the collector can trace (45 to 47 s of CPU for 4.8 to 5.0 s of wall). Java is faster than SGCL over the 4 million nodes on one thread (1.36 s), level on four (1.93 s), and slower over the 16 million (2.5 and 4.1 s): at that size its collector no longer keeps up under the ceiling and the allocation stalls of ZGC show in the wall time, while its memory sits at the ceiling (1.1 and 4.1 GB).
-- **The young cycles leave the tree alone.** A full cycle traces the whole tree; a young cycle registers and sweeps what was allocated since the last one and traces the survivors and the cards, so its cost does not grow with the old heap: 3.9 s of CPU for the loop over 4 million nodes and 4.5 s over 16 million on one thread, 14.7 and 15.6 s on four. The mutators pay 6% of their speed for the card stamped by every store of a pointer into a heap object, and building a tree is nothing but such stores (a build with `-DSGCL_GENERATIONAL=0`, full cycles only and no cards, runs the loop over 4 million nodes in 1.74 s instead of 1.85 on one thread, for 10.0 s of CPU instead of 4.0: every cycle traces the whole tree).
-- **Without a collector the mutator pays the frees.** `unique_ptr` and `shared_ptr` free each small tree on the thread that made it, 511 frees in a recursive destructor per tree, and through malloc's contention on four threads: 6.5 and 7.0 s of wall on one thread, 7.4 to 7.6 and 11.0 to 11.6 s on four, three and a half to six times SGCL's. `unique_ptr` holds the least memory of the table, since nothing waits for a cycle; `shared_ptr` holds the most of the C++ variants (516 MB and 2.0 GB against SGCL's 209 MB and 797 MB on one thread): a node of two `shared_ptr`s with its control block is three times SGCL's node of two words, and malloc keeps what the cascades free.
-
-### What the tables say, and what they do not
-
-Against Go, on this machine and with neither side tuned, SGCL is ahead wherever the mutators run: allocation (5.1 ns against 7.2 on one thread, 9.4 against 295 on 24), binary-trees (4.5 s against 6.25 at depth 21, for well under half the CPU), the large tree (1.81 s against 2.54 on one thread, 1.92 against 4.83 on four, where Go's assists throttle the mutators to what its collector traces), the shared graph's throughput and insert tail. Go is ahead in memory (219 MB against 340 at depth 21 on one thread: the garbage that waits for a cycle here, and the sticky marks of the young cycles, are the price of never throttling a mutator), in the walk latency of the largest graph, and in scanning its stacks precisely where SGCL scans them conservatively, and its plain loads beat the hazard pointer of `atomic::load` on a walk over a lock-free structure (the skip list on one thread); Java's ZGC is ahead of both in binary-trees on one thread and in one-thread allocation, under a ceiling of 1.1 GB. These tables measure the management of pointers and nothing else, which is the worst case for a collector: loops in which every nanosecond of a barrier shows. A program does other things between its pointers, and there C++ keeps what Go does not have, no bounds checks, templates instead of interfaces, objects laid out inline, SIMD, `constexpr`, while SGCL's cost stays at 1.4 to 1.8 ns per copy of a pointer and nothing on anything else; Go's barrier is cheap outside a marking phase and on during one, and its assists take the mutators' time in proportion to their allocation. The more a program computes and the less it shuffles pointers, the further the comparison moves towards C++, and the less its extra memory weighs. Two caveats: every number here is from Apple silicon with Apple clang, the Linux and Windows builds are pending; and Go has decades of production behind it where SGCL has its tests.
+## The rules, in short
+1. A `tracked_ptr`, and every type that holds one (a container, a `string`, a `channel`, a `task`), lives on a stack or inside a managed object, never in unmanaged memory: a global, a `std` container, a lambda copied to the heap, a plain coroutine frame. For those places there is `root_ptr`, which lives anywhere.
+2. A `tracked_ptr` never shares its word with data: no `union` with a value, no `std::variant`, `std::any` or `std::function` holding one; `sgcl::variant`, `any`, `function` and `expected` keep the pointers apart, and `optional`, `pair` and `tuple` are safe as they are.
+3. A raw pointer to a managed object is not a reference the collector honours: the object lives as long as a `tracked_ptr` or a `unique_ptr` keeps it.
+
+The rules in full, with what each costs and what breaking one looks like: [docs/sgcl/core/README.md](docs/sgcl/core/README.md#the-rules).
+
+## Documentation
+[docs/](docs/README.md) is the reference and the guide: a README per module ([core](docs/sgcl/core/README.md), [containers](docs/sgcl/containers/README.md), [concurrent](docs/sgcl/concurrent/README.md), [async](docs/sgcl/async/README.md); the same under the `Sgcl` names in [docs/sgcl/Sgcl/](docs/sgcl/Sgcl/README.md)), a page per class with every member, its signature as declared in the header, the rules that apply and an example that compiles, and the chapter on [the garbage collector](docs/garbage_collector/README.md). [docs/garbage_collector/diagnostics.md](docs/garbage_collector/diagnostics.md) is where to start when the memory grows, an object lives too long or dies too early, or a cycle costs more than it should.
 
 ## Dependencies and usage
-C++20 and nothing else: no external library, no runtime to link. For LLDB, `command script import <sgcl>/lldb/sgcl.py` (in `~/.lldbinit`) shows the pointers and containers as they are ([docs/diagnostics.md](docs/diagnostics.md#in-the-debugger)). Copy the `sgcl` directory into your include path and `#include "sgcl/sgcl.h"`, or add this tree with CMake and link the `sgcl` interface target. The tests need googletest in `external/`; the benchmarks build with the tree, and their Go and Java counterparts need only a Go and a JDK to run `benchmarks/compare.sh`.
+C++20 and nothing else: no external library, no runtime to link. For LLDB, `command script import <sgcl>/lldb/sgcl.py` (in `~/.lldbinit`) shows the pointers and containers as they are ([docs/diagnostics.md](docs/garbage_collector/diagnostics.md#in-the-debugger)). Copy the `sgcl` directory into your include path and `#include "sgcl/sgcl.h"`, or add this tree with CMake and link the `sgcl` interface target. The library is four modules, one directory each and each a header of its own for a program that wants only that much: `sgcl/core/core.h` (the collector and the pointers), `sgcl/containers/containers.h`, `sgcl/concurrent/concurrent.h` and `sgcl/async/async.h`, each depending only on those before it; `Sgcl/` mirrors them (`sgcl/Sgcl/Core/Core.h`...). The tests need googletest in `external/` and build one program per module (`tests_core`, `tests_containers`, `tests_concurrent`, `tests_async`, `tests_Sgcl`; `ctest -R async` runs one); the benchmarks build with the tree, and their Go and Java counterparts need only a Go and a JDK to run `benchmarks/compare.sh`.
 
 ## Compilers and platforms
 Written for clang, gcc and MSVC on macOS, Linux and Windows; the current version has been built and tested on Apple Silicon (macOS, Apple clang) only, the other platforms are pending. On Windows, gcc's handling of thread-local destructors makes it a poor choice; clang and MSVC are fine. On macOS every access to a thread-local variable is a call into the dynamic loader, which is what the registration check in a `tracked_ptr` constructor costs there (about a nanosecond); Linux and Windows read a segment register.

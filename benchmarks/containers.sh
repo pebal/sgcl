@@ -1,6 +1,6 @@
 #!/bin/sh
 # The container matrix: sgcl against std, ns per operation, the footprint
-# of the built container (see containers.cpp) and the peak RSS of the run.
+# of the built container (see containers/containers.cpp) and the peak RSS of the run.
 #   benchmarks/containers.sh [build-dir=build-release] [n=1000000]
 BIN=${1:-build-release}/benchmarks/bench_containers
 N=${2:-1000000}

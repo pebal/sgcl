@@ -23,13 +23,13 @@ target_include_directories(sgcl INTERFACE
     $<INSTALL_INTERFACE:include>
 )
 
+# One subdirectory per module (core, containers, concurrent, async), each
+# with its own detail/, and Sgcl/ for the second interface over them; the
+# includes inside are relative to the including file, so the headers work
+# from any include path and a quoted "sgcl/..." never resolves to Sgcl/ on
+# a case-insensitive filesystem.
 install(DIRECTORY sgcl/
     DESTINATION include/sgcl
-    FILES_MATCHING PATTERN "*.h"
-)
-
-install(DIRECTORY sgcl/detail/
-    DESTINATION include/sgcl/detail
     FILES_MATCHING PATTERN "*.h"
 )
 

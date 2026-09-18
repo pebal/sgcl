@@ -9,6 +9,13 @@
 //   concurrent <map|umap|set> [threads=4] [keys=200000] [n=200000]
 //   concurrent cow [threads=16] [n=2000000]
 //   concurrent chan [threads=4] [capacity=64] [n=200000]
+//   concurrent bcast [subscribers=1] [capacity=1024] [n=1000000]
+//   concurrent pqueue [threads=4] [mode=mixed] [n=200000] [prefill=0]
+//   concurrent intern [threads=4] [distinct=1000] [n=1000000]
+// pqueue is container/heap under a sync.Mutex (Go's library has no
+// concurrent priority queue): every thread pushes a pseudo-random
+// priority and pops the least, n times. intern is unique.Make on strings
+// drawn from a pool of `distinct`, n per thread, the handle's value read.
 // umap is sync.Map, the concurrent map of Go's library (a hash map with
 // reads from a snapshot and writes under a lock, its keys boxed in any);
 // set the skip list holding keys alone. cow is Go's idiom for a value
@@ -18,9 +25,13 @@
 // chan is Go's channel of *item with the given capacity (0: unbuffered)
 // between threads / 2 producers of n items each and threads / 2
 // consumers.
+// bcast is Go's stand-in for a broadcast, which its library has none of:
+// a channel of the capacity per subscriber, the sender sending every
+// value to each of them in turn, a goroutine per subscriber receiving.
 package main
 
 import (
+	"container/heap"
 	"fmt"
 	"math/bits"
 	"math/rand/v2"
@@ -28,6 +39,7 @@ import (
 	"runtime"
 	"strconv"
 	"sync"
+	"unique"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -439,6 +451,38 @@ func runChan(threads int, capacity int, n int64) {
 	fmt.Printf("chan threads=%d capacity=%d ns/op=%.1f ops/s=%.0f wall=%.2fs cpu=%.2fs\n", threads, capacity, wall*1e9/ops, ops/wall, wall, cpuSeconds())
 }
 
+func runBcast(subscribers int, capacity int, n int64) {
+	chans := make([]chan int64, subscribers)
+	var wg sync.WaitGroup
+	var got atomic.Int64
+	for i := range chans {
+		chans[i] = make(chan int64, capacity)
+		wg.Add(1)
+		go func(c chan int64) {
+			defer wg.Done()
+			var g int64
+			for v := range c {
+				if v >= 0 {
+					g++
+				}
+			}
+			got.Add(g)
+		}(chans[i])
+	}
+	t0 := time.Now()
+	for v := int64(0); v < n; v++ {
+		for _, c := range chans {
+			c <- v
+		}
+	}
+	for _, c := range chans {
+		close(c)
+	}
+	wg.Wait()
+	wall := time.Since(t0).Seconds()
+	fmt.Printf("bcast subscribers=%d capacity=%d ns/op=%.1f received=%.0f%% wall=%.2fs cpu=%.2fs\n", subscribers, capacity, wall*1e9/float64(n), 100*float64(got.Load())/(float64(n)*float64(subscribers)), wall, cpuSeconds())
+}
+
 func cpuSeconds() float64 {
 	var ru syscall.Rusage
 	syscall.Getrusage(syscall.RUSAGE_SELF, &ru)
@@ -450,7 +494,83 @@ type container interface {
 	pop() int64
 }
 
-func runContainer(what string, c container, threads int, mode string, n int64) {
+// The priority queue: container/heap of *item under a mutex
+type itemHeap []*item
+
+func (h itemHeap) Len() int            { return len(h) }
+func (h itemHeap) Less(i, j int) bool  { return h[i].value < h[j].value }
+func (h itemHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }
+func (h *itemHeap) Push(x any)         { *h = append(*h, x.(*item)) }
+func (h *itemHeap) Pop() any {
+	old := *h
+	n := len(old)
+	x := old[n-1]
+	old[n-1] = nil
+	*h = old[:n-1]
+	return x
+}
+
+type pqueue struct {
+	mu sync.Mutex
+	h  itemHeap
+}
+
+func priorityOf(v int64) int64 {
+	return int64(uint64(v) * 0x9E3779B97F4A7C15 >> 34)
+}
+
+func (q *pqueue) push(v int64) {
+	it := &item{value: priorityOf(v)}
+	q.mu.Lock()
+	heap.Push(&q.h, it)
+	q.mu.Unlock()
+}
+
+func (q *pqueue) pop() int64 {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.h) == 0 {
+		return -1
+	}
+	return heap.Pop(&q.h).(*item).value
+}
+
+// intern: unique.Make on the strings of a pool, n per thread
+func runIntern(threads int, distinct int, n int64) {
+	pool := make([]string, distinct)
+	for i := range pool {
+		pool[i] = "key" + strconv.Itoa(i) + "-value"
+	}
+	var wg sync.WaitGroup
+	t0 := time.Now()
+	for t := 0; t < threads; t++ {
+		wg.Add(1)
+		go func(t int) {
+			defer wg.Done()
+			x := uint64(88172645463325252) + uint64(t)
+			var sum int
+			for i := int64(0); i < n; i++ {
+				x ^= x << 13
+				x ^= x >> 7
+				x ^= x << 17
+				h := unique.Make(pool[x%uint64(distinct)])
+				sum += len(h.Value())
+			}
+			if sum == -1 {
+				fmt.Print("?")
+			}
+		}(t)
+	}
+	wg.Wait()
+	wall := time.Since(t0).Seconds()
+	ops := float64(n) * float64(threads)
+	fmt.Printf("intern threads=%d distinct=%d ns/op=%.1f ops/s=%.0f wall=%.2fs cpu=%.2fs\n", threads, distinct, wall*1e9/ops, ops/wall, wall, cpuSeconds())
+}
+
+func runContainer(what string, c container, threads int, mode string, n int64, prefill int64) {
+	for i := int64(0); i < prefill; i++ { // a queue already holding elements (the priority queue's long regime)
+		c.push(i)
+	}
 	pairs := mode == "pairs"
 	var wg sync.WaitGroup
 	t0 := time.Now()
@@ -490,7 +610,7 @@ func runContainer(what string, c container, threads int, mode string, n int64) {
 	if !pairs {
 		ops *= 2
 	}
-	fmt.Printf("%s threads=%d mode=%s ns/op=%.1f ops/s=%.0f wall=%.2fs cpu=%.2fs\n", what, threads, mode, wall*1e9/ops, ops/wall, wall, cpuSeconds())
+	fmt.Printf("%s threads=%d mode=%s prefill=%d ns/op=%.1f ops/s=%.0f wall=%.2fs cpu=%.2fs\n", what, threads, mode, prefill, wall*1e9/ops, ops/wall, wall, cpuSeconds())
 }
 
 func phase(threads int, body func(t int)) float64 {
@@ -614,6 +734,31 @@ func main() {
 		runChan(threads, capacity, n)
 		return
 	}
+	if what == "bcast" {
+		subscribers, capacity, n := 1, 1024, int64(1000000)
+		if len(os.Args) > 2 {
+			subscribers, _ = strconv.Atoi(os.Args[2])
+		}
+		if len(os.Args) > 3 {
+			capacity, _ = strconv.Atoi(os.Args[3])
+		}
+		if len(os.Args) > 4 {
+			n, _ = strconv.ParseInt(os.Args[4], 10, 64)
+		}
+		runBcast(subscribers, capacity, n)
+		return
+	}
+	if what == "intern" {
+		distinct, n := 1000, int64(1000000)
+		if len(os.Args) > 3 {
+			distinct, _ = strconv.Atoi(os.Args[3])
+		}
+		if len(os.Args) > 4 {
+			n, _ = strconv.ParseInt(os.Args[4], 10, 64)
+		}
+		runIntern(threads, distinct, n)
+		return
+	}
 	if what == "cow" {
 		n := int64(2000000)
 		if len(os.Args) > 3 {
@@ -652,9 +797,15 @@ func main() {
 	if len(os.Args) > 4 {
 		n, _ = strconv.ParseInt(os.Args[4], 10, 64)
 	}
+	prefill := int64(0)
+	if len(os.Args) > 5 {
+		prefill, _ = strconv.ParseInt(os.Args[5], 10, 64)
+	}
 	if what == "stack" {
-		runContainer(what, &stack{}, threads, mode, n)
+		runContainer(what, &stack{}, threads, mode, n, prefill)
+	} else if what == "pqueue" {
+		runContainer(what, &pqueue{}, threads, mode, n, prefill)
 	} else {
-		runContainer(what, newQueue(), threads, mode, n)
+		runContainer(what, newQueue(), threads, mode, n, prefill)
 	}
 }
