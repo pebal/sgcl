@@ -164,6 +164,17 @@ namespace sgcl {
             spawn(std::move(t)).detach();
         }
 
+        // The same for a coroutine function with captures (sgcl::spawn)
+        template<detail::TaskFactory F>
+        [[nodiscard]] auto spawn(F f) {
+            return spawn(detail::task_of(std::move(f)));
+        }
+
+        template<detail::TaskFactory F>
+        void go(F f) {
+            spawn(detail::task_of(std::move(f))).detach();
+        }
+
     private:
         friend class on;
 
@@ -258,6 +269,17 @@ namespace sgcl {
             spawn(std::move(t)).detach();
         }
 
+        // The same for a coroutine function with captures (sgcl::spawn)
+        template<detail::TaskFactory F>
+        [[nodiscard]] auto spawn(F f) {
+            return spawn(detail::task_of(std::move(f)));
+        }
+
+        template<detail::TaskFactory F>
+        void go(F f) {
+            spawn(detail::task_of(std::move(f))).detach();
+        }
+
         // Whether a task of the strand runs or is queued at this moment
         bool busy() const noexcept {
             return _q->pending.load(std::memory_order_acquire) != 0;
@@ -343,5 +365,15 @@ namespace sgcl {
     template<class T, class Executor>
     void go(task<T> t, Executor& ex) {
         ex.go(std::move(t));
+    }
+
+    template<detail::TaskFactory F, class Executor>
+    [[nodiscard]] auto spawn(F f, Executor& ex) {
+        return ex.spawn(std::move(f));
+    }
+
+    template<detail::TaskFactory F, class Executor>
+    void go(F f, Executor& ex) {
+        ex.go(std::move(f));
     }
 }

@@ -76,6 +76,17 @@ namespace Sgcl {
             _ex.go(std::move(t.Inner()));
         }
 
+        // The same for a coroutine function with captures (Sgcl::Spawn)
+        template<sgcl::detail::TaskFactory F>
+        [[nodiscard]] auto Spawn(F f) {
+            return Spawn(sgcl::detail::task_of(std::move(f)));
+        }
+
+        template<sgcl::detail::TaskFactory F>
+        void Go(F f) {
+            Go(sgcl::detail::task_of(std::move(f)));
+        }
+
         InnerType& Inner() noexcept {
             return _ex;
         }
@@ -105,6 +116,17 @@ namespace Sgcl {
         template<class T>
         void Go(Task<T> t) {
             _s.go(std::move(t.Inner()));
+        }
+
+        // The same for a coroutine function with captures (Sgcl::Spawn)
+        template<sgcl::detail::TaskFactory F>
+        [[nodiscard]] auto Spawn(F f) {
+            return Spawn(sgcl::detail::task_of(std::move(f)));
+        }
+
+        template<sgcl::detail::TaskFactory F>
+        void Go(F f) {
+            Go(sgcl::detail::task_of(std::move(f)));
         }
 
         // Whether a task of the strand runs or is queued at this moment
@@ -148,6 +170,16 @@ namespace Sgcl {
     template<class T, class E>
     void Go(Task<T> t, E& ex) {
         ex.Go(std::move(t));
+    }
+
+    template<sgcl::detail::TaskFactory F, class E>
+    [[nodiscard]] auto Spawn(F f, E& ex) {
+        return ex.Spawn(std::move(f));
+    }
+
+    template<sgcl::detail::TaskFactory F, class E>
+    void Go(F f, E& ex) {
+        ex.Go(std::move(f));
     }
 }
 

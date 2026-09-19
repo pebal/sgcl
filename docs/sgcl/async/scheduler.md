@@ -7,6 +7,8 @@ namespace sgcl {
     struct scheduler;                              // the pool of workers, one per process
     template<class T> task<T> spawn(task<T> t);    // the task on the queue of the ready
     template<class T> void go(task<T> t);          // spawned and let go of: nobody waits for it
+    template<class F> auto spawn(F f);             // the same for a coroutine function with captures: spawn([x]() -> task<int> { ... })
+    template<class F> void go(F f);
     struct yield;                                  // co_await yield(): to the back of the queue
 }
 ```
@@ -57,6 +59,22 @@ template<class T> void go(task<T> t);         // t.spawn().detach()
 ```
 
 `auto t = sgcl::spawn(f());` runs `f` on the scheduler and keeps the handle; `sgcl::go(f());` runs it and forgets it (a spawn and a detach; `spawn` is `[[nodiscard]]`: the task object dropped would destroy the coroutine).
+
+```cpp
+template<class F> auto spawn(F f);   // F: a callable returning a task; the closure copied into a frame of the task's own
+template<class F> void go(F f);
+```
+
+The same given the coroutine function rather than its task — a lambda **with captures**, passed without the call: `sgcl::spawn([x]() -> task<int> { ... })`, `sgcl::go([&ch]() -> task<> { ... })`. A lambda's captures are fields of the closure object, and a coroutine's frame keeps the closure by `this`, not by copy (only the parameters of a coroutine are copied into its frame), so the task of a called lambda, `spawn([x]() -> task<int> { ... }())`, runs on a closure that died at the end of that statement and reads freed stack (CppCoreGuidelines CP.51; AddressSanitizer reports a stack-use-after-scope). Passed uncalled, the closure is copied into a frame that lives as long as the task, and the captures with it — a `tracked_ptr` captured is a root of the task, as a local would be. A lambda without captures, or a named coroutine with parameters, may be called and its task passed; one with captures is passed itself. The forms of Go: `go f()` with `spawn(f())`, `go func() { ... }()` with `go([&]() -> task<> { ... })`.
+
+```cpp
+int n = 7;
+sgcl::tracked_ptr node = make_tracked<Node>();
+auto t = sgcl::spawn([n, node]() -> sgcl::task<int> {   // the closure lives in the task's frame; node is rooted by it
+    co_await sgcl::sleep(10ms);
+    co_return node->value + n;
+});
+```
 
 ### yield
 

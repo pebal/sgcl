@@ -28,6 +28,7 @@ The state of a group (its source, the count of the children, the first exception
 explicit TaskGroup(const StopToken& parent = StopToken());   // a scope under the token; an empty token: a scope on its own
 ~TaskGroup();                                                // children still running: stopped and let go of
 template<class T> void Spawn(Task<T> t);                     // a child: started on the scheduler, counted
+template<class F> void Spawn(F f);                           // a coroutine function with captures, uncalled (Scheduler.md: Spawn)
 StopToken Token() const noexcept;                            // what the children are given: stopped by the first exception, RequestStop, the parent, the group's end
 void RequestStop();                                          // the stop of the whole scope, by hand
 bool IsStopRequested() const noexcept;

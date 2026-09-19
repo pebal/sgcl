@@ -47,6 +47,8 @@ size_t Poll();                                 // one pass: the tasks queued at 
 void Stop();                                   // Run() returns; the tasks stay queued
 bool IsRunning() const noexcept;               // a Run() or a Poll() in progress
 template<class T> [[nodiscard]] Task<T> Spawn(Task<T> t);   // started on this executor
+template<class F> [[nodiscard]] auto Spawn(F f);            // a coroutine function with captures, uncalled (Scheduler.md: Spawn)
+template<class F> void Go(F f);
 template<class T> void Go(Task<T> t);          // Spawn and Detach
 sgcl::executor& Inner() noexcept;
 ```
@@ -67,6 +69,8 @@ while (WindowOpen()) {
 Strand();
 
 template<class T> [[nodiscard]] Task<T> Spawn(Task<T> t);   // started on this strand, run by a worker in its turn
+template<class F> [[nodiscard]] auto Spawn(F f);            // a coroutine function with captures, uncalled (Scheduler.md: Spawn)
+template<class F> void Go(F f);
 template<class T> void Go(Task<T> t);
 bool IsBusy() const noexcept;                  // a task of the strand runs or is queued
 sgcl::strand& Inner() noexcept;

@@ -30,6 +30,7 @@ What a spawn costs: the child's frame and one more, the runner's, a small task t
 explicit task_group(const stop_token& parent = stop_token());   // a scope under the token; an empty token: a scope on its own
 ~task_group();                                                  // children still running: stopped and let go of
 template<class T> void spawn(task<T> t);                        // a child: started on the scheduler, counted
+template<class F> void spawn(F f);                              // a coroutine function with captures, uncalled (scheduler.md: spawn)
 stop_token token() const noexcept;                              // what the children are given: stopped by the first exception, request_stop, the parent, the group's end
 void request_stop();                                            // the stop of the whole scope, by hand
 bool stop_requested() const noexcept;

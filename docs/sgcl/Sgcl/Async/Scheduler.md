@@ -7,6 +7,8 @@ namespace Sgcl {
     struct Scheduler;                              // the pool of workers, one per process
     template<class T> Task<T> Spawn(Task<T> t);    // the task on the queue of the ready
     template<class T> void Go(Task<T> t);          // spawned and let go of: nobody waits for it
+    template<class F> auto Spawn(F f);             // the same for a coroutine function with captures: Spawn([x]() -> Task<int> { ... })
+    template<class F> void Go(F f);
     using Yield = ...;                             // co_await Yield(): to the back of the queue
 }
 ```
@@ -57,6 +59,22 @@ template<class T> void Go(Task<T> t);         // t.Spawn().Detach()
 ```
 
 `auto t = Spawn(f());` runs `f` on the scheduler and keeps the handle; `Go(f());` runs it and forgets it (a spawn and a detach; `Spawn` is `[[nodiscard]]`: the task object dropped would destroy the coroutine).
+
+```cpp
+template<class F> auto Spawn(F f);   // F: a callable returning a Task; the closure copied into a frame of the task's own
+template<class F> void Go(F f);
+```
+
+The same given the coroutine function rather than its task — a lambda **with captures**, passed without the call: `Spawn([x]() -> Task<int> { ... })`, `Go([&ch]() -> Task<> { ... })`. A lambda's captures are fields of the closure object, and a coroutine's frame keeps the closure by `this`, not by copy (only the parameters of a coroutine are copied into its frame), so the task of a called lambda, `Spawn([x]() -> Task<int> { ... }())`, runs on a closure that died at the end of that statement and reads freed stack (CppCoreGuidelines CP.51; AddressSanitizer reports a stack-use-after-scope). Passed uncalled, the closure is copied into a frame that lives as long as the task, and the captures with it — a `Ptr` captured is a root of the task, as a local would be. A lambda without captures, or a named coroutine with parameters, may be called and its task passed; one with captures is passed itself.
+
+```cpp
+int n = 7;
+Ptr node = Make<Node>();
+auto t = Spawn([n, node]() -> Task<int> {   // the closure lives in the task's frame; node is rooted by it
+    co_await Sleep(10ms);
+    co_return node->value + n;
+});
+```
 
 ### Yield
 

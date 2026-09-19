@@ -41,6 +41,12 @@ namespace Sgcl {
             _g.spawn(std::move(t.Inner()));
         }
 
+        // The same for a coroutine function with captures (Sgcl::Spawn)
+        template<sgcl::detail::TaskFactory F>
+        void Spawn(F f) {
+            Spawn(sgcl::detail::task_of(std::move(f)));
+        }
+
         // The token the children are given: stopped by the first
         // exception, by RequestStop(), by the parent, or by the group's end
         StopToken Token() const noexcept {

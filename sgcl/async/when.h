@@ -193,7 +193,7 @@ namespace sgcl {
     template<class T>
     task<size_t> when_any(vector<task<T>> ts) {
         if (ts.empty()) {
-            return [] -> task<size_t> { co_return SIZE_MAX; }();
+            return []() -> task<size_t> { co_return SIZE_MAX; }();
         }
         tracked_ptr<channel<detail::Finished>> done = make_tracked<channel<detail::Finished>>(ts.size());
         for (size_t i = 0; i < ts.size(); ++i) {

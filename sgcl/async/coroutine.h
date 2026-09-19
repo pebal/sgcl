@@ -681,6 +681,46 @@ namespace sgcl {
         t.spawn().detach();
     }
 
+    namespace detail {
+        // A callable that makes a task (or another coroutine type over a
+        // managed frame, Sgcl's Task): what spawn and go take besides a task
+        template<class F>
+        concept TaskFactory = std::invocable<F&> && requires {
+            typename std::remove_cvref_t<std::invoke_result_t<F&>>::promise_type;
+        };
+
+        // The task of such a callable, the callable copied into a frame
+        // that lives as long as the task. A lambda's captures are fields
+        // of the closure and a coroutine's frame holds the closure by
+        // `this`, not by copy (only parameters are copied into a frame),
+        // so `go([x]() -> task<> { ... }())` runs on a closure that died
+        // at the semicolon; here the closure is the parameter f, copied
+        // into this frame, and the inner coroutine's `this` points into it
+        template<class F>
+        std::remove_cvref_t<std::invoke_result_t<F&>> task_of(F f) {
+            co_return co_await f();
+        }
+    }
+
+    // The same, given the coroutine function rather than its task:
+    // `spawn([x]() -> task<int> { ... })`, `go([&ch]() -> task<> { ... })`,
+    // no call. The closure is copied into a frame of the task's own, so
+    // its captures live as long as the task — where the task of a
+    // temporary closure, `spawn([x]() -> task<int> { ... }())`, refers
+    // to a closure that dies at the end of the statement (CppCoreGuidelines
+    // CP.51: a lambda with captures must not be a coroutine). A lambda
+    // without captures, or a named coroutine with parameters, may be
+    // called and its task passed; one with captures is passed itself.
+    template<detail::TaskFactory F>
+    [[nodiscard]] auto spawn(F f) {
+        return spawn(detail::task_of(std::move(f)));
+    }
+
+    template<detail::TaskFactory F>
+    void go(F f) {
+        go(detail::task_of(std::move(f)));
+    }
+
     // A coroutine that co_yields values, consumed with a range-for or
     // next()/value(); an exception it throws comes out of next() (or the
     // iterator's ++).

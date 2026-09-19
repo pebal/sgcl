@@ -49,6 +49,8 @@ void stop();                                   // run() returns; the tasks stay 
 bool running() const noexcept;                 // a run() or a poll() in progress
 template<class T> [[nodiscard]] task<T> spawn(task<T> t);   // started on this executor
 template<class T> void go(task<T> t);          // spawn and detach
+template<class F> [[nodiscard]] auto spawn(F f);   // a coroutine function with captures, uncalled (scheduler.md: spawn)
+template<class F> void go(F f);
 ```
 
 `poll()` runs what was queued when it was called, each frame to its next suspension; a frame queued meanwhile, a task that yielded included, waits for the next call, so a loop that calls `poll()` once per frame of its own is never held by a task that keeps yielding.
@@ -70,6 +72,8 @@ strand();
 
 template<class T> [[nodiscard]] task<T> spawn(task<T> t);   // started on this strand, run by a worker in its turn
 template<class T> void go(task<T> t);
+template<class F> [[nodiscard]] auto spawn(F f);   // a coroutine function with captures, uncalled (scheduler.md: spawn)
+template<class F> void go(F f);
 bool busy() const noexcept;                    // a task of the strand runs or is queued
 ```
 

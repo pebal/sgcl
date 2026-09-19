@@ -27,6 +27,20 @@ namespace Sgcl {
         t.Spawn().Detach();
     }
 
+    // The same for a coroutine function with captures: `Spawn([x]() ->
+    // Task<int> { ... })`, no call; the closure is copied into a frame
+    // that lives as long as the task, where the task of a temporary
+    // closure would refer to one that died at the semicolon
+    template<sgcl::detail::TaskFactory F>
+    [[nodiscard]] auto Spawn(F f) {
+        return Spawn(sgcl::detail::task_of(std::move(f)));
+    }
+
+    template<sgcl::detail::TaskFactory F>
+    void Go(F f) {
+        Go(sgcl::detail::task_of(std::move(f)));
+    }
+
     // `co_await Yield()`: the task goes to the back of the queue
     using Yield = sgcl::yield;
 

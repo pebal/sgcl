@@ -9,6 +9,7 @@
 
 #include "sgcl/Sgcl/Sgcl.h"
 
+#include <atomic>
 #include <chrono>
 #include <coroutine>
 #include <memory>
@@ -1240,4 +1241,23 @@ TEST(Sgcl_Tests, RangeOverNumbersAndIterators) {
     EXPECT_TRUE(ones.First().second == 10 || ones.First().second == 11);   // a hash multimap: either order
     EXPECT_EQ(ones.Inner().size(), 2u);                  // the sgcl::range inside
     EXPECT_TRUE(m.Values(3).IsEmpty());
+}
+
+TEST(Sgcl_Tests, SpawnAndGoTakeAClosure) {
+    std::string big(1000, 'v');
+    auto t = Sgcl::Spawn([big]() -> Sgcl::Task<size_t> {
+        co_await Sgcl::Sleep(std::chrono::milliseconds(2));
+        co_return big.size();
+    });
+    EXPECT_EQ(t.Join(), 1000u);
+    std::atomic<int> seen = 0;
+    Sgcl::Event done;
+    Sgcl::Go([&seen, &done]() -> Sgcl::Task<> {
+        seen = 1;
+        done.Set();
+        co_return;
+    });
+    done.Wait();
+    EXPECT_EQ(seen.load(), 1);
+    Sgcl::Scheduler::Stop();
 }

@@ -125,6 +125,12 @@ namespace sgcl {
             runner.detach();
         }
 
+        // The same for a coroutine function with captures (sgcl::spawn)
+        template<detail::TaskFactory F>
+        void spawn(F f) {
+            spawn(detail::task_of(std::move(f)));
+        }
+
         // The token the children are given: stopped by the first
         // exception, by request_stop(), by the parent, or by the
         // group's end
