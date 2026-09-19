@@ -21,7 +21,7 @@ The waiting is done by a thread, on an atomic of its own, or by a coroutine: `co
 
 - The channel holds its queues by `Ptr`s, so it lives where one may: on a thread's stack or inside a managed object ([The rules](../../core/README.md#the-rules), 1).
 - Every operation is lock-free on the channel's side; `Send` and `Receive` wait only for the other side, `TrySend` and `TryReceive` never. Elements are delivered in the order each sender sent them; between senders sending at the same moment the order is theirs.
-- A coroutine that awaits a channel must have a managed frame (a [Task](Task.md); a `static_assert` says so otherwise), so that the tracked pointers of its frame are roots while it waits; the channel's waiter holds the frame for the length of the wait, so a task nobody holds may wait. The thread that serves the wait makes the coroutine ready on the scheduler and goes on; a worker runs the coroutine. A coroutine's waiter is on the list before the coroutine looks at the channel one last time (a send or a receive that came meanwhile), and is published to the serving side only after that look: nothing serves it before, so the coroutine cannot be resumed, finished and its channel destroyed while the look still reads it; a thread's wait has no such window, since the thread blocks and its channel stays.
+- A coroutine that awaits a channel must have a managed frame (a [Task](Coroutine.md); a `static_assert` says so otherwise), so that the tracked pointers of its frame are roots while it waits; the channel's waiter holds the frame for the length of the wait, so a task nobody holds may wait. The thread that serves the wait makes the coroutine ready on the scheduler and goes on; a worker runs the coroutine. A coroutine's waiter is on the list before the coroutine looks at the channel one last time (a send or a receive that came meanwhile), and is published to the serving side only after that look: nothing serves it before, so the coroutine cannot be resumed, finished and its channel destroyed while the look still reads it; a thread's wait has no such window, since the thread blocks and its channel stays.
 - A send to a closed channel returns `false` (Go panics); a send waiting when the channel closes returns `false` with its element undelivered. `Close()` twice is nothing.
 - `Count()` is the elements in the buffer; `IsEmpty()` is no element in the buffer and no sender waiting with one.
 - Non-copyable, non-movable.
@@ -164,5 +164,5 @@ The output:
 
 ## See also
 
-- [Select](Select.md): a wait on several channels at once; [ConcurrentQueue](../Concurrent/ConcurrentQueue.md), the lists of waiters; [Task](Task.md), the tasks that await a channel; [Scheduler](Scheduler.md), what runs them
+- [Select](Select.md): a wait on several channels at once; [ConcurrentQueue](../Concurrent/ConcurrentQueue.md), the lists of waiters; [Task](Coroutine.md), the tasks that await a channel; [Scheduler](Scheduler.md), what runs them
 - [README: Lock-free containers](../../concurrent/README.md#lock-free-containers)

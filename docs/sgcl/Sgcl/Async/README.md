@@ -5,8 +5,9 @@ What Go has around goroutines, under the interface's names: coroutine frames on 
 
 | page | header | what it is |
 |---|---|---|
-| [Task, Generator, AsyncGenerator](Task.md) | `Task.h` | coroutine frames on the managed heap, whose locals and parameters are roots; a task is spawned, joined, awaited, detached, and starts with the first wait for it |
-| [Scheduler](Scheduler.md) | `Task.h` | the pool of workers that runs the tasks: `Spawn`, `Go`, `Yield`, `Scheduler::Stop`; a task that waits holds no thread |
+| [ManagedFrame, FramePtr, Task, Generator](Coroutine.md) | `Coroutine.h` | coroutine frames on the managed heap, whose locals and parameters are roots; a task is spawned, joined, awaited, detached, and starts with the first wait for it; `ManagedFrame` and `FramePtr` for a coroutine type of your own |
+| [AsyncGenerator](AsyncGenerator.md) | `AsyncGenerator.h` | a generator that may wait: `co_yield`s values and `co_await`s between them, consumed from a task with `co_await g.Next()` |
+| [Scheduler](Scheduler.md) | `Scheduler.h` | the pool of workers that runs the tasks: `Spawn`, `Go`, `Yield`, `Scheduler::Stop`; a task that waits holds no thread |
 | [Executor, Strand, On, OnWorkers](Executor.md) | `Executor.h` | a task on a thread of the program's choosing (the main thread, a foreign loop through `Poll`), resumed there after every wait; a strand: tasks on the workers one at a time, in order; `co_await On(ex)`, `co_await OnWorkers()` |
 | [TaskLocal](TaskLocal.md) | `TaskLocal.h` | a value visible to a task and to the tasks it starts, read from any function under it: `co_await x.Set(v)`, `x.Get()`, `x.With(v, t)`; inherited, copy on write |
 | [Channel](Channel.md) | `Channel.h` | the channel of Go: a buffered or rendezvous queue that threads and coroutines send to and receive from, waiting on either side, closed to end the stream |
@@ -17,7 +18,7 @@ What Go has around goroutines, under the interface's names: coroutine frames on 
 | [Clock, ManualClock](Clock.md) | `Time.h` | `Clock::Now()`, the module's time in one place, and the clock of a test: installed, time moves only by `Advance(d)`, which fires every timer due with no real waiting |
 | [Signals](Signal.md) | `Signal.h` | `Signals({SIGINT, SIGTERM})`: the signals of the process as a channel, for a task, a thread or a Select; `ResetSignals`, `IgnoreSignals` |
 | [StopSource, StopToken](StopToken.md) | `StopToken.h` | cancellation: a source requests the stop, a token is a channel closed by it (a Select case, an awaitable), a deadline is a timer, a child source stops with its parent |
-| [WhenAll, WhenAny](When.md) | `Task.h` | the composition of tasks: every result as a tuple or a List, or the index of the first to finish |
+| [WhenAll, WhenAny](When.md) | `When.h` | the composition of tasks: every result as a tuple or a List, or the index of the first to finish |
 | [Mutex](Mutex.md) | `Mutex.h` | one holder at a time, a channel holding one signal: blocking, awaitable and as a Select case; a task waiting holds no thread |
 | [Semaphore](Semaphore.md) | `Semaphore.h` | n permits, a channel holding n signals; the three forms of a wait |
 | [Event](Event.md) | `Event.h` | set once, waited for by any number: a channel closed by the set |

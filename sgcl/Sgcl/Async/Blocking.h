@@ -12,7 +12,8 @@
 
 #include "../../async/blocking.h"
 #include "Promise.h"
-#include "Task.h"
+#include "Coroutine.h"
+#include "Scheduler.h"
 #include "Time.h"
 
 #include <utility>

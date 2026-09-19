@@ -1,7 +1,7 @@
 # WhenAll, WhenAny
 
 ```cpp
-#include "sgcl/Sgcl/Async/Task.h"   // or "sgcl/Sgcl/Sgcl.h"
+#include "sgcl/Sgcl/Async/When.h"   // or "sgcl/Sgcl/Sgcl.h"
 
 namespace Sgcl {
     template<class... T> Task<std::tuple<T...>> WhenAll(Task<T>... ts);   // every result, as a tuple
@@ -17,7 +17,7 @@ The same in the `sgcl` interface: [when_all, when_any](../../async/when.md).
 
 The composition of tasks. `co_await WhenAll(a, b, c)` waits for every task and gives their results as a tuple (a `List` for a `List` of tasks of one type, nothing for tasks of nothing), in the order the tasks were given, not the order they finished; what any of them threw is rethrown. `co_await WhenAny(a, b, c)` gives the index of the first task to finish and lets go of the rest: they run on to their ends, and their frames are the collector's then. A thread writes the same with `Join()`: `WhenAll(a, b).Join()`.
 
-Both are tasks themselves, coroutines with a managed frame that hold the tasks given: a `WhenAll` is a frame with the tasks in it and one `co_await` at a time, a `WhenAny` spawns a small task per task given that finishes into a channel, and receives once. The tasks are taken over (moved in): a task is awaited by one awaiter, and the result of `WhenAll` is where theirs are. They are spawned ones, or ones nobody started: a task starts with the first wait for it ([Task](Task.md#join)), so `WhenAll(F(), G())` starts both.
+Both are tasks themselves, coroutines with a managed frame that hold the tasks given: a `WhenAll` is a frame with the tasks in it and one `co_await` at a time, a `WhenAny` spawns a small task per task given that finishes into a channel, and receives once. The tasks are taken over (moved in): a task is awaited by one awaiter, and the result of `WhenAll` is where theirs are. They are spawned ones, or ones nobody started: a task starts with the first wait for it ([Task](Coroutine.md#join)), so `WhenAll(F(), G())` starts both.
 
 ## Rules
 
@@ -89,5 +89,5 @@ the fast one
 
 ## See also
 
-- [Task](Task.md): what is composed; [Select](Select.md): a race of channels rather than tasks; [StopToken](StopToken.md): stopping the losers
+- [Task](Coroutine.md): what is composed; [Select](Select.md): a race of channels rather than tasks; [StopToken](StopToken.md): stopping the losers
 - `tests/Sgcl/sgcl.cpp`: the behaviour above, checked.

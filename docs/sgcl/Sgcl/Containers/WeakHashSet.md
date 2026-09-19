@@ -39,7 +39,7 @@ bool IsEmpty() const noexcept;
 InnerType& Inner() noexcept;
 ```
 
-`*it` is the object as a `Ptr<Key>`, held while the iterator stands on it; `it->` is the pointer's own `->`, so `(*it)->member`. A null pointer is not an object: `Add` asserts in debug builds, the lookups find nothing.
+`*it` is the object as a `Ptr<Key>`, held while the iterator stands on it; `it->` is the pointer's own `->`, so `(*it)->member`. A null pointer is not an object: `Add` asserts in debug builds, the lookups find nothing. `RemoveAt` returns the next live entry up to the iterator's own bound.
 
 ## Example
 

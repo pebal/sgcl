@@ -264,7 +264,7 @@ void Resize(SizeType n);
 void Resize(SizeType n, const T& value);
 ```
 
-Destroys the elements past `n`, or appends value-initialized elements (copies of `value`) up to it, reallocating when the capacity does not suffice.
+Destroys the elements past `n`, or appends value-initialized elements (copies of `value`) up to it, reallocating when the capacity does not suffice. The buffer then grows geometrically, as an `Add` grows it, so `Resize(Count() + 1)` repeated reallocates as rarely as adds do. A constructor that throws destroys the elements appended before it and leaves the count as it was.
 
 ```cpp
 List v = {1, 2, 3};

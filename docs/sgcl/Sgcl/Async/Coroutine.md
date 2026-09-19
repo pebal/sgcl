@@ -1,42 +1,183 @@
-# Sgcl::Task, Sgcl::Generator
+# Sgcl::ManagedFrame, Sgcl::FramePtr, Sgcl::Task, Sgcl::Generator
 
 ```cpp
-#include "sgcl/Sgcl/Async/Task.h"   // or "sgcl/Sgcl/Sgcl.h"
+#include "sgcl/Sgcl/Async/Coroutine.h"   // or "sgcl/Sgcl/Sgcl.h"
 
 namespace Sgcl {
-    template<class T = void> class Task;
-    template<class T> class Generator;
-    template<class T> Task<T> Spawn(Task<T> t);   // [[nodiscard]]
-    template<class T> void Go(Task<T> t);
-    using Yield = ...;                            // co_await Yield()
+    using ManagedFrame = sgcl::managed_frame;   // the base of a promise whose frames are managed
+    template<class P> class FramePtr;           // the owner of such a coroutine
+    template<class T = void> class Task;        // a coroutine that runs on the scheduler or by hand
+    template<class T> class Generator;          // a coroutine that yields values
 }
 ```
 
-The same classes in the `sgcl` interface: [coroutine: task, generator](../../async/coroutine.md), which also has the building blocks underneath, a promise base that allocates managed frames and the handle that holds one, for a coroutine type of your own.
+The same classes in the `sgcl` interface: [managed_frame, frame_ptr, task, generator](../../async/coroutine.md). [Spawn, Go, Yield and the Scheduler](Scheduler.md) run the tasks, [WhenAll and WhenAny](When.md) compose them, an [AsyncGenerator](AsyncGenerator.md) is a generator that may wait.
 
-The frame of a C++20 coroutine, where its parameters, locals, temporaries and promise live between suspensions, is allocated with `operator new`: heap memory the collector does not see. A `Ptr` in such a frame breaks rule 1 of [The rules](../../core/README.md#the-rules) and its object may be collected under it; debug builds assert it. `Task<T>` and `Generator<T>` are coroutine types whose frames come from the managed heap instead, as buffers of words the collector traces conservatively, so everything the coroutine holds is a root for as long as the frame is held. The frame is held through the task or generator object: a [`RootPtr`](../Core/RootPtr.md) to the frame and the coroutine handle, move-only, that destroys the coroutine when destroyed. `Task` runs on the [scheduler](Scheduler.md) or by hand.
+The frame of a C++20 coroutine, where its parameters, locals, temporaries and promise live between suspensions, is allocated with `operator new`: heap memory the collector does not see. A `Ptr` in such a frame breaks rule 1 of [The rules](../../core/README.md#the-rules) and its object may be collected under it; debug builds assert it. `Coroutine.h` is the way out. A promise type that derives from `ManagedFrame` gets its frames from the managed heap instead, as buffers of words the collector traces conservatively, so everything the coroutine holds is a root for as long as the frame is held. The frame is held through a `FramePtr<P>`: a [`RootPtr`](../Core/RootPtr.md) to the frame and the coroutine handle, move-only, that destroys the coroutine when destroyed. `Task<T>` and `Generator<T>` are two coroutine types built this way; `Task` runs on the [scheduler](Scheduler.md) or by hand.
 
 `Generator<T>` is used like `std::generator<T>` of C++23 (a range-for over the values a coroutine `co_yield`s), but it is a C++20 type with its frame on the managed heap, an input iterator, and nothing else. `Task<T>` is a coroutine that produces one value: `Spawn()` puts it on the scheduler's queue and a worker runs it, `Resume()` runs it by hand on the calling thread; a thread waits for it with `Join()`, a coroutine with `co_await task`, which suspends the awaiting coroutine until the task is done, no thread held meanwhile. The value type is always spelled, `Task<int>`, `Generator<Ptr<Node>>`.
 
 ## How a frame becomes managed
 
-The compiler looks the allocation function of a coroutine up in the scope of its promise type, and the promise of a `Task` or a `Generator` has one of its own:
+The compiler looks the allocation function of a coroutine up in the scope of its promise type, so a promise that derives from `ManagedFrame` inherits its `operator new` and `operator delete` (the promises of `Task` and `Generator` do):
 
 - `operator new` allocates the frame as a managed buffer of words (the size rounded up to whole words, zeroed), in the state of an object a `UniquePtr` owns: a root already.
-- `get_return_object` of the promise takes the frame over into a `RootPtr` and stores the frame's own `Ptr` in the promise: what an awaiter copies to hold the frame while the coroutine waits on a channel, on a task or on the scheduler's queue. From then on the frame is an ordinary managed object, kept by whatever holds the task or the waiting coroutine.
-- `operator delete` runs when the coroutine is destroyed (`Destroy`, the destructor), after the destructors of the coroutine's locals and promise. It frees a frame that nothing took over, an exception thrown before `get_return_object` for instance, and does nothing for a frame taken over: that memory is the collector's once nothing refers to it.
+- `get_return_object` of the promise constructs a `FramePtr` from the coroutine handle, which takes the frame over into a `RootPtr` and stores the frame's own `Ptr` in the promise: what an awaiter copies to hold the frame while the coroutine waits on a channel, on a task or on the scheduler's queue. From then on the frame is an ordinary managed object, kept by whatever holds the `FramePtr` or the waiting coroutine.
+- `operator delete` runs when the coroutine is destroyed (`FramePtr::Destroy`, the destructor of `FramePtr`), after the destructors of the coroutine's locals and promise. It frees a frame that no `FramePtr` took over, an exception thrown before `get_return_object` for instance, and does nothing for a frame taken over: that memory is the collector's once nothing refers to it.
 
 The collector traces a frame conservatively: every word that holds the address of a managed object keeps that object, and a word that holds data proves nothing about its offset, since the same offset is a pointer in one frame and data in another (the pointer maps of managed objects, which narrow by elimination, do not apply). The cost is the allocation of the frame as a managed buffer, a few tens of nanoseconds instead of `malloc`, and one conservative pass over the frame's words per cycle; a frame that holds no managed pointers costs that pass and nothing else. See [Coroutines](../../async/README.md#coroutines) in the README.
 
 ## Rules
 
-- A `Task` or a `Generator` holds a `RootPtr`, so it lives anywhere: on a stack, in a managed object, in another frame, in a `std::vector<Task<int>>`, in a global. What it costs is a cell per handle ([RootPtr](../Core/RootPtr.md)), one per coroutine.
-- The parameters, locals, temporaries and promise members of a `Task` or a `Generator` are roots while the frame is held: a `Ptr`, a container, a `Task` held across a suspension all keep what they refer to. A waiting coroutine (on a channel, on a task, on the scheduler's queue) is held by what it waits on, so the frame of a task nobody holds lives while it runs. A plain coroutine lives in `operator new` memory together with the rest of its frame, so neither its promise nor its locals or parameters may hold a `Ptr` (rule 1); the collector would not see the pointer, and the object could be collected while the coroutine is suspended.
-- A `std::coroutine_handle` keeps nothing alive (rule 3). Destroy the coroutine through the task, never through a handle: the task would destroy it a second time.
-- Destroying a `Task` or a `Generator` destroys the coroutine at once, on the calling thread, which runs the destructors of its locals and promise, wherever they were suspended; the frame's memory is reclaimed by a later cycle. A task moved out of a function takes its frame with it.
-- A task has no synchronization of its own: a coroutine is resumed or destroyed by one thread at a time, as with a `std::coroutine_handle`, and which thread that is does not matter to the collector (the scheduler's workers resume it on whichever is free). `Join()` and `IsDone()` of a task may be called from any thread. A task resumed by hand (`Resume()`) on its first run takes the resumer's executor and task-locals, as a task started on the scheduler takes its starter's. A task is awaited by one coroutine at a time (an assertion in debug builds); a task that ended holds nothing of its awaiter.
+- A `FramePtr` holds a `RootPtr`, and so does everything built on it: a `Task`, a `Generator`, a coroutine type of your own. It lives anywhere: on a stack, in a managed object, in another frame, in a `std::vector<Task<int>>`, in a global. What it costs is a cell per handle ([RootPtr](../Core/RootPtr.md)), one per coroutine.
+- The parameters, locals, temporaries and promise members of a coroutine whose promise derives from `ManagedFrame` are roots while the frame is held: a `Ptr`, a container, a `Task` held across a suspension all keep what they refer to. A waiting coroutine (on a channel, on a task, on the scheduler's queue) is held by what it waits on, so the frame of a task nobody holds lives while it runs. A promise that does not derive from `ManagedFrame` lives in `operator new` memory together with the rest of the frame, so neither it nor the coroutine's locals or parameters may hold a `Ptr` (rule 1); the collector would not see the pointer, and the object could be collected while the coroutine is suspended.
+- A `std::coroutine_handle` keeps nothing alive (rule 3). The handle a `FramePtr` returns is valid while that `FramePtr` holds the frame and no longer: once the `FramePtr` is destroyed, moved from or `Destroy()`ed, the frame's memory belongs to the collector. Destroy the coroutine through the `FramePtr`, never through the handle: the `FramePtr` would destroy it a second time.
+- Destroying a `FramePtr` destroys the coroutine at once, on the calling thread, which runs the destructors of its locals and promise, wherever they were suspended; the frame's memory is reclaimed by a later cycle. A `FramePtr` moved out of a function takes its frame with it.
+- A `FramePtr` has no synchronization of its own: a coroutine is resumed or destroyed by one thread at a time, as with a `std::coroutine_handle`, and which thread that is does not matter to the collector (the scheduler's workers resume it on whichever is free). `Join()` and `IsDone()` of a task may be called from any thread. A task resumed by hand (`Resume()`) on its first run takes the resumer's executor and task-locals, as a task started on the scheduler takes its starter's. A task is awaited by one coroutine at a time (an assertion in debug builds); a task that ended holds nothing of its awaiter.
 
 ## Members
+
+### ManagedFrame
+
+```cpp
+using ManagedFrame = sgcl::managed_frame;   // static operator new(size_t), static operator delete(void*, size_t)
+```
+
+The base of a promise type whose coroutines get their frames from the managed heap. Its `operator new` allocates a frame of `size` bytes as a managed buffer of words, its `operator delete` frees it if no `FramePtr` took it over and does nothing otherwise (see above). Neither is called by hand: the compiler calls them for every coroutine whose promise derives from `ManagedFrame`, with the size of the whole frame.
+
+A promise of your own derives from `ManagedFrame` and returns, from `get_return_object`, an object that holds a `FramePtr<promise_type>` made from the handle. Everything else about the promise is ordinary C++20: `initial_suspend`, `final_suspend`, `return_value`/`return_void`, `yield_value`, `unhandled_exception`, and any members it needs, `Ptr` members included, since the promise lives in the frame:
+
+```cpp
+struct Node { int value; Ptr<Node> next; };
+
+// A coroutine type of your own: the promise derives from ManagedFrame
+class Walker {
+public:
+    struct promise_type : ManagedFrame {
+        Ptr<Node> current;                                  // in the frame: a root
+
+        Walker get_return_object() {
+            return Walker(std::coroutine_handle<promise_type>::from_promise(*this));
+        }
+        std::suspend_always initial_suspend() noexcept { return {}; }
+        std::suspend_always final_suspend() noexcept { return {}; }
+        std::suspend_always yield_value(Ptr<Node> n) noexcept {
+            current = n;                                    // co_yield: keep the node, suspend
+            return {};
+        }
+        void return_void() noexcept {}
+        void unhandled_exception() { throw; }               // out of Step()
+    };
+
+    bool Step() {                                           // to the next co_yield: true, to the end: false
+        _frame.Resume();
+        return !_frame.IsDone();
+    }
+    const Ptr<Node>& Current() const { return _frame.Promise().current; }
+
+private:
+    explicit Walker(std::coroutine_handle<promise_type> h) : _frame(h) {}   // takes the frame over
+    FramePtr<promise_type> _frame;
+};
+
+Walker Walk(Ptr<Node> head) {                               // the parameter: in the frame, a root
+    for (auto n = head; n; n = n->next) {
+        co_yield n;
+    }
+}
+```
+
+### FramePtr
+
+```cpp
+template<class P>
+class FramePtr;
+
+using PromiseType = P;
+using HandleType = std::coroutine_handle<P>;
+using InnerType = sgcl::frame_ptr<P>;
+```
+
+The owner of a coroutine whose promise derives from `ManagedFrame`: two words, a `RootPtr` to the frame and the coroutine handle. Move-only; destroys the coroutine when destroyed; `Release()` lets go of the frame without destroying the coroutine (a task detached). `Task` and `Generator` are each a single frame pointer and forward to it; a coroutine type of your own holds one the same way.
+
+#### Constructors, assignment, destructor
+
+```cpp
+FramePtr() noexcept = default;
+explicit FramePtr(HandleType h);
+FramePtr(FramePtr&& o) noexcept;
+FramePtr& operator=(FramePtr&& o) noexcept;
+FramePtr(const FramePtr&) = delete;
+FramePtr& operator=(const FramePtr&) = delete;
+~FramePtr();
+```
+
+The default constructor makes an empty `FramePtr`: `false`, `IsDone()`. The constructor from a handle takes the coroutine's frame over: `h` must be the handle of a coroutine whose promise derives from `ManagedFrame`, and no other `FramePtr` may have taken that frame; the place to call it is the promise's `get_return_object`, with `std::coroutine_handle<P>::from_promise(*this)`. A move leaves the source empty; move assignment destroys the coroutine the target held first. The destructor destroys the coroutine, if any (see `Destroy`).
+
+#### operator bool
+
+```cpp
+explicit operator bool() const noexcept;
+```
+
+`true` when the `FramePtr` holds a coroutine, `false` when empty (default-constructed, moved from, or after `Destroy()`).
+
+#### Handle
+
+```cpp
+HandleType Handle() const noexcept;
+```
+
+The coroutine handle, null when empty. For the operations `FramePtr` does not wrap (`address()`, passing the handle to an awaiter of your own). The handle is valid while this `FramePtr` holds the frame; do not call `destroy()` on it, the `FramePtr` does that.
+
+#### Promise
+
+```cpp
+P& Promise() const;
+```
+
+The coroutine's promise, the one in the frame. Precondition: not empty.
+
+#### Resume
+
+```cpp
+void Resume();
+```
+
+Resumes the coroutine: it runs until it next suspends or ends. Precondition: not empty, suspended and not `IsDone()`, as for `std::coroutine_handle::resume`. An exception the coroutine lets out of its promise's `unhandled_exception` propagates from `Resume()`.
+
+#### IsDone
+
+```cpp
+bool IsDone() const noexcept;
+```
+
+`true` when the `FramePtr` is empty or the coroutine is suspended at its final suspend point.
+
+#### Destroy
+
+```cpp
+void Destroy() noexcept;
+```
+
+Destroys the coroutine, if any: runs the destructors of its locals and promise (wherever it was suspended), then lets go of the frame, whose memory the collector reclaims once nothing refers to it. The `FramePtr` is empty afterwards. The destructor and move assignment call it.
+
+#### Release
+
+```cpp
+void Release() noexcept;
+```
+
+Lets go of the frame without destroying the coroutine: the coroutine runs on, or stays wherever it waits, held by what it waits on, and destroys its frame when it is done. What `Task::Detach` does. The `FramePtr` is empty afterwards.
+
+#### Inner
+
+```cpp
+InnerType& Inner() noexcept;
+const InnerType& Inner() const noexcept;
+```
+
+The frame pointer inside, as its own type.
 
 ### Task
 
@@ -322,36 +463,6 @@ g.Next();
 g.Destroy();                                    // the other 99 never happen; g is empty
 ```
 
-### AsyncGenerator
-
-```cpp
-template<class T>
-class AsyncGenerator;
-
-auto Next() noexcept;                     // co_await g.Next(): Optional<T>, None at the end; rethrows
-bool IsDone() const noexcept;
-InnerType& Inner() noexcept;
-```
-
-A generator that may wait: a coroutine that `co_yield`s values and `co_await`s between them (a channel, a sleep, a task), consumed from a task with `while (auto v = co_await g.Next())`. The consumer and the generator hand control to each other directly, without the scheduler's queue: `Next()` resumes the generator on the consumer's worker, a `co_yield` resumes the consumer where the generator is, and while the generator waits for something the consumer waits with it, no thread held by either. The generator runs as part of its consumer: at every `Next()` its frame takes the consumer's executor and task-locals, so a wait of its own resumes it where the consumer runs (an [Executor](Executor.md), a strand) and the functions under it, and the consumer resumed by the yield, see the consumer's [task-locals](TaskLocal.md); a local the generator sets itself lasts until its next yield. Both frames are on the managed heap: the generator's held by the `AsyncGenerator` object, the consumer's by the generator's promise while it waits, and a value yielded is held by the promise until the consumer takes it. Move-only; single pass; `Next()` past the end gives `None` again; an exception the generator throws comes out of the `Next()` that ran into it.
-
-```cpp
-AsyncGenerator<int> Tens(Channel<int>& in) {
-    while (auto v = co_await in.AsyncReceive()) {     // waits between yields
-        co_yield *v * 10;
-    }
-}
-
-Task<int> Consume(Channel<int>& in) {
-    AsyncGenerator g = Tens(in);
-    int sum = 0;
-    while (auto v = co_await g.Next()) {              // None once in is closed and drained
-        sum += *v;
-    }
-    co_return sum;
-}
-```
-
 ## Example
 
 ```cpp
@@ -412,7 +523,7 @@ The output:
 
 ## See also
 
-- [Scheduler](Scheduler.md): what runs the tasks; [Channel](Channel.md): what they wait on
+- [Scheduler](Scheduler.md): `Spawn`, `Go`, `Yield`, what runs the tasks; [AsyncGenerator](AsyncGenerator.md): a generator that may wait; [WhenAll, WhenAny](When.md): the composition of tasks; [Channel](Channel.md): what they wait on
 - [Ptr](../Core/Ptr.md), [RootPtr](../Core/RootPtr.md), [List](../Containers/List.md) (a `List<Task<T>>` holds many tasks)
 - [Collector](../Core/Collector.md), [config](../../core/config.md)
 - README: [Coroutines](../../async/README.md#coroutines), [The rules](../../core/README.md#the-rules), [Stack roots](../../../garbage_collector/overview.md#stack-roots), [Threads](../../async/README.md#threads)

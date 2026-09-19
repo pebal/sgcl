@@ -11,7 +11,8 @@
 #pragma once
 
 #include "../../async/promise.h"
-#include "Task.h"
+#include "Coroutine.h"
+#include "Scheduler.h"
 
 #include <exception>
 #include <utility>

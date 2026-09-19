@@ -70,7 +70,7 @@ SortedDictionary& operator=(const SortedDictionary& other);
 SortedDictionary& operator=(SortedDictionary&& other) noexcept;
 ```
 
-The destructor destroys the elements when the dictionary dies on a stack or inside a managed object destroyed by hand; in a sweep it does nothing, the nodes being garbage of the same sweep. Copy assignment builds a copy and swaps it in; move assignment clears this dictionary and takes the tree over.
+The destructor destroys the elements when the dictionary dies on a stack or inside a managed object destroyed by hand; in a sweep it does nothing, the nodes being garbage of the same sweep. Copy assignment clears this dictionary and copies the tree shape for shape, as the copy constructor does (an element copy that throws leaves the dictionary empty); move assignment clears and takes the tree over.
 
 ### KeyCompare
 

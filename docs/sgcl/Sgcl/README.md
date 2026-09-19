@@ -97,7 +97,7 @@ Structures shared by any number of threads without a lock, the textbook algorith
 | [Clock, ManualClock](Async/Clock.md) | `sgcl/Sgcl/Async/Time.h` | `Clock::Now()`, the module's time in one place, and the clock of a test: installed, time moves only by `Advance(d)`, which fires every timer due with no real waiting |
 | [Signals](Async/Signal.md) | `sgcl/Sgcl/Async/Signal.h` | `Signals({SIGINT, SIGTERM})`: the signals of the process as a channel, for a task, a thread or a Select; `ResetSignals`, `IgnoreSignals` |
 | [StopSource, StopToken](Async/StopToken.md) | `sgcl/Sgcl/Async/StopToken.h` | cancellation: a source requests the stop, a token is a channel closed by it (a Select case, an awaitable), a deadline is a timer, a child source stops with its parent |
-| [WhenAll, WhenAny](Async/When.md) | `sgcl/Sgcl/Async/Task.h` | the composition of tasks: every result as a tuple or a List, or the index of the first to finish |
+| [WhenAll, WhenAny](Async/When.md) | `sgcl/Sgcl/Async/When.h` | the composition of tasks: every result as a tuple or a List, or the index of the first to finish |
 | [Mutex](Async/Mutex.md) | `sgcl/Sgcl/Async/Mutex.h` | one holder at a time, a channel holding one signal: blocking, awaitable and as a Select case; a task waiting holds no thread |
 | [Semaphore](Async/Semaphore.md) | `sgcl/Sgcl/Async/Semaphore.h` | n permits, a channel holding n signals; the three forms of a wait |
 | [Event](Async/Event.md) | `sgcl/Sgcl/Async/Event.h` | set once, waited for by any number: a channel closed by the set |
@@ -120,8 +120,9 @@ Structures shared by any number of threads without a lock, the textbook algorith
 
 | page | header | what it is |
 |---|---|---|
-| [Task, Generator, AsyncGenerator](Async/Task.md) | `sgcl/Sgcl/Async/Task.h` | coroutine frames on the managed heap, whose locals and parameters are roots; a task is spawned, joined, awaited, detached, and starts with the first wait for it |
-| [Scheduler](Async/Scheduler.md) | `sgcl/Sgcl/Async/Task.h` | the pool of workers that runs the tasks: `Spawn`, `Go`, `Yield`, `Scheduler::Stop`; a task that waits holds no thread |
+| [ManagedFrame, FramePtr, Task, Generator](Async/Coroutine.md) | `sgcl/Sgcl/Async/Coroutine.h` | coroutine frames on the managed heap, whose locals and parameters are roots; a task is spawned, joined, awaited, detached, and starts with the first wait for it; `ManagedFrame` and `FramePtr` for a coroutine type of your own |
+| [AsyncGenerator](Async/AsyncGenerator.md) | `sgcl/Sgcl/Async/AsyncGenerator.h` | a generator that may wait: `co_yield`s values and `co_await`s between them, consumed from a task with `co_await g.Next()` |
+| [Scheduler](Async/Scheduler.md) | `sgcl/Sgcl/Async/Scheduler.h` | the pool of workers that runs the tasks: `Spawn`, `Go`, `Yield`, `Scheduler::Stop`; a task that waits holds no thread |
 | [Executor, Strand, On, OnWorkers](Async/Executor.md) | `sgcl/Sgcl/Async/Executor.h` | a task on a thread of the program's choosing (the main thread, a foreign loop through `Poll`), resumed there after every wait; a strand: tasks on the workers one at a time, in order; `co_await On(ex)`, `co_await OnWorkers()` |
 | [TaskLocal](Async/TaskLocal.md) | `sgcl/Sgcl/Async/TaskLocal.h` | a value visible to a task and to the tasks it starts, read from any function under it: `co_await x.Set(v)`, `x.Get()`, `x.With(v, t)`; inherited, copy on write |
 | [Thread, ThisThread](Async/Thread.md) | `sgcl/Sgcl/Async/Thread.h` | `std::thread` and `std::this_thread` under the interface's names: `Join`, `Detach`, `IsJoinable`; `ThisThread::SleepFor`, `Yield`; the threads kept in a `List<Thread>` |

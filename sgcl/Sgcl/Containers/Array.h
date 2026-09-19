@@ -26,20 +26,20 @@ namespace Sgcl {
         Array() = default;
 
         // A count of elements (the dynamic one)
-        explicit Array(SizeType count) requires IsDynamic
+        constexpr explicit Array(SizeType count) requires IsDynamic
         : _a(count) {
         }
 
-        Array(SizeType count, const T& value) requires IsDynamic
+        constexpr Array(SizeType count, const T& value) requires IsDynamic
         : _a(count, value) {
         }
 
         template<std::input_iterator It>
-        Array(It first, It last) requires IsDynamic
+        constexpr Array(It first, It last) requires IsDynamic
         : _a(first, last) {
         }
 
-        Array(std::initializer_list<T> il) {
+        constexpr Array(std::initializer_list<T> il) {
             if constexpr (IsDynamic) {
                 _a = InnerType(il);
             } else {
@@ -47,7 +47,7 @@ namespace Sgcl {
             }
         }
 
-        explicit Array(InnerType a) noexcept(IsDynamic)
+        constexpr explicit Array(InnerType a) noexcept(IsDynamic)
         : _a(std::move(a)) {
         }
 
@@ -56,55 +56,55 @@ namespace Sgcl {
         Array& operator=(const Array&) = default;
         Array& operator=(Array&&) noexcept = default;
 
-        T& operator[](SizeType i) noexcept {
+        constexpr T& operator[](SizeType i) noexcept {
             return _a[i];
         }
 
-        const T& operator[](SizeType i) const noexcept {
+        constexpr const T& operator[](SizeType i) const noexcept {
             return _a[i];
         }
 
-        T& First() noexcept {
+        constexpr T& First() noexcept {
             return _a.front();
         }
 
-        const T& First() const noexcept {
+        constexpr const T& First() const noexcept {
             return _a.front();
         }
 
-        T& Last() noexcept {
+        constexpr T& Last() noexcept {
             return _a.back();
         }
 
-        const T& Last() const noexcept {
+        constexpr const T& Last() const noexcept {
             return _a.back();
         }
 
-        T* Data() noexcept {
+        constexpr T* Data() noexcept {
             return _a.data();
         }
 
-        const T* Data() const noexcept {
+        constexpr const T* Data() const noexcept {
             return _a.data();
         }
 
-        SizeType Count() const noexcept {
+        constexpr SizeType Count() const noexcept {
             return _a.size();
         }
 
-        bool IsEmpty() const noexcept {
+        constexpr bool IsEmpty() const noexcept {
             return _a.size() == 0;
         }
 
-        void Swap(Array& o) noexcept {
+        constexpr void Swap(Array& o) noexcept {
             _a.swap(o._a);
         }
 
-        InnerType& Inner() noexcept {
+        constexpr InnerType& Inner() noexcept {
             return _a;
         }
 
-        const InnerType& Inner() const noexcept {
+        constexpr const InnerType& Inner() const noexcept {
             return _a;
         }
 
@@ -177,22 +177,22 @@ namespace Sgcl {
     }
 
     template<class T, size_t N>
-    auto begin(Array<T, N>& a) noexcept {
+    constexpr auto begin(Array<T, N>& a) noexcept {
         return a.Inner().begin();
     }
 
     template<class T, size_t N>
-    auto end(Array<T, N>& a) noexcept {
+    constexpr auto end(Array<T, N>& a) noexcept {
         return a.Inner().end();
     }
 
     template<class T, size_t N>
-    auto begin(const Array<T, N>& a) noexcept {
+    constexpr auto begin(const Array<T, N>& a) noexcept {
         return a.Inner().begin();
     }
 
     template<class T, size_t N>
-    auto end(const Array<T, N>& a) noexcept {
+    constexpr auto end(const Array<T, N>& a) noexcept {
         return a.Inner().end();
     }
 

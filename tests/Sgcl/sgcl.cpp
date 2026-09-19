@@ -10,6 +10,7 @@
 #include "sgcl/Sgcl/Sgcl.h"
 
 #include <chrono>
+#include <coroutine>
 #include <memory>
 #include <ranges>
 #include <string>
@@ -278,6 +279,119 @@ TEST(Sgcl_Tests, AListOfPtrsIsTraced) {
     EXPECT_EQ(Node::alive.load(), before);
 }
 
+// Array<T, N> is constexpr throughout, the algorithms included, as
+// sgcl::array<T, N> is
+namespace {
+    constexpr int sorted_last() {
+        Sgcl::Array<int, 4> a = {3, 1, 4, 2};
+        a.Sort();
+        return a.Last();
+    }
+}
+
+// A coroutine type of your own on ManagedFrame and FramePtr: the promise
+// derives from ManagedFrame, get_return_object hands the handle to a
+// FramePtr, and the frame's locals, parameters and promise members are
+// roots while the FramePtr holds it
+namespace {
+    class Walker {
+    public:
+        struct promise_type : Sgcl::ManagedFrame {
+            Sgcl::Ptr<Node> current;
+            Walker get_return_object() { return Walker(std::coroutine_handle<promise_type>::from_promise(*this)); }
+            std::suspend_always initial_suspend() noexcept { return {}; }
+            std::suspend_always final_suspend() noexcept { return {}; }
+            std::suspend_always yield_value(Sgcl::Ptr<Node> n) noexcept { current = n; return {}; }
+            void return_void() noexcept {}
+            void unhandled_exception() { throw; }
+        };
+        bool Step() { _frame.Resume(); return !_frame.IsDone(); }
+        const Sgcl::Ptr<Node>& Current() const { return _frame.Promise().current; }
+        explicit operator bool() const noexcept { return static_cast<bool>(_frame); }
+    private:
+        explicit Walker(std::coroutine_handle<promise_type> h) : _frame(h) {}
+        Sgcl::FramePtr<promise_type> _frame;
+    };
+
+    Walker Walk(Sgcl::Ptr<Node> head) {
+        for (auto n = head; n; n = n->next) {
+            co_yield n;
+        }
+    }
+}
+
+TEST(Sgcl_Tests, ACoroutineOfYourOwnOnAManagedFrame) {
+    using namespace Sgcl;
+    settle();
+    const int before = Node::alive.load();
+    off_frame([&] {
+        Ptr<Node> head;
+        for (int i = 0; i < 4; ++i) {
+            Ptr n = Make<Node>(i);
+            n->next = head;
+            head = n;
+        }
+        Walker w = Walk(head);
+        head = nullptr;                                    // the frame's parameter is the only root now
+        int sum = 0;
+        while (w.Step()) {
+            sum += w.Current()->value;
+            settle();                                      // the chain survives every cycle
+        }
+        EXPECT_EQ(sum, 6);
+        EXPECT_TRUE(w);
+        EXPECT_EQ(Node::alive.load(), before + 4);
+    });
+    settle();
+    EXPECT_EQ(Node::alive.load(), before);                 // the walker gone, the chain with it
+}
+
+TEST(Sgcl_Tests, ArrayIsConstexpr) {
+    using namespace Sgcl;
+    constexpr Array<int, 3> a = {1, 2, 3};
+    static_assert(a.Count() == 3 && a[1] == 2 && a.First() == 1 && a.Last() == 3);
+    static_assert(a.Contains(3) && !a.Contains(4) && a.IndexOf(2) == 1);
+    static_assert(sorted_last() == 4);
+    EXPECT_EQ(a.Count(), 3u);
+}
+
+// The rules the reviews added, seen through the wrappers: a List grows
+// geometrically on Resize; the null end of a LinkedList that never held an
+// element is an empty range to remove from; MoveToLast of the newest entry
+// changes nothing; an ExpiryQueue assigned over releases the entries it held
+TEST(Sgcl_Tests, TheRulesAfterTheReviews) {
+    using namespace Sgcl;
+    List<int> v(20000);
+    size_t reallocations = 0;
+    auto data = v.Data();
+    for (int i = 0; i < 2000; ++i) {
+        v.Resize(v.Count() + 1);
+        if (v.Data() != data) {
+            ++reallocations;
+            data = v.Data();
+        }
+    }
+    EXPECT_LE(reallocations, 2u);                           // geometric, not one per Resize
+    EXPECT_EQ(v.Count(), 22000u);
+
+    LinkedList<int> l;
+    auto stale = end(l);                                    // null: no sentinel yet
+    l.AddLast(1);
+    l.AddLast(2);
+    EXPECT_NE(stale, end(l));                               // invalidated by the first insertion
+    l.RemoveRange(stale, end(l));                           // a range from the stale end: empty
+    EXPECT_EQ(l.Count(), 2u);
+    l.AddBefore(stale, 3);                                  // as a position: the end
+    EXPECT_EQ(l.Last(), 3);
+
+    OrderedDictionary<int, int> d = {{1, 10}, {2, 20}, {3, 30}};
+    auto last = d.FindEntry(3);
+    d.MoveToLast(last);                                     // already last: left alone
+    EXPECT_EQ(last->first, 3);
+    EXPECT_EQ(d.Last().first, 3);
+    d.MoveToLast(d.FindEntry(1));
+    EXPECT_EQ(d.Last().first, 1);
+}
 TEST(Sgcl_Tests, ArrayLinkedListDequeQueueStack) {
     using namespace Sgcl;
     Array<int, 3> a = {1, 2, 3};
@@ -518,6 +632,61 @@ TEST(Sgcl_Tests, CopyOnWriteExpiryQueueAndWeakDictionary) {
     EXPECT_EQ(wd.Sweep(), 1u);
     EXPECT_EQ(ws.Sweep(), 1u);
     EXPECT_TRUE(wd.IsEmpty() && ws.IsEmpty());
+}
+
+// An Expected of other types converts as sgcl::expected does: the value or
+// the error, whichever it holds; a bool is never made from has_value (LWG
+// 3836: an error became a success holding false); an Expected is not a
+// value for the constructor from one
+TEST(Sgcl_Tests, ExpectedConvertsFromAnExpectedOfOtherTypes) {
+    using namespace Sgcl;
+    Expected<int, String> value = 7;
+    Expected<int, String> error(Unexpect, "no");
+    Expected<long, String> lv = value;
+    Expected<long, String> le = error;
+    EXPECT_TRUE(lv.HasValue());
+    EXPECT_EQ(*lv, 7L);
+    EXPECT_FALSE(le.HasValue());
+    EXPECT_EQ(le.Error(), "no");
+    Expected<bool, String> bv(value);                       // explicit: bool is not convertible from int implicitly? it is; the value converted, not has_value
+    Expected<bool, String> be(error);
+    EXPECT_TRUE(bv.HasValue());
+    EXPECT_TRUE(*bv);
+    EXPECT_FALSE(be.HasValue());
+    EXPECT_EQ(be.Error(), "no");
+    Expected<bool, String> bz(Expected<int, String>(0));
+    EXPECT_TRUE(bz.HasValue());
+    EXPECT_FALSE(*bz);
+    Expected<long, String> mv = std::move(value);
+    EXPECT_EQ(*mv, 7L);
+    static_assert(std::is_convertible_v<Expected<int, String>, Expected<long, String>>);
+    static_assert(!std::is_convertible_v<Expected<int, String>, Expected<Ptr<Node>, String>>);
+}
+
+// A Function or MoveOnlyFunction made from an empty one of another
+// signature is empty, as sgcl's are (the wrapper was handed over as a
+// callable holding an empty function, and a call reached the empty one)
+TEST(Sgcl_Tests, AFunctionFromAnEmptyOneOfAnotherSignatureIsEmpty) {
+    using namespace Sgcl;
+    Function<int(int)> none;
+    Function<long(int)> from_none = none;
+    EXPECT_FALSE(from_none);
+    MoveOnlyFunction<long(int)> mo_from_none = none;
+    EXPECT_FALSE(mo_from_none);
+    MoveOnlyFunction<int(int)> mo_none;
+    MoveOnlyFunction<long(int)> mo_from_mo_none = std::move(mo_none);
+    EXPECT_FALSE(mo_from_mo_none);
+    Function<int(int)> twice = [](int x) { return 2 * x; };
+    Function<long(int)> from_twice = twice;
+    ASSERT_TRUE(from_twice);
+    EXPECT_EQ(from_twice(21), 42L);
+    from_none = twice;
+    EXPECT_EQ(from_none(4), 8L);
+    from_none = none;
+    EXPECT_FALSE(from_none);
+    MoveOnlyFunction<long(int)> mo_from_twice = twice;
+    ASSERT_TRUE(mo_from_twice);
+    EXPECT_EQ(mo_from_twice(5), 10L);
 }
 
 TEST(Sgcl_Tests, AnyVariantFunctionExpected) {

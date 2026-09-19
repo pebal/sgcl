@@ -13,7 +13,8 @@
 #pragma once
 
 #include "../../async/executor.h"
-#include "Task.h"
+#include "Coroutine.h"
+#include "Scheduler.h"
 
 #include <cstddef>
 #include <utility>

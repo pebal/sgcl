@@ -1,7 +1,7 @@
 # Sgcl::Scheduler, Sgcl::Spawn, Sgcl::Go, Sgcl::Yield
 
 ```cpp
-#include "sgcl/Sgcl/Async/Task.h"   // or "sgcl/Sgcl/Sgcl.h"
+#include "sgcl/Sgcl/Async/Scheduler.h"   // or "sgcl/Sgcl/Sgcl.h"
 
 namespace Sgcl {
     struct Scheduler;                              // the pool of workers, one per process
@@ -13,7 +13,7 @@ namespace Sgcl {
 
 The same in the `sgcl` interface: [scheduler, spawn, go, yield](../../async/scheduler.md).
 
-The scheduler runs [tasks](Task.md#task) on a pool of worker threads, one per core (`config::Workers`), each with a queue of its own of the coroutines ready to run and one global queue behind them. A coroutine is made ready by whoever it was waiting for: `Spawn` puts a new task on the queue, a `Send` on a channel makes the receiver that waited ready ([Channel](Channel.md)), a task that ends makes the task that `co_await`ed it ready, `co_await Yield()` puts the running task at the back. Whoever makes a coroutine ready returns at once; a worker runs it, on its own stack, to the coroutine's next suspension. A coroutine that waits is nowhere: a frame on the managed heap and a word on some list, no thread held, so a worker serves as many tasks as are ready and a hundred thousand tasks waiting on a channel cost their frames and nothing else.
+The scheduler runs [tasks](Coroutine.md#task) on a pool of worker threads, one per core (`config::Workers`), each with a queue of its own of the coroutines ready to run and one global queue behind them. A coroutine is made ready by whoever it was waiting for: `Spawn` puts a new task on the queue, a `Send` on a channel makes the receiver that waited ready ([Channel](Channel.md)), a task that ends makes the task that `co_await`ed it ready, `co_await Yield()` puts the running task at the back. Whoever makes a coroutine ready returns at once; a worker runs it, on its own stack, to the coroutine's next suspension. A coroutine that waits is nowhere: a frame on the managed heap and a word on some list, no thread held, so a worker serves as many tasks as are ready and a hundred thousand tasks waiting on a channel cost their frames and nothing else.
 
 The shape is Go's. A worker that makes a coroutine ready puts it on its own queue, and the one it wakes (a receiver served, a task awaited) into its *next* slot, to run as soon as the current coroutine suspends, on the same core, with the cache warm: the rendezvous of two tasks never leaves the worker. A thread that is not a worker puts the coroutine on the global queue. A worker with nothing of its own takes from the global queue, then steals half of another worker's queue; one that finds nothing looks for `config::WorkerSpinMicroseconds` and sleeps. A worker is woken by an enqueue only when none is looking and one sleeps, and a looking worker that finds work wakes the next sleeper, so that there is one looking while work keeps coming and none burning a core when it does not.
 
@@ -136,5 +136,5 @@ The output:
 
 ## See also
 
-- [Task](Task.md): the tasks, the frames on the managed heap; [Channel](Channel.md): what tasks wait on
+- [Task](Coroutine.md): the tasks, the frames on the managed heap; [Channel](Channel.md): what tasks wait on
 - [README: Coroutines](../../async/README.md#coroutines)

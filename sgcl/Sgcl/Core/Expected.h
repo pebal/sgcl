@@ -122,10 +122,30 @@ namespace Sgcl {
         Expected& operator=(const Expected&) = default;
         Expected& operator=(Expected&&) = default;
 
+        // A value; never an Expected of other types (those convert below,
+        // and a bool would otherwise be made from has_value: LWG 3836)
         template<class U = T>
-        requires (!std::is_same_v<std::remove_cvref_t<U>, Expected>) && (!std::is_same_v<std::remove_cvref_t<U>, InnerType>) && std::is_constructible_v<InnerType, U&&>
+        requires (!std::is_same_v<std::remove_cvref_t<U>, Expected>) && (!std::is_same_v<std::remove_cvref_t<U>, InnerType>) && (!detail::IsExpected<std::remove_cvref_t<U>>::value) && std::is_constructible_v<InnerType, U&&>
         Expected(U&& v)
         : _e(std::forward<U>(v)) {
+        }
+
+        // From an Expected of other types: the value converted, or the
+        // error, whichever it holds (the inner expected's converting
+        // constructors, with the standard's constraints); explicit
+        // where the value's or the error's conversion is
+        template<class U, class G>
+        requires (!std::is_same_v<Expected<U, G>, Expected>) && std::is_constructible_v<InnerType, const sgcl::expected<U, G>&>
+        explicit(!std::is_convertible_v<const U&, T> || !std::is_convertible_v<const G&, E>)
+        Expected(const Expected<U, G>& o)
+        : _e(o.Inner()) {
+        }
+
+        template<class U, class G>
+        requires (!std::is_same_v<Expected<U, G>, Expected>) && std::is_constructible_v<InnerType, sgcl::expected<U, G>&&>
+        explicit(!std::is_convertible_v<U&&, T> || !std::is_convertible_v<G&&, E>)
+        Expected(Expected<U, G>&& o)
+        : _e(std::move(o.Inner())) {
         }
 
         template<class G>

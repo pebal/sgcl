@@ -46,5 +46,5 @@ The crawler on [WaitGroup](WaitGroup.md#example): a shared count under a mutex, 
 ## See also
 
 - [Semaphore](Semaphore.md), [Event](Event.md), [WaitGroup](WaitGroup.md), [Once](Once.md): the rest of the family; [SharedMutex](SharedMutex.md): readers and a writer; [ConditionVariable](ConditionVariable.md): a wait under this mutex
-- [Channel](Channel.md): what it is made of; [Select](Select.md): the cases; [Task](Task.md), [Scheduler](Scheduler.md): the tasks and their workers; [Executor](Executor.md): a Strand, serial access without a lock
+- [Channel](Channel.md): what it is made of; [Select](Select.md): the cases; [Task](Coroutine.md), [Scheduler](Scheduler.md): the tasks and their workers; [Executor](Executor.md): a Strand, serial access without a lock
 - `tests/Sgcl/sgcl.cpp`, `tests/Sgcl/sync_and_broadcast.cpp`: the behaviour above, checked.

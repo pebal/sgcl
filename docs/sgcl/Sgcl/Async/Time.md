@@ -28,7 +28,7 @@ Under them one thread with a heap of timers, asleep until the earliest is due an
 
 ## Rules
 
-- A `co_await` of a `Sleep` or a `SleepUntil` is for a task ([Task](Task.md)); a thread sleeps with `Sleep(d).Wait()` or `SleepUntil(t).Wait()`, through the clock, or with `ThisThread::SleepFor`, the operating system's, which the manual clock does not serve.
+- A `co_await` of a `Sleep` or a `SleepUntil` is for a task ([Task](Coroutine.md)); a thread sleeps with `Sleep(d).Wait()` or `SleepUntil(t).Wait()`, through the clock, or with `ThisThread::SleepFor`, the operating system's, which the manual clock does not serve.
 - A point is of `Clock`, which is the steady clock's `time_point` (`TimePoint`): a point of the system clock (a calendar time) is converted by the program, `Clock::Now() + (when - system_clock::now())`.
 - The resolution is the steady clock's and the thread's wake-up: a timer fires at its time or a little after, never before.
 - `After` cannot be cancelled: the channel is signalled and closed at its time whether or not anyone receives; the channel and the timer are garbage after that. A `Tick` ends when its channel is closed, by the program; the timer sees the close at its next tick and lets go.

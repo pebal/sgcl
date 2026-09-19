@@ -29,7 +29,7 @@ Nothing in it locks, as nothing in the channel does ([Channel](Channel.md)). A s
 - `Select` with no case that can ever be served and no `Otherwise` waits forever, as a receive on a channel nobody sends to does.
 - The cases are taken by value: `OnSend(v)` copies or moves `v` into the case; a case object is for one select.
 - One `Otherwise` at most; a select of one case is that case's operation with a body. A select must not have a send case and a receive case on one channel (each would find the other's waiter and wait for itself; Go's blocks): an assertion in debug builds.
-- A coroutine that `co_await`s a select needs a managed frame, as one that awaits a channel does ([Task](Task.md)).
+- A coroutine that `co_await`s a select needs a managed frame, as one that awaits a channel does ([Task](Coroutine.md)).
 
 ## Members
 
@@ -122,6 +122,6 @@ cost 50
 
 ## See also
 
-- [Channel](Channel.md): the channels a select waits on, and what a close does; [Task](Task.md), [Scheduler](Scheduler.md): the tasks that `co_await` a select and where they run
+- [Channel](Channel.md): the channels a select waits on, and what a close does; [Task](Coroutine.md), [Scheduler](Scheduler.md): the tasks that `co_await` a select and where they run
 - [README: Coroutines](../../async/README.md#coroutines)
 - `tests/Sgcl/sgcl.cpp`: the behaviour above, checked.

@@ -9,7 +9,8 @@
 
 #include "../../async/condition_variable.h"
 #include "Mutex.h"
-#include "Task.h"
+#include "Coroutine.h"
+#include "Scheduler.h"
 
 #include <utility>
 

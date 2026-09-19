@@ -8,7 +8,8 @@
 #pragma once
 
 #include "../../async/once.h"
-#include "Task.h"
+#include "Coroutine.h"
+#include "Scheduler.h"
 
 #include <utility>
 

@@ -178,6 +178,6 @@ the counter, three tasks on a strand, no lock: 3000, on the main thread: true
 ## See also
 
 - [Scheduler](Scheduler.md): the pool of workers, `Spawn`, `Yield`; [TaskLocal](TaskLocal.md): a value a task and its children see
-- [Task](Task.md): the tasks, the frames on the managed heap; [Mutex](Mutex.md): what must hold across a wait
+- [Task](Coroutine.md): the tasks, the frames on the managed heap; [Mutex](Mutex.md): what must hold across a wait
 - [README: Coroutines](../../async/README.md#coroutines)
 - `tests/Sgcl/executor.cpp`: the facade, checked; `tests/async/executor.cpp`: every behaviour.

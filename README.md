@@ -197,7 +197,7 @@ int main() {
 }
 ```
 
-The same in `Sgcl` ([Channel](docs/sgcl/Sgcl/Async/Channel.md), [Task](docs/sgcl/Sgcl/Async/Task.md)):
+The same in `Sgcl` ([Channel](docs/sgcl/Sgcl/Async/Channel.md), [Task](docs/sgcl/Sgcl/Async/Coroutine.md)):
 
 ```cpp
 #include "sgcl/Sgcl/Sgcl.h"

@@ -52,7 +52,7 @@ Dictionary(const Dictionary& other);
 Dictionary(Dictionary&& other) noexcept;
 ```
 
-The default constructor allocates nothing (`BucketCount() == 0`). A bucket count is rounded up to a power of two; 0 means no array yet. The range constructor, given a forward range, sizes the table for the distance first; a key seen twice keeps its first value. A copy reproduces `other`'s bucket count, order and `MaxLoadFactor`; a move takes the table over and leaves `other` empty. An element constructor or hasher that throws while a constructor runs destroys the elements built so far.
+The default constructor allocates nothing (`BucketCount() == 0`). A bucket count is rounded up to a power of two; 0 means no array yet. The range constructor, given a forward range, sizes the table for the distance first; a key seen twice keeps its first value. An element of the range that is a `std::pair<Key, U>` is hashed and looked up where it is and copied once, into its node (a duplicate copies nothing); an element of any other type is converted to the entry type first, once. A copy reproduces `other`'s bucket count, order and `MaxLoadFactor`; a move takes the table over and leaves `other` empty. An element constructor or hasher that throws while a constructor runs destroys the elements built so far.
 
 ```cpp
 Dictionary<String, int> ages = {{"ann", 31}, {"bob", 27}};
@@ -330,7 +330,7 @@ InnerType& Inner() noexcept;
 const InnerType& Inner() const noexcept;
 ```
 
-The table inside, as its own type: for what the dictionary's names leave out, the node handles (`extract`, `merge`) and the bucket interface.
+The table inside, as its own type: for what the dictionary's names leave out, the node handles (`extract`, `merge`; `merge` takes another unordered table of the same `Key` and `T` only, since an `OrderedDictionary`'s nodes are of another shape, and the call does not compile) and the bucket interface.
 
 ## Example
 

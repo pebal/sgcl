@@ -17,7 +17,7 @@ What it is for: a set that is also a sequence without duplicates in the order th
 
 ## Rules
 
-Those of [HashSet](HashSet.md#rules); an iterator stays valid across `MoveToLast` and `MoveToFirst`, and `std::prev(end(s))` is the newest value.
+Those of [HashSet](HashSet.md#rules); an iterator stays valid across `MoveToLast` and `MoveToFirst` (a value that is last or first already is left where it is), and `std::prev(end(s))` is the newest value.
 
 ## Members
 

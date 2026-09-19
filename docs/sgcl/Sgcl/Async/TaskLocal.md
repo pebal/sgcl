@@ -122,6 +122,6 @@ The output:
 ## See also
 
 - [Executor](Executor.md): where a task runs, remembered in the same header of the frame; [StopToken](StopToken.md): a token is one thing to keep in a task-local
-- [Task](Task.md): the tasks, the frames on the managed heap; [Scheduler](Scheduler.md): `Spawn`, `Go`
+- [Task](Coroutine.md): the tasks, the frames on the managed heap; [Scheduler](Scheduler.md): `Spawn`, `Go`
 - [README: Coroutines](../../async/README.md#coroutines)
 - `tests/Sgcl/executor.cpp`: the facade, checked; `tests/async/task_local.cpp`: every behaviour.

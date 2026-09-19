@@ -48,7 +48,7 @@ ExpiryQueue& operator=(const ExpiryQueue&) = delete;
 ~ExpiryQueue();   // Clear()
 ```
 
-An empty queue costs nothing beyond an empty list. A move hands the entries over; the moved-from queue is empty. The destructor is `Clear()`: the entries are dropped without a call, the objects they kept are no longer kept.
+An empty queue costs nothing beyond an empty list. A move hands the entries over; the moved-from queue is empty. Move assignment first drops the entries this queue held, as `Clear()` does: without a call, and the objects they kept are no longer kept, whatever handles or weak pointers of theirs live on. The destructor is `Clear()`: the entries are dropped without a call, the objects they kept are no longer kept.
 
 ```cpp
 struct Entry {};
@@ -93,7 +93,7 @@ public:
 };
 ```
 
-The handle of one entry, sharing the entry's cell; copies share the entry, and it lives where the queue's pointers live. `Cancel()` withdraws the entry: the object is no longer kept for the queue, its function will not be called, and the entry leaves the queue with the next `Drain()` (until then `Count()` counts it); true when the entry was still pending, false for an entry drained or cancelled before, or an empty handle. What `Drain()` does to an entry after calling its function, and `Clear()` to every entry, `Cancel()` does to one without the call: for a resource the program released by hand, or an object another owner took over. From any thread, one atomic flag. `IsExpired()` is true once a cycle has found the object unreachable (its function waits for `Drain()`, or ran, or the entry was cancelled after). `Weak()` is an ordinary `WeakPtr` to the object, sharing the cell, holding nothing; dropping it, or the handle, cancels nothing.
+The handle of one entry, sharing the entry's cell; copies share the entry, and it lives where the queue's pointers live. `Cancel()` withdraws the entry: the object is no longer kept for the queue, its function will not be called, and the entry leaves the queue with the next `Drain()` (until then `Count()` counts it); true when the entry was still pending, false for an entry drained or cancelled before, or an empty handle. The answer is exact even against a `Drain()` running on another thread: one of them gets the entry, never both. What `Drain()` does to an entry after calling its function, and `Clear()` to every entry, `Cancel()` does to one without the call: for a resource the program released by hand, or an object another owner took over. From any thread, one atomic flag. `IsExpired()` is true once a cycle has found the object unreachable (its function waits for `Drain()`, or ran, or the entry was cancelled after). `Weak()` is an ordinary `WeakPtr` to the object, sharing the cell, holding nothing; dropping it, or the handle, cancels nothing.
 
 ```cpp
 struct Texture { int id; };

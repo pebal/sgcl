@@ -74,7 +74,7 @@ template<class K = Key> bool MoveToLast(const K& key) noexcept;    // by the key
 template<class K = Key> bool MoveToFirst(const K& key) noexcept;
 ```
 
-Moves the entry to the end (the start) of the order, as if added last (first) from now on; nothing else changes, the iterator stays valid, O(1). By an iterator (from `FindEntry`), or by the key, with a `K` other than the key type looking up without building a key when the hash and the equality are transparent (a `string_view` for a `String`).
+Moves the entry to the end (the start) of the order, as if added last (first) from now on; nothing else changes, the iterator stays valid, O(1). The entry that is last (first) already is left alone: a load, no relink. By an iterator (from `FindEntry`), or by the key, with a `K` other than the key type looking up without building a key when the hash and the equality are transparent (a `string_view` for a `String`).
 
 ```cpp
 OrderedDictionary<String, int> d = {{"a", 1}, {"b", 2}, {"c", 3}};

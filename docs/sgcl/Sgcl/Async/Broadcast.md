@@ -149,5 +149,5 @@ slow: lost 6, then message 7, 8, 9, 10
 
 ## See also
 
-- [Channel](Channel.md): one receiver per element, and back-pressure; [Select](Select.md): the cases; [Mutex](Mutex.md) and its family: the synchronization of tasks; [Task](Task.md), [Scheduler](Scheduler.md): the tasks and their workers
+- [Channel](Channel.md): one receiver per element, and back-pressure; [Select](Select.md): the cases; [Mutex](Mutex.md) and its family: the synchronization of tasks; [Task](Coroutine.md), [Scheduler](Scheduler.md): the tasks and their workers
 - `tests/Sgcl/sync_and_broadcast.cpp`: the behaviour above, checked.

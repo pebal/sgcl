@@ -15,7 +15,7 @@ The same class in the `sgcl` interface: [array](../../containers/array.md).
 
 `Array` is two containers under one name, told apart by `N`.
 
-`Array<T, N>` is `std::array`: the `N` elements inline, the tuple interface (`std::tuple_size`, `std::tuple_element`, `Get<I>`, structured bindings), and no memory of its own. It exists so that a fixed set of `Ptr`s can be written as one object, `Array<Ptr<T>, 4> roots;`, that lives wherever its elements may and costs nothing beyond them. `Array<T, 0>` is empty with the same interface.
+`Array<T, N>` is `std::array`: the `N` elements inline, the tuple interface (`std::tuple_size`, `std::tuple_element`, `Get<I>`, structured bindings), and no memory of its own. It exists so that a fixed set of `Ptr`s can be written as one object, `Array<Ptr<T>, 4> roots;`, that lives wherever its elements may and costs nothing beyond them. `Array<T, 0>` is empty with the same interface. `Array<T, N>` is `constexpr` throughout, the algorithms included: `constexpr Array<int, 3> a = {1, 2, 3}; static_assert(a.Contains(2));`.
 
 `Array<T>` (no `N`) is a buffer on the managed heap whose size is fixed when it is created, behind a handle of two words: a `Ptr` to the first element and the count. It is the cheapest managed sequence: no capacity, no growth, no modifiers beyond `Fill` and `Swap`. Copying copies the elements into a buffer of its own; moving passes the buffer on. `std` has no direct counterpart; it is a `std::vector` that never changes size, or a `std::unique_ptr<T[]>` that knows its size and is collected.
 
@@ -53,7 +53,7 @@ Array(const Array& other);
 Array(Array&& other) noexcept;
 ```
 
-For `Array<T, N>`: the default constructor value-initializes the `N` elements (null pointers for `Ptr`s), the initializer list fills the first ones. For `Array<T>`: the default constructor holds no buffer; `Array(count)` holds `count` value-initialized elements, and for `Ptr` elements the buffer is already zeroed, so they are null pointers without a constructor run; the range constructor takes the count from a forward range in advance, and a single-pass range is collected first. A copy has a buffer of its own; a move takes the buffer over and leaves `other` empty.
+For `Array<T, N>`: the default constructor value-initializes the `N` elements (null pointers for `Ptr`s), the initializer list fills the first ones. For `Array<T>`: the default constructor holds no buffer; `Array(count)` holds `count` value-initialized elements, and for `Ptr` elements the buffer is already zeroed, so they are null pointers without a constructor run; the range constructor takes the count from a forward range in advance, and a single-pass range is collected first; an element constructor that throws destroys the elements built before it, and the array holds nothing. A copy has a buffer of its own; a move takes the buffer over and leaves `other` empty.
 
 ```cpp
 Array<int, 3> a = {1, 2, 3};                    // three, inline
@@ -254,8 +254,8 @@ template<class T, size_t N> Array<std::remove_cv_t<T>, N> ToArray(T (&a)[N]);
 template<class T, size_t N> Array<std::remove_cv_t<T>, N> ToArray(T (&&a)[N]);
 
 namespace std {
-    template<class T, size_t N> struct tuple_size<Array<T, N>>;        // N
-    template<size_t I, class T, size_t N> struct tuple_element<I, Array<T, N>>;   // T
+    template<class T, size_t N> struct tuple_size<Array<T, N>>;        // N; Array<T, N> only
+    template<size_t I, class T, size_t N> struct tuple_element<I, Array<T, N>>;   // T; Array<T, N> only
 }
 ```
 

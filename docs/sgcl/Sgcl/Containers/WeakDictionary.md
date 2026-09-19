@@ -84,7 +84,7 @@ The value of the object as a pointer, null when the object has none; the entry a
 Value& operator[](const Ptr<Key>& object);
 ```
 
-The value of the object, a `Value()` made and inserted if the object has none. A null pointer is not an object (debug builds assert).
+The value of the object, a `Value()` made and inserted if the object has none. A null pointer is not an object (debug builds assert). One search: the entry is built in place, from the pointer, only when the search finds none.
 
 ```cpp
 struct Node { int value; };
@@ -103,7 +103,7 @@ void Set(const Ptr<Key>& object, const Value& value);
 void Set(const Ptr<Key>& object, Value&& value);
 ```
 
-A value for the object, `Value(a...)` for `Emplace`, unless the object has one; whether one was added. `Set` replaces the value the object has. Every insertion counts towards the next sweep.
+A value for the object, `Value(a...)` for `Emplace`, unless the object has one; whether one was added. `Set` replaces the value the object has. Every insertion counts towards the next sweep. One search: the value is built in place, in the entry, only when the search finds none, so a hit costs a lookup and builds nothing.
 
 ```cpp
 struct Node { int value; };
@@ -122,7 +122,7 @@ bool Remove(const Ptr<Key>& object);
 Iterator RemoveAt(Iterator pos);
 ```
 
-The entry of the object, dropped: whether there was one. By iterator: the next live entry.
+The entry of the object, dropped: whether there was one. By iterator: the next live entry. `RemoveAt` returns the next live entry up to the iterator's own bound, `end()` or, in a `WeakMultiDictionary`, the end of the `Values(object)` range it came from, so a walk that removes a range stops where the range does, a dead entry at the bound included.
 
 ### Sweep, Clear
 

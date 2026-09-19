@@ -118,7 +118,7 @@ Collector::ClearStack(SIZE_MAX);  // or the whole unused stack
 static void Terminate() noexcept;
 ```
 
-Stops the collector: the current cycle finishes, cycles run until nothing dies any more (the objects still reachable are not destroyed), the helper threads and the collector thread exit, and the call returns. Optional: a program may simply end. After it no cycle runs: objects are still allocated and destroyed through `UniquePtr`, tracked garbage stays until the process exits, and `Collect(true)` returns `false`.
+Stops the collector: the current cycle finishes, cycles run until nothing dies any more (the objects still reachable are not destroyed), the helper threads and the collector thread exit, and the call returns. Optional: a program may simply end: the main thread's exit stops the collector the same way, before the static destructors run, and those may still use the library (a global `UniquePtr`'s object making objects in its destructor), since the main thread's registration is never undone. After it no cycle runs: objects are still allocated and destroyed through `UniquePtr`, tracked garbage stays until the process exits, and `Collect(true)` returns `false`.
 
 ```cpp
 #include "sgcl/Sgcl/Sgcl.h"
@@ -213,7 +213,7 @@ static size_t MemoryLimit() noexcept;
 static void SetMemoryLimit(size_t bytes) noexcept;
 ```
 
-The ceiling on committed managed memory, in bytes: by default 90% of the cgroup memory limit on Linux, or of the physical memory elsewhere (`config::HeapLimitPercent`). Above 75% of it (`config::HeapPressurePercent`) the collector cycles every 100 ms and returns every free chunk to the system at once. When an allocation would cross it, the allocation first forces a full collection and waits for it; if that does not free enough, it throws `std::bad_alloc` instead of letting the process run into the OOM killer. `SetMemoryLimit(0)` disables the ceiling. The setting takes effect for the next chunk committed; it does not shrink what is committed already.
+The ceiling on committed managed memory, in bytes: by default 90% of the cgroup memory limit on Linux, or of the physical memory elsewhere (`config::HeapLimitPercent`). Above 75% of it (`config::HeapPressurePercent`) the collector cycles every 100 ms and returns every free chunk to the system at once. When an allocation would cross it, the allocation first forces a full collection and waits for it (not on a thread that is sweeping: a destructor run by the sweep gets the `std::bad_alloc` at once, since the cycle it would wait for is the one it is part of); if that does not free enough, it throws `std::bad_alloc` instead of letting the process run into the OOM killer. `SetMemoryLimit(0)` disables the ceiling. The setting takes effect for the next chunk committed; it does not shrink what is committed already.
 
 ```cpp
 auto limit = Collector::MemoryLimit();                // the default ceiling

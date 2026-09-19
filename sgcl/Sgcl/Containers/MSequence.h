@@ -24,109 +24,109 @@ namespace Sgcl {
         using SizeType = size_t;
 
         // Searching
-        bool Contains(const auto& value) const {
+        constexpr bool Contains(const auto& value) const {
             return sgcl::detail::Sequence::contains(_begin(), _end(), value);
         }
 
         // The position of the first element equal to value, NoIndex when none
-        SizeType IndexOf(const auto& value) const {
+        constexpr SizeType IndexOf(const auto& value) const {
             return sgcl::detail::Sequence::index_of(_begin(), _end(), value);
         }
 
-        SizeType LastIndexOf(const auto& value) const {
+        constexpr SizeType LastIndexOf(const auto& value) const {
             return sgcl::detail::Sequence::last_index_of(_begin(), _end(), value);
         }
 
         // The position of the first element the predicate accepts, NoIndex when none
         template<class Pred>
-        SizeType FindIndex(Pred pred) const {
+        constexpr SizeType FindIndex(Pred pred) const {
             return sgcl::detail::Sequence::find_index(_begin(), _end(), pred);
         }
 
         // The first element the predicate accepts (a pointer to it), null when none
         template<class Pred>
-        auto Find(Pred pred) noexcept {
+        constexpr auto Find(Pred pred) noexcept {
             return sgcl::detail::Sequence::find(_begin(), _end(), pred);
         }
 
         template<class Pred>
-        auto Find(Pred pred) const noexcept {
+        constexpr auto Find(Pred pred) const noexcept {
             return sgcl::detail::Sequence::find(_begin(), _end(), pred);
         }
 
         // Whether some element satisfies the predicate; whether every one does
         template<class Pred>
-        bool Exists(Pred pred) const {
+        constexpr bool Exists(Pred pred) const {
             return sgcl::detail::Sequence::exists(_begin(), _end(), pred);
         }
 
         template<class Pred>
-        bool All(Pred pred) const {
+        constexpr bool All(Pred pred) const {
             return sgcl::detail::Sequence::all(_begin(), _end(), pred);
         }
 
         // The number of elements the predicate accepts
         template<class Pred>
-        SizeType CountOf(Pred pred) const {
+        constexpr SizeType CountOf(Pred pred) const {
             return sgcl::detail::Sequence::count_of(_begin(), _end(), pred);
         }
 
         // Visiting
         template<class F>
-        void ForEach(F f) {
+        constexpr void ForEach(F f) {
             sgcl::detail::Sequence::for_each(_begin(), _end(), f);
         }
 
         template<class F>
-        void ForEach(F f) const {
+        constexpr void ForEach(F f) const {
             sgcl::detail::Sequence::for_each(_begin(), _end(), f);
         }
 
         // The smallest and the largest element: undefined on an empty sequence, as First()
-        const auto& Min() const {
+        constexpr const auto& Min() const {
             return sgcl::detail::Sequence::min(_begin(), _end());
         }
 
         template<class Compare>
-        const auto& Min(Compare cmp) const {
+        constexpr const auto& Min(Compare cmp) const {
             return sgcl::detail::Sequence::min(_begin(), _end(), cmp);
         }
 
-        const auto& Max() const {
+        constexpr const auto& Max() const {
             return sgcl::detail::Sequence::max(_begin(), _end());
         }
 
         template<class Compare>
-        const auto& Max(Compare cmp) const {
+        constexpr const auto& Max(Compare cmp) const {
             return sgcl::detail::Sequence::max(_begin(), _end(), cmp);
         }
 
         // Writing
-        void Fill(const auto& value) {
+        constexpr void Fill(const auto& value) {
             sgcl::detail::Sequence::fill(_begin(), _end(), value);
         }
 
         // Ordering: Reverse needs a bidirectional sequence, Sort a random-access
         // one; the linked lists have their own, on the nodes
-        void Reverse() noexcept {
+        constexpr void Reverse() noexcept {
             sgcl::detail::Sequence::reverse(_begin(), _end());
         }
 
-        void Sort() {
+        constexpr void Sort() {
             sgcl::detail::Sequence::sort(_begin(), _end());
         }
 
         template<class Compare>
-        void Sort(Compare cmp) {
+        constexpr void Sort(Compare cmp) {
             sgcl::detail::Sequence::sort(_begin(), _end(), cmp);
         }
 
-        bool IsSorted() const {
+        constexpr bool IsSorted() const {
             return sgcl::detail::Sequence::is_sorted(_begin(), _end());
         }
 
         template<class Compare>
-        bool IsSorted(Compare cmp) const {
+        constexpr bool IsSorted(Compare cmp) const {
             return sgcl::detail::Sequence::is_sorted(_begin(), _end(), cmp);
         }
 
@@ -135,48 +135,48 @@ namespace Sgcl {
         // position not less than it and the first greater, O(log n)
         // comparisons. A sorted List with these is the flat dictionary:
         // the lookups of a dictionary with the memory of a list.
-        SizeType BinarySearch(const auto& value) const {
+        constexpr SizeType BinarySearch(const auto& value) const {
             return sgcl::detail::Sequence::sorted_index_of(_begin(), _end(), value);
         }
 
         template<class Compare>
-        SizeType BinarySearch(const auto& value, Compare cmp) const {
+        constexpr SizeType BinarySearch(const auto& value, Compare cmp) const {
             return sgcl::detail::Sequence::sorted_index_of(_begin(), _end(), value, cmp);
         }
 
-        auto LowerBound(const auto& value) {
+        constexpr auto LowerBound(const auto& value) {
             return sgcl::detail::Sequence::lower_bound(_begin(), _end(), value);
         }
 
-        auto LowerBound(const auto& value) const {
+        constexpr auto LowerBound(const auto& value) const {
             return sgcl::detail::Sequence::lower_bound(_begin(), _end(), value);
         }
 
         template<class Compare>
-        auto LowerBound(const auto& value, Compare cmp) {
+        constexpr auto LowerBound(const auto& value, Compare cmp) {
             return sgcl::detail::Sequence::lower_bound(_begin(), _end(), value, cmp);
         }
 
         template<class Compare>
-        auto LowerBound(const auto& value, Compare cmp) const {
+        constexpr auto LowerBound(const auto& value, Compare cmp) const {
             return sgcl::detail::Sequence::lower_bound(_begin(), _end(), value, cmp);
         }
 
-        auto UpperBound(const auto& value) {
+        constexpr auto UpperBound(const auto& value) {
             return sgcl::detail::Sequence::upper_bound(_begin(), _end(), value);
         }
 
-        auto UpperBound(const auto& value) const {
+        constexpr auto UpperBound(const auto& value) const {
             return sgcl::detail::Sequence::upper_bound(_begin(), _end(), value);
         }
 
         template<class Compare>
-        auto UpperBound(const auto& value, Compare cmp) {
+        constexpr auto UpperBound(const auto& value, Compare cmp) {
             return sgcl::detail::Sequence::upper_bound(_begin(), _end(), value, cmp);
         }
 
         template<class Compare>
-        auto UpperBound(const auto& value, Compare cmp) const {
+        constexpr auto UpperBound(const auto& value, Compare cmp) const {
             return sgcl::detail::Sequence::upper_bound(_begin(), _end(), value, cmp);
         }
 
@@ -186,10 +186,10 @@ namespace Sgcl {
 
     private:
         // The range of the container: its begin and end, the free functions
-        auto _begin() noexcept { return std::ranges::begin(static_cast<Derived&>(*this)); }
-        auto _end() noexcept { return std::ranges::end(static_cast<Derived&>(*this)); }
-        auto _begin() const noexcept { return std::ranges::begin(static_cast<const Derived&>(*this)); }
-        auto _end() const noexcept { return std::ranges::end(static_cast<const Derived&>(*this)); }
+        constexpr auto _begin() noexcept { return std::ranges::begin(static_cast<Derived&>(*this)); }
+        constexpr auto _end() noexcept { return std::ranges::end(static_cast<Derived&>(*this)); }
+        constexpr auto _begin() const noexcept { return std::ranges::begin(static_cast<const Derived&>(*this)); }
+        constexpr auto _end() const noexcept { return std::ranges::end(static_cast<const Derived&>(*this)); }
     };
 }
 

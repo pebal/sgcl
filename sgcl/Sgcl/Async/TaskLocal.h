@@ -13,7 +13,8 @@
 
 #include "../../async/task_local.h"
 #include "../Core/Types.h"
-#include "Task.h"
+#include "Coroutine.h"
+#include "Scheduler.h"
 
 #include <utility>
 

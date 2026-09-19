@@ -29,6 +29,8 @@ The `Expected` has no word of its own. Where it may live is decided by its value
 - The value and the error follow their own rules where the `Expected` lives ([The rules](../../core/README.md#the-rules), 1).
 - A value replaced by an error, or the other way round, is destroyed: a pointer value's object is unreferenced from then on.
 - `Value()` without a value throws a `BadExpectedAccess<E>` that carries a copy of the error. An exception object lives in unmanaged memory, where a tracked pointer may not ([The rules](../../core/README.md#the-rules), 1), so the exception holds its copy in a managed object through a `RootPtr`: an error type with a `Ptr` or a `String` in it is thrown and caught like any other, the error alive for as long as the exception is, its copies included. One managed allocation per throw.
+- Never without both a value and an error: an assignment or `Emplace` whose construction throws leaves the old value or the old error (the standard's rule: a temporary first, or the old one moved out and put back), `Emplace` takes only a construction that cannot throw, and `Swap` is constrained as `std::expected::swap` is.
+- An `Expected` of other types converts: the value or the error, whichever it holds, explicit where the value's or the error's conversion is. An `Expected<bool, E>` made from one converts the value, never `HasValue()` (LWG 3836).
 - Thread safety is that of `std::expected` ([The rules](../../core/README.md#the-rules), 6).
 
 ## Members

@@ -16,6 +16,38 @@ namespace Sgcl {
     template<class Signature>
     class Function;
 
+    template<class Signature>
+    class MoveOnlyFunction;
+
+    namespace detail {
+        template<class F>
+        struct IsFunctionWrapper : std::false_type {};
+
+        template<class S>
+        struct IsFunctionWrapper<Function<S>> : std::true_type {};
+
+        template<class S>
+        struct IsFunctionWrapper<MoveOnlyFunction<S>> : std::true_type {};
+
+        // What the inner function is made from: a Function or a
+        // MoveOnlyFunction of another signature hands over its inner
+        // function, so that an empty one makes an empty one (sgcl's
+        // function knows its own kind; the wrapper it would take for a
+        // callable holding an empty function and call into it)
+        template<class F>
+        decltype(auto) inner_callable(F&& f) noexcept {
+            if constexpr(IsFunctionWrapper<std::remove_cvref_t<F>>::value) {
+                if constexpr(std::is_lvalue_reference_v<F>) {
+                    return f.Inner();
+                } else {
+                    return std::move(f.Inner());
+                }
+            } else {
+                return std::forward<F>(f);
+            }
+        }
+    }
+
     template<class R, class... Args>
     class Function<R(Args...)> {
     public:
@@ -36,7 +68,7 @@ namespace Sgcl {
         template<class F>
         requires (!std::is_same_v<std::remove_cvref_t<F>, Function>) && (!std::is_same_v<std::remove_cvref_t<F>, InnerType>) && std::is_constructible_v<InnerType, F&&>
         Function(F&& f)
-        : _f(std::forward<F>(f)) {
+        : _f(detail::inner_callable(std::forward<F>(f))) {
         }
 
         template<class I>
@@ -59,7 +91,7 @@ namespace Sgcl {
         template<class F>
         requires (!std::is_same_v<std::remove_cvref_t<F>, Function>) && (!std::is_same_v<std::remove_cvref_t<F>, InnerType>) && std::is_constructible_v<InnerType, F&&>
         Function& operator=(F&& f) {
-            _f = std::forward<F>(f);
+            _f = detail::inner_callable(std::forward<F>(f));
             return *this;
         }
 
@@ -135,7 +167,7 @@ namespace Sgcl {
         template<class F>
         requires (!std::is_same_v<std::remove_cvref_t<F>, MoveOnlyFunction>) && (!std::is_same_v<std::remove_cvref_t<F>, InnerType>) && std::is_constructible_v<InnerType, F&&>
         MoveOnlyFunction(F&& f)
-        : _f(std::forward<F>(f)) {
+        : _f(detail::inner_callable(std::forward<F>(f))) {
         }
 
         template<class T, class... A>

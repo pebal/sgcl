@@ -14,7 +14,8 @@
 
 #include "../../async/task_group.h"
 #include "StopToken.h"
-#include "Task.h"
+#include "Coroutine.h"
+#include "Scheduler.h"
 
 #include <cstddef>
 #include <utility>

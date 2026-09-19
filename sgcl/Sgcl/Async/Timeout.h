@@ -14,7 +14,8 @@
 #include "../../async/timeout.h"
 #include "../Core/Types.h"
 #include "StopToken.h"
-#include "Task.h"
+#include "Coroutine.h"
+#include "Scheduler.h"
 #include "Time.h"
 
 #include <utility>

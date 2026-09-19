@@ -180,7 +180,7 @@ Iterator RemoveAt(ConstIterator pos);
 Iterator RemoveRange(ConstIterator first, ConstIterator last);
 ```
 
-Destroys the elements and unlinks their nodes; returns the iterator to the element after the removed range. `RemoveAt(end(l))` is a no-op. The nodes are the collector's once unlinked.
+Destroys the elements and unlinks their nodes; returns the iterator to the element after the removed range. `RemoveAt(end(l))` is a no-op, and so is a range that starts at the null `end(l)` of a list that had no sentinel yet ([Iterators](#iterators)). The nodes are the collector's once unlinked.
 
 ```cpp
 LinkedList l = {1, 2, 3, 4, 5};
