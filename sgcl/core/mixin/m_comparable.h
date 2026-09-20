@@ -21,7 +21,7 @@ namespace sgcl {
     // (c_comparable): by their <=>, or by a weak ordering built from
     // their < (synth_three_way, as the standard does). Carried beside
     // m_equatable, which gives ==; a container whose iteration order is
-    // not a value (unordered_set) does not carry this one.
+    // not a value (set) does not carry this one.
     template<class Derived>
     class m_comparable {
     public:

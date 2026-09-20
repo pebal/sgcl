@@ -4,17 +4,17 @@
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 // ordered_map and ordered_set: the hash containers iterated in insertion
-// order. The table under them is the one of unordered_map, tested in
-// unordered_map.cpp; what is tested here is the order: kept by every
+// order. The table under them is the one of map, tested in
+// map.cpp; what is tested here is the order: kept by every
 // operation, walked both ways, moved by to_back and to_front, and the
 // same against a std::vector oracle under random operations.
 #include "tests/types.h"
 
 #include "sgcl/containers/ordered_map.h"
 #include "sgcl/containers/ordered_set.h"
-#include "sgcl/containers/unordered_map.h"
-#include "sgcl/containers/unordered_multimap.h"
-#include "sgcl/containers/unordered_set.h"
+#include "sgcl/containers/map.h"
+#include "sgcl/containers/multimap.h"
+#include "sgcl/containers/set.h"
 #include "sgcl/core/string.h"
 
 #include <algorithm>
@@ -346,14 +346,14 @@ TEST(OrderedMap_Test, MergeTakesOnlyTablesOfItsOwnNodes) {
     // the element: a merge across the kinds would relink nodes of the
     // wrong shape, so it does not compile; the same value type is not
     // enough
-    using Unordered = sgcl::unordered_map<int, int>;
+    using Unordered = sgcl::map<int, int>;
     using Ordered = sgcl::ordered_map<int, int>;
-    using UnorderedSet = sgcl::unordered_set<int>;
+    using UnorderedSet = sgcl::set<int>;
     using OrderedSet = sgcl::ordered_set<int>;
     static_assert(Merges<Ordered, Ordered>);
     static_assert(Merges<Unordered, Unordered>);
-    static_assert(Merges<Unordered, sgcl::unordered_multimap<int, int>>);
-    static_assert(MergesFromTemporary<Unordered, sgcl::unordered_multimap<int, int>>);
+    static_assert(Merges<Unordered, sgcl::multimap<int, int>>);
+    static_assert(MergesFromTemporary<Unordered, sgcl::multimap<int, int>>);
     static_assert(!Merges<Unordered, Ordered>);
     static_assert(!Merges<Ordered, Unordered>);
     static_assert(!MergesFromTemporary<Ordered, Unordered>);

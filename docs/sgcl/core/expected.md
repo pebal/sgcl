@@ -116,7 +116,7 @@ struct User {
     sgcl::tracked_ptr<User> manager;
 };
 
-sgcl::expected<sgcl::tracked_ptr<User>, sgcl::string> find(const sgcl::map<sgcl::string, sgcl::tracked_ptr<User>>& users, const sgcl::string& name) {
+sgcl::expected<sgcl::tracked_ptr<User>, sgcl::string> find(const sgcl::sorted_map<sgcl::string, sgcl::tracked_ptr<User>>& users, const sgcl::string& name) {
     auto it = users.find(name);
     if (it == users.end()) {
         return sgcl::unexpected("no user " + name);
@@ -132,7 +132,7 @@ sgcl::expected<sgcl::tracked_ptr<User>, sgcl::string> manager_of(const sgcl::tra
 }
 
 int main() {
-    sgcl::map<sgcl::string, sgcl::tracked_ptr<User>> users;
+    sgcl::sorted_map<sgcl::string, sgcl::tracked_ptr<User>> users;
     users["ann"] = sgcl::make_tracked<User>(User{"ann"});
     users["bob"] = sgcl::make_tracked<User>(User{"bob", users["ann"]});
     for (auto name : {"bob", "ann", "eve"}) {

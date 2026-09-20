@@ -9,17 +9,17 @@ namespace sgcl {
 }
 ```
 
-`sgcl::ordered_set<Key, Hash, KeyEqual>` is a hash set iterated in the order its elements were inserted: Java's `LinkedHashSet`. It is [unordered_set](unordered_set.md) with every node on a second list in insertion order, as [ordered_map](ordered_map.md) is to `unordered_map`: `begin()` to `end()` walks that list both ways, `front()` is the oldest element and `back()` the newest, a copy keeps the order, an erase takes the element out of it, an insert of a present element leaves it where it is, `to_back` and `to_front` move an element to the end or the start. The table, the lookups, the bucket interface, node handles, `merge` and the transparent lookups are those of `unordered_set`; a rehash never touches the order. Two words more per node.
+`sgcl::ordered_set<Key, Hash, KeyEqual>` is a hash set iterated in the order its elements were inserted: Java's `LinkedHashSet`. It is [set](set.md) with every node on a second list in insertion order, as [ordered_map](ordered_map.md) is to `map`: `begin()` to `end()` walks that list both ways, `front()` is the oldest element and `back()` the newest, a copy keeps the order, an erase takes the element out of it, an insert of a present element leaves it where it is, `to_back` and `to_front` move an element to the end or the start. The table, the lookups, the bucket interface, node handles, `merge` and the transparent lookups are those of `set`; a rehash never touches the order. Two words more per node.
 
 What it is for: a set that is also a sequence without duplicates, kept in the order things arrived: the distinct values of a stream in first-seen order, a list of names with no repeats, a set of visited nodes reported in the order of the visit; and a set with an eviction order, as the map has.
 
 ## Rules
 
-Those of [unordered_set](unordered_set.md#rules) and, for the order, of [ordered_map](ordered_map.md#rules): an iterator stays valid across `to_back` and `to_front`, `end()` is the sentinel and `--end()` the newest element.
+Those of [set](set.md#rules) and, for the order, of [ordered_map](ordered_map.md#rules): an iterator stays valid across `to_back` and `to_front`, `end()` is the sentinel and `--end()` the newest element.
 
 ## Members
 
-Every member of [unordered_set](unordered_set.md#members), with these differences and additions; the iterators are bidirectional and yield `const Key&`.
+Every member of [set](set.md#members), with these differences and additions; the iterators are bidirectional and yield `const Key&`.
 
 ```cpp
 using reverse_iterator = std::reverse_iterator<iterator>;  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
@@ -103,5 +103,5 @@ a c b
 
 ## See also
 
-- [ordered_map](ordered_map.md) for key-value pairs in insertion order, [unordered_set](unordered_set.md) for the same set without the order, [set](set.md) for the order of the keys
+- [ordered_map](ordered_map.md) for key-value pairs in insertion order, [set](set.md) for the same set without the order, [sorted_set](sorted_set.md) for the order of the keys
 - [README: Containers](README.md#containers), [README: The rules](../core/README.md#the-rules)

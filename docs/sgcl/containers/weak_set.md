@@ -82,6 +82,6 @@ window 1
 
 ## See also
 
-- [weak_map](weak_map.md), [weak_ptr](../core/weak_ptr.md), [unordered_set](unordered_set.md)
+- [weak_map](weak_map.md), [weak_ptr](../core/weak_ptr.md), [set](set.md)
 - README: [Weak containers](README.md#weak-containers) under [Weak pointers](../core/README.md#weak-pointers)
 - `tests/containers/weak_map.cpp`: the set's behaviour, checked with the maps'.

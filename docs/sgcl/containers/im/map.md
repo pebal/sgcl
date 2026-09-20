@@ -20,7 +20,7 @@ The map is two words and its function objects: the size and a `tracked_ptr` to t
 - A change copies the elements of the nodes on the path, up to 32 per node: the copy constructors of `Key` and `T` are what a change costs, plus the nodes.
 - A key or a value holding tracked pointers is traced where it lives, in a node; one with a destructor is destroyed when the collector frees its node, once no version reaches it. Nothing is destroyed by an `erase`: the old version still holds the element.
 - With a transparent hash and equality (`is_transparent`, as `std::hash` and `std::equal_to` of a [string](../../core/string.md) are) the lookups take a key of another type and build none: a `string_view` or a literal finds a `string` key with no string made for the search.
-- Sharing between threads: any number of threads read any version. A `map` variable that one thread replaces while others read it is the one thing that needs synchronization, and `copy_on_write<map<Key, T>>` is the shape for it: `load()` is one atomic load for a snapshot, `update(f)` copies two words, applies `f` (an `insert`, an `erase`) and swings the pointer, so an update costs O(log *n*) where a `copy_on_write<unordered_map<Key, T>>` costs a copy of everything. An `atomic<tracked_ptr<map<Key, T>>>` does the same with the version in a managed object of its own.
+- Sharing between threads: any number of threads read any version. A `map` variable that one thread replaces while others read it is the one thing that needs synchronization, and `copy_on_write<map<Key, T>>` is the shape for it: `load()` is one atomic load for a snapshot, `update(f)` copies two words, applies `f` (an `insert`, an `erase`) and swings the pointer, so an update costs O(log *n*) where a `copy_on_write<sgcl::map<Key, T>>`, over the mutable map, costs a copy of everything. An `atomic<tracked_ptr<map<Key, T>>>` does the same with the version in a managed object of its own.
 - The order of iteration is the trie's, the bits of the hashes; it changes with nothing but the elements.
 
 ## Members
@@ -200,6 +200,6 @@ On an Apple M-series core, `-O2`, `map<long, long>` of 200,000 random keys (`ben
 
 - [im::set](set.md), the same trie with the key as the element; [im::vector](vector.md)
 - [copy_on_write](../../concurrent/copy_on_write.md), how a version is published to other threads; [atomic](../../concurrent/atomic.md)
-- [unordered_map](../unordered_map.md), the mutable one; [concurrent_unordered_map](../../concurrent/concurrent_unordered_map.md), the one many threads change in place
+- [map](../map.md), the mutable one; [concurrent_map](../../concurrent/concurrent_map.md), the one many threads change in place
 - [Benchmarks](benchmarks.md): insert, find and the range constructor against `std::map`
 - [README: The structures](README.md#the-structures), [README: The rules](../../core/README.md#the-rules)

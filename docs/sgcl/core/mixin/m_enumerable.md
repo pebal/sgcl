@@ -10,7 +10,7 @@ namespace sgcl {
 }
 ```
 
-`m_enumerable<Derived>` gives a class the questions asked of the elements of a range — is there one like this, where, how many, the smallest — as members, over the `begin()` and `end()` of `Derived`, and declares the class a range of the library: `c_enumerable<R>` is "R carries `m_enumerable`" ([the mixins](README.md)). Every container that iterates carries it, from `vector` to `map`, `im::list` and `slice`; a class of your own does by deriving from it and giving `begin()` and `end()`.
+`m_enumerable<Derived>` gives a class the questions asked of the elements of a range — is there one like this, where, how many, the smallest — as members, over the `begin()` and `end()` of `Derived`, and declares the class a range of the library: `c_enumerable<R>` is "R carries `m_enumerable`" ([the mixins](README.md)). Every container that iterates carries it, from `vector` to `sorted_map`, `im::list` and `slice`; a class of your own does by deriving from it and giving `begin()` and `end()`.
 
 ## Rules
 
@@ -64,7 +64,7 @@ size_t count_odd(const sgcl::c_enumerable auto& r) {
 
 int main() {
     sgcl::vector v = {1, 2, 3, 4, 5};
-    sgcl::set<int> s = {7, 8, 9};
+    sgcl::sorted_set<int> s = {7, 8, 9};
     std::cout << count_odd(v) << " " << count_odd(s) << " " << count_odd(v.as_slice(1, 3)) << " " << count_odd(sgcl::range(10)) << "\n";
     return 0;
 }

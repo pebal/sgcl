@@ -13,7 +13,7 @@ namespace sgcl {
 }
 ```
 
-A pair of iterators as a range, half-open, for a range-for and for `std::ranges`: what `equal_range` of a [multimap](../containers/multimap.md), an [unordered_multimap](../containers/unordered_multimap.md) or a [weak_map](../containers/weak_map.md) hands back as a `std::pair`, made iterable (`sgcl::range ones = m.equal_range(1);`). The same class counts integers: `range(10)` is `0, 1, ..., 9`, `range(2, 10)` is `2, ..., 9`, the shape of Go's `for i := range 10` and C#'s `Enumerable.Range`, over an iterator that holds the number (`detail::counter<T>`: random access to `std::ranges` through its `iterator_concept`, so `size()` is a subtraction; to the pre-C++20 `iterator_category` an input iterator, as `std::ranges::iota_view`'s, since `*i` is a value, which the old forward category forbids). A `range` holds two iterators and nothing else: it owns no elements, lives anywhere (it is not a managed type), and is a borrowed range to `std::ranges`, so an algorithm may hand back an iterator into a temporary (`*std::ranges::max_element(sgcl::range(3, 8))`).
+A pair of iterators as a range, half-open, for a range-for and for `std::ranges`: what `equal_range` of a [sorted_multimap](../containers/sorted_multimap.md), an [multimap](../containers/multimap.md) or a [weak_map](../containers/weak_map.md) hands back as a `std::pair`, made iterable (`sgcl::range ones = m.equal_range(1);`). The same class counts integers: `range(10)` is `0, 1, ..., 9`, `range(2, 10)` is `2, ..., 9`, the shape of Go's `for i := range 10` and C#'s `Enumerable.Range`, over an iterator that holds the number (`detail::counter<T>`: random access to `std::ranges` through its `iterator_concept`, so `size()` is a subtraction; to the pre-C++20 `iterator_category` an input iterator, as `std::ranges::iota_view`'s, since `*i` is a value, which the old forward category forbids). A `range` holds two iterators and nothing else: it owns no elements, lives anywhere (it is not a managed type), and is a borrowed range to `std::ranges`, so an algorithm may hand back an iterator into a temporary (`*std::ranges::max_element(sgcl::range(3, 8))`).
 
 There is no step and no walk downwards: `range(first, last)` with `first > last` is empty, not a descent, and a plain `for` says a step better than a third argument would. `std::views::iota` is the standard's counting range; `sgcl::range` exists so that one class serves both the lookups and the counting, under one name; it lives in `core`, next to the aliases, because it needs nothing from the containers and every module's examples count with it.
 
@@ -78,7 +78,7 @@ int main() {
     auto squares = sgcl::range(4) | std::views::transform([](int i) { return i * i; });
     std::cout << *std::ranges::max_element(squares) << "\n";   // 9
 
-    sgcl::multimap<sgcl::string, int> scores = {{"ann", 90}, {"ann", 95}, {"bob", 70}};
+    sgcl::sorted_multimap<sgcl::string, int> scores = {{"ann", 90}, {"ann", 95}, {"bob", 70}};
     sgcl::range ann = scores.equal_range("ann");   // range<iterator>, deduced from the pair
     int best = 0;
     for (auto& [name, score] : ann) {
@@ -102,5 +102,5 @@ The output:
 
 ## See also
 
-- [multimap](../containers/multimap.md), [unordered_multimap](../containers/unordered_multimap.md), [weak_map](../containers/weak_map.md): `equal_range`, the pair a `range` is made from
+- [sorted_multimap](../containers/sorted_multimap.md), [multimap](../containers/multimap.md), [weak_map](../containers/weak_map.md): `equal_range`, the pair a `range` is made from
 - [vector](../containers/vector.md), [the mixins](mixin/README.md): the containers and the algorithms a counted loop indexes into

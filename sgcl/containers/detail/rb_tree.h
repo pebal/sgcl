@@ -22,7 +22,7 @@
 #include <utility>
 
 namespace sgcl::detail {
-    // The red-black tree behind sgcl::map, set, multimap and multiset.
+    // The red-black tree behind sgcl::sorted_map, set, multimap and multiset.
     //
     // Layout as in libstdc++: a managed header node whose parent is the
     // root, left the leftmost and right the rightmost node, so that begin()

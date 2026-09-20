@@ -24,7 +24,7 @@
 
 namespace sgcl::detail {
     template<class Key, class T, class Compare>
-    struct ConcurrentMapTraits {
+    struct ConcurrentSortedMapTraits {
         using key_type = Key;
         using value_type = pair<const Key, T>;
         using key_compare = Compare;
@@ -37,7 +37,7 @@ namespace sgcl::detail {
     };
 
     template<class Key, class Compare>
-    struct ConcurrentSetTraits {
+    struct ConcurrentSortedSetTraits {
         using key_type = Key;
         using value_type = Key;
         using key_compare = Compare;
@@ -49,7 +49,7 @@ namespace sgcl::detail {
         }
     };
 
-    // The skip list under concurrent_map and concurrent_set (concurrent_map.h
+    // The skip list under concurrent_sorted_map and concurrent_sorted_set (concurrent_sorted_map.h
     // has the account of the algorithm): Traits names the element
     // (value_type), the key inside it, the comparison and whether the
     // iterators are const.

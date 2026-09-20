@@ -29,8 +29,8 @@ namespace {
     }
 }
 
-TEST(ConcurrentSet_Test, InsertFindErase) {
-    sgcl::concurrent_set<int> s;
+TEST(ConcurrentSortedSet_Test, InsertFindErase) {
+    sgcl::concurrent_sorted_set<int> s;
     EXPECT_TRUE(s.empty());
     EXPECT_EQ(s.size(), 0u);
     EXPECT_EQ(s.find(1), s.end());
@@ -61,11 +61,11 @@ TEST(ConcurrentSet_Test, InsertFindErase) {
     static_assert(std::is_same_v<decltype(*s.begin()), const int&>);   // const elements, as std::set
 }
 
-TEST(ConcurrentSet_Test, OrderingAndTypes) {
+TEST(ConcurrentSortedSet_Test, OrderingAndTypes) {
     std::vector<int> v = {5, 1, 4, 2, 3};
-    sgcl::concurrent_set<int, std::greater<int>> g(v.begin(), v.end());
+    sgcl::concurrent_sorted_set<int, std::greater<int>> g(v.begin(), v.end());
     EXPECT_EQ(keys_of(g), (std::vector<int>{5, 4, 3, 2, 1}));
-    sgcl::concurrent_set<std::string> s = {"b", "a", "c"};
+    sgcl::concurrent_sorted_set<std::string> s = {"b", "a", "c"};
     std::string order;
     for (auto& k : s) {
         order += k;
@@ -74,9 +74,9 @@ TEST(ConcurrentSet_Test, OrderingAndTypes) {
     EXPECT_EQ(*s.find("b"), "b");
 }
 
-TEST(ConcurrentSet_Test, ElementsAndNodesReclaimed) {
+TEST(ConcurrentSortedSet_Test, ElementsAndNodesReclaimed) {
     const size_t before = collector::get_live_object_count();
-    sgcl::concurrent_set<tracked_ptr<Baz>, std::less<tracked_ptr<Baz>>> s;   // ordered by address
+    sgcl::concurrent_sorted_set<tracked_ptr<Baz>, std::less<tracked_ptr<Baz>>> s;   // ordered by address
     EXPECT_EQ(collector::get_live_object_count(), before + 1u);   // the head
     off_frame([&] {
         for (int i = 0; i < 100; ++i) {
@@ -92,13 +92,13 @@ TEST(ConcurrentSet_Test, ElementsAndNodesReclaimed) {
     EXPECT_EQ(collector::get_live_object_count(), before + 1u);
 }
 
-TEST(ConcurrentSet_Test, ChurnManyThreads) {
+TEST(ConcurrentSortedSet_Test, ChurnManyThreads) {
     const int threads = 8;
     const int range = 2000;
     const int ops = 40000;
     const size_t before = collector::get_live_object_count();
     off_frame([&] {
-        sgcl::concurrent_set<int> s;
+        sgcl::concurrent_sorted_set<int> s;
         sgcl::atomic<bool> bad = {false};
         std::vector<std::thread> ws;
         for (int t = 0; t < threads; ++t) {

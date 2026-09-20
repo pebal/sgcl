@@ -21,7 +21,7 @@ For those places there is `root_ptr<T>`: a root that lives anywhere, over a cell
 - `weak_map<Key, T>`, `weak_multimap<Key, T>`, `weak_set<Key>`: containers keyed by objects they do not keep alive; an entry dies with its object ([Weak containers](../containers/README.md#weak-containers)).
 - `variant<Ts...>`, `any`, `function<R(Args...)>`, `move_only_function`, `expected<T, E>`: the interfaces of their `std` namesakes, safe to hold a `tracked_ptr` or a `weak_ptr` next to other alternatives, values, captures or errors, which the `std` ones are not ([variant, any, function and expected](README.md#variant-any-function-and-expected)). `optional`, `pair` and `tuple` hold one correctly as they are and are aliased under the library's names, so that the safe set is one namespace.
 - `string` (`basic_string<CharT>`, `wstring`, `u8string`, `u16string`, `u32string`): an immutable string on the managed heap, one word, shared by copying, compared and hashed by its contents, no destructor ([string](../containers/README.md#string)).
-- `concurrent_queue<T>`, `concurrent_stack<T>`, `concurrent_map<Key, T>`, `concurrent_set<Key>`, `concurrent_unordered_map<Key, T>`, `concurrent_unordered_set<Key>`: lock-free structures shared by any number of threads, with `push`/`try_pop`/`pop`, and `find`/`insert`/`try_emplace`/`erase` with weakly consistent iteration for the maps and sets; `copy_on_write<T>`: a value loaded as an immutable snapshot and replaced whole by a copy and a compare-exchange; `channel<T>`: `send`/`receive` with the waiting of both sides, `try_*`, `async_*` for coroutines, `close` ([Lock-free containers](../concurrent/README.md#lock-free-containers)).
+- `concurrent_queue<T>`, `concurrent_stack<T>`, `concurrent_sorted_map<Key, T>`, `concurrent_sorted_set<Key>`, `concurrent_map<Key, T>`, `concurrent_set<Key>`: lock-free structures shared by any number of threads, with `push`/`try_pop`/`pop`, and `find`/`insert`/`try_emplace`/`erase` with weakly consistent iteration for the maps and sets; `copy_on_write<T>`: a value loaded as an immutable snapshot and replaced whole by a copy and a compare-exchange; `channel<T>`: `send`/`receive` with the waiting of both sides, `try_*`, `async_*` for coroutines, `close` ([Lock-free containers](../concurrent/README.md#lock-free-containers)).
 - The containers, listed below.
 
 ## make_tracked
@@ -65,7 +65,7 @@ sgcl::string p = "p";                                // one object, made once
 sgcl::tracked_ptr e = sgcl::make_tracked<Element>();
 e->name = p;                                       // a word copied: the object shared
 assert(e->name == p && e->name.object() == p.object() && e->name == "p");
-sgcl::unordered_map<sgcl::string, int> counts;       // the hash computed once, kept in the string's object
+sgcl::map<sgcl::string, int> counts;       // the hash computed once, kept in the string's object
 ++counts[p];
 ```
 

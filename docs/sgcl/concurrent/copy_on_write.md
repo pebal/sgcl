@@ -142,5 +142,5 @@ The output of one run (the lookups depend on how the threads interleave):
 ## See also
 
 - [atomic](atomic.md), what the pointer is; [vector](../containers/vector.md) and the other containers as values
-- [concurrent_map](concurrent_map.md), [concurrent_unordered_map](concurrent_unordered_map.md) for a value changed in place by many threads
+- [concurrent_sorted_map](concurrent_sorted_map.md), [concurrent_sorted_map](concurrent_sorted_map.md) for a value changed in place by many threads
 - [README: Lock-free containers](README.md#lock-free-containers), [README: The rules](../core/README.md#the-rules)

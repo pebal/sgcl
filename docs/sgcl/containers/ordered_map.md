@@ -9,26 +9,26 @@ namespace sgcl {
 }
 ```
 
-`sgcl::ordered_map<Key, T, Hash, KeyEqual>` is a hash map iterated in the order its elements were inserted: what Java's `LinkedHashMap`, the `dict` of Python and .NET's `OrderedDictionary` are, and `std` has not. It is [unordered_map](unordered_map.md) with one thing added: every node is on a second list, in insertion order, threaded through the sentinel. `begin()` to `end()` walks that list, both ways (the iterators are bidirectional, `rbegin` exists), `front()` is the oldest element and `back()` the newest, a copy comes out in the same order, an erase takes the element out of the order, an insert of a key that is present leaves it where it was (`operator[]`, `insert`, `emplace`, `try_emplace`, `insert_or_assign` alike), and `to_back` and `to_front` move an element to the end or the start of the order. Everything else is `unordered_map`: the same table, so a lookup costs the same and the bucket interface, the hash policy, node handles, `merge`, the transparent lookups (a `string_view` for a [string](../core/string.md) key) are all there; a rehash relinks the chain and never touches the order. The price is two words more per node.
+`sgcl::ordered_map<Key, T, Hash, KeyEqual>` is a hash map iterated in the order its elements were inserted: what Java's `LinkedHashMap`, the `dict` of Python and .NET's `OrderedDictionary` are, and `std` has not. It is [map](map.md) with one thing added: every node is on a second list, in insertion order, threaded through the sentinel. `begin()` to `end()` walks that list, both ways (the iterators are bidirectional, `rbegin` exists), `front()` is the oldest element and `back()` the newest, a copy comes out in the same order, an erase takes the element out of the order, an insert of a key that is present leaves it where it was (`operator[]`, `insert`, `emplace`, `try_emplace`, `insert_or_assign` alike), and `to_back` and `to_front` move an element to the end or the start of the order. Everything else is `map`: the same table, so a lookup costs the same and the bucket interface, the hash policy, node handles, `merge`, the transparent lookups (a `string_view` for a [string](../core/string.md) key) are all there; a rehash relinks the chain and never touches the order. The price is two words more per node.
 
-What it is for: what a hash map is for, where the order of the entries is part of the data or of the behaviour. An object read from JSON that is written back with its keys as they came; a configuration, a header list, a registry that reports in the order of registration; and a cache that evicts in an order: `to_back(it)` on a hit makes the element the newest, `erase(begin())` when full drops the oldest, which is an LRU cache in two lines (the example below). `unordered_map` is the right map when the order is nothing; [map](map.md) when it is the order of the keys.
+What it is for: what a hash map is for, where the order of the entries is part of the data or of the behaviour. An object read from JSON that is written back with its keys as they came; a configuration, a header list, a registry that reports in the order of registration; and a cache that evicts in an order: `to_back(it)` on a hit makes the element the newest, `erase(begin())` when full drops the oldest, which is an LRU cache in two lines (the example below). `map` is the right map when the order is nothing; [sorted_map](sorted_map.md) when it is the order of the keys.
 
 ## Rules
 
 - An `ordered_map` holds tracked pointers, so it lives on a stack or inside a managed object: never in `new`/`malloc` memory, a `std` container, a global, a `thread_local` or a plain coroutine frame ([The rules](../core/README.md#the-rules), 1). The same holds for a node handle.
 - The keys and the mapped values may be, or hold, tracked pointers: the nodes are managed objects, so those pointers are traced.
-- An element is destroyed the moment it is erased, cleared, assigned over, or the map is destroyed, exactly as in `std`; a map dying in a sweep, inside a managed object nobody refers to any more, has its elements destroyed by the same sweep, on a collector thread ([unordered_map](unordered_map.md#rules)).
+- An element is destroyed the moment it is erased, cleared, assigned over, or the map is destroyed, exactly as in `std`; a map dying in a sweep, inside a managed object nobody refers to any more, has its elements destroyed by the same sweep, on a collector thread ([map](map.md#rules)).
 - An iterator, a reference or a pointer to an element is valid while the element is in the map, across insertions, rehashes, erasures of other elements, `to_back` and `to_front` of any element, `swap`, `merge` and a move of the map. An iterator to an erased element is invalid as in `std`. `end()` is the sentinel, so `--end()` is the last element; an `end()` taken from a map that has never had an element is null and is not decremented.
 - Thread safety is that of `std::unordered_map`: concurrent readers, or one writer, with the program's own synchronization ([The rules](../core/README.md#the-rules), 6).
 
 ## Members
 
-Every member of [unordered_map](unordered_map.md#members), with these differences and additions.
+Every member of [map](map.md#members), with these differences and additions.
 
 ### Types
 
 ```cpp
-using iterator = ...;  using const_iterator = ...;                  // bidirectional; a raw node pointer, as for unordered_map
+using iterator = ...;  using const_iterator = ...;                  // bidirectional; a raw node pointer, as for map
 using reverse_iterator = std::reverse_iterator<iterator>;  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 ```
 
@@ -41,7 +41,7 @@ reverse_iterator rbegin() noexcept;  const_reverse_iterator rbegin() const noexc
 reverse_iterator rend() noexcept;    const_reverse_iterator rend() const noexcept;    const_reverse_iterator crend() const noexcept;
 ```
 
-The order of insertion, oldest first, unchanged by a rehash. The bucket interface (`begin(n)`, `end(n)`) walks the chain as in `unordered_map`.
+The order of insertion, oldest first, unchanged by a rehash. The bucket interface (`begin(n)`, `end(n)`) walks the chain as in `map`.
 
 ```cpp
 sgcl::ordered_map<sgcl::string, int> m;
@@ -85,15 +85,15 @@ assert(m.front().first == "c" && m.back().first == "a");
 
 ### insert, emplace, try_emplace, insert_or_assign, operator[]
 
-As in [unordered_map](unordered_map.md#insert): a new key goes to the end of the order; a present key stays where it is, whatever happens to its value.
+As in [map](map.md#insert): a new key goes to the end of the order; a present key stays where it is, whatever happens to its value.
 
 ### erase, take, extract, clear, erase_if
 
-As in [unordered_map](unordered_map.md#erase): the element leaves the order too (`take` hands its value back); `erase(pos)` returns the iterator after `pos` in the order (`end()` for the newest); `erase(first, last)` is a range of the order. An extracted node is out of the order and goes to the end of it when inserted again, here or in another map.
+As in [map](map.md#erase): the element leaves the order too (`take` hands its value back); `erase(pos)` returns the iterator after `pos` in the order (`end()` for the newest); `erase(first, last)` is a range of the order. An extracted node is out of the order and goes to the end of it when inserted again, here or in another map.
 
 ### merge
 
-As in [unordered_map](unordered_map.md#merge), from another `ordered_map` with the same `Key` and `T` (an `unordered_map`'s nodes are of another shape, without the order's words: the call does not compile): the nodes taken from the source are appended to this map's order, in the source's chain order; those left in the source keep their places there.
+As in [map](map.md#merge), from another `ordered_map` with the same `Key` and `T` (an `map`'s nodes are of another shape, without the order's words: the call does not compile): the nodes taken from the source are appended to this map's order, in the source's chain order; those left in the source keep their places there.
 
 ### Copy, swap, comparison
 
@@ -162,6 +162,6 @@ b evicted
 
 ## See also
 
-- [ordered_set](ordered_set.md) for keys alone in insertion order, [unordered_map](unordered_map.md) for the same map without the order, [map](map.md) for the order of the keys
+- [ordered_set](ordered_set.md) for keys alone in insertion order, [map](map.md) for the same map without the order, [sorted_map](sorted_map.md) for the order of the keys
 - [string](../core/string.md): a key looked up by a `string_view` or a literal
 - [README: Containers](README.md#containers), [README: The rules](../core/README.md#the-rules)

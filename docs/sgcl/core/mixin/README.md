@@ -31,7 +31,7 @@ void sort_in_place(c_sequence auto& r) requires c_ordered<decltype(r)> { r.sort(
 
 Every requirement is on a method, never on the class: `Derived` is not yet complete when the base is instantiated, so a method exists (`requires`) only for the elements and the categories that allow it, and a class that carries `m_ordered` over elements without `<` simply has no `sort()`, with one line of diagnostic when it is called. The mixins are independent — none inherits another; a container lists in its class head every one it carries — and a name lives in one mixin only, because a name found in two bases is ambiguous: every `sort` is `m_ordered`'s, `contains` of a value is `m_enumerable`'s.
 
-A container whose own answer is better hides the mixin's with a method of the same name: a `set`'s `contains` by the key, its `min()` as `*begin()`. Hiding hides every overload of the name, so a container that keeps the mixin's other overloads re-exposes them with a using-declaration, or, as the sets do, defines its own.
+A container whose own answer is better hides the mixin's with a method of the same name: a `sorted_set`'s `contains` by the key, its `min()` as `*begin()`. Hiding hides every overload of the name, so a container that keeps the mixin's other overloads re-exposes them with a using-declaration, or, as the sets do, defines its own.
 
 ## The concepts
 
@@ -61,10 +61,10 @@ The page: [concepts](concepts.md).
 | [range](../range.md) | ✓ | the iterator's | ✓ | ✓ | ✓ | when the iterator writes | |
 | [im::vector](../../containers/im/vector.md) | ✓ | random access | (its own `==`) | ✓ | ✓ (no `sort`) | | |
 | [im::list](../../containers/im/list.md) | ✓ | — | (its own `==`) | ✓ | ✓ (no `sort`) | | |
-| [set](../../containers/set.md), [multiset](../../containers/multiset.md) | ✓ (`contains`, `min`, `max` their own) | bidirectional | ✓ | ✓ | | | |
-| [map](../../containers/map.md), [multimap](../../containers/multimap.md) | ✓ (the same) | bidirectional | ✓ | ✓ | | | ✓ |
-| [unordered_set](../../containers/unordered_set.md), [unordered_multiset](../../containers/unordered_multiset.md), [ordered_set](../../containers/ordered_set.md), [im::set](../../containers/im/set.md) | ✓ (`contains` its own) | — | (its own `==`) | | | | |
-| [unordered_map](../../containers/unordered_map.md), [unordered_multimap](../../containers/unordered_multimap.md), [ordered_map](../../containers/ordered_map.md) | ✓ (the same) | — | (its own `==`) | | | | ✓ |
+| [sorted_set](../../containers/sorted_set.md), [sorted_multiset](../../containers/sorted_multiset.md) | ✓ (`contains`, `min`, `max` their own) | bidirectional | ✓ | ✓ | | | |
+| [sorted_map](../../containers/sorted_map.md), [sorted_multimap](../../containers/sorted_multimap.md) | ✓ (the same) | bidirectional | ✓ | ✓ | | | ✓ |
+| [set](../../containers/set.md), [multiset](../../containers/multiset.md), [ordered_set](../../containers/ordered_set.md), [im::set](../../containers/im/set.md) | ✓ (`contains` its own) | — | (its own `==`) | | | | |
+| [map](../../containers/map.md), [multimap](../../containers/multimap.md), [ordered_map](../../containers/ordered_map.md) | ✓ (the same) | — | (its own `==`) | | | | ✓ |
 | [im::map](../../containers/im/map.md) | ✓ (the same) | — | (its own `==`) | | | | ✓ |
 | [string](../string.md) | m_text only: a string enters as `as_slice()` | | | | | | |
 

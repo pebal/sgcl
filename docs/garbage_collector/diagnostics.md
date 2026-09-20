@@ -132,7 +132,7 @@ The gates and the scenarios the library's own tests assert with them are in [col
 (sgcl::unique_ptr<Node>) owned = 0x10000270020 (UniqueLock) { object = { v = 7, next = null } }
 (sgcl::weak_ptr<Node, sgcl::tracked_ptr>) weak = 0x10000270000 { object = { ... } }
 (sgcl::vector<int>) v = size=3 capacity=4 { [0] = 1, [1] = 2, [2] = 3 }
-(sgcl::map<int, std::string>) m = size=2 { [0] = (first = 1, second = "one"), [1] = (first = 2, second = "two") }
+(sgcl::sorted_map<int, std::string>) m = size=2 { [0] = (first = 1, second = "one"), [1] = (first = 2, second = "two") }
 ```
 
 A pointer shows its address, for a `root_ptr` the cell and the block that holds it, and, when the collector's types are in the debug info, the state of the object's slot (`Reachable` with the parity, `UniqueLock`, `Destroyed`: [how it works](how-it-works.md#an-objects-slot)); its one child is the object. A `weak_ptr` shows its target while the cell holds it, `expired` after. A container shows its size and its elements, read from the managed buffer or walked node by node. The expression evaluator does not know the inline operators (`p node->v` fails); `frame variable node.object.v` reads through the formatter, and `p node.get()->v` calls what is compiled in. `lldb/check.sh` builds `lldb/example.cpp` and checks the output; GDB has no counterpart yet.

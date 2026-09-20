@@ -109,7 +109,7 @@ sgcl::string same = name;                     // the same object
 sgcl::string other("alice");                  // another object, equal contents
 assert(same.object() == name.object() && other == name && other.object() != name.object());
 assert(name.starts_with("al") && name.substr(1, 3) == "lic" && name + "!" == "alice!");
-sgcl::unordered_map<sgcl::string, int> ages;    // a string as a key, the hash kept in the string's object
+sgcl::map<sgcl::string, int> ages;    // a string as a key, the hash kept in the string's object
 ages[name] = 30;
 assert(ages.at("alice") == 30);               // searched with the literal: no string made for it
 assert(ages.find(std::string_view("alice")) != ages.end() && !ages.contains("bob"));
@@ -196,6 +196,6 @@ paragraph 1
 
 ## See also
 
-- [slice](slice.md): a piece of a string that holds the object; [tracked_ptr](tracked_ptr.md): the word; [unordered_map](../containers/unordered_map.md), [map](../containers/map.md): the containers a string keys
+- [slice](slice.md): a piece of a string that holds the object; [tracked_ptr](tracked_ptr.md): the word; [map](../containers/map.md), [sorted_map](../containers/sorted_map.md): the containers a string keys
 - README: [string](README.md#string), [The rules](README.md#the-rules), [Allocation](../../garbage_collector/benchmarks.md#allocation)
 - `benchmarks/core/string.cpp`: the cost against `std::string`; `tests/core/string.cpp`: every behaviour above, checked.

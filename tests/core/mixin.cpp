@@ -65,9 +65,9 @@ TEST(Mixin_Tests, WhatTheContainersDeclare) {
     static_assert(c_random_access<deque<int>> && !c_contiguous<deque<int>>);
     static_assert(c_bidirectional<list<int>> && !c_random_access<list<int>> && c_sequence<list<int>>);
     static_assert(c_enumerable<forward_list<int>> && !c_bidirectional<forward_list<int>>);
-    static_assert(c_bidirectional<set<int>> && !c_ordered<set<int>> && !c_sequence<set<int>> && !c_lookup<set<int>>);
-    static_assert(c_lookup<map<int, int>> && c_lookup<multimap<int, int>> && c_lookup<unordered_map<int, int>> && c_lookup<ordered_map<int, int>> && c_lookup<im::map<int, int>>);
-    static_assert(c_enumerable<unordered_set<int>> && !c_bidirectional<unordered_set<int>>);
+    static_assert(c_bidirectional<sorted_set<int>> && !c_ordered<sorted_set<int>> && !c_sequence<sorted_set<int>> && !c_lookup<sorted_set<int>>);
+    static_assert(c_lookup<sorted_map<int, int>> && c_lookup<sorted_multimap<int, int>> && c_lookup<map<int, int>> && c_lookup<ordered_map<int, int>> && c_lookup<im::map<int, int>>);
+    static_assert(c_enumerable<set<int>> && !c_bidirectional<set<int>>);
     static_assert(c_random_access<im::vector<int>> && c_ordered<im::vector<int>> && !c_sequence<im::vector<int>>);
     static_assert(c_enumerable<im::list<int>> && c_ordered<im::list<int>> && c_enumerable<im::map<int, int>> && c_enumerable<im::set<int>>);
     static_assert(c_contiguous<slice<int>> && c_sequence<slice<int>> && c_contiguous<slice<const int>> && !c_sequence<slice<const int>>);
@@ -133,9 +133,9 @@ TEST(Mixin_Tests, TheContainersCompareByTheirMixins) {
     EXPECT_TRUE(da == db && da < dc);
     forward_list<int> fa = {1, 2, 3}, fb = {1, 2};
     EXPECT_TRUE(fa != fb && fb < fa);
-    set<int> sa = {1, 2}, sb = {1, 3}, sc = {2, 1};
+    sorted_set<int> sa = {1, 2}, sb = {1, 3}, sc = {2, 1};
     EXPECT_TRUE(sa == sc && sa < sb);
-    map<int, int> ma = {{1, 1}}, mb = {{1, 2}}, mc = {{1, 1}};
+    sorted_map<int, int> ma = {{1, 1}}, mb = {{1, 2}}, mc = {{1, 1}};
     EXPECT_TRUE(ma < mb && ma == mc);
     slice<const int> s = a.as_slice(), t = b.as_slice();
     EXPECT_TRUE(s == a.as_slice() && s < t);
@@ -146,25 +146,25 @@ TEST(Mixin_Tests, TheContainersCompareByTheirMixins) {
 }
 
 TEST(Mixin_Tests, AContainerHidesTheMixinWithABetterAnswer) {
-    set<int> s = {3, 1, 2};
+    sorted_set<int> s = {3, 1, 2};
     EXPECT_EQ(s.min(), 1);   // *begin(), not a walk
     EXPECT_EQ(s.max(), 3);
     EXPECT_TRUE(s.contains(2));   // by the key
     EXPECT_FALSE(s.contains(9));
     EXPECT_EQ(s.count_of([](int x) { return x > 1; }), 2u);   // the mixin's, no better answer
     EXPECT_EQ(s.index_of(3), 2u);   // the position in the order
-    map<int, std::string> m = {{2, "b"}, {1, "a"}};
+    sorted_map<int, std::string> m = {{2, "b"}, {1, "a"}};
     EXPECT_EQ(m.min().first, 1);
     EXPECT_TRUE(m.contains(1) && !m.contains(3));
     EXPECT_TRUE(m.exists([](const auto& kv) { return kv.second == "b"; }));
-    unordered_set<int> us = {1, 2};
+    set<int> us = {1, 2};
     EXPECT_TRUE(us.contains(1) && us.all([](int x) { return x > 0; }));
     im::set<int> is = im::set<int>().insert(1).insert(2);
     EXPECT_TRUE(is.contains(2) && is.exists([](int x) { return x == 1; }));
 }
 
 TEST(Mixin_Tests, LookupOnEveryMap) {
-    map<int, std::string> m = {{1, "one"}, {2, "two"}};
+    sorted_map<int, std::string> m = {{1, "one"}, {2, "two"}};
     EXPECT_EQ(*m.get(1), "one");
     EXPECT_FALSE(m.get(3));
     EXPECT_EQ(*m.try_get(2), "two");
@@ -185,14 +185,14 @@ TEST(Mixin_Tests, LookupOnEveryMap) {
     EXPECT_EQ(letters, 6u);
     *m.try_get(1) = "uno";
     EXPECT_EQ(m.at(1), "uno");
-    multimap<int, int> mm = {{1, 10}, {1, 11}, {2, 20}};
+    sorted_multimap<int, int> mm = {{1, 10}, {1, 11}, {2, 20}};
     int sum = 0;
     for (int v : mm.values_of(1)) {
         sum += v;
     }
     EXPECT_EQ(sum, 21);
     EXPECT_EQ(*mm.get(2), 20);
-    unordered_map<std::string, int> um = {{"a", 1}};
+    map<std::string, int> um = {{"a", 1}};
     EXPECT_EQ(um.get("a"), 1);
     ordered_map<int, int> om = {{5, 50}};
     EXPECT_EQ(om.value_or(6, -1), -1);
@@ -209,7 +209,7 @@ TEST(Mixin_Tests, LookupOnEveryMap) {
         ikeys += k;
     }
     EXPECT_EQ(ikeys, 3);
-    static_assert(!HasValuesOf<decltype(imm)> && HasValuesOf<multimap<int, int>>);   // no equal_range: no values_of
+    static_assert(!HasValuesOf<decltype(imm)> && HasValuesOf<sorted_multimap<int, int>>);   // no equal_range: no values_of
 }
 
 TEST(Mixin_Tests, TheOrderOfARange) {
@@ -241,7 +241,7 @@ TEST(Mixin_Tests, TheOrderOfARange) {
 }
 
 TEST(Mixin_Tests, TheMixinsHaveNoStateAndAreNotParameters) {
-    static_assert(std::is_empty_v<m_enumerable<Ring<int>>> && std::is_empty_v<m_lookup<map<int, int>>> && std::is_empty_v<m_contiguous<vector<int>>>);
+    static_assert(std::is_empty_v<m_enumerable<Ring<int>>> && std::is_empty_v<m_lookup<sorted_map<int, int>>> && std::is_empty_v<m_contiguous<vector<int>>>);
     static_assert(sizeof(Ring<int>) == sizeof(std::vector<int>));
     static_assert(sizeof(slice<int>) == 3 * sizeof(void*));
     static_assert(!std::is_default_constructible_v<m_enumerable<Ring<int>>>);   // protected: a base only

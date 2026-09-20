@@ -4,23 +4,24 @@
 #include "sgcl/containers/multiset.h"   // or "sgcl/sgcl.h"
 
 namespace sgcl {
-    template<class Key, class Compare = std::less<Key>>
+    template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
     class multiset;
 }
 ```
 
-`sgcl::multiset<Key, Compare>` is `std::multiset` on a red-black tree whose nodes are managed objects: the same tree as [set](set.md), with equivalent keys allowed. The interface is the one of `std::multiset` (constructors, `insert`, `emplace`, `erase`, `extract`, `merge`, node handles, the lookups with transparent comparators, bidirectional iterators, `key_comp`/`value_comp`, `swap`, `==` and `<=>`, `std::erase_if`), and so is the behaviour: equivalent keys are adjacent and a new one goes after those already there, `erase(key)` removes all of them, `iterator` is `const_iterator`, an element is destroyed the moment it is erased.
+`sgcl::multiset<Key, Hash, KeyEqual>` is `std::unordered_multiset` over managed nodes: the same hash table as [set](set.md), with equivalent keys allowed. The interface is the one of `std::unordered_multiset` (constructors, `insert`, `emplace`, `erase`, `extract`, `merge`, node handles, the lookups with transparent hash and equality, forward iterators, the bucket interface, `load_factor`/`max_load_factor`/`rehash`/`reserve`, `hash_function`/`key_eq`, `swap`, `==`, deduction guides, `std::erase_if`), and so is the behaviour: equal elements are adjacent in the iteration order and in their bucket, `erase(key)` removes all of them, `count` counts them, an element is destroyed the moment it is erased. Within a run of equal elements a new one goes in front of those already there.
 
-What differs from `std` is where the memory lives. The multiset object holds one `tracked_ptr` (to a header node), a count and the comparator, so it lives where a `tracked_ptr` may live; the nodes are managed objects linked by tracked pointers and traced from the header, so elements that are or hold `tracked_ptr`s are traced and a cycle through a multiset is collected like any other. Nothing is freed by hand: an `erase` destroys the element and unlinks the node, the collector reclaims the node later. Iterators are one raw node pointer each, trivially copyable, storable anywhere, valid while their element is in the container. Lookups and iteration read raw pointers and pay no write barrier; insertions, erasures and rebalancing store tracked pointers and pay the barrier on each link they relink ([README: Containers](README.md#containers)). The header is allocated on the first insertion: an empty multiset costs nothing.
+What differs from `std` is where the memory lives. The container holds two `tracked_ptr`s (the bucket array and a sentinel node), the counts, the hasher and the equality, so it lives where a `tracked_ptr` may live; the elements are nodes on the managed heap, forming one chain linked by tracked pointers and traced from the sentinel, so elements that are or hold `tracked_ptr`s are traced and a cycle through the container is collected like any other. Nothing is freed by hand: an `erase` destroys the element and unlinks the node, the collector reclaims the node later. The hash of each key is cached in its node. The bucket count is 0 or a power of two, and the table grows when the size reaches `bucket_count() * max_load_factor()`, doubling at least, to eight buckets at the least. Iterators are one raw node pointer each, trivially copyable, storable anywhere, valid across rehashes and until their element is erased. As in `std`, `iterator` and `const_iterator` are one type, yielding `const Key&`: a key is never modified in place; `extract` it and insert it back. Lookups and iteration pay no write barrier; insertions, erasures and rehashes store tracked pointers and pay the barrier on each link they relink ([README: Containers](README.md#containers)).
 
 ## Rules
 
-- A multiset holds a `tracked_ptr`, so it lives on a stack or inside a managed object: never in `new`/`malloc` memory, a `std` container, a global, a `thread_local` or a plain coroutine frame ([The rules](../core/README.md#the-rules), 1). The same holds for a node handle.
+- An `multiset` holds tracked pointers, so it lives on a stack or inside a managed object: never in `new`/`malloc` memory, a `std` container, a global, a `thread_local` or a plain coroutine frame ([The rules](../core/README.md#the-rules), 1). The same holds for a node handle.
 - The elements may be, or hold, tracked pointers: the nodes are managed objects, so those pointers are traced.
-- An element is destroyed the moment it is erased, cleared, assigned over, or the multiset is destroyed, exactly as in `std`. The one exception is a multiset dying in a sweep, inside a managed object nobody refers to any more: its nodes are garbage of the same sweep, and each destroys its element when the sweep reaches it, on a collector thread.
-- An iterator, a reference or a pointer to an element is valid while the element is in the container, across insertions, erasures of other elements, `swap`, `merge` and a move of the container. An iterator to an erased element is invalid as in `std`.
+- An element is destroyed the moment it is erased, cleared, assigned over, or the container is destroyed, exactly as in `std`. The one exception is a container dying in a sweep, inside a managed object nobody refers to any more: its nodes are garbage of the same sweep, and each destroys its element when the sweep reaches it, on a collector thread.
+- An iterator, a reference or a pointer to an element is valid while the element is in the container, across insertions, rehashes, erasures of other elements, `swap`, `merge` and a move of the container. An iterator to an erased element is invalid as in `std`.
+- A key cannot be modified through an iterator (they yield `const Key&`); `extract` it, change `value()` of the handle and insert it back.
 - A `tracked_ptr` may point at an element (a node is a managed object); it keeps the node alive, not the element.
-- Thread safety is that of `std::multiset`: concurrent readers, or one writer, with the program's own synchronization ([The rules](../core/README.md#the-rules), 6).
+- Thread safety is that of `std::unordered_multiset`: concurrent readers, or one writer, with the program's own synchronization ([The rules](../core/README.md#the-rules), 6).
 
 ## Members
 
@@ -29,43 +30,45 @@ What differs from `std` is where the memory lives. The multiset object holds one
 ```cpp
 using key_type = Key;
 using value_type = Key;
-using key_compare = Compare;
-using value_compare = Compare;
+using hasher = Hash;
+using key_equal = KeyEqual;
 using size_type = size_t;
 using difference_type = ptrdiff_t;
 using reference = value_type&;
 using const_reference = const value_type&;
 using pointer = value_type*;
 using const_pointer = const value_type*;
-using iterator = /* bidirectional, one raw node pointer, yields const Key& */;
-using const_iterator = iterator;
-using reverse_iterator = std::reverse_iterator<iterator>;
-using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+using const_iterator = /* forward, one raw node pointer, yields const Key& */;
+using iterator = const_iterator;
+using const_local_iterator = /* forward, stops at the end of its bucket */;
+using local_iterator = const_local_iterator;
 using node_type = /* the node handle, below */;
-static constexpr bool Multi = true;
+struct insert_return_type { iterator position; bool inserted; node_type node; };   // unused: every insert returns an iterator
+static constexpr bool unique = false;
 ```
 
-There is no `insert_return_type`: every `insert` returns an iterator.
+`iterator` converts to `const_iterator`, `local_iterator` to `const_local_iterator`, not back.
 
 ### Constructors
 
 ```cpp
-multiset() noexcept(std::is_nothrow_default_constructible_v<Compare>);
-explicit multiset(const Compare& comp);
-template<std::input_iterator InputIt> multiset(InputIt first, InputIt last, const Compare& comp = Compare());
-multiset(std::initializer_list<value_type> ilist, const Compare& comp = Compare());
+multiset();
+explicit multiset(size_type bucket_count, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual());
+template<std::input_iterator InputIt>
+multiset(InputIt first, InputIt last, size_type bucket_count = 0, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual());
+multiset(std::initializer_list<value_type> ilist, size_type bucket_count = 0, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual());
 multiset(const multiset& other);
-multiset(multiset&& other) noexcept(std::is_nothrow_move_constructible_v<Compare>);
+multiset(multiset&& other);
 ```
 
-The default constructor allocates nothing. The range and list constructors insert in order with `end()` as the hint (sorted input costs one comparison per element), keeping every element. A range of another type (`string_view`s for `string` keys) is converted once per element, into its node, before the node's key is compared: the source need not be comparable with the keys at all. A copy has nodes of its own, in the same order: the tree copied shape for shape, a node per element with its colour and its links, no comparison and no rebalancing; a move takes the tree over and leaves `other` empty. A constructor or comparator that throws destroys the elements built so far.
+The default constructor allocates nothing (`bucket_count() == 0`). A bucket count is rounded up to a power of two. The range constructor, given a forward range, sizes the table for the distance first; every element is kept. A copy reproduces `other`'s bucket count, order and `max_load_factor`; a move takes the table over and leaves `other` empty. A constructor or hasher that throws destroys the elements built so far.
 
 ```cpp
-sgcl::multiset rolls = {4, 2, 4, 6, 2};                          // 2 2 4 4 6
-sgcl::multiset<int, std::greater<int>> desc(std::greater<int>{});
+sgcl::multiset rolls = {4, 2, 4, 6, 2};                    // five elements
+sgcl::multiset<int> sized(100);                                  // 128 buckets
 sgcl::vector src = {3, 1, 3};
-sgcl::multiset<int> from_range(src.begin(), src.end());              // 1 3 3
-sgcl::multiset<int> taken = std::move(rolls);                         // rolls is empty now
+sgcl::multiset from_range(src.begin(), src.end());               // deduced: multiset<int>
+sgcl::multiset<int> taken = std::move(rolls);                    // rolls is empty now
 ```
 
 ### Destructor
@@ -74,63 +77,46 @@ sgcl::multiset<int> taken = std::move(rolls);                         // rolls i
 ~multiset();
 ```
 
-Destroys the elements when the multiset dies on a stack or inside a managed object destroyed by hand; in a sweep it leaves the nodes to the same sweep, which destroys the elements. The node memory is reclaimed by the collector in both cases.
+Destroys the elements when the container dies on a stack or inside a managed object destroyed by hand; in a sweep it leaves the nodes to the same sweep, which destroys the elements. The nodes, the bucket array and the sentinel are reclaimed by the collector in both cases.
 
 ### operator=
 
 ```cpp
 multiset& operator=(const multiset& other);
-multiset& operator=(multiset&& other) noexcept(std::is_nothrow_move_assignable_v<Compare>);
+multiset& operator=(multiset&& other);
 multiset& operator=(std::initializer_list<value_type> ilist);
 ```
 
-Copy assignment clears this container (destroying its elements at once), takes `other`'s comparator and copies its tree shape for shape, as the copy constructor does (an element copy that throws leaves the container empty); move assignment clears and takes the tree over; the list form clears and inserts.
+Copy assignment builds a copy of `other` and swaps it in; move assignment clears this container (destroying its elements at once) and takes the table over; the list form builds a new table with this container's hasher, equality and `max_load_factor` and swaps it in.
 
 ```cpp
 sgcl::multiset<int> a = {1, 1}, b;
 b = a;
 b = {5};                     // the old elements die here
-a = std::move(b);            // a is 5, b is empty
-```
-
-### key_comp, value_comp
-
-```cpp
-key_compare key_comp() const;
-value_compare value_comp() const;
-```
-
-Copies of the comparator (the same type for both, as in `std::multiset`).
-
-```cpp
-sgcl::multiset s = {1, 2};
-bool less = s.key_comp()(*s.begin(), *s.rbegin());   // true
+a = std::move(b);            // a is {5}, b is empty
 ```
 
 ### Iterators
 
 ```cpp
-iterator begin() const noexcept;                 const_iterator cbegin() const noexcept;
-iterator end() const noexcept;                   const_iterator cend() const noexcept;
-reverse_iterator rbegin() const noexcept;        const_reverse_iterator crbegin() const noexcept;
-reverse_iterator rend() const noexcept;          const_reverse_iterator crend() const noexcept;
+iterator begin() noexcept;                const_iterator begin() const noexcept;    const_iterator cbegin() const noexcept;
+iterator end() noexcept;                  const_iterator end() const noexcept;      const_iterator cend() const noexcept;
 ```
 
-`iterator` and `const_iterator` are one type, yielding `const Key&`. `begin()` is the smallest key in O(1), `--end()` the largest; equivalent keys come in insertion order. Before the first insertion `begin()` and `end()` are both null iterators, equal to each other, neither of which may be dereferenced or moved; an `end()` taken then does not compare equal to `end()` after the first insertion. Iterators are raw node pointers and may be kept in unmanaged memory while their element is in the container.
+Forward iterators over one chain of nodes; `end()` is a null iterator. Equal elements are adjacent. An iterator is a raw node pointer: copying and advancing it costs a load, and it may be kept in unmanaged memory while its element is in the container.
 
 ```cpp
-sgcl::multiset<sgcl::string> s = {"b", "a", "a"};
+sgcl::multiset<sgcl::string> s = {"a", "b", "a"};
 sgcl::string joined;
-for (const auto& key : s) {             // a a b
-    joined += key;
+for (const auto& key : s) {
+    joined += key;                         // "aab" or "baa"
 }
-auto largest = std::prev(s.end());      // "b"
 ```
 
 ### empty, size, max_size
 
 ```cpp
-[[nodiscard]] bool empty() const noexcept;
+bool empty() const noexcept;
 size_type size() const noexcept;
 size_type max_size() const noexcept;
 ```
@@ -143,7 +129,7 @@ size_type max_size() const noexcept;
 void clear() noexcept;
 ```
 
-Destroys every element at once and unlinks every node; the header stays. The nodes are reclaimed by the collector.
+Destroys every element at once and unlinks every node; the bucket array, the hasher, the equality and `max_load_factor` stay.
 
 ```cpp
 sgcl::multiset<sgcl::string> s = {"a", "a"};
@@ -156,25 +142,27 @@ bool gone = s.empty();         // true
 ```cpp
 iterator insert(const value_type& value);
 iterator insert(value_type&& value);
+template<class P> requires std::is_constructible_v<value_type, P&&> iterator insert(P&& value);
 iterator insert(const_iterator hint, const value_type& value);
 iterator insert(const_iterator hint, value_type&& value);
+template<class P> requires std::is_constructible_v<value_type, P&&> iterator insert(const_iterator hint, P&& value);
 template<std::input_iterator InputIt> void insert(InputIt first, InputIt last);
 void insert(std::initializer_list<value_type> ilist);
 iterator insert(node_type&& nh);
 iterator insert(const_iterator hint, node_type&& nh);
 ```
 
-Always inserts; a key already present gets the new element after its equivalents. The hinted forms are O(1) amortized when the element belongs right before `hint`; an append in sorted order at `end()` costs one comparison. The range and list forms insert one by one with `end()` as the hint; a range of another type is converted once per element, into the node, as `emplace_hint` would. The node-handle forms link the node of `nh` without copying the element and leave `nh` empty; an empty handle inserts nothing and returns `end()`.
+Always inserts, and returns the new element; an element already present gets the new one in front of its equivalents. The `P&&` forms build the element through `emplace`. The hint is ignored. The table grows before the node is linked when the size has reached the threshold. The node-handle forms link the node of `nh` without copying the element and leave `nh` empty; an empty handle inserts nothing and returns `end()`.
 
 ```cpp
 sgcl::multiset<sgcl::string> s;
-auto it = s.insert("a");
-s.insert("a");                                        // after the first "a"
-s.insert(s.end(), "z");                               // an append: one comparison
+s.insert("a");
+auto it = s.insert("a");                              // in front of the first "a"
+s.insert(s.end(), "z");                               // the hint is ignored
 s.insert({"b", "b"});
 sgcl::multiset<sgcl::string> other = {"q"};
 s.insert(other.extract("q"));                         // relinked, no copy
-auto count = s.count("a");                            // 2
+bool front = s.find("a") == it;                       // true
 ```
 
 ### emplace, emplace_hint
@@ -184,7 +172,7 @@ template<class... A> iterator emplace(A&&... a);
 template<class... A> iterator emplace_hint(const_iterator hint, A&&... a);
 ```
 
-Builds the key from `a...` in a new node and links it after its equivalents (or where `hint` says, when that is right). A comparator that throws destroys the new element and leaves the container as it was.
+Builds the key from `a...` in a new node and links it in front of its equivalents. The hint is ignored. A hasher or equality that throws destroys the new element and leaves the container as it was.
 
 ```cpp
 sgcl::multiset<sgcl::string> s;
@@ -196,12 +184,14 @@ s.emplace_hint(s.end(), "zzz");
 ### erase
 
 ```cpp
+iterator erase(iterator pos);
 iterator erase(const_iterator pos);
 iterator erase(const_iterator first, const_iterator last);
 size_type erase(const key_type& key);
+template<class K> size_type erase(K&& key);   // when Hash and KeyEqual are transparent, and K is not an iterator
 ```
 
-Destroys the element at once, unlinks the node (the collector reclaims it later) and returns the iterator after it. The key form erases every element with an equivalent key and returns how many. Erasing `[begin(), end())` is a `clear()`. There is no transparent `erase`.
+Destroys the element at once, unlinks the node (the collector reclaims it later) and returns the iterator after it. The key forms erase every equal element and return how many.
 
 ```cpp
 sgcl::multiset s = {1, 1, 2, 3};
@@ -212,17 +202,17 @@ s.erase(s.find(2));                                // one element: 3 is left
 ### swap
 
 ```cpp
-void swap(multiset& other) noexcept(std::is_nothrow_swappable_v<Compare>);
-friend void swap(multiset& lhs, multiset& rhs) noexcept(noexcept(lhs.swap(rhs)));   // free function in namespace sgcl
+void swap(multiset& other) noexcept(std::is_nothrow_swappable_v<Hash> && std::is_nothrow_swappable_v<KeyEqual>);
+friend void swap(multiset& lhs, multiset& rhs) noexcept(noexcept(lhs.swap(rhs)));
 ```
 
-Exchanges the trees, counts and comparators; no element is touched, and every iterator keeps pointing at its element, now in the other container.
+Exchanges the tables, counts, load factors, hashers and equalities; no element is touched, and every iterator keeps pointing at its element, now in the other container.
 
 ```cpp
 sgcl::multiset<int> a = {1}, b = {2};
 auto it = a.begin();
 swap(a, b);                       // it still points at 1, which is in b now
-bool moved = it == b.begin();     // true
+bool moved = it == b.find(1);     // true
 ```
 
 ### extract
@@ -230,25 +220,26 @@ bool moved = it == b.begin();     // true
 ```cpp
 node_type extract(const_iterator pos);
 node_type extract(const key_type& key);
+template<class K> node_type extract(K&& key);   // when Hash and KeyEqual are transparent, and K is not an iterator
 ```
 
-Unlinks the node and hands it over in a node handle, the element untouched; the handle destroys the element if it dies unused. The key form extracts the first element with an equivalent key, or returns an empty handle. See [node_type](#node_type-the-node-handle).
+Unlinks the node and hands it over in a node handle, the element untouched; the handle destroys the element if it dies unused. The key forms extract the first equal element, or return an empty handle. This is the way to change a key. See [node_type](#node_type-the-node-handle).
 
 ```cpp
 sgcl::multiset<sgcl::string> s = {"a", "a"};
 auto nh = s.extract("a");         // s holds one "a"
 nh.value() = "b";
-s.insert(std::move(nh));          // "a" "b"
+s.insert(std::move(nh));          // "a" and "b"
 ```
 
 ### merge
 
 ```cpp
-template<class Traits2> void merge(detail::RbTree<Traits2>& source);    // any sgcl::set or multiset<Key, C2>
-template<class Traits2> void merge(detail::RbTree<Traits2>&& source);
+template<class Traits2> void merge(detail::HashTable<Traits2>& source);    // any sgcl::set or multiset<Key, H2, E2>
+template<class Traits2> void merge(detail::HashTable<Traits2>&& source);
 ```
 
-Relinks every node of `source` into this multiset (a multi tree takes them all), each after its equivalents, and leaves `source` empty. No element is copied or destroyed; iterators follow their nodes. `source` may be a `sgcl::set` or `sgcl::multiset` with the same `Key` and any comparator.
+Relinks every node of `source` into this container (a multi table takes them all), rehashing with this container's hasher, and leaves `source` empty. No element is copied or destroyed; iterators follow their nodes. `source` may be a `sgcl::set` or `sgcl::multiset` with the same `Key` and any hasher and equality.
 
 ```cpp
 sgcl::multiset a = {1, 3};
@@ -256,101 +247,136 @@ sgcl::set b = {2, 3};
 a.merge(b);                       // a: 1 2 3 3;  b is empty
 ```
 
-### count, find, contains
+### count, find, contains, equal_range
 
 ```cpp
 size_type count(const key_type& key) const;
-iterator find(const key_type& key) const;
+iterator find(const key_type& key);
+const_iterator find(const key_type& key) const;
 bool contains(const key_type& key) const;
-template<class K> size_type count(const K& key) const;        // when Compare::is_transparent
-template<class K> iterator find(const K& key) const;          //   "
-template<class K> bool contains(const K& key) const;          //   "
+std::pair<iterator, iterator> equal_range(const key_type& key);
+std::pair<const_iterator, const_iterator> equal_range(const key_type& key) const;
+template<class K> size_type count(const K& key) const;                     // when Hash::is_transparent and KeyEqual::is_transparent
+template<class K> iterator find(const K& key);                              //   "
+template<class K> const_iterator find(const K& key) const;                  //   "
+template<class K> bool contains(const K& key) const;                        //   "
+template<class K> std::pair<iterator, iterator> equal_range(const K& key);  //   "  (and the const form)
 ```
 
-`find` returns the first element with an equivalent key, `count` how many there are (O(log n + count)). The `K` overloads exist for a transparent comparator, which `std::less` of a [string](../core/string.md) is.
+`find` returns the first element of the key's run, `equal_range` the run, `count` its length (O(1 + count) on average). The `K` overloads exist when both `Hash` and `KeyEqual` declare `is_transparent`.
 
 ```cpp
-sgcl::multiset<sgcl::string> s = {"a", "a"};
+sgcl::multiset<sgcl::string> s = {"a", "a"};   // std::hash and std::equal_to of a string are transparent
 auto n = s.count("a");             // 2, no sgcl::string built for the literal
 sgcl::string text = "a b";
 auto m = s.count(text.as_slice(0, 1)); // 2: a view of another string, nothing built either
 ```
 
-### equal_range, lower_bound, upper_bound
+### Bucket interface
 
 ```cpp
-std::pair<iterator, iterator> equal_range(const key_type& key) const;
-iterator lower_bound(const key_type& key) const;
-iterator upper_bound(const key_type& key) const;
-template<class K> std::pair<iterator, iterator> equal_range(const K& key) const;   // when Compare::is_transparent
-template<class K> iterator lower_bound(const K& key) const;                        //   "
-template<class K> iterator upper_bound(const K& key) const;                        //   "
+size_type bucket_count() const noexcept;
+size_type max_bucket_count() const noexcept;
+size_type bucket_size(size_type n) const;
+size_type bucket(const key_type& key) const;
+template<class K> size_type bucket(const K& key) const;      // when Hash and KeyEqual are transparent
+local_iterator begin(size_type n);              const_local_iterator begin(size_type n) const;   const_local_iterator cbegin(size_type n) const;
+local_iterator end(size_type n);                const_local_iterator end(size_type n) const;     const_local_iterator cend(size_type n) const;
 ```
 
-`equal_range` is the run of elements with an equivalent key; `lower_bound` its start, `upper_bound` its end.
+As in `std`. `bucket_count()` is 0 or a power of two; `bucket(key)` is the hash masked by `bucket_count() - 1` (0 while there are no buckets). A local iterator walks the nodes of one bucket, equal elements adjacent, and stops at its end; for an `n` beyond `bucket_count()` the range is empty.
 
 ```cpp
-sgcl::multiset s = {1, 2, 2, 3};
-auto [from, to] = s.equal_range(2);
-auto twos = std::distance(from, to);      // 2
+sgcl::multiset s = {1, 1, 2};
+size_t n = s.bucket(1);
+size_t in_bucket = 0;
+for (auto it = s.begin(n); it != s.end(n); ++it) {
+    ++in_bucket;
+}
+bool same = in_bucket == s.bucket_size(n);        // true, and at least 2
 ```
+
+### Hash policy
+
+```cpp
+float load_factor() const noexcept;
+float max_load_factor() const noexcept;
+void max_load_factor(float z);
+void rehash(size_type count);
+void reserve(size_type count);
+```
+
+`load_factor()` is `size() / bucket_count()` (0 with no buckets); `max_load_factor()` defaults to 1.0. `max_load_factor(z)` takes effect on the next insertion (a value that is not positive, or not a number, is ignored). `rehash(count)` makes the bucket count the smallest power of two not below `count` and not below `size() / max_load_factor()`; `reserve(count)` is `rehash` for `count` elements. A rehash relinks the nodes in chain order, so runs of equal elements stay together and in order, hashes nothing and invalidates no iterator.
+
+```cpp
+sgcl::multiset<int> s;
+s.reserve(1000);                                  // 1024 buckets
+for (int i : sgcl::range(1000)) {
+    s.insert(i % 10);                             // ten runs of a hundred
+}
+bool fits = s.load_factor() <= s.max_load_factor();   // true
+```
+
+### hash_function, key_eq
+
+```cpp
+hasher hash_function() const;
+key_equal key_eq() const;
+```
+
+Copies of the hasher and the equality.
 
 ### The mixins
 
-`multiset` carries [m_enumerable](../core/mixin/m_enumerable.md) (`contains`, `min`, `max` its own), [m_equatable](../core/mixin/m_equatable.md), [m_comparable](../core/mixin/m_comparable.md) and the bidirectional category ([the mixins](../core/mixin/README.md)).
+`multiset` carries [m_enumerable](../core/mixin/m_enumerable.md) (`contains` its own) ([the mixins](../core/mixin/README.md)).
 
 ```cpp
-sgcl::multiset<int> s = {3, 1, 1};
-assert(s.min() == 1 && s.count_of([](int x) { return x == 1; }) == 2 && s.exists([](int x) { return x == 3; }));
+sgcl::multiset<int> s = {1, 1, 2};
+assert(s.count_of([](int x) { return x == 1; }) == 2);
 ```
 
 ### Comparisons
 
 ```cpp
 friend bool operator==(const multiset& lhs, const multiset& rhs);
-friend auto operator<=>(const multiset& lhs, const multiset& rhs);
 ```
 
-Element-wise in order, as for `std::multiset`: `==` compares sizes first; `<=>` is lexicographical with the synthesized three-way comparison, so `!=`, `<`, `<=`, `>` and `>=` follow.
+Equal sizes and, for every run of equal elements in `lhs`, a run of the same length in `rhs` that is a permutation of it, whatever the bucket counts and orders. `!=` follows; there is no ordering.
 
 ```cpp
-sgcl::multiset<int> a = {1, 1}, b = {1, 2};
-bool less = a < b;                                // true
-auto ord = a <=> b;                               // std::strong_ordering::less
+sgcl::multiset<int> a = {1, 1, 2}, b = {2, 1, 1};
+bool same = a == b;                               // true
 ```
-
-### _check
-
-```cpp
-bool _check() const;
-```
-
-Verifies the red-black invariants, the header links, the order and the count; for the tests. O(n).
 
 ### node_type (the node handle)
 
 ```cpp
 class node_type {
 public:
+    using key_type = Key;
     using value_type = Key;
     node_type() noexcept;
     node_type(node_type&&) noexcept;
-    node_type& operator=(node_type&&) noexcept;
+    node_type& operator=(node_type&&);
     ~node_type();
-    [[nodiscard]] bool empty() const noexcept;
+    bool empty() const noexcept;
     explicit operator bool() const noexcept;
-    value_type& value() const noexcept;    // writable: the node is out of any container
+    value_type& value() const;             // writable: the node is out of any container
+    void swap(node_type& other) noexcept;
+    friend void swap(node_type& lhs, node_type& rhs) noexcept;
 };
 ```
 
-Owns one unlinked node: movable, not copyable; the element is destroyed when the handle dies without having been inserted. The handle holds the node through a `tracked_ptr`, so it lives on a stack or inside a managed object. It is the same handle type as `sgcl::set<Key>::node_type`. There is no `swap` member.
+Owns one unlinked node: movable, not copyable; the element is destroyed when the handle dies without having been inserted. The handle holds the node through a `tracked_ptr`, so it lives on a stack or inside a managed object. It is the same handle type as `sgcl::set<Key>::node_type`.
 
-### std::erase_if
+### erase_if_impl, std::erase_if
 
 ```cpp
+template<class Pred> size_type erase_if_impl(Pred& pred);   // member: what the free function calls
+
 namespace sgcl {
-    template<class Key, class Compare, class Pred>
-    typename multiset<Key, Compare>::size_type erase_if(multiset<Key, Compare>& c, Pred pred);
+    template<class Key, class Hash, class KeyEqual, class Pred>
+    size_t erase_if(multiset<Key, Hash, KeyEqual>& c, Pred pred);
 }
 namespace std { using sgcl::erase_if; }
 ```
@@ -359,25 +385,23 @@ Erases every element for which `pred(*it)` is true and returns how many.
 
 ```cpp
 sgcl::multiset s = {1, 2, 2, 3};
-auto n = std::erase_if(s, [](int x) { return x == 2; });   // 2; s is 1 3
+auto n = std::erase_if(s, [](int x) { return x == 2; });   // 2; s holds 1 and 3
 ```
 
 ### Deduction guides
 
 ```cpp
-template<std::input_iterator InputIt, class Compare = std::less<Key>>   // Key from the iterator
-multiset(InputIt, InputIt, Compare = Compare()) -> multiset<Key, Compare>;
-template<class Key, class Compare = std::less<Key>>
-multiset(std::initializer_list<Key>, Compare = Compare()) -> multiset<Key, Compare>;
+template<std::input_iterator InputIt, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>   // Key from the iterator
+multiset(InputIt, InputIt, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual()) -> multiset<Key, Hash, KeyEqual>;
+template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
+multiset(std::initializer_list<Key>, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual()) -> multiset<Key, Hash, KeyEqual>;
 ```
 
 ```cpp
-sgcl::multiset s = {3, 1, 1};                           // multiset<int>
-sgcl::vector src = {5, 4, 4};
-sgcl::multiset from_range(src.begin(), src.end());      // multiset<int>
+sgcl::vector<sgcl::string> src = {"a", "a"};
+sgcl::multiset from_range(src.begin(), src.end());      // multiset<sgcl::string>
+sgcl::multiset from_list = {1, 1, 2};                   // multiset<int>
 ```
-
-From an iterator pair or an initializer list, as for `std::multiset`; an initializer list of a map spells its pairs out (`std::pair{1, 2.0}`), since a braced pair alone names no type.
 
 ## Example
 
@@ -385,57 +409,53 @@ From an iterator pair or an initializer list, as for `std::multiset`; an initial
 #include "sgcl/sgcl.h"
 #include <iostream>
 
-struct Task {
-    sgcl::string name;
-    int priority;
-    sgcl::tracked_ptr<Task> blocked_by;
-};
-
-// Tasks ordered by priority, several per level: a multiset of pointers
-// with a comparator that looks through them
-struct ByPriority {
-    bool operator()(const sgcl::tracked_ptr<Task>& l, const sgcl::tracked_ptr<Task>& r) const {
-        return l->priority < r->priority;
-    }
+struct Sample {
+    sgcl::string source;
+    sgcl::tracked_ptr<Sample> previous;     // traced through the node that holds the Sample
 };
 
 int main() {
-    sgcl::multiset<sgcl::tracked_ptr<Task>, ByPriority> queue;
-    sgcl::tracked_ptr build = sgcl::make_tracked<Task>("build", 1);
-    queue.insert(build);
-    queue.insert(sgcl::make_tracked<Task>("test", 2, build));
-    queue.insert(sgcl::make_tracked<Task>("lint", 2));               // after "test": equal keys keep their order
-    queue.insert(sgcl::make_tracked<Task>("deploy", 3));
-
-    std::cout << "order:";
-    for (const auto& task : queue) {
-        std::cout << ' ' << task->name;                             // build test lint deploy
+    // A bag of readings keyed by value: several samples may read the same
+    sgcl::multiset<int> readings;
+    for (int r : {3, 7, 3, 3, 9, 7}) {
+        readings.insert(r);
     }
-    std::cout << '\n';
+    std::cout << "3 read " << readings.count(3) << " times, 7 read " << readings.count(7) << " times\n";
 
-    // Everything at priority 2 goes: the two tracked_ptrs are destroyed now,
-    // "test" and "lint" are collected, "build" stays through `build`
-    sgcl::tracked_ptr probe = sgcl::make_tracked<Task>("", 2);          // a key to look up with
-    auto erased = queue.erase(probe);
-    build = nullptr;
+    // A bag of traced pointers inside a managed object: the samples live as
+    // long as the bag's owner does
+    struct Owner {
+        sgcl::multiset<sgcl::tracked_ptr<Sample>> bag;
+    };
+    sgcl::tracked_ptr owner = sgcl::make_tracked<Owner>();
+    sgcl::tracked_ptr first = sgcl::make_tracked<Sample>("a");
+    owner->bag.insert(first);
+    owner->bag.insert(first);                                   // the same pointer twice: a multiset allows it
+    owner->bag.insert(sgcl::make_tracked<Sample>("b", first));
+    auto duplicates = owner->bag.count(first);                  // 2
+
+    // Erasing every copy of the pointer destroys those elements; the Sample
+    // itself stays while `first` or "b" refers to it
+    owner->bag.erase(first);
+    first = nullptr;
+    owner = nullptr;                                            // the bag, "b" and then "a" are garbage
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
     sgcl::collector::force_collect(true);
-    std::cout << erased << " erased, " << queue.size() << " left, "
-              << sgcl::collector::get_live_object_count() << " live objects\n";
-    return erased == 2 && queue.size() == 2 ? 0 : 1;
+    std::cout << sgcl::collector::get_live_object_count() << " live objects\n";     // the nodes, buckets and sentinel of `readings`
+    return readings.count(3) == 3 && duplicates == 2 ? 0 : 1;
 }
 ```
 
 The output:
 
 ```
-order: build test lint deploy
-2 erased, 2 left, 8 live objects
+3 read 3 times, 7 read 2 times
+8 live objects
 ```
 
 ## See also
 
-- [set](set.md) for unique keys, [multimap](multimap.md) for key-value pairs, [unordered_multiset](unordered_multiset.md) for a hash table
+- [set](set.md) for unique keys, [multimap](multimap.md) for key-value pairs, [sorted_multiset](sorted_multiset.md) for an ordered tree
 - [tracked_ptr](../core/tracked_ptr.md), [make_tracked](../core/make_tracked.md)
 - [README: Containers](README.md#containers), [README: The rules](../core/README.md#the-rules)

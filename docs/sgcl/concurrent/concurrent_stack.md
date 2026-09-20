@@ -133,7 +133,7 @@ The output:
 
 ## See also
 
-- [concurrent_queue](concurrent_queue.md) for the FIFO counterpart, [concurrent_map](concurrent_map.md) for the ordered map
+- [concurrent_queue](concurrent_queue.md) for the FIFO counterpart, [concurrent_sorted_map](concurrent_sorted_map.md) for the sorted map
 - [atomic](atomic.md), what the head is; [examples/lock_free_stack.cpp](../../../examples/lock_free_stack.cpp), the same structure written by hand
 - [stack](../containers/stack.md), the sequential adapter
 - [README: Lock-free containers](README.md#lock-free-containers), [README: The rules](../core/README.md#the-rules)

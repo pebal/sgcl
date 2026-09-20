@@ -10,7 +10,7 @@
 #include "../core/make_tracked.h"
 #include "../core/root_ptr.h"
 #include "atomic.h"
-#include "concurrent_unordered_set.h"
+#include "concurrent_set.h"
 #include "detail/concurrent_weak_table.h"
 
 #include <functional>
@@ -173,7 +173,7 @@ namespace sgcl {
     // concurrent weak containers, detail/concurrent_weak_table.h: by the
     // inserting thread, one at a time) and on sweep(), and the next
     // make of that value makes a new object. The table is the lock-free
-    // hash set of concurrent_unordered_set: find is wait-free and never
+    // hash set of concurrent_set: find is wait-free and never
     // writes, get and make are lock-free, and two threads interning the
     // same new value at once both get the object of the one whose entry
     // won the table's compare-exchange, the other object being garbage.
@@ -187,10 +187,10 @@ namespace sgcl {
     // the default pool of a type, pool(), is a managed object under a
     // root_ptr, made on first use, and make(value) is get on it.
     template<class T, class Hash = std::hash<T>, class KeyEqual = std::equal_to<T>>
-    class intern : detail::ConcurrentWeakTable<typename detail::InternTraits<T>::object, concurrent_unordered_set<detail::WeakKey<typename detail::InternTraits<T>::object>, detail::InternHash<T, Hash>, detail::InternEqual<T, KeyEqual>>> {
+    class intern : detail::ConcurrentWeakTable<typename detail::InternTraits<T>::object, concurrent_set<detail::WeakKey<typename detail::InternTraits<T>::object>, detail::InternHash<T, Hash>, detail::InternEqual<T, KeyEqual>>> {
         using Traits = detail::InternTraits<T>;
         using Entry = detail::WeakKey<typename Traits::object>;
-        using Base = detail::ConcurrentWeakTable<typename Traits::object, concurrent_unordered_set<Entry, detail::InternHash<T, Hash>, detail::InternEqual<T, KeyEqual>>>;
+        using Base = detail::ConcurrentWeakTable<typename Traits::object, concurrent_set<Entry, detail::InternHash<T, Hash>, detail::InternEqual<T, KeyEqual>>>;
         using Base::_table;
 
     public:

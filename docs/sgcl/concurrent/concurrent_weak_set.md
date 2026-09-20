@@ -9,7 +9,7 @@ namespace sgcl {
 }
 ```
 
-`concurrent_weak_set<Key>` is the [weak_set](../containers/weak_set.md) shared by any number of threads without a lock: a set of objects that does not keep them alive, the [`concurrent_weak_map`](concurrent_weak_map.md) of nothing but keys, over the lock-free hash table of [concurrent_unordered_set](concurrent_unordered_set.md). An object is inserted, found and erased by a `tracked_ptr<Key>` to it and held by a [`weak_ptr`](../core/weak_ptr.md); an entry whose object the collector has found unreachable is dead: never found, passed over by the iteration, dropped by a sweep, which the inserting threads run by themselves every so many insertions. Objects registered from several threads without being owned there: the open connections, the listeners, the instances of a class, a set that forgets. Hashing, equality, the sweeps and the rules are those of `concurrent_weak_map`.
+`concurrent_weak_set<Key>` is the [weak_set](../containers/weak_set.md) shared by any number of threads without a lock: a set of objects that does not keep them alive, the [`concurrent_weak_map`](concurrent_weak_map.md) of nothing but keys, over the lock-free hash table of [concurrent_sorted_set](concurrent_sorted_set.md). An object is inserted, found and erased by a `tracked_ptr<Key>` to it and held by a [`weak_ptr`](../core/weak_ptr.md); an entry whose object the collector has found unreachable is dead: never found, passed over by the iteration, dropped by a sweep, which the inserting threads run by themselves every so many insertions. Objects registered from several threads without being owned there: the open connections, the listeners, the instances of a class, a set that forgets. Hashing, equality, the sweeps and the rules are those of `concurrent_weak_map`.
 
 ## Members
 
@@ -94,6 +94,6 @@ The 400 entries before the sweep: the inserting threads swept at 16, 32, 64, 128
 ## See also
 
 - [concurrent_weak_map](concurrent_weak_map.md): the rules; [weak_set](../containers/weak_set.md): the sequential set; [weak_ptr](../core/weak_ptr.md)
-- [concurrent_unordered_set](concurrent_unordered_set.md): the table underneath
+- [concurrent_sorted_set](concurrent_sorted_set.md): the table underneath
 - README: [Lock-free containers](README.md#lock-free-containers), [Weak containers](../containers/README.md#weak-containers)
 - `tests/concurrent/concurrent_weak_map.cpp`: the set's behaviour, checked with the map's.

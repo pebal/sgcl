@@ -13,8 +13,8 @@ namespace sgcl {
     // being owned there, a set that forgets. The iteration gives out the
     // live objects, held while the iterator stands on them.
     template<class Key>
-    class weak_set : public detail::WeakTable<Key, unordered_set<weak_ptr<Key>, detail::WeakHash<Key>, detail::WeakEqual<Key>>> {
-        using Base = detail::WeakTable<Key, unordered_set<weak_ptr<Key>, detail::WeakHash<Key>, detail::WeakEqual<Key>>>;
+    class weak_set : public detail::WeakTable<Key, set<weak_ptr<Key>, detail::WeakHash<Key>, detail::WeakEqual<Key>>> {
+        using Base = detail::WeakTable<Key, set<weak_ptr<Key>, detail::WeakHash<Key>, detail::WeakEqual<Key>>>;
         using Table = typename Base::table_type;
         using Base::_table;
 

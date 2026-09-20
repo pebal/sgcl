@@ -9,7 +9,7 @@ namespace sgcl {
 }
 ```
 
-`sgcl::concurrent_cache<Key, T, Hash, KeyEqual>` is a key-value cache shared by any number of threads, bounded by a capacity (a number of entries) and, if asked, by a time to live, evicting the entries least recently used: what Guava's `Cache` and Caffeine are in Java (the standard libraries of Go and Java have none, and everybody writes one), and the concurrent counterpart of the LRU cache that [ordered_map](../containers/ordered_map.md) gives in two lines to one thread. It is built over [concurrent_unordered_map](concurrent_unordered_map.md), so that `get` is the map's wait-free search and nothing else that is shared: no lock, no list to relink, no counter every thread writes. An exact LRU keeps its entries on a list and moves one to the front on every access, which is a write to a shared structure on every hit, the one thing a cache read by many threads cannot afford (Caffeine's lesson, and the reason it buffers its reads), so the order here is approximated, the way Redis approximates it:
+`sgcl::concurrent_cache<Key, T, Hash, KeyEqual>` is a key-value cache shared by any number of threads, bounded by a capacity (a number of entries) and, if asked, by a time to live, evicting the entries least recently used: what Guava's `Cache` and Caffeine are in Java (the standard libraries of Go and Java have none, and everybody writes one), and the concurrent counterpart of the LRU cache that [ordered_map](../containers/ordered_map.md) gives in two lines to one thread. It is built over [concurrent_sorted_map](concurrent_sorted_map.md), so that `get` is the map's wait-free search and nothing else that is shared: no lock, no list to relink, no counter every thread writes. An exact LRU keeps its entries on a list and moves one to the front on every access, which is a write to a shared structure on every hit, the one thing a cache read by many threads cannot afford (Caffeine's lesson, and the reason it buffers its reads), so the order here is approximated, the way Redis approximates it:
 
 - Every entry keeps a stamp of its last access: the value of a clock that the cache's insertions tick, a counter `put` advances and `get` reads. A hit stores the current tick into its entry, one relaxed store, and only when the tick differs from the one already there, so the line of an entry read over and over stays shared between the cores.
 - When an insertion takes the size past the capacity, the thread that inserted evicts by sampling: it walks `sample` entries on from where its last walk ended (a cursor per thread stripe, so that threads evicting at once walk different stretches of the map's list), erases the stale ones on the way, and erases the oldest stamp among the rest; and again, until the size is at the capacity.
@@ -26,7 +26,7 @@ The interface is a cache's: `get` a copy of the value or nothing, `put` insert o
 - `get_or_compute(key, f)` calls `f` when the key is absent or stale, and puts what it returns. Two threads that miss the same key at once both call `f`; one insertion wins and both return the value that won, so `f` must be a function of the key alone (Guava's `get(key, loader)` blocks the second thread instead; this one blocks nothing, at the price of the second computation).
 - `hits()` and `misses()` count the gets, including the get inside `get_or_compute` (a get that finds a stale entry is a miss); the counts are striped over cache lines, as the map's count is, and stay across `clear()`.
 - The value type is copied in on `put` and out on `get`, so it is copy-constructible; a `put(key, T&&)` moves only into the box of a replacement.
-- An entry evicted or erased is destroyed by the collector with its node, once nothing holds it: not at the erasure, which other threads may be reading it across ([concurrent_unordered_map](concurrent_unordered_map.md) has the rule). The cursors hold the node each stripe's last walk ended at, so an entry erased under a cursor lives on until that stripe's next eviction; `clear()` lets go of them.
+- An entry evicted or erased is destroyed by the collector with its node, once nothing holds it: not at the erasure, which other threads may be reading it across ([concurrent_sorted_map](concurrent_sorted_map.md) has the rule). The cursors hold the node each stripe's last walk ended at, so an entry erased under a cursor lives on until that stripe's next eviction; `clear()` lets go of them.
 - Non-copyable, non-movable: a shared structure has one place.
 
 ## Members
@@ -210,7 +210,7 @@ The map's own `find` over the same entries is 40 ns: a hit is the search, then t
 
 ## See also
 
-- [concurrent_unordered_map](concurrent_unordered_map.md), the map underneath and its rules
+- [concurrent_sorted_map](concurrent_sorted_map.md), the map underneath and its rules
 - [ordered_map](../containers/ordered_map.md), the exact LRU cache in two lines for one thread, and its example, which the one above repeats
 - [copy_on_write](copy_on_write.md), for a value read by every thread and replaced whole rather than looked up by key
 - [Benchmarks](benchmarks.md#the-single-producer-queue-and-the-cache): against the exact LRU under a mutex, one to sixteen threads

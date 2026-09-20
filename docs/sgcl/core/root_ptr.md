@@ -74,7 +74,7 @@ sgcl::tracked_ptr<Node> seen = a.load();
 ```cpp
 #include "sgcl/sgcl.h"
 #include <iostream>
-#include <unordered_map>
+#include <map>
 
 // An interpreter's globals: named roots into the managed heap, kept in
 // a std::unordered_map that lives where the interpreter does. A value

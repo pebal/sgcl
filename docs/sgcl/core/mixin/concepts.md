@@ -36,15 +36,15 @@ The concepts (`c_`) are what a parameter of a library function asks of its argum
 | `c_equatable<T>` | `int`, `std::string`, `sgcl::string`, `vector<int>`, a struct with `==`; not a struct without | `contains` needs it of the element |
 | `c_comparable<T>` | `int`, `std::pair<int, int>`, a struct with `<=>` or with `<` alone; not a struct without | `min`, `sort`, `<=>` of a container need it |
 | `c_enumerable<R>` | every container of the library that iterates, `slice`, `range`; not `std::vector`, not `string` | `count_of`, `for_each` |
-| `c_bidirectional<R>` | `vector`, `deque`, `list`, `set`, `map`, `slice`; not `forward_list`, `unordered_set` | `last_index_of`, `reverse` |
+| `c_bidirectional<R>` | `vector`, `deque`, `list`, `sorted_set`, `sorted_map`, `slice`; not `forward_list`, `set` | `last_index_of`, `reverse` |
 | `c_random_access<R>` | `vector`, `array`, `deque`, `im::vector`, `slice`; not `list` | `binary_search`, `sort` |
 | `c_contiguous<R>` | `vector`, `array`, `dynamic_array`, `slice` | `data()` |
-| `c_sequence<R>` | the mutable sequences, `slice<T>`; not `im::vector`, not `slice<const T>`, not `set` | `fill`, `sort` |
-| `c_ordered<R>` | a sequence, `slice`, `im::vector`, `im::list` of comparable elements; not `set`, not `vector<point>` | `max`, `is_sorted`, `lower_bound` |
-| `c_lookup<R>` | `map`, `multimap`, `unordered_map`, `unordered_multimap`, `ordered_map`, `im::map` | `get`, `contains_key` |
+| `c_sequence<R>` | the mutable sequences, `slice<T>`; not `im::vector`, not `slice<const T>`, not `sorted_set` | `fill`, `sort` |
+| `c_ordered<R>` | a sequence, `slice`, `im::vector`, `im::list` of comparable elements; not `sorted_set`, not `vector<point>` | `max`, `is_sorted`, `lower_bound` |
+| `c_lookup<R>` | `sorted_map`, `sorted_multimap`, `map`, `multimap`, `ordered_map`, `im::map` | `get`, `contains_key` |
 
 ```cpp
-static_assert(sgcl::c_ordered<sgcl::vector<int>> && !sgcl::c_ordered<sgcl::set<int>> && !sgcl::c_enumerable<std::vector<int>>);
+static_assert(sgcl::c_ordered<sgcl::vector<int>> && !sgcl::c_ordered<sgcl::sorted_set<int>> && !sgcl::c_enumerable<std::vector<int>>);
 struct point { int x, y; };
 static_assert(sgcl::c_enumerable<sgcl::vector<point>> && !sgcl::c_ordered<sgcl::vector<point>>);   // iterates; has no order
 ```

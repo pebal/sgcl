@@ -88,8 +88,8 @@ namespace sgcl::detail {
     };
 
     // What the concurrent weak containers share: a lock-free hash table
-    // keyed by WeakKeys (the Table: a concurrent_unordered_map or a
-    // concurrent_unordered_set of them), the entries of dead objects
+    // keyed by WeakKeys (the Table: a concurrent_map or a
+    // concurrent_set of them), the entries of dead objects
     // swept out every so many insertions, and the counters that decide
     // when. The sweep is a walk of the table that erases, by iterator,
     // every entry whose cell is cleared: the collector clears a cell

@@ -361,11 +361,11 @@ Prints the address, as `s << p.get()`.
 template<class T> struct std::hash<sgcl::tracked_ptr<T>>;
 ```
 
-The hash of the address, `std::hash<T*>`. A `tracked_ptr` can be the key of an `sgcl::unordered_map` or `unordered_set` (not of a `std` one, where it would live in unmanaged memory).
+The hash of the address, `std::hash<T*>`. A `tracked_ptr` can be the key of an `sgcl::map` or `set` (not of a `std` one, where it would live in unmanaged memory).
 
 ```cpp
 sgcl::tracked_ptr item = sgcl::make_tracked<int>(1);
-sgcl::unordered_set<sgcl::tracked_ptr<int>> seen;
+sgcl::set<sgcl::tracked_ptr<int>> seen;
 seen.insert(item);
 assert(seen.contains(item));
 ```

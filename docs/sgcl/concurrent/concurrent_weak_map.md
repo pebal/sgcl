@@ -9,7 +9,7 @@ namespace sgcl {
 }
 ```
 
-`concurrent_weak_map<Key, T>` is the [weak_map](../containers/weak_map.md) shared by any number of threads without a lock: a map from objects to values that does not keep the objects alive, over the lock-free hash table of [concurrent_unordered_map](concurrent_unordered_map.md) (Java's `WeakHashMap` with the concurrency of its `ConcurrentHashMap`). The key is the object itself, its identity and not its contents: an entry is looked up, made and erased by a `tracked_ptr<Key>` to the object and held by a [`weak_ptr`](../core/weak_ptr.md). An entry whose object the collector has found unreachable is dead: never found, passed over by the iteration, dropped by a sweep. Metadata attached to objects from several threads, a cache keyed by the object that the workers share, a registry that forgets. [`concurrent_weak_set`](concurrent_weak_set.md) holds the objects alone.
+`concurrent_weak_map<Key, T>` is the [weak_map](../containers/weak_map.md) shared by any number of threads without a lock: a map from objects to values that does not keep the objects alive, over the lock-free hash table of [concurrent_sorted_map](concurrent_sorted_map.md) (Java's `WeakHashMap` with the concurrency of its `ConcurrentHashMap`). The key is the object itself, its identity and not its contents: an entry is looked up, made and erased by a `tracked_ptr<Key>` to the object and held by a [`weak_ptr`](../core/weak_ptr.md). An entry whose object the collector has found unreachable is dead: never found, passed over by the iteration, dropped by a sweep. Metadata attached to objects from several threads, a cache keyed by the object that the workers share, a registry that forgets. [`concurrent_weak_set`](concurrent_weak_set.md) holds the objects alone.
 
 The entries are hashed and compared by the object's address, as in `weak_map`, which the weak pointer's cell holds while the object lives and the collector clears before the address can be handed out again ([Weak pointers](../core/README.md#weak-pointers)); so a dead entry equals nothing, its own key included, and can neither be found nor block the entry of the object that takes the slot next. One thing differs from the sequential map: the split-ordered list keeps a node's place from the hash at the insertion and hashes the key again to erase by iterator, and the address, so the hash, is gone once the object dies; so an entry carries the hash it was placed with, and is erased from where it was put.
 
@@ -23,7 +23,7 @@ The values are the map's own, destroyed with the node by the collector once noth
 - `find`, `contains` and `count` are wait-free and never write; `insert`, `emplace`, `try_emplace` and `erase` are lock-free and linearizable at the table's compare-exchange. A concurrent insertion of the same object wins or loses there: exactly one returns `true`.
 - Iteration is weakly consistent, as the table's: an iterator holds its node and, on a live entry, the object as a strong pointer, so it is valid whatever the other threads do and the entry cannot die under it; it skips the entries erased since it passed them and may or may not see the ones inserted meanwhile. An iterator is a tracked object then, and lives where the map's pointers may.
 - An entry is dead once a cycle has found its object unreachable; between the object becoming unreachable and that cycle, it is found and visited like any other: the lag of any garbage collector.
-- The value of an entry stays alive for as long as an iterator holds the node, erased or swept or not, as in `concurrent_unordered_map`; a reference to it taken through an iterator is valid while the iterator exists.
+- The value of an entry stays alive for as long as an iterator holds the node, erased or swept or not, as in `concurrent_map`; a reference to it taken through an iterator is valid while the iterator exists.
 - `size()` is the sum of the table's stripes, a snapshot of no particular moment under concurrent modification, exact once the threads are quiet; `empty()` is exact after a `sweep()` with the threads quiet.
 - Non-copyable, non-movable: a shared structure has one place.
 
@@ -181,6 +181,6 @@ session 2: 1334 requests
 
 - [concurrent_weak_set](concurrent_weak_set.md): the objects alone; [intern](intern.md): a pool keyed by the contents of the objects, over the same weak entries
 - [weak_map](../containers/weak_map.md): the sequential map, with `operator[]` and `insert_or_assign`; [weak_ptr](../core/weak_ptr.md): the key
-- [concurrent_unordered_map](concurrent_unordered_map.md): the table underneath, and its rules
+- [concurrent_sorted_map](concurrent_sorted_map.md): the table underneath, and its rules
 - README: [Lock-free containers](README.md#lock-free-containers) (the weak containers and the pool at the end), [Weak containers](../containers/README.md#weak-containers), [The rules](../core/README.md#the-rules)
 - `tests/concurrent/concurrent_weak_map.cpp`: every behaviour above, checked, with the threads.

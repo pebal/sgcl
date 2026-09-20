@@ -93,7 +93,7 @@ int main() {
         sgcl::list<sgcl::tracked_ptr<Node>> childs;
     };
     sgcl::vector<sgcl::tracked_ptr<Node>> nodes;
-    sgcl::unordered_map<int, sgcl::tracked_ptr<Node>> nodes_map;
+    sgcl::map<int, sgcl::tracked_ptr<Node>> nodes_map;
 
     // Forcing a collection: optional, the collector runs its cycles by
     // itself; used here only to show the result at once

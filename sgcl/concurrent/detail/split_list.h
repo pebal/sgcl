@@ -28,7 +28,7 @@
 
 namespace sgcl::detail {
     template<class Key, class T, class Hash, class KeyEqual>
-    struct ConcurrentUnorderedMapTraits {
+    struct ConcurrentMapTraits {
         using key_type = Key;
         using value_type = pair<const Key, T>;
         using hasher = Hash;
@@ -42,7 +42,7 @@ namespace sgcl::detail {
     };
 
     template<class Key, class Hash, class KeyEqual>
-    struct ConcurrentUnorderedSetTraits {
+    struct ConcurrentSetTraits {
         using key_type = Key;
         using value_type = Key;
         using hasher = Hash;
@@ -55,8 +55,8 @@ namespace sgcl::detail {
         }
     };
 
-    // The hash table under concurrent_unordered_map and
-    // concurrent_unordered_set (concurrent_unordered_map.h has the account
+    // The hash table under concurrent_map and
+    // concurrent_set (concurrent_map.h has the account
     // of the algorithm): the split-ordered list of Shalev and Shavit, one
     // lock-free sorted list holding every element, ordered by the bit
     // reversal of the hash, with an array of buckets that point into it at

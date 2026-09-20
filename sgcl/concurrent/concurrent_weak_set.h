@@ -6,7 +6,7 @@
 #pragma once
 
 #include "../containers/detail/weak_iterator.h"
-#include "concurrent_unordered_set.h"
+#include "concurrent_set.h"
 #include "detail/concurrent_weak_table.h"
 
 #include <cassert>
@@ -15,13 +15,13 @@ namespace sgcl {
     // The weak_set shared by any number of threads: a set of objects that
     // does not keep them alive, the concurrent_weak_map of nothing but
     // keys (concurrent_weak_map.h has the rules), over the lock-free hash
-    // table of concurrent_unordered_set. Objects registered from several
+    // table of concurrent_set. Objects registered from several
     // threads without being owned there: the sessions, the listeners,
     // the instances of a class, a set that forgets. The iteration gives
     // out the live objects, held while the iterator stands on them.
     template<class Key>
-    class concurrent_weak_set : public detail::ConcurrentWeakTable<Key, concurrent_unordered_set<detail::WeakKey<Key>, detail::ConcurrentWeakHash<Key>, detail::ConcurrentWeakEqual<Key>>> {
-        using Base = detail::ConcurrentWeakTable<Key, concurrent_unordered_set<detail::WeakKey<Key>, detail::ConcurrentWeakHash<Key>, detail::ConcurrentWeakEqual<Key>>>;
+    class concurrent_weak_set : public detail::ConcurrentWeakTable<Key, concurrent_set<detail::WeakKey<Key>, detail::ConcurrentWeakHash<Key>, detail::ConcurrentWeakEqual<Key>>> {
+        using Base = detail::ConcurrentWeakTable<Key, concurrent_set<detail::WeakKey<Key>, detail::ConcurrentWeakHash<Key>, detail::ConcurrentWeakEqual<Key>>>;
         using Table = typename Base::table_type;
         using Base::_table;
 

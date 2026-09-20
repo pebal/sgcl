@@ -145,10 +145,10 @@ TEST(String_Tests, AMapKeyedByStringsIsSearchedWithAViewAndNoStringIsMade) {
     EXPECT_EQ(std::hash<string>()("alice"), string("alice").hash());
     EXPECT_EQ(std::hash<string>()(std::string_view()), string().hash());
     EXPECT_TRUE(std::equal_to<string>()(string("a"), std::string_view("a")) && std::less<string>()(std::string_view("a"), string("b")));
-    unordered_map<string, int> ages = {{"alice", 30}, {"bob", 40}};
-    map<string, int> sorted = {{"alice", 30}, {"bob", 40}};
-    set<string> names = {"alice", "bob"};
-    unordered_set<string> hashed = {"alice", "bob"};
+    map<string, int> ages = {{"alice", 30}, {"bob", 40}};
+    sorted_map<string, int> sorted = {{"alice", 30}, {"bob", 40}};
+    sorted_set<string> names = {"alice", "bob"};
+    set<string> hashed = {"alice", "bob"};
     std::string_view view = "alice";
     EXPECT_EQ(ages.find(view)->second, 30);       // a string_slice converts to no string: this is the transparent lookup
     EXPECT_EQ(ages.at(view), 30);
@@ -225,9 +225,9 @@ TEST(String_Tests, ASliceOfAStringHoldsTheObject) {
     std::ostringstream out;
     out << whole << '|' << world;
     EXPECT_EQ(out.str(), "hello, world|world");
-    unordered_map<string, int> ages = {{"world", 1}};           // a view finds a string key, transparently
+    map<string, int> ages = {{"world", 1}};           // a view finds a string key, transparently
     EXPECT_EQ(ages.find(world)->second, 1);
-    unordered_set<string_slice> views;                          // and keys a container of slices
+    set<string_slice> views;                          // and keys a container of slices
     views.insert(world);
     EXPECT_TRUE(views.contains(world) && views.contains(std::string_view("world")) && views.contains("world"));
     settle();
@@ -397,18 +397,18 @@ TEST(String_Tests, TheHashIsComputedOnceAndKept) {
     EXPECT_FALSE(a == c);                        // unequal by the hash, without the characters
     string d = "different length";
     EXPECT_FALSE(a == d);
-    unordered_map<string, int> counts;
+    map<string, int> counts;
     ++counts[a];
     ++counts[b];
     ++counts[c];
     EXPECT_EQ(counts.size(), 2u);
     EXPECT_EQ(counts[string("some text to hash")], 2);
-    map<string, int> ordered;
+    sorted_map<string, int> ordered;
     ordered[b] = 1;
     ordered[c] = 2;
     ordered[string("a")] = 0;
     EXPECT_EQ(ordered.begin()->first, "a");
-    set<string> sorted = {string("pear"), string("apple"), string("fig")};
+    sorted_set<string> sorted = {string("pear"), string("apple"), string("fig")};
     EXPECT_EQ(*sorted.begin(), "apple");
 }
 

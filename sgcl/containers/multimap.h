@@ -5,98 +5,70 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "detail/rb_tree.h"
-
-#include <functional>
+#include "../core/mixin/mixin.h"
+#include "detail/hash_table.h"
 
 namespace sgcl {
-    // std::multimap on a garbage-collected red-black tree (detail/rb_tree.h).
-    // The container holds a tracked pointer, so it lives on the stack or
-    // inside a managed object only; its iterators are raw node pointers
-    // (trivially copyable, storable anywhere) that stay valid for as long
-    // as the element is in the container, exactly as in std.
-    template<class Key, class T, class Compare = std::less<Key>>
+    // std::unordered_multimap over managed nodes (detail/hash_table.h).
+    // Elements with equal keys are adjacent in the iteration order. The map
+    // and its node handles hold tracked pointers: they live on a stack or
+    // inside a managed object, never in unmanaged memory. An iterator is
+    // one raw node pointer and may live anywhere (a std::vector of
+    // iterators is fine): its node is rooted by the map while the element
+    // is in it, and an iterator to an erased element is invalid as in std.
+    template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
     class multimap
-    : public detail::RbTree<detail::MapTraits<Key, T, Compare, true>>
-    , public m_enumerable<multimap<Key, T, Compare>>
-    , public m_bidirectional<multimap<Key, T, Compare>>
-    , public m_equatable<multimap<Key, T, Compare>>
-    , public m_comparable<multimap<Key, T, Compare>>
-    , public m_lookup<multimap<Key, T, Compare>> {
-        using Base = detail::RbTree<detail::MapTraits<Key, T, Compare, true>>;
+    : public detail::HashTable<detail::HashMapTraits<Key, T, Hash, KeyEqual, false>>
+    , public m_enumerable<multimap<Key, T, Hash, KeyEqual>>
+    , public m_lookup<multimap<Key, T, Hash, KeyEqual>> {
+        using Base = detail::HashTable<detail::HashMapTraits<Key, T, Hash, KeyEqual, false>>;
 
     public:
         using key_type = Key;
         using mapped_type = T;
-        using typename Base::value_type;
-        using typename Base::iterator;
-        using typename Base::const_iterator;
+        using value_type = typename Base::value_type;
+        using size_type = typename Base::size_type;
 
         using Base::Base;
 
         // By the key, the container's own, in place of m_enumerable's walk
         using Base::contains;
 
-        // The smallest and the largest element are the ends of the order,
-        // O(1), in place of m_enumerable's walk (hidden, the overloads with
-        // a comparator too: the container orders by its own comparator)
-
-        const value_type& min() const noexcept {
-            return *this->begin();
-        }
-
-        const value_type& max() const noexcept {
-            return *this->rbegin();
-        }
-        using Base::insert;
-
-        multimap() = default;
-        multimap(const multimap&) = default;
-        multimap(multimap&&) = default;
-        multimap& operator=(const multimap&) = default;
-        multimap& operator=(multimap&&) = default;
-
         multimap& operator=(std::initializer_list<value_type> ilist) {
             Base::operator=(ilist);
             return *this;
         }
 
-        template<class P> requires std::is_constructible_v<value_type, P&&>
-        iterator insert(P&& value) {
-            return this->emplace(std::forward<P>(value));
+    private:
+        friend bool operator==(const multimap& lhs, const multimap& rhs) {
+            return lhs._equal_to(rhs);
         }
 
-        template<class P> requires std::is_constructible_v<value_type, P&&>
-        iterator insert(const_iterator hint, P&& value) {
-            return this->emplace_hint(hint, std::forward<P>(value));
+        friend void swap(multimap& lhs, multimap& rhs) noexcept(noexcept(lhs.swap(rhs))) {
+            lhs.swap(rhs);
+        }
+
+    public:
+        template<class Pred>
+        size_type erase_if_impl(Pred& pred) {
+            return this->_erase_if(pred);
         }
     };
 
     template<std::input_iterator InputIt,
-             class Compare = std::less<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>>>
-    multimap(InputIt, InputIt, Compare = Compare())
+             class Hash = std::hash<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>>,
+             class KeyEqual = std::equal_to<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>>>
+    multimap(InputIt, InputIt, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual())
         -> multimap<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>,
-                    typename std::iterator_traits<InputIt>::value_type::second_type, Compare>;
+                              typename std::iterator_traits<InputIt>::value_type::second_type, Hash, KeyEqual>;
 
-    template<class Key, class T, class Compare = std::less<Key>>
-    multimap(std::initializer_list<std::pair<Key, T>>, Compare = Compare()) -> multimap<Key, T, Compare>;
+    template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
+    multimap(std::initializer_list<std::pair<Key, T>>, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual())
+        -> multimap<Key, T, Hash, KeyEqual>;
 
-    template<class Key, class T, class Compare>
-    void swap(multimap<Key, T, Compare>& lhs, multimap<Key, T, Compare>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
-        lhs.swap(rhs);
-    }
-
-    template<class Key, class T, class Compare, class Pred>
-    typename multimap<Key, T, Compare>::size_type erase_if(multimap<Key, T, Compare>& c, Pred pred) {
-        auto old_size = c.size();
-        for (auto it = c.begin(), last = c.end(); it != last;) {
-            if (pred(*it)) {
-                it = c.erase(it);
-            } else {
-                ++it;
-            }
-        }
-        return old_size - c.size();
+    template<class Key, class T, class Hash, class KeyEqual, class Pred>
+    size_t erase_if(multimap<Key, T, Hash, KeyEqual>& c, Pred pred) {
+        return c.erase_if_impl(pred);
     }
 }
 

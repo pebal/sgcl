@@ -9,7 +9,7 @@ namespace sgcl {
 }
 ```
 
-`m_equatable<Derived>` gives a class `==` between two of its values — equal when they hold equal elements in the same order, what `==` is on every standard container — and declares that its values compare: `c_equatable<R>` is "R carries `m_equatable`", or, for a value that is not the library's, "R has `==`" ([the mixins](README.md)). The operator is a friend of the base, found through `Derived`, and exists only for elements that compare (`c_equatable` elements); `!=` follows from it. Nothing about order: that is [m_comparable](m_comparable.md), and a container whose iteration order is not a value (`unordered_set`) carries only this one, or gives an `==` of its own (the hash containers, the immutable ones: a version and its copy are equal by their structure before any element is read).
+`m_equatable<Derived>` gives a class `==` between two of its values — equal when they hold equal elements in the same order, what `==` is on every standard container — and declares that its values compare: `c_equatable<R>` is "R carries `m_equatable`", or, for a value that is not the library's, "R has `==`" ([the mixins](README.md)). The operator is a friend of the base, found through `Derived`, and exists only for elements that compare (`c_equatable` elements); `!=` follows from it. Nothing about order: that is [m_comparable](m_comparable.md), and a container whose iteration order is not a value (`set`) carries only this one, or gives an `==` of its own (the hash containers, the immutable ones: a version and its copy are equal by their structure before any element is read).
 
 ```cpp
 sgcl::vector a = {1, 2}, b = {1, 2}, c = {2, 1};

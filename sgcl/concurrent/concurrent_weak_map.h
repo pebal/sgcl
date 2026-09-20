@@ -6,7 +6,7 @@
 #pragma once
 
 #include "../containers/detail/weak_iterator.h"
-#include "concurrent_unordered_map.h"
+#include "concurrent_map.h"
 #include "detail/concurrent_weak_table.h"
 
 #include <cassert>
@@ -19,8 +19,8 @@ namespace sgcl {
     // account: the key is the object itself, its identity, held by a
     // weak pointer; an entry whose object is gone is dead, never found,
     // passed over by the iteration, dropped by a sweep), over the
-    // lock-free hash table of concurrent_unordered_map
-    // (concurrent_unordered_map.h has the rules of the table). Metadata
+    // lock-free hash table of concurrent_map
+    // (concurrent_map.h has the rules of the table). Metadata
     // attached to objects from several threads, a cache keyed by the
     // object that the workers share, a registry that forgets.
     // find, contains and count are wait-free and never write; insert,
@@ -40,8 +40,8 @@ namespace sgcl {
     // tracked_ptr may: on a stack or inside a managed object; the one a
     // program shares goes into a managed object under a root_ptr.
     template<class Key, class T>
-    class concurrent_weak_map : public detail::ConcurrentWeakTable<Key, concurrent_unordered_map<detail::WeakKey<Key>, T, detail::ConcurrentWeakHash<Key>, detail::ConcurrentWeakEqual<Key>>> {
-        using Base = detail::ConcurrentWeakTable<Key, concurrent_unordered_map<detail::WeakKey<Key>, T, detail::ConcurrentWeakHash<Key>, detail::ConcurrentWeakEqual<Key>>>;
+    class concurrent_weak_map : public detail::ConcurrentWeakTable<Key, concurrent_map<detail::WeakKey<Key>, T, detail::ConcurrentWeakHash<Key>, detail::ConcurrentWeakEqual<Key>>> {
+        using Base = detail::ConcurrentWeakTable<Key, concurrent_map<detail::WeakKey<Key>, T, detail::ConcurrentWeakHash<Key>, detail::ConcurrentWeakEqual<Key>>>;
         using Table = typename Base::table_type;
         using Base::_table;
 

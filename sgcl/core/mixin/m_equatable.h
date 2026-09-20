@@ -17,7 +17,7 @@ namespace sgcl {
     // library's, "R has =="). The operator exists only for elements that
     // compare (c_equatable); found through Derived, as a friend of its
     // base. Nothing about order: that is m_comparable, and a container
-    // without an order of its own (unordered_set) carries only this one.
+    // without an order of its own (set) carries only this one.
     template<class Derived>
     class m_equatable {
     public:

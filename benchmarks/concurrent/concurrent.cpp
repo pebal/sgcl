@@ -4,8 +4,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 // The lock-free containers shared by every thread: concurrent_queue
-// (Michael–Scott), concurrent_stack (Treiber), concurrent_map and
-// concurrent_set (a skip list) and concurrent_unordered_map (a
+// (Michael–Scott), concurrent_stack (Treiber), concurrent_sorted_map and
+// concurrent_sorted_set (a skip list) and concurrent_map (a
 // split-ordered list), against what C++ has without a collector and
 // against Go and Java (benchmarks/go/concurrent,
 // benchmarks/java/Concurrent.java: the same shapes, Java's
@@ -17,7 +17,7 @@
 //   concurrent <map|umap|set> <sgcl|mutex|rwlock> [threads=4] [keys=200000] [n=200000]
 //   concurrent cow <sgcl|shared|rwlock> [threads=16] [n=2000000]
 //   concurrent spsc sgcl [threads=2] [capacity=1024] [n=200000]   (one producer, one consumer: spsc_queue)
-//   concurrent cache <sgcl|mutex> [threads=4] [capacity=10000] [n=1000000]   (an LRU cache over twice its capacity of keys, 90% gets; mutex: unordered_map and list under a mutex)
+//   concurrent cache <sgcl|mutex> [threads=4] [capacity=10000] [n=1000000]   (an LRU cache over twice its capacity of keys, 90% gets; mutex: map and list under a mutex)
 //   concurrent bcast <sgcl|task> [subscribers=1] [capacity=1024] [n=1000000]   (one sender thread, the subscribers threads receiving every value; task: the subscribers as sgcl::tasks on the scheduler)
 //   concurrent chan <sgcl|task|mutex> [threads=4] [capacity=64] [n=200000]   (task: the producers and consumers as sgcl::tasks on the scheduler)
 // queue, stack: mixed, every thread pushes an item and pops one, n times
@@ -94,7 +94,7 @@ namespace {
     };
 
     struct SgclMap {
-        sgcl::concurrent_map<long, sgcl::tracked_ptr<Item>> m;
+        sgcl::concurrent_sorted_map<long, sgcl::tracked_ptr<Item>> m;
         bool insert(long k) {
             return m.try_emplace(k, sgcl::make_tracked<Item>(k)).second;
         }
@@ -227,7 +227,7 @@ namespace {
     };
 
     struct SgclUmap {
-        sgcl::concurrent_unordered_map<long, sgcl::tracked_ptr<Item>> m;
+        sgcl::concurrent_map<long, sgcl::tracked_ptr<Item>> m;
         bool insert(long k) {
             return m.try_emplace(k, sgcl::make_tracked<Item>(k)).second;
         }
@@ -241,7 +241,7 @@ namespace {
     };
 
     struct SgclSet {
-        sgcl::concurrent_set<long> s;
+        sgcl::concurrent_sorted_set<long> s;
         bool insert(long k) {
             return s.insert(k).second;
         }

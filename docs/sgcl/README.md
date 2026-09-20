@@ -51,14 +51,14 @@ The interfaces of `std`, the nodes and buffers on the managed heap: a container 
 | [forward_list](containers/forward_list.md) | `std::forward_list` |
 | [stack](containers/stack.md) | `std::stack` |
 | [queue, priority_queue](containers/queue.md) | `std::queue`, `std::priority_queue` |
-| [map](containers/map.md) | `std::map` |
-| [multimap](containers/multimap.md) | `std::multimap` |
-| [set](containers/set.md) | `std::set` |
-| [multiset](containers/multiset.md) | `std::multiset` |
-| [unordered_map](containers/unordered_map.md) | `std::unordered_map` |
-| [unordered_multimap](containers/unordered_multimap.md) | `std::unordered_multimap` |
-| [unordered_set](containers/unordered_set.md) | `std::unordered_set` |
-| [unordered_multiset](containers/unordered_multiset.md) | `std::unordered_multiset` |
+| [sorted_map](containers/sorted_map.md) | `std::map` |
+| [sorted_multimap](containers/sorted_multimap.md) | `std::multimap` |
+| [sorted_set](containers/sorted_set.md) | `std::set` |
+| [sorted_multiset](containers/sorted_multiset.md) | `std::multiset` |
+| [map](containers/map.md) | `std::unordered_map` |
+| [multimap](containers/multimap.md) | `std::unordered_multimap` |
+| [set](containers/set.md) | `std::unordered_set` |
+| [multiset](containers/multiset.md) | `std::unordered_multiset` |
 | [ordered_map](containers/ordered_map.md) | a hash map in insertion order (Java `LinkedHashMap`) |
 | [ordered_set](containers/ordered_set.md) | a hash set in insertion order (Java `LinkedHashSet`) |
 
@@ -72,7 +72,7 @@ The questions, the order and the writes of a range (`contains`, `index_of`, `fin
 
 | page | header | what it is |
 |---|---|---|
-| [im::vector](containers/im/vector.md) | `sgcl/containers/im/vector.h` | Clojure's bit-partitioned trie with a tail: every `push_back`, `pop_back` and `set` a new version sharing all but a path |
+| [im::vector](containers/im/vector.md) | `sgcl/containers/im/vector.h` | Clojure's bit-partitioned trie with a tail: every `push_back`, `pop_back` and `sorted_set` a new version sharing all but a path |
 | [im::list](containers/im/list.md) | `sgcl/containers/im/list.h` | the list of Lisp and ML: `push_front` one cell in front of the shared chain, `pop_front` the rest of it |
 | [im::map](containers/im/map.md) | `sgcl/containers/im/map.h` | Bagwell's hash array mapped trie: every `insert` and `erase` a new version sharing all but a path; transparent lookup |
 | [im::set](containers/im/set.md) | `sgcl/containers/im/set.h` | the same trie with the key as the element |
@@ -88,10 +88,10 @@ Structures shared by any number of threads without a lock, the textbook algorith
 | [concurrent_bounded_queue](concurrent/concurrent_bounded_queue.md) | `sgcl/concurrent/concurrent_bounded_queue.h` | Vyukov's bounded MPMC queue: a ring of cells with sequence numbers, one compare-exchange per operation, no allocation per element, `try_push`, `try_pop`, a blocking `push` and `pop` |
 | [spsc_queue](concurrent/spsc_queue.md) | `sgcl/concurrent/spsc_queue.h` | a ring with a sequence per cell for one producer and one consumer, the cell the one line the two share: wait-free, no compare-exchange, the same interface |
 | [concurrent_priority_queue](concurrent/concurrent_priority_queue.md) | `sgcl/concurrent/concurrent_priority_queue.h` | a binary heap under a spin-then-park lock, what Java's `PriorityBlockingQueue` is (the skip-list one lost to it): the least element first, equal ones FIFO, `push`, `try_pop`, a blocking `pop`, `try_top` |
-| [concurrent_map](concurrent/concurrent_map.md) | `sgcl/concurrent/concurrent_map.h` | the lock-free skip list of Herlihy and Shavit: an ordered map with `find`, `insert`, `try_emplace`, `erase`, weakly consistent iteration |
-| [concurrent_set](concurrent/concurrent_set.md) | `sgcl/concurrent/concurrent_set.h` | the same skip list with the key as the element |
-| [concurrent_unordered_map](concurrent/concurrent_unordered_map.md) | `sgcl/concurrent/concurrent_unordered_map.h` | the split-ordered list of Shalev and Shavit: a lock-free hash map that doubles its bucket array without moving a node |
-| [concurrent_unordered_set](concurrent/concurrent_unordered_set.md) | `sgcl/concurrent/concurrent_unordered_set.h` | the same table with the key as the element |
+| [concurrent_sorted_map](concurrent/concurrent_sorted_map.md) | `sgcl/concurrent/concurrent_sorted_map.h` | the lock-free skip list of Herlihy and Shavit: an sorted map with `find`, `insert`, `try_emplace`, `erase`, weakly consistent iteration |
+| [concurrent_sorted_set](concurrent/concurrent_sorted_set.md) | `sgcl/concurrent/concurrent_sorted_set.h` | the same skip list with the key as the element |
+| [concurrent_map](concurrent/concurrent_map.md) | `sgcl/concurrent/concurrent_map.h` | the split-ordered list of Shalev and Shavit: a lock-free hash map that doubles its bucket array without moving a node |
+| [concurrent_set](concurrent/concurrent_set.md) | `sgcl/concurrent/concurrent_set.h` | the same table with the key as the element |
 | [concurrent_cache](concurrent/concurrent_cache.md) | `sgcl/concurrent/concurrent_cache.h` | a cache over the hash map bounded by a capacity and a time to live, the least recently used evicted by sampling: `get`, `put`, `get_or_compute`, `hits`, `misses` |
 | [concurrent_weak_map](concurrent/concurrent_weak_map.md) | `sgcl/concurrent/concurrent_weak_map.h` | the weak_map shared by any number of threads: values attached to objects the map does not keep alive, over the lock-free hash table, the dead entries swept by the inserting threads |
 | [concurrent_weak_set](concurrent/concurrent_weak_set.md) | `sgcl/concurrent/concurrent_weak_set.h` | the same table with the objects alone: a set of objects it does not keep alive, shared by the threads |

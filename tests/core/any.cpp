@@ -114,7 +114,7 @@ TEST(Any_Tests, AWholeContainerGoesIntoAManagedObject) {
             nodes.push_back(make_tracked<Node>(i));
         }
         a = std::move(nodes);                // the vector lives in a managed object: where an sgcl container may
-        map<int, tracked_ptr<Node>> by_key;
+        sorted_map<int, tracked_ptr<Node>> by_key;
         by_key[1] = make_tracked<Node>(100);
         a.emplace<any>(std::move(by_key));   // an any in an any, the map inside
     });
@@ -123,7 +123,7 @@ TEST(Any_Tests, AWholeContainerGoesIntoAManagedObject) {
     any b;
     off_frame([&] {
         auto& inner = any_cast<any&>(a);
-        EXPECT_EQ((any_cast<map<int, tracked_ptr<Node>>&>(inner)[1]->value), 100);
+        EXPECT_EQ((any_cast<sorted_map<int, tracked_ptr<Node>>&>(inner)[1]->value), 100);
         a = vector<tracked_ptr<Node>>{make_tracked<Node>(1), make_tracked<Node>(2)};
         b = a;                               // a copy of the vector, in an object of its own
         EXPECT_EQ(any_cast<vector<tracked_ptr<Node>>&>(b).size(), 2u);

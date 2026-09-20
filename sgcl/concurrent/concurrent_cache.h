@@ -11,7 +11,7 @@
 #include "../core/make_tracked.h"
 #include "../core/tracked_ptr.h"
 #include "atomic.h"
-#include "concurrent_unordered_map.h"
+#include "concurrent_map.h"
 
 #include <algorithm>
 #include <atomic>
@@ -29,7 +29,7 @@ namespace sgcl {
     // Caffeine are in Java (the standard libraries of Go and Java have
     // none, everybody writes one), and the concurrent counterpart of the
     // LRU cache that ordered_map gives in two lines to one thread. Built
-    // over concurrent_unordered_map, so that a lookup is the map's
+    // over concurrent_map, so that a lookup is the map's
     // wait-free search, and no lock and no shared write is on the path
     // of a hit: an exact LRU list is a global write on every access, the
     // one thing a cache read by many threads cannot afford (Caffeine's
@@ -128,7 +128,7 @@ namespace sgcl {
             atomic<bool> dead = {false};
         };
 
-        using Map = concurrent_unordered_map<Key, Entry, Hash, KeyEqual>;
+        using Map = concurrent_map<Key, Entry, Hash, KeyEqual>;
         using iterator = typename Map::iterator;
 
         // Where a stripe's last eviction ended, for its next to go on

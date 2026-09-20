@@ -141,7 +141,7 @@ The output:
 
 ## See also
 
-- [concurrent_stack](concurrent_stack.md) for the LIFO counterpart, [concurrent_map](concurrent_map.md) for the ordered map
+- [concurrent_stack](concurrent_stack.md) for the LIFO counterpart, [concurrent_sorted_map](concurrent_sorted_map.md) for the sorted map
 - [atomic](atomic.md), what the head, the tail and the links are
 - [queue](../containers/queue.md), the sequential adapter
 - [README: Lock-free containers](README.md#lock-free-containers), [README: The rules](../core/README.md#the-rules)

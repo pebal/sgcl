@@ -115,7 +115,7 @@ TEST(Variant_Tests, ComparisonsAndHash) {
     EXPECT_TRUE((a <=> b) == std::strong_ordering::less && (c <=> d) == std::strong_ordering::equal);
     EXPECT_NE(std::hash<V>()(a), std::hash<V>()(b));
     EXPECT_EQ(std::hash<V>()(c), std::hash<V>()(d));
-    unordered_map<V, int> counts;
+    map<V, int> counts;
     counts[a] = 1;
     counts[c] = 2;
     EXPECT_EQ(counts[d], 2);
@@ -183,7 +183,7 @@ TEST(Variant_Tests, InsideTheContainers) {
     settle();
     const int before = Node::alive.load();
     vector<Value> values;
-    map<int, Value> by_key;
+    sorted_map<int, Value> by_key;
     off_frame([&] {
         for (int i = 0; i < 100; ++i) {
             values.push_back(i % 2 ? Value(0x30000 + i) : Value(make_tracked<Node>(i)));

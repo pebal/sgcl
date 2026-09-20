@@ -3,7 +3,7 @@
 The containers of the standard library with their nodes and buffers on the managed heap, the observers built on them (`weak_map`, `weak_set`, `expiry_queue`), and the immutable containers of `sgcl::im` ([im/](im/README.md)): a container lives where a `tracked_ptr` may live, its elements are destroyed exactly when `std` destroys them, and the collector reclaims the memory. `#include "sgcl/containers/containers.h"` brings the module in; it depends on [`core`](../core/README.md) only.; the index of the whole interface is [`docs/sgcl/`](../README.md); the containers against `std`, in numbers, are on [benchmarks](benchmarks.md).
 
 ## Containers
-`vector`, `array`, `deque`, `list`, `forward_list`, `map`, `set`, `multimap`, `multiset`, `unordered_map`, `unordered_set`, `unordered_multimap`, `unordered_multiset` and the adapters `stack`, `queue`, `priority_queue`, in `sgcl::` and in `sgcl::`, follow the interfaces of their `std` namesakes, including iterator categories (`std::ranges` algorithms work on them), transparent lookup, node handles, `std::erase`/`std::erase_if`, and three-way comparison. They differ from the standard containers in where their memory lives and when elements die:
+`vector`, `array`, `dynamic_array`, `deque`, `list`, `forward_list`, `map`, `set`, `multimap`, `multiset`, `sorted_map`, `sorted_set`, `sorted_multimap`, `sorted_multiset`, `ordered_map`, `ordered_set` and the adapters `stack`, `queue`, `priority_queue` follow the interfaces of their `std` counterparts, including iterator categories (`std::ranges` algorithms work on them), transparent lookup, node handles, `std::erase`/`std::erase_if`, and three-way comparison. The names go by the order of iteration, not by the history of the standard: `map` and `set` are the hash containers (`std::unordered_map`, `std::unordered_set`), the default in every language of the last twenty years; `sorted_map` and `sorted_set` are the trees (`std::map`, `std::set`), iterated in the order of the keys, with `lower_bound` and `upper_bound`; `ordered_map` and `ordered_set` are hash containers iterated in the order of insertion (Java's `LinkedHashMap`). Code that comes from `std::map` and needs the keys in order goes to `sorted_map`. The containers differ from the standard ones in where their memory lives and when elements die:
 
 - A container holds its buffer or its root node by a `tracked_ptr`, so it lives where one may: on a stack or inside a managed object, never in `new`/`malloc` memory or in a standard container ([The pointer and its places](../core/README.md#the-pointer-and-its-places)). Iterators are plain pointers, valid exactly when their `std` counterparts are, and may live anywhere: the container roots every element it holds, and a raw pointer in a stack frame is a root of its own under the conservative scan.
 - Nodes and buffers are managed objects: an `erase` unlinks a node and the collector reclaims it later; nothing is ever freed by hand, so a cycle through a container is collected like any other cycle.
@@ -32,7 +32,7 @@ sgcl::collector::force_collect(true);    // optional, for the demonstration: the
 std::cout << names.sweep() << " entry gone\n";   // 1
 ```
 
-The entries are hashed and compared by the object's address, read from the weak pointer's cell without a lock: the cell holds the address while the object lives, and the weak phase clears it before the sweep frees the slot, so an address in a cell never names a slot's earlier occupant, a dead entry equals nothing (its own key included), and the object that takes the slot next gets an entry of its own. A `sgcl::multimap<const Node*, ...>` would not do: a raw address in a managed container is a word holding a heap address, which the pointer map built by elimination ([Pointer maps](../../garbage_collector/overview.md#pointer-maps)) follows like a `tracked_ptr`, so the map would keep every node alive by its key. The lookups cost those of `unordered_map` plus a load of the cell per key compared; the sweeps a pass over the entries, paid for by the insertions between them.
+The entries are hashed and compared by the object's address, read from the weak pointer's cell without a lock: the cell holds the address while the object lives, and the weak phase clears it before the sweep frees the slot, so an address in a cell never names a slot's earlier occupant, a dead entry equals nothing (its own key included), and the object that takes the slot next gets an entry of its own. A `sgcl::sorted_multimap<const Node*, ...>` would not do: a raw address in a managed container is a word holding a heap address, which the pointer map built by elimination ([Pointer maps](../../garbage_collector/overview.md#pointer-maps)) follows like a `tracked_ptr`, so the map would keep every node alive by its key. The lookups cost those of `map` plus a load of the cell per key compared; the sweeps a pass over the entries, paid for by the insertions between them.
 
 ## Pages
 
@@ -48,16 +48,16 @@ The entries are hashed and compared by the object's address, read from the weak 
 | [forward_list](forward_list.md) | `forward_list.h` | `std::forward_list` |
 | [stack](stack.md) | `stack.h` | `std::stack` |
 | [queue, priority_queue](queue.md) | `queue.h` | `std::queue`, `std::priority_queue` |
-| [map](map.md) | `map.h` | `std::map` |
-| [multimap](multimap.md) | `multimap.h` | `std::multimap` |
-| [set](set.md) | `set.h` | `std::set` |
-| [multiset](multiset.md) | `multiset.h` | `std::multiset` |
-| [unordered_map](unordered_map.md) | `unordered_map.h` | `std::unordered_map` |
-| [unordered_multimap](unordered_multimap.md) | `unordered_multimap.h` | `std::unordered_multimap` |
-| [unordered_set](unordered_set.md) | `unordered_set.h` | `std::unordered_set` |
-| [unordered_multiset](unordered_multiset.md) | `unordered_multiset.h` | `std::unordered_multiset` |
-| [ordered_map](ordered_map.md) | `ordered_map.h` | `unordered_map` iterated in insertion order: Java's `LinkedHashMap`; `front`, `back`, `to_back`, `to_front` |
-| [ordered_set](ordered_set.md) | `ordered_set.h` | `unordered_set` iterated in insertion order: Java's `LinkedHashSet` |
+| [sorted_map](sorted_map.md) | `sorted_map.h` | `std::map` |
+| [sorted_multimap](sorted_multimap.md) | `sorted_multimap.h` | `std::multimap` |
+| [sorted_set](sorted_set.md) | `sorted_set.h` | `std::set` |
+| [sorted_multiset](sorted_multiset.md) | `sorted_multiset.h` | `std::multiset` |
+| [map](map.md) | `map.h` | `std::unordered_map` |
+| [multimap](multimap.md) | `multimap.h` | `std::unordered_multimap` |
+| [set](set.md) | `set.h` | `std::unordered_set` |
+| [multiset](multiset.md) | `multiset.h` | `std::unordered_multiset` |
+| [ordered_map](ordered_map.md) | `ordered_map.h` | `map` iterated in insertion order: Java's `LinkedHashMap`; `front`, `back`, `to_back`, `to_front` |
+| [ordered_set](ordered_set.md) | `ordered_set.h` | `set` iterated in insertion order: Java's `LinkedHashSet` |
 
 The questions, the order and the writes of a range (`contains`, `index_of`, `find_if`, `sort`, `reverse`, `min`, `for_each`...) are members of every container that iterates, from the mixins of `core` ([the mixins and the concepts](../core/mixin/README.md)); the maps read by their key through [m_lookup](../core/mixin/m_lookup.md).
 

@@ -6,72 +6,39 @@
 #pragma once
 
 #include "../core/aliases.h"
-#include "detail/rb_tree.h"
-
-#include <functional>
-#include <stdexcept>
+#include "../core/mixin/mixin.h"
+#include "detail/hash_table.h"
 
 namespace sgcl {
-    // std::map on a garbage-collected red-black tree (detail/rb_tree.h).
-    // The container holds a tracked pointer, so it lives on the stack or
-    // inside a managed object only; its iterators are raw node pointers
-    // (trivially copyable, storable anywhere) that stay valid for as long
-    // as the element is in the container, exactly as in std.
-    template<class Key, class T, class Compare = std::less<Key>>
+    // std::unordered_map over managed nodes (detail/hash_table.h). The map
+    // and its node handles hold tracked pointers: they live on a stack or
+    // inside a managed object, never in unmanaged memory. An iterator is
+    // one raw node pointer and may live anywhere (a std::vector of
+    // iterators is fine): its node is rooted by the map while the element
+    // is in it, and an iterator to an erased element is invalid as in std.
+    template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
     class map
-    : public detail::RbTree<detail::MapTraits<Key, T, Compare, false>>
-    , public m_enumerable<map<Key, T, Compare>>
-    , public m_bidirectional<map<Key, T, Compare>>
-    , public m_equatable<map<Key, T, Compare>>
-    , public m_comparable<map<Key, T, Compare>>
-    , public m_lookup<map<Key, T, Compare>> {
-        using Base = detail::RbTree<detail::MapTraits<Key, T, Compare, false>>;
+    : public detail::HashTable<detail::HashMapTraits<Key, T, Hash, KeyEqual, true>>
+    , public m_enumerable<map<Key, T, Hash, KeyEqual>>
+    , public m_lookup<map<Key, T, Hash, KeyEqual>> {
+        using Base = detail::HashTable<detail::HashMapTraits<Key, T, Hash, KeyEqual, true>>;
 
     public:
         using key_type = Key;
         using mapped_type = T;
-        using typename Base::value_type;
-        using typename Base::iterator;
-        using typename Base::const_iterator;
-        using typename Base::insert_return_type;
+        using value_type = typename Base::value_type;
+        using size_type = typename Base::size_type;
+        using iterator = typename Base::iterator;
+        using const_iterator = typename Base::const_iterator;
 
         using Base::Base;
 
         // By the key, the container's own, in place of m_enumerable's walk
         using Base::contains;
 
-        // The smallest and the largest element are the ends of the order,
-        // O(1), in place of m_enumerable's walk (hidden, the overloads with
-        // a comparator too: the container orders by its own comparator)
-
-        const value_type& min() const noexcept {
-            return *this->begin();
-        }
-
-        const value_type& max() const noexcept {
-            return *this->rbegin();
-        }
-        using Base::insert;
-
-        map() = default;
-        map(const map&) = default;
-        map(map&&) = default;
-        map& operator=(const map&) = default;
-        map& operator=(map&&) = default;
-
         map& operator=(std::initializer_list<value_type> ilist) {
             Base::operator=(ilist);
             return *this;
-        }
-
-        template<class P> requires std::is_constructible_v<value_type, P&&>
-        std::pair<iterator, bool> insert(P&& value) {
-            return this->emplace(std::forward<P>(value));
-        }
-
-        template<class P> requires std::is_constructible_v<value_type, P&&>
-        iterator insert(const_iterator hint, P&& value) {
-            return this->emplace_hint(hint, std::forward<P>(value));
         }
 
         template<class M>
@@ -85,173 +52,125 @@ namespace sgcl {
         }
 
         template<class M>
-        iterator insert_or_assign(const_iterator hint, const key_type& key, M&& obj) {
-            return _insert_or_assign_hint(hint, key, std::forward<M>(obj));
+        iterator insert_or_assign(const_iterator, const key_type& key, M&& obj) {
+            return _insert_or_assign(key, std::forward<M>(obj)).first;
         }
 
         template<class M>
-        iterator insert_or_assign(const_iterator hint, key_type&& key, M&& obj) {
-            return _insert_or_assign_hint(hint, std::move(key), std::forward<M>(obj));
+        iterator insert_or_assign(const_iterator, key_type&& key, M&& obj) {
+            return _insert_or_assign(std::move(key), std::forward<M>(obj)).first;
         }
 
-        // The mapped value is built in place from the arguments: it need
-        // not be movable.
+        // The mapped value is constructed in place from the arguments, and
+        // only when the key is new.
         template<class... A>
         std::pair<iterator, bool> try_emplace(const key_type& key, A&&... a) {
-            return _try_emplace(key, std::forward<A>(a)...);
+            auto [node, inserted] = Base::_try_emplace(key, std::forward<A>(a)...);
+            return {Base::_make_iterator(node), inserted};
         }
 
         template<class... A>
         std::pair<iterator, bool> try_emplace(key_type&& key, A&&... a) {
-            return _try_emplace(std::move(key), std::forward<A>(a)...);
+            auto [node, inserted] = Base::_try_emplace(std::move(key), std::forward<A>(a)...);
+            return {Base::_make_iterator(node), inserted};
         }
 
         template<class... A>
-        iterator try_emplace(const_iterator hint, const key_type& key, A&&... a) {
-            return _try_emplace_hint(hint, key, std::forward<A>(a)...);
+        iterator try_emplace(const_iterator, const key_type& key, A&&... a) {
+            return try_emplace(key, std::forward<A>(a)...).first;
         }
 
         template<class... A>
-        iterator try_emplace(const_iterator hint, key_type&& key, A&&... a) {
-            return _try_emplace_hint(hint, std::move(key), std::forward<A>(a)...);
+        iterator try_emplace(const_iterator, key_type&& key, A&&... a) {
+            return try_emplace(std::move(key), std::forward<A>(a)...).first;
         }
 
         mapped_type& at(const key_type& key) {
-            auto it = this->find(key);
-            if (it == this->end()) {
-                throw std::out_of_range("sgcl::map::at");
-            }
-            return it->second;
+            return _at(key);
         }
 
         const mapped_type& at(const key_type& key) const {
-            auto it = this->find(key);
-            if (it == this->end()) {
-                throw std::out_of_range("sgcl::map::at");
-            }
-            return it->second;
+            return _at(key);
         }
 
-        // With a key of another type the comparator takes (is_transparent):
-        // a string_view for a string
-        template<class K> requires detail::TransparentCompare<Compare>
+        template<class K> requires detail::TransparentLookup<Hash, KeyEqual>
         mapped_type& at(const K& key) {
-            auto it = this->find(key);
-            if (it == this->end()) {
-                throw std::out_of_range("sgcl::map::at");
-            }
-            return it->second;
+            return _at(key);
         }
 
-        template<class K> requires detail::TransparentCompare<Compare>
+        template<class K> requires detail::TransparentLookup<Hash, KeyEqual>
         const mapped_type& at(const K& key) const {
-            auto it = this->find(key);
-            if (it == this->end()) {
-                throw std::out_of_range("sgcl::map::at");
-            }
-            return it->second;
+            return _at(key);
+        }
+
+        mapped_type& operator[](const key_type& key) {
+            return Base::_try_emplace(key).first->slot.value.second;
+        }
+
+        mapped_type& operator[](key_type&& key) {
+            return Base::_try_emplace(std::move(key)).first->slot.value.second;
         }
 
         // The value under the key, moved out, and the element erased;
         // nothing when the key is absent: what Java's remove and C#'s
         // Remove(key, out value) hand back
         optional<mapped_type> take(const key_type& key) {
-            return _take(key);
+            return Base::_take(key);
         }
 
-        template<class K> requires detail::TransparentCompare<Compare>
+        template<class K> requires detail::TransparentLookup<Hash, KeyEqual>
         optional<mapped_type> take(const K& key) {
-            return _take(key);
-        }
-
-        mapped_type& operator[](const key_type& key) {
-            return _try_emplace(key).first->second;
-        }
-
-        mapped_type& operator[](key_type&& key) {
-            return _try_emplace(std::move(key)).first->second;
+            return Base::_take(key);
         }
 
     private:
-        template<class K>
-        optional<mapped_type> _take(const K& key) {
-            auto it = this->find(key);
-            if (it == this->end()) {
-                return nullopt;
-            }
-            optional<mapped_type> value(std::move(it->second));
-            this->erase(it);
-            return value;
-        }
-
-        template<class K, class... A>
-        std::pair<iterator, bool> _try_emplace(K&& key, A&&... a) {
-            this->_ensure_header();
-            auto pos = this->_unique_pos(key);
-            if (pos.existing) {
-                return {iterator(pos.existing), false};
-            }
-            return {this->_insert_at(pos, std::piecewise_construct, std::forward_as_tuple(std::forward<K>(key)), std::forward_as_tuple(std::forward<A>(a)...)), true};
-        }
-
-        template<class K, class... A>
-        iterator _try_emplace_hint(const_iterator hint, K&& key, A&&... a) {
-            this->_ensure_header();
-            auto pos = this->_unique_hint_pos(this->_raw(hint), key);
-            if (pos.existing) {
-                return iterator(pos.existing);
-            }
-            return this->_insert_at(pos, std::piecewise_construct, std::forward_as_tuple(std::forward<K>(key)), std::forward_as_tuple(std::forward<A>(a)...));
-        }
-
         template<class K, class M>
         std::pair<iterator, bool> _insert_or_assign(K&& key, M&& obj) {
-            this->_ensure_header();
-            auto pos = this->_unique_pos(key);
-            if (pos.existing) {
-                this->_node(pos.existing)->slot.value.second = std::forward<M>(obj);
-                return {iterator(pos.existing), false};
+            auto [node, inserted] = Base::_try_emplace(std::forward<K>(key), std::forward<M>(obj));
+            if (!inserted) {
+                node->slot.value.second = std::forward<M>(obj);
             }
-            return {this->_insert_at(pos, std::forward<K>(key), std::forward<M>(obj)), true};
+            return {Base::_make_iterator(node), inserted};
         }
 
-        template<class K, class M>
-        iterator _insert_or_assign_hint(const_iterator hint, K&& key, M&& obj) {
-            this->_ensure_header();
-            auto pos = this->_unique_hint_pos(this->_raw(hint), key);
-            if (pos.existing) {
-                this->_node(pos.existing)->slot.value.second = std::forward<M>(obj);
-                return iterator(pos.existing);
+        template<class K>
+        mapped_type& _at(const K& key) const {
+            auto node = Base::_find(key);
+            if (!node) {
+                throw std::out_of_range("sgcl::map::at");
             }
-            return this->_insert_at(pos, std::forward<K>(key), std::forward<M>(obj));
+            return node->slot.value.second;
+        }
+
+        friend bool operator==(const map& lhs, const map& rhs) {
+            return lhs._equal_to(rhs);
+        }
+
+        friend void swap(map& lhs, map& rhs) noexcept(noexcept(lhs.swap(rhs))) {
+            lhs.swap(rhs);
+        }
+
+    public:
+        template<class Pred>
+        size_type erase_if_impl(Pred& pred) {
+            return this->_erase_if(pred);
         }
     };
 
     template<std::input_iterator InputIt,
-             class Compare = std::less<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>>>
-    map(InputIt, InputIt, Compare = Compare())
+             class Hash = std::hash<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>>,
+             class KeyEqual = std::equal_to<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>>>
+    map(InputIt, InputIt, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual())
         -> map<std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>,
-               typename std::iterator_traits<InputIt>::value_type::second_type, Compare>;
+                         typename std::iterator_traits<InputIt>::value_type::second_type, Hash, KeyEqual>;
 
-    template<class Key, class T, class Compare = std::less<Key>>
-    map(std::initializer_list<std::pair<Key, T>>, Compare = Compare()) -> map<Key, T, Compare>;
+    template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
+    map(std::initializer_list<std::pair<Key, T>>, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual())
+        -> map<Key, T, Hash, KeyEqual>;
 
-    template<class Key, class T, class Compare>
-    void swap(map<Key, T, Compare>& lhs, map<Key, T, Compare>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
-        lhs.swap(rhs);
-    }
-
-    template<class Key, class T, class Compare, class Pred>
-    typename map<Key, T, Compare>::size_type erase_if(map<Key, T, Compare>& c, Pred pred) {
-        auto old_size = c.size();
-        for (auto it = c.begin(), last = c.end(); it != last;) {
-            if (pred(*it)) {
-                it = c.erase(it);
-            } else {
-                ++it;
-            }
-        }
-        return old_size - c.size();
+    template<class Key, class T, class Hash, class KeyEqual, class Pred>
+    size_t erase_if(map<Key, T, Hash, KeyEqual>& c, Pred pred) {
+        return c.erase_if_impl(pred);
     }
 }
 

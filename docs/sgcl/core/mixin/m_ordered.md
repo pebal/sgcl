@@ -15,7 +15,7 @@ namespace sgcl {
 
 - Every method exists only for elements that are ordered (`c_comparable`: `<=>` or `<`), or takes a comparator or a key and asks nothing of the element.
 - The sorts exist only where the elements can be written (`c_sequence`) and reached by position (`c_random_access`): an immutable vector is ordered — `is_sorted`, `binary_search` — but not sorted in place. `list` and `forward_list` have a `sort` of their own, on the nodes, which hides these.
-- The searches assume a sorted range, by `<` or by the comparator given, and take O(log n) comparisons on a random-access range, O(n) steps on a list. A sorted `vector` with them is the flat map of this library: the lookups of a `map` with the memory of a `vector`.
+- The searches assume a sorted range, by `<` or by the comparator given, and take O(log n) comparisons on a random-access range, O(n) steps on a list. A sorted `vector` with them is the flat map of this library: the lookups of a `sorted_map` with the memory of a `vector`.
 - One mixin holds every overload of a name: `sort()`, `sort(cmp)`, `sort_by(proj)` are all here, not split between this and `m_sequence`, because a name in two bases is ambiguous.
 
 ## Members

@@ -185,6 +185,6 @@ Output: `42: checked` and `42: created by the parser` in either order, then `2 e
 
 - [weak_set](weak_set.md): the objects alone; [weak_ptr](../core/weak_ptr.md): the key
 - [expiry_queue](expiry_queue.md): a function called with the object when it is found unreachable, for the cleanup that needs the object
-- [unordered_map](unordered_map.md): the table underneath
+- [map](map.md): the table underneath
 - README: [Weak containers](README.md#weak-containers) under [Weak pointers](../core/README.md#weak-pointers), [The rules](../core/README.md#the-rules)
 - `tests/containers/weak_map.cpp`: every behaviour above, checked.

@@ -373,14 +373,14 @@ int main(int argc, char** argv) {
     else if (c == "list_iterate") result = PICK(run_list_iterate<sgcl::list<long>>(n), run_list_iterate<std::list<long>>(n));
     else if (c == "list_erase") result = PICK(run_list_erase<sgcl::list<long>>(n), run_list_erase<std::list<long>>(n));
     else if (c == "forward_list_push") result = PICK(run_forward_list_push<sgcl::forward_list<long>>(n), run_forward_list_push<std::forward_list<long>>(n));
-    else if (c == "map_insert") result = PICK((run_map_insert<sgcl::map<long, long>>(n)), (run_map_insert<std::map<long, long>>(n)));
-    else if (c == "map_find") result = PICK((run_map_find<sgcl::map<long, long>>(n)), (run_map_find<std::map<long, long>>(n)));
-    else if (c == "map_iterate") result = PICK((run_map_iterate<sgcl::map<long, long>>(n)), (run_map_iterate<std::map<long, long>>(n)));
-    else if (c == "set_insert") result = PICK(run_set_insert<sgcl::set<long>>(n), run_set_insert<std::set<long>>(n));
-    else if (c == "unordered_insert") result = PICK((run_map_insert<sgcl::unordered_map<long, long>>(n)), (run_map_insert<std::unordered_map<long, long>>(n)));
-    else if (c == "unordered_find") result = PICK((run_map_find<sgcl::unordered_map<long, long>>(n)), (run_map_find<std::unordered_map<long, long>>(n)));
-    else if (c == "unordered_erase") result = PICK((run_unordered_erase<sgcl::unordered_map<long, long>>(n)), (run_unordered_erase<std::unordered_map<long, long>>(n)));
-    else if (c == "unordered_ptr") result = PICK((run_unordered_ptr<sgcl::unordered_map<long, sgcl::tracked_ptr<Node>>, sgcl::tracked_ptr<Node>>(n, make_tracked)),
+    else if (c == "map_insert") result = PICK((run_map_insert<sgcl::sorted_map<long, long>>(n)), (run_map_insert<std::map<long, long>>(n)));
+    else if (c == "map_find") result = PICK((run_map_find<sgcl::sorted_map<long, long>>(n)), (run_map_find<std::map<long, long>>(n)));
+    else if (c == "map_iterate") result = PICK((run_map_iterate<sgcl::sorted_map<long, long>>(n)), (run_map_iterate<std::map<long, long>>(n)));
+    else if (c == "set_insert") result = PICK(run_set_insert<sgcl::sorted_set<long>>(n), run_set_insert<std::set<long>>(n));
+    else if (c == "unordered_insert") result = PICK((run_map_insert<sgcl::map<long, long>>(n)), (run_map_insert<std::unordered_map<long, long>>(n)));
+    else if (c == "unordered_find") result = PICK((run_map_find<sgcl::map<long, long>>(n)), (run_map_find<std::unordered_map<long, long>>(n)));
+    else if (c == "unordered_erase") result = PICK((run_unordered_erase<sgcl::map<long, long>>(n)), (run_unordered_erase<std::unordered_map<long, long>>(n)));
+    else if (c == "unordered_ptr") result = PICK((run_unordered_ptr<sgcl::map<long, sgcl::tracked_ptr<Node>>, sgcl::tracked_ptr<Node>>(n, make_tracked)),
                                                  (run_unordered_ptr<std::unordered_map<long, std::shared_ptr<Node>>, std::shared_ptr<Node>>(n, make_shared)));
 #undef PICK
     else {

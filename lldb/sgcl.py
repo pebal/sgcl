@@ -406,7 +406,7 @@ def value_type_of(valobj):
     if vt is not None:
         return vt
     name = t.GetName()
-    if "::map<" in name or "::multimap<" in name or "::unordered_map<" in name or "::unordered_multimap<" in name:
+    if "::map<" in name or "::multimap<" in name or "::map<" in name or "::multimap<" in name:
         k = t.GetTemplateArgumentType(0)
         v = t.GetTemplateArgumentType(1)
         pair = valobj.GetTarget().FindFirstType("std::pair<const %s, %s>" % (k.GetName(), v.GetName()))
@@ -435,7 +435,7 @@ def slot_offset(valobj, base_size, elem):
 
 
 class TreeChildren:
-    """sgcl::map, multimap, set, multiset: in order from the leftmost node."""
+    """sgcl::sorted_map, sorted_multimap, sorted_set, sorted_multiset: in order from the leftmost node."""
 
     def __init__(self, valobj, internal_dict):
         self.valobj = valobj
@@ -490,7 +490,7 @@ class TreeChildren:
 
 
 class HashChildren:
-    """sgcl::unordered_map, multimap, set, multiset: the chain from the sentinel."""
+    """sgcl::map, multimap, set, multiset: the chain from the sentinel."""
 
     def __init__(self, valobj, internal_dict):
         self.valobj = valobj
@@ -561,6 +561,6 @@ def __lldb_init_module(debugger, internal_dict):
     add(r"^sgcl::dynamic_array<.+>$", "array_summary", "ArrayChildren")
     add(r"^sgcl::deque<.+>$", "deque_summary", "DequeChildren")
     add(r"^sgcl::(list|forward_list)<.+>$", "list_summary", "ListChildren")
-    add(r"^sgcl::(map|multimap|set|multiset)<.+>$", "size_summary", "TreeChildren")
-    add(r"^sgcl::unordered_(map|multimap|set|multiset)<.+>$", "size_summary", "HashChildren")
+    add(r"^sgcl::sorted_(map|multimap|set|multiset)<.+>$", "size_summary", "TreeChildren")
+    add(r"^sgcl::(map|multimap|set|multiset)<.+>$", "size_summary", "HashChildren")
     debugger.HandleCommand("type category enable %s" % cat)

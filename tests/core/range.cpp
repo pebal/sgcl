@@ -5,7 +5,7 @@
 //------------------------------------------------------------------------------
 // range: a pair of iterators as a range, and the integers of a half-open
 // interval, in a range-for and under std::ranges.
-#include "sgcl/containers/multimap.h"
+#include "sgcl/containers/sorted_multimap.h"
 #include "sgcl/core/range.h"
 #include "tests/types.h"
 
@@ -14,7 +14,7 @@
 #include <vector>
 
 TEST(Range_Tests, PairOfIteratorsFromEqualRange) {
-    sgcl::multimap<int, int> m = {{1, 10}, {1, 11}, {2, 20}};
+    sgcl::sorted_multimap<int, int> m = {{1, 10}, {1, 11}, {2, 20}};
     sgcl::range ones = m.equal_range(1);               // range<iterator>, deduced from the pair
     EXPECT_FALSE(ones.empty());
     EXPECT_EQ(ones.size(), 2u);
@@ -27,7 +27,7 @@ TEST(Range_Tests, PairOfIteratorsFromEqualRange) {
     sgcl::range none = m.equal_range(3);
     EXPECT_TRUE(none.empty());
     EXPECT_EQ(none.size(), 0u);
-    sgcl::range<sgcl::multimap<int, int>::iterator> empty;   // default: empty
+    sgcl::range<sgcl::sorted_multimap<int, int>::iterator> empty;   // default: empty
     EXPECT_TRUE(empty.empty());
 }
 
@@ -104,5 +104,5 @@ TEST(Range_Tests, UnderStdRanges) {
     EXPECT_EQ(v, (std::vector<int>{0, 1, 4, 9}));
     EXPECT_EQ(*std::ranges::max_element(sgcl::range(3, 8)), 7);   // a borrowed range: the iterator outlives the temporary
     static_assert(std::ranges::borrowed_range<sgcl::range<sgcl::detail::counter<int>>>);
-    static_assert(std::ranges::forward_range<sgcl::range<sgcl::multimap<int, int>::iterator>>);
+    static_assert(std::ranges::forward_range<sgcl::range<sgcl::sorted_multimap<int, int>::iterator>>);
 }

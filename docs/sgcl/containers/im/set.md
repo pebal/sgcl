@@ -101,5 +101,5 @@ step 5: 4 ids, 9 seen
 
 - [im::map](map.md), the structure, the rules and the numbers; [im::vector](vector.md)
 - [copy_on_write](../../concurrent/copy_on_write.md), how a version is published to other threads
-- [unordered_set](../unordered_set.md), the mutable one; [concurrent_unordered_set](../../concurrent/concurrent_unordered_set.md), the one many threads change in place
+- [set](../set.md), the mutable one; [concurrent_set](../../concurrent/concurrent_set.md), the one many threads change in place
 - [README: The structures](README.md#the-structures)

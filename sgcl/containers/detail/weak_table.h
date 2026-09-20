@@ -6,9 +6,9 @@
 #pragma once
 
 #include "../../core/weak_ptr.h"
-#include "../unordered_map.h"
-#include "../unordered_multimap.h"
-#include "../unordered_set.h"
+#include "../map.h"
+#include "../multimap.h"
+#include "../set.h"
 
 #include <cstdint>
 
@@ -74,7 +74,7 @@ namespace sgcl::detail {
     };
 
     // What the weak containers share: a hash table keyed by weak pointers
-    // (the Table: unordered_map, unordered_multimap or unordered_set of
+    // (the Table: map, multimap or set of
     // them), the entries of dead objects swept out every so many
     // insertions, and an iterator that passes the dead ones over.
     template<class Key, class Table>

@@ -4,23 +4,23 @@
 #include "sgcl/containers/multimap.h"   // or "sgcl/sgcl.h"
 
 namespace sgcl {
-    template<class Key, class T, class Compare = std::less<Key>>
+    template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
     class multimap;
 }
 ```
 
-`sgcl::multimap<Key, T, Compare>` is `std::multimap` on a red-black tree whose nodes are managed objects: the same tree as [map](map.md), with equivalent keys allowed. The interface is the one of `std::multimap` (constructors, `insert`, `emplace`, `erase`, `extract`, `merge`, node handles, the lookups with transparent comparators, bidirectional iterators, `key_comp`/`value_comp`, `swap`, `==` and `<=>`, `std::erase_if`), and so is the behaviour: elements with equivalent keys are adjacent, a new one goes after the ones already there (insertion order within a key is kept), `erase(key)` removes all of them, an element is destroyed the moment it is erased.
+`sgcl::multimap<Key, T, Hash, KeyEqual>` is `std::unordered_multimap` over managed nodes: the same hash table as [map](map.md), with equivalent keys allowed. The interface is the one of `std::unordered_multimap` (constructors, `insert`, `emplace`, `erase`, `extract`, `merge`, node handles, the lookups with transparent hash and equality, forward iterators, the bucket interface, `load_factor`/`max_load_factor`/`rehash`/`reserve`, `hash_function`/`key_eq`, `swap`, `==`, deduction guides, `std::erase_if`), and so is the behaviour: elements with equivalent keys are adjacent in the iteration order and in their bucket, `erase(key)` removes all of them, `count` counts them, an element is destroyed the moment it is erased. Within a run of equal keys a new element goes in front of those already there.
 
-What differs from `std` is where the memory lives. The multimap object holds one `tracked_ptr` (to a header node), a count and the comparator, so it lives where a `tracked_ptr` may live; the nodes are managed objects linked by tracked pointers, traced from the header, so elements holding `tracked_ptr`s are traced and a cycle through a multimap is collected like any other. Nothing is freed by hand: an `erase` destroys the element and unlinks the node, the collector reclaims the node later. Iterators are one raw node pointer each, trivially copyable, storable anywhere, valid while their element is in the container. Lookups and iteration read raw pointers and pay no write barrier; insertions, erasures and rebalancing store tracked pointers and pay the barrier on each link they relink ([README: Containers](README.md#containers)). The header is allocated on the first insertion: an empty multimap costs nothing.
+What differs from `std` is where the memory lives. The container holds two `tracked_ptr`s (the bucket array and a sentinel node), the counts, the hasher and the equality, so it lives where a `tracked_ptr` may live; the elements are nodes on the managed heap, forming one chain linked by tracked pointers and traced from the sentinel, so elements holding `tracked_ptr`s are traced and a cycle through the container is collected like any other. Nothing is freed by hand: an `erase` destroys the element and unlinks the node, the collector reclaims the node later. The hash of each key is cached in its node. The bucket count is 0 or a power of two, and the table grows when the size reaches `bucket_count() * max_load_factor()`, doubling at least, to eight buckets at the least. Iterators are one raw node pointer each, trivially copyable, storable anywhere, valid across rehashes and until their element is erased. Lookups and iteration pay no write barrier; insertions, erasures and rehashes store tracked pointers and pay the barrier on each link they relink ([README: Containers](README.md#containers)).
 
 ## Rules
 
-- A multimap holds a `tracked_ptr`, so it lives on a stack or inside a managed object: never in `new`/`malloc` memory, a `std` container, a global, a `thread_local` or a plain coroutine frame ([The rules](../core/README.md#the-rules), 1). The same holds for a node handle.
-- The elements may hold tracked pointers: the nodes are managed objects, so those pointers are traced.
-- An element is destroyed the moment it is erased, cleared, assigned over, or the multimap is destroyed, exactly as in `std`. The one exception is a multimap dying in a sweep, inside a managed object nobody refers to any more: its nodes are garbage of the same sweep, and each destroys its element when the sweep reaches it, on a collector thread.
-- An iterator, a reference or a pointer to an element is valid while the element is in the container, across insertions, erasures of other elements, `swap`, `merge` and a move of the container. An iterator to an erased element is invalid as in `std`.
+- An `multimap` holds tracked pointers, so it lives on a stack or inside a managed object: never in `new`/`malloc` memory, a `std` container, a global, a `thread_local` or a plain coroutine frame ([The rules](../core/README.md#the-rules), 1). The same holds for a node handle.
+- The elements may hold tracked pointers (a `tracked_ptr` key hashes by address through `std::hash<sgcl::tracked_ptr<T>>`): the nodes are managed objects, so those pointers are traced.
+- An element is destroyed the moment it is erased, cleared, assigned over, or the container is destroyed, exactly as in `std`. The one exception is a container dying in a sweep, inside a managed object nobody refers to any more: its nodes are garbage of the same sweep, and each destroys its element when the sweep reaches it, on a collector thread.
+- An iterator, a reference or a pointer to an element is valid while the element is in the container, across insertions, rehashes, erasures of other elements, `swap`, `merge` and a move of the container. An iterator to an erased element is invalid as in `std`.
 - A `tracked_ptr` may point at an element or a member of one (a node is a managed object); it keeps the node alive, not the element.
-- Thread safety is that of `std::multimap`: concurrent readers, or one writer, with the program's own synchronization ([The rules](../core/README.md#the-rules), 6).
+- Thread safety is that of `std::unordered_multimap`: concurrent readers, or one writer, with the program's own synchronization ([The rules](../core/README.md#the-rules), 6).
 
 ## Members
 
@@ -30,41 +30,45 @@ What differs from `std` is where the memory lives. The multimap object holds one
 using key_type = Key;
 using mapped_type = T;
 using value_type = std::pair<const Key, T>;
-using key_compare = Compare;
-using value_compare = /* compares two value_type by key with Compare */;
+using hasher = Hash;
+using key_equal = KeyEqual;
 using size_type = size_t;
 using difference_type = ptrdiff_t;
 using reference = value_type&;
 using const_reference = const value_type&;
 using pointer = value_type*;
 using const_pointer = const value_type*;
-using iterator = /* bidirectional, one raw node pointer */;
-using const_iterator = /* bidirectional, one raw node pointer */;
-using reverse_iterator = std::reverse_iterator<iterator>;
-using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+using iterator = /* forward, one raw node pointer */;
+using const_iterator = /* forward, one raw node pointer */;
+using local_iterator = /* forward, stops at the end of its bucket */;
+using const_local_iterator = /* forward, stops at the end of its bucket */;
 using node_type = /* the node handle, below */;
-static constexpr bool Multi = true;
+struct insert_return_type { iterator position; bool inserted; node_type node; };   // unused: every insert returns an iterator
+static constexpr bool unique = false;
 ```
 
-`iterator` converts to `const_iterator`, not back. There is no `insert_return_type`: every `insert` returns an iterator.
+`iterator` converts to `const_iterator`, `local_iterator` to `const_local_iterator`, not back.
 
 ### Constructors
 
 ```cpp
-multimap() noexcept(std::is_nothrow_default_constructible_v<Compare>);
-explicit multimap(const Compare& comp);
-template<std::input_iterator InputIt> multimap(InputIt first, InputIt last, const Compare& comp = Compare());
-multimap(std::initializer_list<value_type> ilist, const Compare& comp = Compare());
+multimap();
+explicit multimap(size_type bucket_count, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual());
+template<std::input_iterator InputIt>
+multimap(InputIt first, InputIt last, size_type bucket_count = 0, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual());
+multimap(std::initializer_list<value_type> ilist, size_type bucket_count = 0, const Hash& hash = Hash(), const KeyEqual& equal = KeyEqual());
 multimap(const multimap& other);
-multimap(multimap&& other) noexcept(std::is_nothrow_move_constructible_v<Compare>);
+multimap(multimap&& other);
 ```
 
-The default constructor allocates nothing. The range and list constructors insert in order with `end()` as the hint (sorted input costs one comparison per element), keeping every element. A range of another type (pairs of a `string_view` and an `int` for `string` keys) is converted once per element, into its node, before the node's key is compared: the source need not be comparable with the keys at all. A copy has nodes of its own, in the same order: the tree copied shape for shape, a node per element with its colour and its links, no comparison and no rebalancing; a move takes the tree over and leaves `other` empty. A constructor or comparator that throws destroys the elements built so far.
+The default constructor allocates nothing (`bucket_count() == 0`). A bucket count is rounded up to a power of two. The range constructor, given a forward range, sizes the table for the distance first; every element is kept. A copy reproduces `other`'s bucket count, order and `max_load_factor`; a move takes the table over and leaves `other` empty. A constructor or hasher that throws destroys the elements built so far.
 
 ```cpp
-sgcl::multimap<sgcl::string, int> scores = {{"ann", 3}, {"bob", 5}, {"ann", 7}};     // ann 3, ann 7, bob 5
-sgcl::multimap<int, int, std::greater<int>> desc(std::greater<int>{});
-sgcl::multimap<sgcl::string, int> taken = std::move(scores);                         // scores is empty now
+sgcl::multimap<sgcl::string, int> scores = {{"ann", 3}, {"bob", 5}, {"ann", 7}};
+sgcl::multimap<int, int> sized(100);                                     // 128 buckets
+sgcl::vector<sgcl::pair<int, int>> src = {{1, 10}, {1, 11}};
+sgcl::multimap from_range(src.begin(), src.end());                       // deduced: <int, int>
+sgcl::multimap<sgcl::string, int> taken = std::move(scores);              // scores is empty now
 ```
 
 ### Destructor
@@ -73,17 +77,17 @@ sgcl::multimap<sgcl::string, int> taken = std::move(scores);                    
 ~multimap();
 ```
 
-Destroys the elements when the multimap dies on a stack or inside a managed object destroyed by hand; in a sweep it leaves the nodes to the same sweep, which destroys the elements. The node memory is reclaimed by the collector in both cases.
+Destroys the elements when the container dies on a stack or inside a managed object destroyed by hand; in a sweep it leaves the nodes to the same sweep, which destroys the elements. The nodes, the bucket array and the sentinel are reclaimed by the collector in both cases.
 
 ### operator=
 
 ```cpp
 multimap& operator=(const multimap& other);
-multimap& operator=(multimap&& other) noexcept(std::is_nothrow_move_assignable_v<Compare>);
+multimap& operator=(multimap&& other);
 multimap& operator=(std::initializer_list<value_type> ilist);
 ```
 
-Copy assignment clears this container (destroying its elements at once), takes `other`'s comparator and copies its tree shape for shape, as the copy constructor does (an element copy that throws leaves the container empty); move assignment clears and takes the tree over; the list form clears and inserts.
+Copy assignment builds a copy of `other` and swaps it in; move assignment clears this container (destroying its elements at once) and takes the table over; the list form builds a new table with this container's hasher, equality and `max_load_factor` and swaps it in.
 
 ```cpp
 sgcl::multimap<int, int> a = {{1, 1}, {1, 2}}, b;
@@ -92,46 +96,27 @@ b = {{5, 5}};                // the old elements die here
 a = std::move(b);            // a holds {5, 5}, b is empty
 ```
 
-### key_comp, value_comp
-
-```cpp
-key_compare key_comp() const;
-value_compare value_comp() const;
-```
-
-Copies of the comparator, for keys and for `value_type`s (compared by key).
-
-```cpp
-sgcl::multimap<int, int> m = {{1, 1}, {2, 2}};
-bool by_key = m.key_comp()(1, 2);                          // true
-bool by_value = m.value_comp()(*m.begin(), *m.rbegin());   // true
-```
-
 ### Iterators
 
 ```cpp
-iterator begin() noexcept;                       const_iterator begin() const noexcept;
-iterator end() noexcept;                         const_iterator end() const noexcept;
-const_iterator cbegin() const noexcept;          const_iterator cend() const noexcept;
-reverse_iterator rbegin() noexcept;              const_reverse_iterator rbegin() const noexcept;
-reverse_iterator rend() noexcept;                const_reverse_iterator rend() const noexcept;
-const_reverse_iterator crbegin() const noexcept; const_reverse_iterator crend() const noexcept;
+iterator begin() noexcept;                const_iterator begin() const noexcept;    const_iterator cbegin() const noexcept;
+iterator end() noexcept;                  const_iterator end() const noexcept;      const_iterator cend() const noexcept;
 ```
 
-`begin()` is the smallest key in O(1), `--end()` the largest; equivalent keys come in insertion order. Before the first insertion `begin()` and `end()` are both null iterators, equal to each other, neither of which may be dereferenced or moved; an `end()` taken then does not compare equal to `end()` after the first insertion. Iterators are raw node pointers: copying and advancing costs a load, and they may be kept in unmanaged memory while their element is in the container.
+Forward iterators over one chain of nodes; `end()` is a null iterator. Equivalent keys are adjacent. An iterator is a raw node pointer: copying and advancing it costs a load, and it may be kept in unmanaged memory while its element is in the container.
 
 ```cpp
-sgcl::multimap<sgcl::string, int> m = {{"b", 2}, {"a", 1}, {"a", 3}};
-for (auto& [key, value] : m) {          // a 1, a 3, b 2
-    value *= 10;
+sgcl::multimap<sgcl::string, int> m = {{"a", 1}, {"a", 2}, {"b", 3}};
+int total = 0;
+for (auto& [key, value] : m) {
+    total += value;                          // 6
 }
-auto largest = std::prev(m.end());      // "b"
 ```
 
 ### empty, size, max_size
 
 ```cpp
-[[nodiscard]] bool empty() const noexcept;
+bool empty() const noexcept;
 size_type size() const noexcept;
 size_type max_size() const noexcept;
 ```
@@ -144,7 +129,7 @@ size_type max_size() const noexcept;
 void clear() noexcept;
 ```
 
-Destroys every element at once and unlinks every node; the header stays. The nodes are reclaimed by the collector.
+Destroys every element at once and unlinks every node; the bucket array, the hasher, the equality and `max_load_factor` stay.
 
 ```cpp
 sgcl::multimap<int, sgcl::string> m = {{1, "a"}, {1, "b"}};
@@ -167,17 +152,17 @@ iterator insert(node_type&& nh);
 iterator insert(const_iterator hint, node_type&& nh);
 ```
 
-Always inserts; a key already present gets the new element after its equivalents. The `P&&` forms build the element through `emplace`. The hinted forms are O(1) amortized when the element belongs right before `hint`; an append in sorted order at `end()` costs one comparison. The range and list forms insert one by one with `end()` as the hint; a range of another type is converted once per element, into the node, as `emplace_hint` would. The node-handle forms link the node of `nh` without copying the element and leave `nh` empty; an empty handle inserts nothing and returns `end()`.
+Always inserts, and returns the new element; a key already present gets the new element in front of its equivalents. The `P&&` forms build the element through `emplace`. The hint is ignored. The table grows before the node is linked when the size has reached the threshold. The node-handle forms link the node of `nh` without copying the element and leave `nh` empty; an empty handle inserts nothing and returns `end()`.
 
 ```cpp
 sgcl::multimap<sgcl::string, int> m;
-auto it = m.insert({"a", 1});
-m.insert({"a", 2});                                   // after the first "a"
-m.insert(m.end(), std::pair<const char*, int>("z", 26));   // an append: one comparison
+m.insert({"a", 1});
+auto it = m.insert({"a", 2});                         // in front of the first "a"
+m.insert(std::pair<const char*, int>("z", 26));
 m.insert({{"b", 2}, {"b", 3}});
 sgcl::multimap<sgcl::string, int> other = {{"q", 17}};
 m.insert(other.extract("q"));                         // relinked, no copy
-bool order = std::next(it)->second == 2;              // true
+bool front = m.find("a") == it;                       // true
 ```
 
 ### emplace, emplace_hint
@@ -187,7 +172,7 @@ template<class... A> iterator emplace(A&&... a);
 template<class... A> iterator emplace_hint(const_iterator hint, A&&... a);
 ```
 
-Builds the `value_type` from `a...` in a new node and links it after its equivalents (or where `hint` says, when that is right). A comparator that throws destroys the new element and leaves the container as it was.
+Builds the `value_type` from `a...` in a new node and links it in front of its equivalents. The hint is ignored. A hasher or equality that throws destroys the new element and leaves the container as it was.
 
 ```cpp
 sgcl::multimap<sgcl::string, sgcl::string> m;
@@ -203,123 +188,153 @@ iterator erase(iterator pos);
 iterator erase(const_iterator pos);
 iterator erase(const_iterator first, const_iterator last);
 size_type erase(const key_type& key);
+template<class K> size_type erase(K&& key);   // when Hash and KeyEqual are transparent, and K is not an iterator
 ```
 
-Destroys the element at once, unlinks the node (the collector reclaims it later) and returns the iterator after it. The key form erases every element with an equivalent key and returns how many. Erasing `[begin(), end())` is a `clear()`. There is no transparent `erase`.
+Destroys the element at once, unlinks the node (the collector reclaims it later) and returns the iterator after it. The key forms erase every element with an equivalent key and return how many.
 
 ```cpp
 sgcl::multimap<int, sgcl::string> m = {{1, "a"}, {1, "b"}, {2, "c"}};
 auto erased = m.erase(1);                          // 2: "a" and "b" are destroyed here
-for (auto it = m.begin(); it != m.end();) {
-    it = it->first == 2 ? m.erase(it) : std::next(it);
-}
+m.erase(m.begin(), m.end());                       // "c"
 ```
 
 ### swap
 
 ```cpp
-void swap(multimap& other) noexcept(std::is_nothrow_swappable_v<Compare>);
-friend void swap(multimap& lhs, multimap& rhs) noexcept(noexcept(lhs.swap(rhs)));   // free function in namespace sgcl
+void swap(multimap& other) noexcept(std::is_nothrow_swappable_v<Hash> && std::is_nothrow_swappable_v<KeyEqual>);
+friend void swap(multimap& lhs, multimap& rhs) noexcept(noexcept(lhs.swap(rhs)));
 ```
 
-Exchanges the trees, counts and comparators; no element is touched, and every iterator keeps pointing at its element, now in the other container.
+Exchanges the tables, counts, load factors, hashers and equalities; no element is touched, and every iterator keeps pointing at its element, now in the other container.
 
 ```cpp
 sgcl::multimap<int, int> a = {{1, 1}}, b = {{2, 2}};
 auto it = a.begin();
 swap(a, b);                       // it still points at {1, 1}, which is in b now
-bool moved = it == b.begin();     // true
+bool moved = it == b.find(1);     // true
 ```
 
 ### extract
 
 ```cpp
-node_type extract(iterator pos);
 node_type extract(const_iterator pos);
 node_type extract(const key_type& key);
+template<class K> node_type extract(K&& key);   // when Hash and KeyEqual are transparent, and K is not an iterator
 ```
 
-Unlinks the node and hands it over in a node handle, the element untouched; the handle destroys the element if it dies unused. The key form extracts the first element with an equivalent key, or returns an empty handle. See [node_type](#node_type-the-node-handle).
+Unlinks the node and hands it over in a node handle, the element untouched; the handle destroys the element if it dies unused. The key forms extract the first element with an equivalent key, or return an empty handle. See [node_type](#node_type-the-node-handle).
 
 ```cpp
 sgcl::multimap<int, sgcl::string> m = {{1, "a"}, {1, "b"}};
-auto nh = m.extract(1);           // {1, "a"}; m holds {1, "b"}
+auto nh = m.extract(1);           // one of the two; m holds the other
 nh.key() = 2;
-m.insert(std::move(nh));          // {1, "b"}, {2, "a"}
+m.insert(std::move(nh));          // keys 1 and 2 now
 ```
 
 ### merge
 
 ```cpp
-template<class Traits2> void merge(detail::RbTree<Traits2>& source);    // any sgcl::map or multimap<Key, T, C2>
-template<class Traits2> void merge(detail::RbTree<Traits2>&& source);
+template<class Traits2> void merge(detail::HashTable<Traits2>& source);    // any sgcl::map or multimap<Key, T, H2, E2>
+template<class Traits2> void merge(detail::HashTable<Traits2>&& source);
 ```
 
-Relinks every node of `source` into this multimap (a multi tree takes them all), each after its equivalents, and leaves `source` empty. No element is copied or destroyed; iterators follow their nodes. `source` may be a `sgcl::map` or `sgcl::multimap` with the same `Key` and `T` and any comparator.
+Relinks every node of `source` into this container (a multi table takes them all), rehashing with this container's hasher, and leaves `source` empty. No element is copied or destroyed; iterators follow their nodes. `source` may be a `sgcl::map` or `sgcl::multimap` with the same `Key` and `T` and any hasher and equality.
 
 ```cpp
 sgcl::multimap<int, int> a = {{1, 1}, {3, 3}};
 sgcl::map<int, int> b = {{2, 2}, {3, 30}};
-a.merge(b);                       // a: 1, 2, 3, 3(30);  b is empty
+a.merge(b);                       // a: four elements, two of them key 3;  b is empty
 ```
 
-### count, find, contains
+### count, find, contains, equal_range
 
 ```cpp
 size_type count(const key_type& key) const;
 iterator find(const key_type& key);
 const_iterator find(const key_type& key) const;
 bool contains(const key_type& key) const;
-template<class K> size_type count(const K& key) const;                 // when Compare::is_transparent
-template<class K> iterator find(const K& key);                          //   "
-template<class K> const_iterator find(const K& key) const;              //   "
-template<class K> bool contains(const K& key) const;                    //   "
-```
-
-`find` returns the first element with an equivalent key, `count` how many there are (O(log n + count)). The `K` overloads exist for a transparent comparator, which `std::less` of a [string](../core/string.md) is.
-
-```cpp
-sgcl::multimap<sgcl::string, int> m = {{"a", 1}, {"a", 2}};
-auto n = m.count("a");             // 2, no sgcl::string built for the literal
-sgcl::string text = "a b";
-auto first = m.find(text.as_slice(0, 1));   // {"a", 1}: a view of another string, nothing built either
-```
-
-### equal_range, lower_bound, upper_bound
-
-```cpp
 std::pair<iterator, iterator> equal_range(const key_type& key);
 std::pair<const_iterator, const_iterator> equal_range(const key_type& key) const;
-iterator lower_bound(const key_type& key);
-const_iterator lower_bound(const key_type& key) const;
-iterator upper_bound(const key_type& key);
-const_iterator upper_bound(const key_type& key) const;
-template<class K> ... equal_range(const K& key);      // when Compare::is_transparent, same set of overloads
-template<class K> ... lower_bound(const K& key);      //   "
-template<class K> ... upper_bound(const K& key);      //   "
+template<class K> size_type count(const K& key) const;                     // when Hash::is_transparent and KeyEqual::is_transparent
+template<class K> iterator find(const K& key);                              //   "
+template<class K> const_iterator find(const K& key) const;                  //   "
+template<class K> bool contains(const K& key) const;                        //   "
+template<class K> std::pair<iterator, iterator> equal_range(const K& key);  //   "  (and the const form)
 ```
 
-`equal_range` is the run of elements with an equivalent key, in insertion order; `lower_bound` its start, `upper_bound` its end.
+`find` returns the first element of the key's run, `equal_range` the run, `count` its length (O(1 + count) on average). The `K` overloads exist when both `Hash` and `KeyEqual` declare `is_transparent`.
 
 ```cpp
-sgcl::multimap<int, char> m = {{1, 'a'}, {2, 'b'}, {2, 'c'}, {3, 'd'}};
-auto [from, to] = m.equal_range(2);
-sgcl::string run;
-for (auto it = from; it != to; ++it) {
-    run += it->second;             // "bc"
-}
+sgcl::multimap<sgcl::string, int> m = {{"a", 1}, {"a", 2}};   // std::hash and std::equal_to of a string are transparent
+auto n = m.count("a");             // 2, no sgcl::string built for the literal
+sgcl::string text = "a b";
+auto [from, to] = m.equal_range(text.as_slice(0, 1));   // a slice of another string, nothing built either
 ```
+
+### Bucket interface
+
+```cpp
+size_type bucket_count() const noexcept;
+size_type max_bucket_count() const noexcept;
+size_type bucket_size(size_type n) const;
+size_type bucket(const key_type& key) const;
+template<class K> size_type bucket(const K& key) const;      // when Hash and KeyEqual are transparent
+local_iterator begin(size_type n);              const_local_iterator begin(size_type n) const;   const_local_iterator cbegin(size_type n) const;
+local_iterator end(size_type n);                const_local_iterator end(size_type n) const;     const_local_iterator cend(size_type n) const;
+```
+
+As in `std`. `bucket_count()` is 0 or a power of two; `bucket(key)` is the hash masked by `bucket_count() - 1` (0 while there are no buckets). A local iterator walks the nodes of one bucket, equivalent keys adjacent, and stops at its end; for an `n` beyond `bucket_count()` the range is empty.
+
+```cpp
+sgcl::multimap<int, int> m = {{1, 1}, {1, 2}, {2, 3}};
+size_t n = m.bucket(1);
+size_t in_bucket = 0;
+for (auto it = m.begin(n); it != m.end(n); ++it) {
+    ++in_bucket;
+}
+bool same = in_bucket == m.bucket_size(n);        // true, and at least 2
+```
+
+### Hash policy
+
+```cpp
+float load_factor() const noexcept;
+float max_load_factor() const noexcept;
+void max_load_factor(float z);
+void rehash(size_type count);
+void reserve(size_type count);
+```
+
+`load_factor()` is `size() / bucket_count()` (0 with no buckets); `max_load_factor()` defaults to 1.0. `max_load_factor(z)` takes effect on the next insertion (a value that is not positive, or not a number, is ignored). `rehash(count)` makes the bucket count the smallest power of two not below `count` and not below `size() / max_load_factor()`; `reserve(count)` is `rehash` for `count` elements. A rehash relinks the nodes in chain order, so runs of equal keys stay together and in order, hashes nothing and invalidates no iterator.
+
+```cpp
+sgcl::multimap<int, int> m;
+m.reserve(1000);                                  // 1024 buckets
+for (int i : sgcl::range(1000)) {
+    m.emplace(i % 10, i);                         // ten runs of a hundred
+}
+bool fits = m.load_factor() <= m.max_load_factor();   // true
+```
+
+### hash_function, key_eq
+
+```cpp
+hasher hash_function() const;
+key_equal key_eq() const;
+```
+
+Copies of the hasher and the equality.
 
 ### The mixins
 
-`multimap` carries [m_enumerable](../core/mixin/m_enumerable.md) (`exists`, `count_of`, `find_if`, `for_each` over the pairs; `contains`, `min`, `max` its own), [m_equatable](../core/mixin/m_equatable.md), [m_comparable](../core/mixin/m_comparable.md), the bidirectional category, and [m_lookup](../core/mixin/m_lookup.md): `get` the first value under a key, `values_of` all of them.
+`multimap` carries [m_enumerable](../core/mixin/m_enumerable.md) (`contains` its own) and [m_lookup](../core/mixin/m_lookup.md): `get` the first value under a key, `values_of` all of them ([the mixins](../core/mixin/README.md)).
 
 ```cpp
-sgcl::multimap<int, sgcl::string> names = {{1, "a"}, {1, "b"}, {2, "c"}};
-assert(*names.get(1) == "a" && names.contains_key(2) && !names.get(3));
-size_t n = 0;
-for (const auto& name : names.values_of(1)) {
-    n += name.size();                            // 2
+sgcl::multimap<int, int> m = {{1, 10}, {1, 11}};
+int sum = 0;
+for (int v : m.values_of(1)) {
+    sum += v;                                    // 21
 }
 ```
 
@@ -327,24 +342,15 @@ for (const auto& name : names.values_of(1)) {
 
 ```cpp
 friend bool operator==(const multimap& lhs, const multimap& rhs);
-friend auto operator<=>(const multimap& lhs, const multimap& rhs);
 ```
 
-Element-wise in iteration order, as for `std::multimap`: `==` compares sizes first; `<=>` is lexicographical with the synthesized three-way comparison, so `!=`, `<`, `<=`, `>` and `>=` follow.
+Equal sizes and, for every run of equal keys in `lhs`, a run of the same length in `rhs` that is a permutation of it (elements compared with `value_type == value_type`), whatever the bucket counts and orders. `!=` follows; there is no ordering.
 
 ```cpp
-sgcl::multimap<int, int> a = {{1, 1}, {1, 2}}, b = {{1, 1}, {1, 3}};
-bool less = a < b;                                // true
-bool same = a == b;                               // false
+sgcl::multimap<int, int> a = {{1, 1}, {1, 2}};
+sgcl::multimap<int, int> b = {{1, 2}, {1, 1}};
+bool same = a == b;                               // true
 ```
-
-### _check
-
-```cpp
-bool _check() const;
-```
-
-Verifies the red-black invariants, the header links, the order and the count; for the tests. O(n).
 
 ### node_type (the node handle)
 
@@ -353,25 +359,30 @@ class node_type {
 public:
     using key_type = Key;
     using mapped_type = T;
+    using value_type = std::pair<const Key, T>;
     node_type() noexcept;
     node_type(node_type&&) noexcept;
-    node_type& operator=(node_type&&) noexcept;
+    node_type& operator=(node_type&&);
     ~node_type();
-    [[nodiscard]] bool empty() const noexcept;
+    bool empty() const noexcept;
     explicit operator bool() const noexcept;
-    key_type& key() const noexcept;        // writable: the node is out of any container
-    mapped_type& mapped() const noexcept;
+    key_type& key() const;                 // writable: the node is out of any container
+    mapped_type& mapped() const;
+    void swap(node_type& other) noexcept;
+    friend void swap(node_type& lhs, node_type& rhs) noexcept;
 };
 ```
 
-Owns one unlinked node: movable, not copyable; the element is destroyed when the handle dies without having been inserted. The handle holds the node through a `tracked_ptr`, so it lives on a stack or inside a managed object. It is the same handle type as `sgcl::map<Key, T>::node_type`. There is no `swap` member.
+Owns one unlinked node: movable, not copyable; the element is destroyed when the handle dies without having been inserted. The handle holds the node through a `tracked_ptr`, so it lives on a stack or inside a managed object. It is the same handle type as `sgcl::map<Key, T>::node_type`.
 
-### std::erase_if
+### erase_if_impl, std::erase_if
 
 ```cpp
+template<class Pred> size_type erase_if_impl(Pred& pred);   // member: what the free function calls
+
 namespace sgcl {
-    template<class Key, class T, class Compare, class Pred>
-    typename multimap<Key, T, Compare>::size_type erase_if(multimap<Key, T, Compare>& c, Pred pred);
+    template<class Key, class T, class Hash, class KeyEqual, class Pred>
+    size_t erase_if(multimap<Key, T, Hash, KeyEqual>& c, Pred pred);
 }
 namespace std { using sgcl::erase_if; }
 ```
@@ -380,24 +391,25 @@ Erases every element for which `pred(*it)` is true and returns how many.
 
 ```cpp
 sgcl::multimap<int, int> m = {{1, 1}, {1, 2}, {2, 3}};
-auto n = std::erase_if(m, [](const auto& p) { return p.second % 2 == 0; });   // 1; m is {1,1} {2,3}
+auto n = std::erase_if(m, [](const auto& p) { return p.second % 2 == 0; });   // 1
 ```
 
 ### Deduction guides
 
 ```cpp
-template<std::input_iterator InputIt, class Compare = std::less<Key>>   // Key and T from the iterator's pair
-multimap(InputIt, InputIt, Compare = Compare()) -> multimap<Key, T, Compare>;
-template<class Key, class T, class Compare = std::less<Key>>
-multimap(std::initializer_list<std::pair<Key, T>>, Compare = Compare()) -> multimap<Key, T, Compare>;
+template<std::input_iterator InputIt, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>   // Key, T from the iterator's pair
+multimap(InputIt, InputIt, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual()) -> multimap<Key, T, Hash, KeyEqual>;
+template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
+multimap(std::initializer_list<std::pair<Key, T>>, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual()) -> multimap<Key, T, Hash, KeyEqual>;
 ```
+
+From an iterator pair over pairs, or from an initializer list of spelled-out `std::pair`s.
 
 ```cpp
-sgcl::multimap m = {std::pair{1, 2.0}, std::pair{1, 3.0}};     // multimap<int, double>
-sgcl::multimap from_range(m.begin(), m.end());                 // multimap<int, double>
+sgcl::vector<sgcl::pair<sgcl::string, int>> src = {{"a", 1}, {"a", 2}};
+sgcl::multimap from_range(src.begin(), src.end());      // multimap<sgcl::string, int>
+sgcl::multimap from_list = {std::pair{1, 2.5}};         // multimap<int, double>
 ```
-
-From an iterator pair or an initializer list, as for `std::multimap`; an initializer list of a map spells its pairs out (`std::pair{1, 2.0}`), since a braced pair alone names no type.
 
 ## Example
 
@@ -405,51 +417,50 @@ From an iterator pair or an initializer list, as for `std::multimap`; an initial
 #include "sgcl/sgcl.h"
 #include <iostream>
 
-struct Entry {
-    sgcl::string what;
-    sgcl::tracked_ptr<Entry> cause;     // traced through the node that holds the Entry
+struct Listener {
+    sgcl::string name;
+    sgcl::tracked_ptr<Listener> forward_to;     // traced through the node that holds the Listener
 };
 
 int main() {
-    // A multimap on the stack: several events per day, in the order they came
-    sgcl::multimap<int, sgcl::tracked_ptr<Entry>> log;
-    sgcl::tracked_ptr first = sgcl::make_tracked<Entry>("boot");
-    log.emplace(1, first);
-    log.emplace(1, sgcl::make_tracked<Entry>("login", first));
-    log.emplace(2, sgcl::make_tracked<Entry>("logout"));
-    log.emplace(2, sgcl::make_tracked<Entry>("shutdown"));
-    log.emplace(1, sgcl::make_tracked<Entry>("late entry"));     // goes after the other day-1 events
+    // Several listeners per topic: a multimap of traced pointers on the stack
+    sgcl::multimap<sgcl::string, sgcl::tracked_ptr<Listener>> topics;
+    sgcl::tracked_ptr logger = sgcl::make_tracked<Listener>("logger");
+    topics.emplace("error", logger);
+    topics.emplace("error", sgcl::make_tracked<Listener>("pager", logger));
+    topics.emplace("info", logger);
+    topics.emplace("info", sgcl::make_tracked<Listener>("stats"));
 
-    // The run of one key, in insertion order
-    auto [from, to] = log.equal_range(1);
-    std::cout << "day 1:";
+    // The run of one key: every listener of "error"
+    auto [from, to] = topics.equal_range("error");
+    std::cout << "error ->";
     for (auto it = from; it != to; ++it) {
-        std::cout << ' ' << it->second->what;                  // boot login late entry
+        std::cout << ' ' << it->second->name;                  // pager logger (the newest first)
     }
     std::cout << '\n';
 
-    // Erasing a whole key destroys its elements (the tracked_ptrs) at once;
-    // the Events they pointed at are collected, except "boot", still held by `first`
-    auto erased = log.erase(1);
-    first = nullptr;                                           // now "boot" is unreachable too
+    // Erasing a whole key destroys its tracked_ptr elements at once; the
+    // pager is collected, the logger lives on under "info"
+    auto erased = topics.erase("error");
+    logger = nullptr;
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
     sgcl::collector::force_collect(true);
-    std::cout << erased << " erased, " << log.size() << " left, "
+    std::cout << erased << " erased, " << topics.count("info") << " under info, "
               << sgcl::collector::get_live_object_count() << " live objects\n";
-    return erased == 3 && log.count(2) == 2 ? 0 : 1;
+    return erased == 2 && topics.size() == 2 ? 0 : 1;
 }
 ```
 
 The output:
 
 ```
-day 1: boot login late entry
-3 erased, 2 left, 7 live objects
+error -> pager logger
+2 erased, 2 under info, 10 live objects
 ```
 
 ## See also
 
-- [map](map.md) for unique keys, [multiset](multiset.md) for keys alone, [unordered_multimap](unordered_multimap.md) for a hash table
+- [map](map.md) for unique keys, [multiset](multiset.md) for keys alone, [sorted_multimap](sorted_multimap.md) for an ordered tree
 - [tracked_ptr](../core/tracked_ptr.md), [make_tracked](../core/make_tracked.md)
 - [README: Containers](README.md#containers), [README: The rules](../core/README.md#the-rules)

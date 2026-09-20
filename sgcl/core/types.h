@@ -23,15 +23,15 @@ namespace sgcl {
     template<class, size_t, class>
     class array;
     template<class, class, class>
-    class concurrent_map;
+    class concurrent_sorted_map;
     template<class>
     class concurrent_queue;
     template<class, class>
-    class concurrent_set;
+    class concurrent_sorted_set;
     template<class, class, class, class>
-    class concurrent_unordered_map;
+    class concurrent_map;
     template<class, class, class>
-    class concurrent_unordered_set;
+    class concurrent_set;
     template<class>
     class concurrent_stack;
     template<class>
@@ -47,27 +47,27 @@ namespace sgcl {
     template<class>
     class list;
     template<class, class, class>
-    class map;
+    class sorted_map;
     template<class, class, class>
-    class multimap;
+    class sorted_multimap;
     template<class, class>
-    class multiset;
+    class sorted_multiset;
     template<class, class, class>
     class priority_queue;
     template<class, class>
     class queue;
     template<class, class>
-    class set;
+    class sorted_set;
     template<class, class>
     class stack;
     template<class, class, class, class>
-    class unordered_map;
+    class map;
     template<class, class, class, class>
-    class unordered_multimap;
+    class multimap;
     template<class, class, class>
-    class unordered_multiset;
+    class multiset;
     template<class, class, class>
-    class unordered_set;
+    class set;
     template<class>
     class vector;
     template<class>

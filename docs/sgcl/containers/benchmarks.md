@@ -17,9 +17,9 @@ The node containers cost what `std`'s do or less, the maps within their spread: 
 | forward_list push_front | 12.8 | 21.3 | 15.4 MB | 15.3 MB | 19 MB | 17 MB |
 | map insert / find / iterate | 337 / 255 / 120 | 342 / 265 / 121 | 45.9 MB | 45.8 MB | 58 MB | 55 MB |
 | set insert | 272 | 311 | 38.2 MB | 45.8 MB | 50 MB | 55 MB |
-| unordered_map insert / find | 131 / 172 | 123 / 182 | 39.3 MB | 43.1 MB | 83 MB | 65 MB |
-| unordered_map erase half | 309 | 318 | 39.3 MB | 27.8 MB | 72 MB | 65 MB |
-| unordered_map of pointers | 75 | 118 (`shared_ptr`) | 47.0 MB | 88.9 MB | 91 MB | 111 MB |
+| map insert / find | 131 / 172 | 123 / 182 | 39.3 MB | 43.1 MB | 83 MB | 65 MB |
+| map erase half | 309 | 318 | 39.3 MB | 27.8 MB | 72 MB | 65 MB |
+| map of pointers | 75 | 118 (`shared_ptr`) | 47.0 MB | 88.9 MB | 91 MB | 111 MB |
 
 ## The review of September 2026
 
@@ -27,12 +27,12 @@ The containers were reviewed whole on 19 September 2026 and the findings fixed i
 
 | what | before | after |
 |---|---|---|
-| `map<long, long>` copied, 1,000,000 keys, per element | 96 to 99 ns | 58 to 62 ns |
-| `map<std::string, int>` copied, 200,000 keys, per element | 58 to 60 ns | 24 to 27 ns |
-| `unordered_map<std::string, int>` built from a range of 200,000 `std::pair<std::string, int>`, per element | 135 to 169 ns | 73 to 95 ns |
+| `sorted_map<long, long>` copied, 1,000,000 keys, per element | 96 to 99 ns | 58 to 62 ns |
+| `sorted_map<std::string, int>` copied, 200,000 keys, per element | 58 to 60 ns | 24 to 27 ns |
+| `map<std::string, int>` built from a range of 200,000 `std::pair<std::string, int>`, per element | 135 to 169 ns | 73 to 95 ns |
 | `weak_map<Node, int>` insertion of a new object | 81 to 101 ns | 76 to 94 ns |
 | `ordered_map` `to_back` of the element already last (an LRU touching its newest) | 19.6 to 20.3 ns | 10.6 ns |
 | `deque<long>` of 1,000,000, `operator[]` in a loop, per element | 0.51 ns | 0.30 ns |
 | `vector<int>` of 20,000, 2000 × `resize(size() + 1)` | 2000 reallocations | 1 |
 
-The copy of a map inserted element by element, with a comparison and the rebalancing per node; it copies the tree shape for shape now, a node per element with its colour and its links, no comparison and no rebalancing ([map](map.md#constructors)). A range of `std::pair<Key, T>` into a hash map converted each pair to the element type twice before the node copied it a third time; the key is hashed and looked up where it is now and copied once ([unordered_map](unordered_map.md#insert)). The weak containers searched twice per insertion, once to look and once inside the table's own insert, and built the value on the stack before moving it in; one search, the value built in place on a miss ([weak_map](weak_map.md#emplace-insert-insert_or_assign)). `to_back` relinked an element already at the back, eight stores with the write barrier on the LRU's most frequent hit; a load and nothing more now ([ordered_map](ordered_map.md#to_back-to_front)). The deque read its own map and blocks with the atomic load of a `tracked_ptr`, which the compiler cannot hoist out of a loop; the plain load a container uses on its own buffer now, except in `emplace_back`'s fast path, where the plain load made the compiler emit a slower loop (measured, kept as it was). `resize(n)` reserved exactly `n`, so a resize by one at a time reallocated every time; it grows as a push grows now ([vector](vector.md#resize)). What the review fixed without a cost to show is on the pages: the erase paths of the lists write nothing to a node after its element is destroyed and hold every node through its own destructor, a node handle dying in a sweep leaves its node to the sweep, `deque::erase` on an empty deque, `vector::insert` within the capacity under an exception, the constexpr of `array<T, N>`, the range constructors of the tree from a range of another type, `merge` across the hash tables' two node layouts, the bound of `weak_multimap::erase(iterator)`, the move assignment of `expiry_queue`.
+The copy of a map inserted element by element, with a comparison and the rebalancing per node; it copies the tree shape for shape now, a node per element with its colour and its links, no comparison and no rebalancing ([sorted_map](sorted_map.md#constructors)). A range of `std::pair<Key, T>` into a hash map converted each pair to the element type twice before the node copied it a third time; the key is hashed and looked up where it is now and copied once ([map](map.md#insert)). The weak containers searched twice per insertion, once to look and once inside the table's own insert, and built the value on the stack before moving it in; one search, the value built in place on a miss ([weak_map](weak_map.md#emplace-insert-insert_or_assign)). `to_back` relinked an element already at the back, eight stores with the write barrier on the LRU's most frequent hit; a load and nothing more now ([ordered_map](ordered_map.md#to_back-to_front)). The deque read its own map and blocks with the atomic load of a `tracked_ptr`, which the compiler cannot hoist out of a loop; the plain load a container uses on its own buffer now, except in `emplace_back`'s fast path, where the plain load made the compiler emit a slower loop (measured, kept as it was). `resize(n)` reserved exactly `n`, so a resize by one at a time reallocated every time; it grows as a push grows now ([vector](vector.md#resize)). What the review fixed without a cost to show is on the pages: the erase paths of the lists write nothing to a node after its element is destroyed and hold every node through its own destructor, a node handle dying in a sweep leaves its node to the sweep, `deque::erase` on an empty deque, `vector::insert` within the capacity under an exception, the constexpr of `array<T, N>`, the range constructors of the tree from a range of another type, `merge` across the hash tables' two node layouts, the bound of `weak_multimap::erase(iterator)`, the move assignment of `expiry_queue`.

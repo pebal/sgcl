@@ -80,12 +80,12 @@ b.reset();                                                        // the Counted
 #include <iostream>
 
 // Properties attached to objects by name, of any type, some of them
-// tracked pointers to other objects: an sgcl::map of sgcl::any inside
+// tracked pointers to other objects: an sgcl::sorted_map of sgcl::any inside
 // the managed object, its pointers followed. A property pointing back
 // at its own object is a cycle: collected.
 struct Node {
     int id;
-    sgcl::map<sgcl::string, sgcl::any> properties;
+    sgcl::sorted_map<sgcl::string, sgcl::any> properties;
 };
 
 int main() {

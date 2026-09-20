@@ -27,7 +27,7 @@ namespace sgcl {
 // main's frame, referenced from each closure, and is joined before it
 // is gone.
 int main() {
-    sgcl::concurrent_unordered_set<int> seen;
+    sgcl::concurrent_set<int> seen;
     sgcl::vector<sgcl::thread> workers;
     for (int t : sgcl::range(4)) {
         workers.emplace_back([&seen, t] {              // by reference: main's frame outlives the threads it joins
