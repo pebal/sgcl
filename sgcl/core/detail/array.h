@@ -25,7 +25,8 @@ namespace sgcl::detail {
     static_assert(std::is_trivially_destructible_v<Array<>>, "a buffer must have no destructor");
 
     template<>
-    struct PageInfo<Array<>> : public PageInfo<Array<PageDataSize>> {
+    struct PageInfo<Array<>>
+    : public PageInfo<Array<PageDataSize>> {
         using ObjectAllocator = detail::ObjectAllocator<Array<>>;
     };
 }

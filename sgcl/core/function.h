@@ -320,7 +320,8 @@ namespace sgcl {
     class move_only_function;
 
     template<class R, class... Args>
-    class move_only_function<R(Args...)> : public detail::MoveOnlyFunction<R, false, false, Args...> {
+    class move_only_function<R(Args...)>
+    : public detail::MoveOnlyFunction<R, false, false, Args...> {
         using Base = detail::MoveOnlyFunction<R, false, false, Args...>;
     public:
         using Base::Base;
@@ -328,7 +329,8 @@ namespace sgcl {
     };
 
     template<class R, class... Args>
-    class move_only_function<R(Args...) const> : public detail::MoveOnlyFunction<R, true, false, Args...> {
+    class move_only_function<R(Args...) const>
+    : public detail::MoveOnlyFunction<R, true, false, Args...> {
         using Base = detail::MoveOnlyFunction<R, true, false, Args...>;
     public:
         using Base::Base;
@@ -336,7 +338,8 @@ namespace sgcl {
     };
 
     template<class R, class... Args>
-    class move_only_function<R(Args...) noexcept> : public detail::MoveOnlyFunction<R, false, true, Args...> {
+    class move_only_function<R(Args...) noexcept>
+    : public detail::MoveOnlyFunction<R, false, true, Args...> {
         using Base = detail::MoveOnlyFunction<R, false, true, Args...>;
     public:
         using Base::Base;
@@ -344,7 +347,8 @@ namespace sgcl {
     };
 
     template<class R, class... Args>
-    class move_only_function<R(Args...) const noexcept> : public detail::MoveOnlyFunction<R, true, true, Args...> {
+    class move_only_function<R(Args...) const noexcept>
+    : public detail::MoveOnlyFunction<R, true, true, Args...> {
         using Base = detail::MoveOnlyFunction<R, true, true, Args...>;
     public:
         using Base::Base;

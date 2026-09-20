@@ -934,7 +934,8 @@ namespace sgcl {
 
     // unique_ptr owns its object and needs no tracing: a plain std::vector.
     template<typename T>
-    class vector<unique_ptr<T>> : public std::vector<unique_ptr<T>> {
+    class vector<unique_ptr<T>>
+    : public std::vector<unique_ptr<T>> {
     public:
         using std::vector<unique_ptr<T>>::vector;
         using std::vector<unique_ptr<T>>::operator=;

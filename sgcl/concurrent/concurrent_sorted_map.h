@@ -49,7 +49,8 @@ namespace sgcl {
     // threads may be reading it across. size() counts, in linear time,
     // as Java's does.
     template<class Key, class V, class Compare = std::less<Key>>
-    class concurrent_sorted_map : public detail::SkipList<detail::ConcurrentSortedMapTraits<Key, V, Compare>> {
+    class concurrent_sorted_map
+    : public detail::SkipList<detail::ConcurrentSortedMapTraits<Key, V, Compare>> {
         using Base = detail::SkipList<detail::ConcurrentSortedMapTraits<Key, V, Compare>>;
 
     public:

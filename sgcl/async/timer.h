@@ -462,7 +462,8 @@ namespace sgcl {
 
     // A case of a select served after d: `timeout(1s, [&] { ... })`
     template<class F>
-    class timeout_case : public decltype(std::declval<channel<void>&>().on_receive(std::declval<F>())) {
+    class timeout_case
+    : public decltype(std::declval<channel<void>&>().on_receive(std::declval<F>())) {
         using Base = decltype(std::declval<channel<void>&>().on_receive(std::declval<F>()));
     public:
         timeout_case(tracked_ptr<channel<void>> ch, F f)

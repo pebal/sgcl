@@ -1018,7 +1018,8 @@ namespace sgcl {
     };
 
     template<class T>
-    class deque<unique_ptr<T>> : public std::deque<unique_ptr<T>> {
+    class deque<unique_ptr<T>>
+    : public std::deque<unique_ptr<T>> {
     public:
         using std::deque<unique_ptr<T>>::deque;
     };

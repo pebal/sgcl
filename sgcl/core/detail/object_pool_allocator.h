@@ -10,7 +10,8 @@
 
 namespace sgcl::detail {
     template<class T>
-    class ObjectPoolAllocator : public ObjectPoolAllocatorBase {
+    class ObjectPoolAllocator
+    : public ObjectPoolAllocatorBase {
     public:
         using ValueType = typename TypeInfo<T>::Type;
         using IsPoolAllocator = std::true_type;

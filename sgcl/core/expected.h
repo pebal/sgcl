@@ -105,7 +105,8 @@ namespace sgcl {
     class bad_expected_access;
 
     template<>
-    class bad_expected_access<void> : public std::exception {
+    class bad_expected_access<void>
+    : public std::exception {
     public:
         const char* what() const noexcept override {
             return "bad access to sgcl::expected without a value";
@@ -127,7 +128,8 @@ namespace sgcl {
     // the error alive for as long as the exception exists, through the
     // copies the runtime makes of it. One managed allocation per throw.
     template<class E>
-    class bad_expected_access : public bad_expected_access<void> {
+    class bad_expected_access
+    : public bad_expected_access<void> {
     public:
         explicit bad_expected_access(E e)
         : _error(make_tracked<E>(std::move(e))) {

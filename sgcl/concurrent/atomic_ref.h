@@ -17,7 +17,8 @@ namespace sgcl {
     // The tracked_ptr must not be moved or destroyed while a view of it
     // exists.
     template<class T>
-    class atomic_ref<tracked_ptr<T>> : public detail::AtomicWord<atomic_ref<tracked_ptr<T>>, T> {
+    class atomic_ref<tracked_ptr<T>>
+    : public detail::AtomicWord<atomic_ref<tracked_ptr<T>>, T> {
     public:
         using value_type = tracked_ptr<T>;
 

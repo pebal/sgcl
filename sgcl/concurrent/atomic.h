@@ -15,7 +15,8 @@ namespace sgcl {
     // own, over the word each of them is. So a program names one atomic
     // for its flags, its counters and its pointers alike.
     template<class T>
-    class atomic : public std::atomic<T> {
+    class atomic
+    : public std::atomic<T> {
     public:
         using std::atomic<T>::atomic;
         using std::atomic<T>::operator=;
@@ -27,7 +28,8 @@ namespace sgcl {
     // holding an object that other threads share and that is replaced at
     // run time is a root_ptr with an atomic_ref over it (atomic_ref.h).
     template<class T>
-    class atomic<tracked_ptr<T>> : public detail::AtomicWord<atomic<tracked_ptr<T>>, T> {
+    class atomic<tracked_ptr<T>>
+    : public detail::AtomicWord<atomic<tracked_ptr<T>>, T> {
     public:
         using value_type = tracked_ptr<T>;
 
@@ -94,7 +96,8 @@ namespace sgcl {
     // against what it loaded. Lives where the string does: on a stack or
     // inside a managed object.
     template<class CharT, class Traits>
-    class atomic<basic_string<CharT, Traits>> : public detail::AtomicWord<atomic<basic_string<CharT, Traits>>, void> {
+    class atomic<basic_string<CharT, Traits>>
+    : public detail::AtomicWord<atomic<basic_string<CharT, Traits>>, void> {
         using Base = detail::AtomicWord<atomic, void>;   // the word without its const: the string's object is never written through it
         using String = basic_string<CharT, Traits>;
 

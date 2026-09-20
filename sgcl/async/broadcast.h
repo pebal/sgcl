@@ -294,7 +294,8 @@ namespace sgcl {
             // already (the value is taken when the case is served, not
             // when it is made: another case may win)
             template<class F>
-            class receive_case : public decltype(std::declval<channel<void>&>().on_receive(std::declval<F>())) {
+            class receive_case
+            : public decltype(std::declval<channel<void>&>().on_receive(std::declval<F>())) {
                 using Base = decltype(std::declval<channel<void>&>().on_receive(std::declval<F>()));
 
             public:

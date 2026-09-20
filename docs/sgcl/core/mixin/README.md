@@ -76,8 +76,14 @@ Derive from the mixins it can honour and give `begin()` and `end()`; the concept
 
 ```cpp
 template<class T>
-class ring : public sgcl::m_enumerable<ring<T>>, public sgcl::m_random_access<ring<T>>, public sgcl::m_bidirectional<ring<T>>,
-             public sgcl::m_equatable<ring<T>>, public sgcl::m_comparable<ring<T>>, public sgcl::m_ordered<ring<T>>, public sgcl::m_sequence<ring<T>> {
+class ring
+: public sgcl::m_enumerable<ring<T>>
+, public sgcl::m_random_access<ring<T>>
+, public sgcl::m_bidirectional<ring<T>>
+, public sgcl::m_equatable<ring<T>>
+, public sgcl::m_comparable<ring<T>>
+, public sgcl::m_ordered<ring<T>>
+, public sgcl::m_sequence<ring<T>> {
     ...
 };
 static_assert(sgcl::c_ordered<ring<int>>);

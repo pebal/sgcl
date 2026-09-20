@@ -47,7 +47,8 @@ namespace sgcl {
     // No operator[], at, insert_or_assign, node handles or local iteration
     // of a bucket.
     template<class Key, class V, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
-    class concurrent_map : public detail::SplitList<detail::ConcurrentMapTraits<Key, V, Hash, KeyEqual>> {
+    class concurrent_map
+    : public detail::SplitList<detail::ConcurrentMapTraits<Key, V, Hash, KeyEqual>> {
         using Base = detail::SplitList<detail::ConcurrentMapTraits<Key, V, Hash, KeyEqual>>;
 
     public:

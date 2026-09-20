@@ -36,7 +36,8 @@ namespace sgcl::im {
     // published and replaced through a copy_on_write or an atomic. Two
     // words, the size and the root, living where a tracked_ptr may.
     template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
-    class set : public m_enumerable<set<Key, Hash, KeyEqual>> {   // read as any range; contains and find by the key, its own
+    class set   // read as any range; contains and find by the key, its own
+    : public m_enumerable<set<Key, Hash, KeyEqual>> {
         using Trie = detail::Hamt<detail::SetTraits<Key, Hash, KeyEqual>>;
 
     public:

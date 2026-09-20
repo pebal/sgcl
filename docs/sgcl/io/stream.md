@@ -70,15 +70,18 @@ result<void> rewind();        // seek(0)
 ### reader, writer, seeker, closer, stream
 
 ```cpp
-class reader : public m_reader<reader> {
+class reader
+: public m_reader<reader> {
     virtual result<size_t> read(slice<std::byte> buffer) = 0;
     virtual task<result<size_t>> async_read(slice<std::byte> buffer) = 0;
 };
-class writer : public m_writer<writer> {
+class writer
+: public m_writer<writer> {
     virtual result<size_t> write(slice<const std::byte> data) = 0;
     virtual task<result<size_t>> async_write(slice<const std::byte> data) = 0;
 };
-class seeker : public m_seeker<seeker> {
+class seeker
+: public m_seeker<seeker> {
     virtual result<uint64_t> seek(int64_t offset, seek_from from = seek_from::begin) = 0;
 };
 class closer {

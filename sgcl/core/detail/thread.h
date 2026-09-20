@@ -53,7 +53,8 @@ namespace sgcl::detail {
     // thread until the collector has picked it up. Made on the thread's
     // first contact with the library (register_thread), destroyed when
     // the thread exits.
-    class Thread : public ThreadHead {
+    class Thread
+    : public ThreadHead {
     public:
         // A line of its own: the hazard pointer is written at every atomic
         // operation of the thread, and the Data of two threads would

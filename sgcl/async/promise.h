@@ -118,7 +118,8 @@ namespace sgcl {
     }
 
     template<class T = void>
-    class promise : public detail::PromiseBase {
+    class promise
+    : public detail::PromiseBase {
     public:
         using value_type = T;
 
@@ -209,7 +210,8 @@ namespace sgcl {
 
     // A promise of nothing: a completion without a value
     template<>
-    class promise<void> : public detail::PromiseBase {
+    class promise<void>
+    : public detail::PromiseBase {
     public:
         using value_type = void;
 

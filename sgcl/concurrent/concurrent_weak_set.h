@@ -20,7 +20,8 @@ namespace sgcl {
     // the instances of a class, a set that forgets. The iteration gives
     // out the live objects, held while the iterator stands on them.
     template<class Key>
-    class concurrent_weak_set : public detail::ConcurrentWeakTable<Key, concurrent_set<detail::WeakKey<Key>, detail::ConcurrentWeakHash<Key>, detail::ConcurrentWeakEqual<Key>>> {
+    class concurrent_weak_set
+    : public detail::ConcurrentWeakTable<Key, concurrent_set<detail::WeakKey<Key>, detail::ConcurrentWeakHash<Key>, detail::ConcurrentWeakEqual<Key>>> {
         using Base = detail::ConcurrentWeakTable<Key, concurrent_set<detail::WeakKey<Key>, detail::ConcurrentWeakHash<Key>, detail::ConcurrentWeakEqual<Key>>>;
         using Table = typename Base::table_type;
         using Base::_table;

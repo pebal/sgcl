@@ -18,7 +18,8 @@ namespace sgcl {
     // iteration weakly consistent, an iterator holding its node. The
     // elements are const, as in std::unordered_set.
     template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
-    class concurrent_set : public detail::SplitList<detail::ConcurrentSetTraits<Key, Hash, KeyEqual>> {
+    class concurrent_set
+    : public detail::SplitList<detail::ConcurrentSetTraits<Key, Hash, KeyEqual>> {
         using Base = detail::SplitList<detail::ConcurrentSetTraits<Key, Hash, KeyEqual>>;
 
     public:

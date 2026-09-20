@@ -18,7 +18,8 @@ namespace sgcl {
     // order and weakly consistent, an iterator holding its node. The
     // elements are const, as in std::set.
     template<class Key, class Compare = std::less<Key>>
-    class concurrent_sorted_set : public detail::SkipList<detail::ConcurrentSortedSetTraits<Key, Compare>> {
+    class concurrent_sorted_set
+    : public detail::SkipList<detail::ConcurrentSortedSetTraits<Key, Compare>> {
         using Base = detail::SkipList<detail::ConcurrentSortedSetTraits<Key, Compare>>;
 
     public:

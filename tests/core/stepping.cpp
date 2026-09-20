@@ -22,7 +22,8 @@
 namespace {
     using phase = collector::stepper::phase;
 
-    class Stepping : public testing::TestWithParam<unsigned> {
+    class Stepping
+    : public testing::TestWithParam<unsigned> {
     protected:
         void arm(collector::stepper& s) {
             s.helpers(GetParam());

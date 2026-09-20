@@ -481,7 +481,8 @@ namespace sgcl::detail {
     };
 
     template<class Key, class T>
-    class MapNodeHandle : public NodeHandleBase<std::pair<const Key, T>> {
+    class MapNodeHandle
+    : public NodeHandleBase<std::pair<const Key, T>> {
         using Base = NodeHandleBase<std::pair<const Key, T>>;
 
     public:
@@ -509,7 +510,8 @@ namespace sgcl::detail {
     };
 
     template<class Key>
-    class SetNodeHandle : public NodeHandleBase<Key> {
+    class SetNodeHandle
+    : public NodeHandleBase<Key> {
         using Base = NodeHandleBase<Key>;
 
     public:

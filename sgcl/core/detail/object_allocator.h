@@ -17,7 +17,8 @@ namespace sgcl::detail {
     // own header; every page of the range maps to that header in the heap
     // table, so interior pointers anywhere in the object resolve correctly.
     template<class T>
-    class ObjectAllocator : public ObjectAllocatorBase {
+    class ObjectAllocator
+    : public ObjectAllocatorBase {
     public:
         using ValueType = typename TypeInfo<T>::Type;
         using IsPoolAllocator = std::false_type;

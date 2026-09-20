@@ -741,7 +741,8 @@ namespace sgcl {
     };
 
     template<class T>
-    class forward_list<unique_ptr<T>> : public std::forward_list<unique_ptr<T>> {
+    class forward_list<unique_ptr<T>>
+    : public std::forward_list<unique_ptr<T>> {
     public:
         using std::forward_list<unique_ptr<T>>::forward_list;
     };

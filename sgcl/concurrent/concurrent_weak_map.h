@@ -40,7 +40,8 @@ namespace sgcl {
     // tracked_ptr may: on a stack or inside a managed object; the one a
     // program shares goes into a managed object under a root_ptr.
     template<class Key, class T>
-    class concurrent_weak_map : public detail::ConcurrentWeakTable<Key, concurrent_map<detail::WeakKey<Key>, T, detail::ConcurrentWeakHash<Key>, detail::ConcurrentWeakEqual<Key>>> {
+    class concurrent_weak_map
+    : public detail::ConcurrentWeakTable<Key, concurrent_map<detail::WeakKey<Key>, T, detail::ConcurrentWeakHash<Key>, detail::ConcurrentWeakEqual<Key>>> {
         using Base = detail::ConcurrentWeakTable<Key, concurrent_map<detail::WeakKey<Key>, T, detail::ConcurrentWeakHash<Key>, detail::ConcurrentWeakEqual<Key>>>;
         using Table = typename Base::table_type;
         using Base::_table;

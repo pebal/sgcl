@@ -55,7 +55,8 @@ namespace sgcl {
     // timeout(work(src.token()), 1s, src);`). A result that came at the
     // same instant as the deadline is a result: the slot is looked at
     // whichever case the select served.
-    class timed_out : public std::runtime_error {
+    class timed_out
+    : public std::runtime_error {
     public:
         timed_out()
         : std::runtime_error("timed out") {

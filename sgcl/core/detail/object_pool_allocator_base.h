@@ -25,7 +25,8 @@ namespace sgcl::detail {
     // a bit clear with no atomic operation. The collector records freed slots
     // in the states and rebuilds the bitmap only for pages nobody owns, right
     // before putting them into the per-type buffer.
-    class ObjectPoolAllocatorBase : public ObjectAllocatorBase {
+    class ObjectPoolAllocatorBase
+    : public ObjectAllocatorBase {
     public:
         // Rebuilds the free bitmap and the summary of a page from its states;
         // true when every slot is free. Collector only, on a page no mutator

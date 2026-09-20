@@ -11,7 +11,8 @@
 
 namespace sgcl {
     template<class T>
-    class unique_ptr : public detail::UniquePtr<T> {
+    class unique_ptr
+    : public detail::UniquePtr<T> {
         using Base = detail::UniquePtr<T>;
 
     public:

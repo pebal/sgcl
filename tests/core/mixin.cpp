@@ -29,8 +29,14 @@ namespace {
 
     // A class of the user's own: a range of the library by declaration
     template<class T>
-    class Ring : public m_enumerable<Ring<T>>, public m_random_access<Ring<T>>, public m_bidirectional<Ring<T>>,
-                 public m_equatable<Ring<T>>, public m_comparable<Ring<T>>, public m_ordered<Ring<T>>, public m_sequence<Ring<T>> {
+    class Ring
+    : public m_enumerable<Ring<T>>
+    , public m_random_access<Ring<T>>
+    , public m_bidirectional<Ring<T>>
+    , public m_equatable<Ring<T>>
+    , public m_comparable<Ring<T>>
+    , public m_ordered<Ring<T>>
+    , public m_sequence<Ring<T>> {
     public:
         using value_type = T;
         Ring(std::initializer_list<T> l) : _v(l) {}

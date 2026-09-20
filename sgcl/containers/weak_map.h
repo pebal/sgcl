@@ -24,7 +24,8 @@ namespace sgcl {
     // a tracked_ptr may: on a stack or in a managed object. weak_multimap
     // holds several values per object.
     template<class Key, class T>
-    class weak_map : public detail::WeakTable<Key, map<weak_ptr<Key>, T, detail::WeakHash<Key>, detail::WeakEqual<Key>>> {
+    class weak_map
+    : public detail::WeakTable<Key, map<weak_ptr<Key>, T, detail::WeakHash<Key>, detail::WeakEqual<Key>>> {
         using Base = detail::WeakTable<Key, map<weak_ptr<Key>, T, detail::WeakHash<Key>, detail::WeakEqual<Key>>>;
         using Table = typename Base::table_type;
         using Base::_table;
@@ -112,7 +113,8 @@ namespace sgcl {
     };
 
     template<class Key, class T>
-    class weak_multimap : public detail::WeakTable<Key, multimap<weak_ptr<Key>, T, detail::WeakHash<Key>, detail::WeakEqual<Key>>> {
+    class weak_multimap
+    : public detail::WeakTable<Key, multimap<weak_ptr<Key>, T, detail::WeakHash<Key>, detail::WeakEqual<Key>>> {
         using Base = detail::WeakTable<Key, multimap<weak_ptr<Key>, T, detail::WeakHash<Key>, detail::WeakEqual<Key>>>;
         using Table = typename Base::table_type;
         using Base::_table;

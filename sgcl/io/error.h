@@ -29,7 +29,8 @@ namespace sgcl::io {
     };
 
     namespace detail {
-        class IoCategory : public std::error_category {
+        class IoCategory
+        : public std::error_category {
         public:
             const char* name() const noexcept override {
                 return "io";

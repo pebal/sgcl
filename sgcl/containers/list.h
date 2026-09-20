@@ -961,7 +961,8 @@ namespace sgcl {
     }
 
     template<typename T>
-    class list<unique_ptr<T>> : public std::list<unique_ptr<T>> {
+    class list<unique_ptr<T>>
+    : public std::list<unique_ptr<T>> {
     public:
         using std::list<unique_ptr<T>>::list;
     };

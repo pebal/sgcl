@@ -73,7 +73,8 @@ namespace sgcl {
     }
 
     template<class CharT, class Traits = std::char_traits<CharT>>
-    class basic_string : public m_text<basic_string<CharT, Traits>, CharT, Traits> {
+    class basic_string
+    : public m_text<basic_string<CharT, Traits>, CharT, Traits> {
         static_assert(sizeof(detail::StringHeader) % sizeof(CharT) == 0, "the header is a whole number of characters");
 
         using Maker = detail::StringMaker;
