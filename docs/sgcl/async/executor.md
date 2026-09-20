@@ -54,7 +54,7 @@ template<class F> void go(F f);
 `poll()` runs what was queued when it was called, each frame to its next suspension; a frame queued meanwhile, a task that yielded included, waits for the next call, so a loop that calls `poll()` once per frame of its own is never held by a task that keeps yielding.
 
 ```cpp
-sgcl::executor ui;
+executor ui;
 auto t = ui.spawn(refresh(widgets));      // queued; runs when the thread runs the executor
 while (window_open()) {
     handle_events();
@@ -76,9 +76,9 @@ bool busy() const noexcept;                    // a task of the strand runs or i
 ```
 
 ```cpp
-sgcl::strand owner;                       // the tasks of one document
-sgcl::go(load(doc), owner);
-sgcl::go(index(doc), owner);              // after load's first wait at the earliest, never at the same time
+strand owner;                       // the tasks of one document
+go(load(doc), owner);
+go(index(doc), owner);              // after load's first wait at the earliest, never at the same time
 ```
 
 ### on
@@ -104,10 +104,10 @@ void await_resume() const noexcept;
 `co_await sgcl::on_workers()`: the task goes on on the pool, from the next line; at once when it is on a worker with no executor.
 
 ```cpp
-sgcl::task<> on_click(sgcl::executor& ui) {   // a handler on the UI thread
-    co_await sgcl::on_workers();              // the heavy part on the pool
+task<> on_click(executor& ui) {   // a handler on the UI thread
+    co_await on_workers();              // the heavy part on the pool
     auto image = co_await decode(file);       // where the awaiter is: the pool
-    co_await sgcl::on(ui);                    // the widget on the UI thread
+    co_await on(ui);                    // the widget on the UI thread
     show(image);
 }
 ```
@@ -118,6 +118,8 @@ sgcl::task<> on_click(sgcl::executor& ui) {   // a handler on the UI thread
 #include "sgcl/sgcl.h"
 #include <iostream>
 #include <thread>
+
+using namespace sgcl;
 
 // A program that is one task on the main thread, the way a program with
 // a UI is: the widgets are touched on the main thread only, the work
@@ -132,36 +134,36 @@ static bool on_main() {
     return std::this_thread::get_id() == main_thread;
 }
 
-sgcl::task<long> compute(int n) {                // an awaited task runs where its awaiter runs
+task<long> compute(int n) {                // an awaited task runs where its awaiter runs
     long sum = 0;
-    for (int i : sgcl::range(n)) {
+    for (int i : range(n)) {
         sum += i;
     }
     co_return sum;
 }
 
-sgcl::task<> increment(int& counter, int n) {    // on a strand: a plain int, no lock
-    for (int i : sgcl::range(n)) {
+task<> increment(int& counter, int n) {    // on a strand: a plain int, no lock
+    for (int i : range(n)) {
         ++counter;
         if (i % 100 == 99) {
-            co_await sgcl::yield();              // leaves the strand to the next task, comes back in its turn
+            co_await yield();              // leaves the strand to the next task, comes back in its turn
         }
     }
 }
 
-sgcl::task<int> program(sgcl::executor& main, sgcl::strand& serial) {
+task<int> program(executor& main, strand& serial) {
     std::cout << std::boolalpha;
     std::cout << "starts on the main thread: " << on_main() << "\n";
-    co_await sgcl::on_workers();
-    std::cout << "computes on a worker: " << sgcl::scheduler::on_worker() << "\n";
+    co_await on_workers();
+    std::cout << "computes on a worker: " << scheduler::on_worker() << "\n";
     long sum = co_await compute(1000);
-    co_await sgcl::on(main);
+    co_await on(main);
     std::cout << "back on the main thread: " << on_main() << ", the sum " << sum << "\n";
     co_await sgcl::sleep(1ms);                   // the timer thread wakes it: on the main thread
     std::cout << "after a sleep, on the main thread: " << on_main() << "\n";
     int counter = 0;
-    sgcl::vector<sgcl::task<>> tasks;
-    for (int t : sgcl::range(3)) {
+    vector<task<>> tasks;
+    for (int t : range(3)) {
         (void)t;
         tasks.push_back(serial.spawn(increment(counter, 1000)));
     }
@@ -174,10 +176,10 @@ sgcl::task<int> program(sgcl::executor& main, sgcl::strand& serial) {
 
 int main() {
     main_thread = std::this_thread::get_id();
-    sgcl::executor main;
-    sgcl::strand serial;
+    executor main;
+    strand serial;
     int code = main.run(program(main, serial));  // the program is one task on this thread
-    sgcl::scheduler::stop();
+    scheduler::stop();
     return code;
 }
 ```

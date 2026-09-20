@@ -13,9 +13,9 @@ namespace sgcl {
 The signals of the process as a channel, the way Go's `os/signal` has them: `signals({SIGINT, SIGTERM})` returns a channel that gets the number of every signal of those delivered to the process from then on, so that a signal is waited for as anything else in the module is: a task `co_await`s the channel and holds no thread meanwhile, a thread receives on it, a select takes it as a case. The shutdown of a server is one more case of the loop that serves it:
 
 ```cpp
-auto stop = sgcl::signals({SIGINT, SIGTERM});
+auto stop = signals({SIGINT, SIGTERM});
 while (running) {
-    co_await sgcl::async_select(
+    co_await async_select(
         jobs.on_receive([&](Job j) { serve(j); }),
         stop->on_receive([&](int) { running = false; })
     );
@@ -52,16 +52,16 @@ void ignore_signals(std::initializer_list<int> numbers);       // SIG_IGN; reset
 ```
 
 ```cpp
-auto usr = sgcl::signals({SIGUSR1, SIGUSR2});
+auto usr = signals({SIGUSR1, SIGUSR2});
 std::raise(SIGUSR2);                                             // what another process's kill would do
 int n = *usr->receive();                                         // SIGUSR2
-auto t = sgcl::spawn([](sgcl::tracked_ptr<sgcl::channel<int>> usr) -> sgcl::task<int> {
+auto t = spawn([](tracked_ptr<channel<int>> usr) -> task<int> {
     co_return *co_await usr->async_receive();                    // no thread held while the process waits
 }(usr));
 std::raise(SIGUSR1);
 int m = t.join();                                                // SIGUSR1
-sgcl::ignore_signals({SIGUSR2});                                 // ignored from now on: nothing on the channel
-sgcl::reset_signals();                                           // both as they were before the first signals()
+ignore_signals({SIGUSR2});                                 // ignored from now on: nothing on the channel
+reset_signals();                                           // both as they were before the first signals()
 ```
 
 ## Example
@@ -71,14 +71,16 @@ sgcl::reset_signals();                                           // both as they
 #include <csignal>
 #include <iostream>
 
+using namespace sgcl;
+
 // A server that serves its jobs until the process gets SIGINT or
 // SIGTERM: the signal is a case of the select, like the jobs. The
 // program sends itself the SIGINT that Ctrl-C would.
-sgcl::task<int> serve(sgcl::channel<int>& jobs, sgcl::tracked_ptr<sgcl::channel<int>> stop, int& by) {
+task<int> serve(channel<int>& jobs, tracked_ptr<channel<int>> stop, int& by) {
     int done = 0;
     bool running = true;
     while (running) {
-        co_await sgcl::async_select(
+        co_await async_select(
             jobs.on_receive([&](int) { ++done; }),
             stop->on_receive([&](int n) { by = n; running = false; })
         );
@@ -87,18 +89,18 @@ sgcl::task<int> serve(sgcl::channel<int>& jobs, sgcl::tracked_ptr<sgcl::channel<
 }
 
 int main() {
-    sgcl::tracked_ptr stop = sgcl::signals({SIGINT, SIGTERM});
-    sgcl::channel<int> jobs;                  // a rendezvous: a send returns once the server took the job
+    tracked_ptr stop = signals({SIGINT, SIGTERM});
+    channel<int> jobs;                  // a rendezvous: a send returns once the server took the job
     int by = 0;
-    auto server = sgcl::spawn(serve(jobs, stop, by));
-    for (int i : sgcl::range(5)) {
+    auto server = spawn(serve(jobs, stop, by));
+    for (int i : range(5)) {
         jobs.send(i);
     }
     std::raise(SIGINT);                       // Ctrl-C
     int done = server.join();
     std::cout << done << " jobs done, stopped by signal " << by << (by == SIGINT ? " (SIGINT)" : "") << "\n";
-    sgcl::reset_signals();                    // SIGINT and SIGTERM as they were
-    sgcl::scheduler::stop();
+    reset_signals();                    // SIGINT and SIGTERM as they were
+    scheduler::stop();
 }
 ```
 

@@ -64,8 +64,8 @@ static constexpr size_t CacheLineSize = 128;
 The managed heap is one virtual range reserved at first use and backed lazily; pages of `PageSize` come from chunks of `ChunkSize`, aligned to `ChunkSize`, which is the unit of commit and decommit and huge-page friendly. Small objects live in pools of pages; buffers larger than a page take contiguous page ranges. A chunk is 32 pages (one 32-bit free mask), which the header asserts, as it asserts that `PageSize` is a power of two of at most 64 KB. `CacheLineSize` is the line on which structures written by different threads are kept apart: 128 bytes covers Apple silicon, x86 uses 64. Read-only in practice: the sizes are part of the heap's layout and the defaults fit every platform the library runs on.
 
 ```cpp
-static_assert(sgcl::config::ChunkSize == 32 * sgcl::config::PageSize);
-size_t pages = sgcl::collector::get_committed_memory() / sgcl::config::PageSize;
+static_assert(config::ChunkSize == 32 * config::PageSize);
+size_t pages = collector::get_committed_memory() / config::PageSize;
 ```
 
 ### HeapReserveFactor, HeapReserveMinimum, HeapReserveFloor
@@ -101,8 +101,8 @@ static constexpr size_t HeapPressurePercent = 75;
 The default ceiling on committed managed memory is `HeapLimitPercent` of the effective memory limit (the cgroup limit on Linux, else the physical memory), leaving the rest to everything outside the managed heap; `collector::set_memory_limit()` (`Collector::SetMemoryLimit()`) overrides it at run time, `0` disables it. Above `HeapPressurePercent` of the ceiling the collector cycles every `PressureSleepTime` and returns every free chunk; at the ceiling an allocation forces a full collection and, failing that, throws `std::bad_alloc` ([collector](collector.md#get_memory_limit-set_memory_limit)).
 
 ```cpp
-size_t ceiling = sgcl::collector::get_memory_limit();          // HeapLimitPercent of the machine's limit
-size_t pressure = ceiling / 100 * sgcl::config::HeapPressurePercent;
+size_t ceiling = collector::get_memory_limit();          // HeapLimitPercent of the machine's limit
+size_t pressure = ceiling / 100 * config::HeapPressurePercent;
 ```
 
 ### StackClearSize, StackGuardMargin
@@ -115,8 +115,8 @@ static constexpr size_t StackGuardMargin = 0x8000;   // 32 KB
 Stack roots are found by scanning the used part of every thread's stack, so words left behind by dead frames can keep an object alive until they are overwritten. `collector::force_collect()`, `get_live_object_count()`, `get_live_objects()` and `get_type_statistics()` (`Collector::Collect()`, `LiveObjectCount()`, `LiveObjects()`, `GetTypeStatistics()`) first zero `StackClearSize` bytes of stack below the caller's frame (`collector::clear_stack(bytes)`, `Collector::ClearStack(bytes)`, any amount), never closer than `StackGuardMargin` to the end of the thread's stack, and never pages the stack has not touched yet ([Stack roots](../../garbage_collector/overview.md#stack-roots)).
 
 ```cpp
-sgcl::collector::clear_stack();                                 // StackClearSize bytes
-sgcl::collector::clear_stack(4 * sgcl::config::StackClearSize); // 256 KB, for deep dead frames
+collector::clear_stack();                                 // StackClearSize bytes
+collector::clear_stack(4 * config::StackClearSize); // 256 KB, for deep dead frames
 ```
 
 ### MaxTypesNumber
@@ -256,7 +256,7 @@ Generational collection with sticky mark bits: a young cycle keeps the marks of 
 On by default: the young cycles cut the collector's CPU by a quarter to two thirds and the memory by a third on a large live heap, at 0.3 ns per store of a pointer into a heap object (the card: a shift and a byte read). `-DSGCL_GENERATIONAL=0` switches them off: every cycle is full and the barrier does no carding, for a program that links objects more than it allocates them and holds little. `statistics::full_cycles` then equals `statistics::cycles`.
 
 ```cpp
-if constexpr (sgcl::config::Generational) {
+if constexpr (config::Generational) {
     // full cycles are the exception: at most one per YoungCyclesMax young ones, unless forced
 }
 ```
@@ -271,11 +271,13 @@ In `sgcl`:
 #include <iostream>
 #include <thread>
 
+using namespace sgcl;
+
 // Prints the configuration the program was built with, next to what the
 // collector does with it. Build with -DSGCL_GENERATIONAL=0 or
 // -DSGCL_SWEEP_THREADS_MAX=2 to see the values change.
 int main() {
-    namespace config = sgcl::config;
+    namespace config = config;
     std::cout << "page " << config::PageSize / 1024 << " KB, chunk " << config::ChunkSize / 1048576
               << " MB, " << config::HeapFreeChunkReserve << " free chunks kept committed\n";
     std::cout << "generational: " << (config::Generational ? "yes" : "no") << ", a full cycle after "
@@ -289,17 +291,17 @@ int main() {
               << config::StackGuardMargin / 1024 << " KB guard\n";
 
     // the ceiling the defaults produced on this machine, and the pressure line under it
-    size_t ceiling = sgcl::collector::get_memory_limit();
+    size_t ceiling = collector::get_memory_limit();
     std::cout << "ceiling " << (ceiling >> 20) << " MB (" << config::HeapLimitPercent << "% of the limit), pressure above "
               << (ceiling / 100 * config::HeapPressurePercent >> 20) << " MB\n";
 
     // some work, then the counters that the constants above shape
-    sgcl::vector<sgcl::tracked_ptr<int>> kept;
-    for (int i : sgcl::range(100000)) {
-        kept.push_back(sgcl::make_tracked<int>(i));
+    vector<tracked_ptr<int>> kept;
+    for (int i : range(100000)) {
+        kept.push_back(make_tracked<int>(i));
     }
-    sgcl::collector::force_collect(true);   // optional, for the demonstration only: the collector runs its cycles by itself
-    auto s = sgcl::collector::get_statistics();
+    collector::force_collect(true);   // optional, for the demonstration only: the collector runs its cycles by itself
+    auto s = collector::get_statistics();
     std::cout << s.cycles << " cycles, " << s.full_cycles << " full; helpers "
               << (s.helpers_enabled ? "on" : "off") << ", " << s.helper_threads << " started\n";
     return 0;

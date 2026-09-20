@@ -82,23 +82,23 @@ friend void swap(expected&, expected&);
 
 ```cpp
 struct Node { int value; };
-using Result = sgcl::expected<sgcl::tracked_ptr<Node>, sgcl::string>;
+using Result = expected<tracked_ptr<Node>, string>;
 
 Result find(int key) {
     if (key < 0) {
-        return sgcl::unexpected("negative key");
+        return unexpected("negative key");
     }
-    return sgcl::make_tracked<Node>(key);           // the pointer in a word of its own, the string elsewhere
+    return make_tracked<Node>(key);           // the pointer in a word of its own, the string elsewhere
 }
 
 Result a = find(1), b = find(-1);
 assert(a && (*a)->value == 1 && !b && b.error() == "negative key");
 assert(b.value_or(nullptr) == nullptr);
-sgcl::expected<int, sgcl::string> v = a.and_then([](const sgcl::tracked_ptr<Node>& n) -> sgcl::expected<int, sgcl::string> { return n->value * 2; });
-assert(*v == 2 && b.transform([](const sgcl::tracked_ptr<Node>& n) { return n->value; }).error() == "negative key");
+expected<int, string> v = a.and_then([](const tracked_ptr<Node>& n) -> expected<int, string> { return n->value * 2; });
+assert(*v == 2 && b.transform([](const tracked_ptr<Node>& n) { return n->value; }).error() == "negative key");
 try {
     b.value();
-} catch (const sgcl::bad_expected_access<sgcl::string>& e) {
+} catch (const bad_expected_access<string>& e) {
     assert(e.error() == "negative key");
 }
 ```
@@ -109,34 +109,36 @@ try {
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // A lookup that either finds an object or says why not; the caller
 // chains the steps and reads one error at the end.
 struct User {
-    sgcl::string name;
-    sgcl::tracked_ptr<User> manager;
+    string name;
+    tracked_ptr<User> manager;
 };
 
-sgcl::expected<sgcl::tracked_ptr<User>, sgcl::string> find(const sgcl::sorted_map<sgcl::string, sgcl::tracked_ptr<User>>& users, const sgcl::string& name) {
+expected<tracked_ptr<User>, string> find(const sorted_map<string, tracked_ptr<User>>& users, const string& name) {
     auto it = users.find(name);
     if (it == users.end()) {
-        return sgcl::unexpected("no user " + name);
+        return unexpected("no user " + name);
     }
     return it->second;
 }
 
-sgcl::expected<sgcl::tracked_ptr<User>, sgcl::string> manager_of(const sgcl::tracked_ptr<User>& user) {
+expected<tracked_ptr<User>, string> manager_of(const tracked_ptr<User>& user) {
     if (!user->manager) {
-        return sgcl::unexpected(user->name + " has no manager");
+        return unexpected(user->name + " has no manager");
     }
     return user->manager;
 }
 
 int main() {
-    sgcl::sorted_map<sgcl::string, sgcl::tracked_ptr<User>> users;
-    users["ann"] = sgcl::make_tracked<User>(User{"ann"});
-    users["bob"] = sgcl::make_tracked<User>(User{"bob", users["ann"]});
+    sorted_map<string, tracked_ptr<User>> users;
+    users["ann"] = make_tracked<User>(User{"ann"});
+    users["bob"] = make_tracked<User>(User{"bob", users["ann"]});
     for (auto name : {"bob", "ann", "eve"}) {
-        auto result = find(users, name).and_then(manager_of).transform([](const sgcl::tracked_ptr<User>& m) { return m->name; });
+        auto result = find(users, name).and_then(manager_of).transform([](const tracked_ptr<User>& m) { return m->name; });
         std::cout << name << ": " << (result ? *result : result.error()) << "\n";
     }
     // bob: ann / ann: ann has no manager / eve: no user eve

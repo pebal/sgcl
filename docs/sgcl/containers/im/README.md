@@ -17,14 +17,14 @@ A program whose state is a value rather than a place: the state is an `im::map` 
 The argument for having them in this library is the collector. Structural sharing means that a node belongs to no version: it is reachable from any number of them, and it may be freed exactly when the last of them lets it go. In a language without a collector that is a reference count per node, incremented and decremented on every copy of a version, atomically when the versions are shared between threads, and it is where the implementations in C++ spend their time and where they get complicated. Here a node is a managed object, a version is a few words holding a `tracked_ptr` to a root, and the question of when a node dies is the collector's, answered the way it is answered for everything else: two versions of a vector of a hundred thousand elements that differ in one element are the one vector plus five objects, and dropping either frees what only it reached. Nodes and leaves are managed objects with destructors, so the elements may be anything, strings, `tracked_ptr`s, objects with destructors, traced and destroyed where they live.
 
 ```cpp
-sgcl::copy_on_write<sgcl::im::map<sgcl::string, int>> limits;   // the current version, for every thread
+copy_on_write<im::map<string, int>> limits;   // the current version, for every thread
 // a reader, any thread
 auto m = limits.load();                              // one load: this version, immutable, alive while m is
 if (auto n = m->find("connections")) { use(*n); }    // a string_view or a literal: no string made
 // a writer
 limits.update([](auto& m) { m = m.insert("connections", 200); });   // log32(n) nodes copied, the rest shared
 // versions as values
-sgcl::im::vector<int> v = {1, 2, 3};
+im::vector<int> v = {1, 2, 3};
 auto w = v.push_back(4).set(0, 10);                  // v is still {1, 2, 3}; w shares its leaf with nobody, its branches with v
 ```
 

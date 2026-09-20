@@ -25,8 +25,8 @@ template<class F> auto on_set(F f);            // a case of a select
 ```
 
 ```cpp
-sgcl::event ready;
-auto worker = [](sgcl::event& ready) -> sgcl::task<> {
+event ready;
+auto worker = [](event& ready) -> task<> {
     co_await ready.async_wait();                // all start together
 };
 ready.set();

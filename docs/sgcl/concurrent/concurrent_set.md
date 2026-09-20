@@ -55,14 +55,16 @@ key_equal key_eq() const;
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // Threads claim ids: insert succeeds for exactly one of them per id
 int main() {
-    sgcl::concurrent_set<int> claimed;
-    sgcl::atomic wins = 0;
-    sgcl::vector<sgcl::thread> threads;
-    for (int t : sgcl::range(8)) {
+    concurrent_set<int> claimed;
+    atomic wins = 0;
+    vector<thread> threads;
+    for (int t : range(8)) {
         threads.emplace_back([&] {
-            for (int id : sgcl::range(10000)) {
+            for (int id : range(10000)) {
                 wins += claimed.insert(id).second;
             }
         });

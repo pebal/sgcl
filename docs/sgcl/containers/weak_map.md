@@ -30,7 +30,7 @@ The entries are hashed and compared by the object's address, which the weak poin
 
 ```cpp
 using key_type = Key;
-using key_pointer = tracked_ptr<Key>;               // tracked_ptr<Key>, or sgcl::tracked_ptr<Key>
+using key_pointer = tracked_ptr<Key>;               // tracked_ptr<Key>, or tracked_ptr<Key>
 using mapped_type = T;
 using weak_type = weak_ptr<Key>;
 using size_type = size_t;
@@ -60,10 +60,10 @@ The live entries, in no particular order, each once; the dead ones are passed ov
 
 ```cpp
 struct Node { int value; };
-sgcl::weak_map<Node, sgcl::string> names;
-sgcl::tracked_ptr node = sgcl::make_tracked<Node>(1);
+weak_map<Node, string> names;
+tracked_ptr node = make_tracked<Node>(1);
 names[node] = "one";
-for (auto [key, value] : names) {   // key: sgcl::tracked_ptr<Node>, value: sgcl::string&
+for (auto [key, value] : names) {   // key: tracked_ptr<Node>, value: string&
     std::cout << key->value << ' ' << value << '\n';
 }
 ```
@@ -87,7 +87,7 @@ T& operator[](const key_pointer& object);
 The value of the object, a `T()` made in the entry if the object has none: one search, the entry built in place from the pointer when it finds nothing. A null pointer is not an object (debug builds assert).
 
 ```cpp
-sgcl::weak_map<Node, int> visits;
+weak_map<Node, int> visits;
 visits[node] += 1;
 ```
 
@@ -149,6 +149,8 @@ std::pair<iterator, iterator> equal_range(const key_pointer& object);
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 struct Node {
     int value;
 };
@@ -156,17 +158,17 @@ struct Node {
 int main() {
     // Metadata attached to any object, as many strings as needed: the map
     // holds its objects weakly, and the entries die with the object.
-    sgcl::weak_multimap<Node, sgcl::string> meta;   // on the stack, as any tracked pointer
+    weak_multimap<Node, string> meta;   // on the stack, as any tracked pointer
     {
-        sgcl::tracked_ptr node = sgcl::make_tracked<Node>(42);
+        tracked_ptr node = make_tracked<Node>(42);
         meta.insert(node, "created by the parser");
         meta.insert(node, "checked");
         for (auto [first, last] = meta.equal_range(node); first != last; ++first) {
             std::cout << first->key->value << ": " << first->value << "\n";
         }
     }   // the last strong pointer is gone
-    sgcl::collector::clear_stack();          // the dead frame zeroed, so that the conservative scan keeps nothing
-    sgcl::collector::force_collect(true);    // optional, for the demonstration: the cycle clears the key
+    collector::clear_stack();          // the dead frame zeroed, so that the conservative scan keeps nothing
+    collector::force_collect(true);    // optional, for the demonstration: the cycle clears the key
     std::cout << meta.size() << " entries, " << meta.sweep() << " swept, " << meta.size() << " left\n";
 }
 ```

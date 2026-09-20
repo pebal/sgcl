@@ -32,16 +32,16 @@ void stable_sort();  template<class Compare> void stable_sort(Compare cmp);
 ```
 
 ```cpp
-sgcl::vector v = {5, 3, 9, 3};
+vector v = {5, 3, 9, 3};
 v.sort();                                        // 3 3 5 9
-assert(v.is_sorted() && v.binary_search(5) && v.sorted_index_of(9) == 3 && v.sorted_index_of(4) == sgcl::npos);
+assert(v.is_sorted() && v.binary_search(5) && v.sorted_index_of(9) == 3 && v.sorted_index_of(4) == npos);
 assert(*v.lower_bound(4) == 5 && v.upper_bound(9) == v.end());
 v.insert(v.lower_bound(4), 4);                   // where a new value goes to keep the order
-struct item { sgcl::string name; int price; };
-sgcl::vector<item> items = {{"tea", 3}, {"bread", 2}};
+struct item { string name; int price; };
+vector<item> items = {{"tea", 3}, {"bread", 2}};
 items.sort_by(&item::price);                     // no < on item needed
 items.stable_sort([](const item& a, const item& b) { return a.name < b.name; });
-sgcl::im::vector<int> iv = sgcl::im::vector<int>().push_back(1).push_back(2);
+im::vector<int> iv = im::vector<int>().push_back(1).push_back(2);
 assert(iv.is_sorted() && iv.binary_search(2));   // ordered; no sort(): nothing is written in place
 ```
 
@@ -51,14 +51,16 @@ assert(iv.is_sorted() && iv.binary_search(2));   // ordered; no sort(): nothing 
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // A flat map: a vector kept sorted, searched in O(log n). The function
 // asks for what it uses — an ordered, writable range
-void add_sorted(sgcl::req::ordered auto& r, int x) requires sgcl::req::sequence<decltype(r)> {
+void add_sorted(req::ordered auto& r, int x) requires req::sequence<decltype(r)> {
     r.insert(r.lower_bound(x), x);
 }
 
 int main() {
-    sgcl::vector<int> keys;
+    vector<int> keys;
     for (int k : {40, 10, 30, 20}) {
         add_sorted(keys, k);
     }

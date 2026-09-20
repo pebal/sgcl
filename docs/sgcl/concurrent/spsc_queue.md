@@ -42,7 +42,7 @@ spsc_queue(const spsc_queue&) = delete;
 A queue of `capacity` rounded up to a power of two, at least one: one managed buffer of that many cells.
 
 ```cpp
-sgcl::spsc_queue<sgcl::tracked_ptr<Sample>> samples(1000);   // a ring of 1024
+spsc_queue<tracked_ptr<Sample>> samples(1000);   // a ring of 1024
 ```
 
 ### try_push, try_emplace
@@ -56,10 +56,10 @@ template<class... A> bool try_emplace(A&&... a);
 The producer's: constructs the element in the cell at the tail (from `a...` in place for `try_emplace`) and moves the tail past it; `false`, and nothing constructed, when the ring is full: the cell at the tail still holds the element of the lap before, which its sequence says, so the producer reads no word of the consumer's.
 
 ```cpp
-if (!samples.try_push(sgcl::make_tracked<Sample>(1))) {   // full: the producer decides
+if (!samples.try_push(make_tracked<Sample>(1))) {   // full: the producer decides
     dropped++;
 }
-samples.try_emplace(sgcl::make_tracked<Sample>(2));
+samples.try_emplace(make_tracked<Sample>(2));
 ```
 
 ### push
@@ -71,13 +71,13 @@ void push(T value);
 The producer's: the element appended, waiting for room while the ring is full, on the cell at the tail, which the pop that frees it notifies.
 
 ```cpp
-samples.push(sgcl::make_tracked<Sample>(3));   // blocks until a pop makes room
+samples.push(make_tracked<Sample>(3));   // blocks until a pop makes room
 ```
 
 ### try_pop, pop
 
 ```cpp
-optional<T> try_pop();   // sgcl::optional, the alias of std::optional (sgcl/core/aliases.h)
+optional<T> try_pop();   // optional, the alias of std::optional (sgcl/core/aliases.h)
 T pop();
 ```
 
@@ -87,7 +87,7 @@ The consumer's: `try_pop` moves the element out of the cell at the head, destroy
 while (auto s = samples.try_pop()) {
     process(**s);
 }
-sgcl::tracked_ptr next = samples.pop();   // blocks until a push
+tracked_ptr next = samples.pop();   // blocks until a push
 ```
 
 ### size, capacity, empty, full
@@ -107,6 +107,8 @@ bool full() const noexcept;
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // A reader thread hands samples to a processing thread through a ring
 // of 16: the reader waits when the ring is full, the processor when it
 // is empty; the queue is a member of a managed object, the ring is
@@ -117,20 +119,20 @@ struct Sample {
 };
 
 struct Pipeline {
-    sgcl::spsc_queue<sgcl::tracked_ptr<Sample>> samples{16};   // inside a managed object: sgcl::
+    spsc_queue<tracked_ptr<Sample>> samples{16};   // inside a managed object: 
 };
 
 int main() {
-    sgcl::tracked_ptr pipeline = sgcl::make_tracked<Pipeline>();
-    sgcl::thread reader([&] {                                   // the one producer
-        for (int i : sgcl::range(10000)) {
-            pipeline->samples.push(sgcl::make_tracked<Sample>(i, i * 0.5));   // waits while the ring is full
+    tracked_ptr pipeline = make_tracked<Pipeline>();
+    thread reader([&] {                                   // the one producer
+        for (int i : range(10000)) {
+            pipeline->samples.push(make_tracked<Sample>(i, i * 0.5));   // waits while the ring is full
         }
     });
     double sum = 0;                                             // the one consumer: this thread
     int out_of_order = 0, last = -1;
-    for (int i : sgcl::range(10000)) {
-        sgcl::tracked_ptr s = pipeline->samples.pop();          // waits while the ring is empty
+    for (int i : range(10000)) {
+        tracked_ptr s = pipeline->samples.pop();          // waits while the ring is empty
         out_of_order += s->seq != last + 1;
         last = s->seq;
         sum += s->value;

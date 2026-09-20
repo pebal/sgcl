@@ -140,32 +140,34 @@ io::remove_all(*dir);
 #include "sgcl/sgcl.h"
 #include <iostream>
 
-namespace io = sgcl::io;
+using namespace sgcl;
+
+namespace io = io;
 
 // Copies a file through the pool without holding a worker, then reads it back through a pipe
-sgcl::task<io::result<size_t>> roundtrip(sgcl::string src, sgcl::string dst) {   // by value: a task copies its parameters into its frame
+task<io::result<size_t>> roundtrip(string src, string dst) {   // by value: a task copies its parameters into its frame
     auto in = io::open(src);
-    if (!in) co_return sgcl::unexpected(in.error());
+    if (!in) co_return unexpected(in.error());
     auto out = io::create(dst);
-    if (!out) co_return sgcl::unexpected(out.error());
+    if (!out) co_return unexpected(out.error());
     auto n = co_await (*in)->async_copy_to(**out);     // reads and writes on the blocking pool
     if (!n) co_return n;
     (*out)->close();
 
     auto p = io::pipe();                                // a pipe: both ends on the reactor
-    if (!p) co_return sgcl::unexpected(p.error());
+    if (!p) co_return unexpected(p.error());
     auto [rd, wr] = *p;
-    sgcl::go([wr, dst]() -> sgcl::task<> {
+    go([wr, dst]() -> task<> {
         auto data = co_await io::async_read_file(dst);
         if (data) co_await wr->async_write(*data);
         wr->close();                                    // the reader sees the end
     });
     auto back = co_await rd->async_read_all();          // suspended until the writer is done
-    co_return back ? io::result<size_t>(back->size()) : sgcl::unexpected(back.error());
+    co_return back ? io::result<size_t>(back->size()) : unexpected(back.error());
 }
 
 int main() {
-    auto n = sgcl::spawn(roundtrip("/etc/hosts", "/tmp/hosts.copy")).join();
+    auto n = spawn(roundtrip("/etc/hosts", "/tmp/hosts.copy")).join();
     if (!n) { std::cerr << n.error().message() << '\n'; return 1; }
     std::cout << *n << " bytes\n";
     io::remove("/tmp/hosts.copy");

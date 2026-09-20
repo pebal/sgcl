@@ -19,16 +19,16 @@ Structures shared by any number of threads without a lock: the textbook algorith
 
 ```cpp
 struct Server {                                             // what every thread shares, in one managed object
-    sgcl::concurrent_sorted_map<int, sgcl::tracked_ptr<Session>> sessions;
-    sgcl::concurrent_queue<sgcl::tracked_ptr<Request>> requests;
-    sgcl::copy_on_write<Config> config;
-    sgcl::channel<sgcl::tracked_ptr<Request>> inbox{64};    // a channel: producers wait when it is full
+    concurrent_sorted_map<int, tracked_ptr<Session>> sessions;
+    concurrent_queue<tracked_ptr<Request>> requests;
+    copy_on_write<Config> config;
+    channel<tracked_ptr<Request>> inbox{64};    // a channel: producers wait when it is full
 };
-static sgcl::root_ptr<Server> server = sgcl::make_tracked<Server>();   // a global: a root
+static root_ptr<Server> server = make_tracked<Server>();   // a global: a root
 
 // any thread
-auto [it, fresh] = server->sessions.try_emplace(id, sgcl::make_tracked<Session>());
-server->requests.emplace(sgcl::make_tracked<Request>(id));
+auto [it, fresh] = server->sessions.try_emplace(id, make_tracked<Session>());
+server->requests.emplace(make_tracked<Request>(id));
 // a worker
 while (auto r = server->requests.try_pop()) {
     if (auto s = server->sessions.find((*r)->id); s != server->sessions.end()) {   // s holds the node: valid even if erased meanwhile
@@ -39,7 +39,7 @@ server->sessions.erase(id);   // marked, unlinked by the next search; the Sessio
 auto c = server->config.load();                            // a snapshot: one load, immutable, alive while c is
 server->config.update([](Config& x) { ++x.generation; });  // a copy, changed, swapped in; the old one dies with its last snapshot
 
-sgcl::task<> worker() {
+task<> worker() {
     while (auto r = co_await server->inbox.async_receive()) {   // the coroutine sleeps on the channel, resumed by a send
         handle(*r);
     }

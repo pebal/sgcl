@@ -1,6 +1,6 @@
 # Benchmarks: the containers
 
-The setup, the machine, the environments and how the timers and the memory are read are described with [the benchmarks of the engine](../../garbage_collector/benchmarks.md); the numbers here were taken the same way. The cost of a [string](README.md#string) is measured on its page.
+The setup, the machine, the environments and how the timers and the memory are read are described with [the benchmarks of the engine](../../garbage_collector/benchmarks.md); the numbers here were taken the same way. The cost of a [string](../core/README.md#string) is measured on its page.
 
 ## Containers
 `benchmarks/containers.sh` runs each container case in a process of its own against the `std` counterpart: one million elements, nanoseconds per operation, the footprint of the built container and the peak resident size of the run; the table is the best of three runs of the script per case (19 September 2026, after the review below), and one run differs from the next by a tenth and more in the map rows, the machine's spread at this size. The footprint is what the container occupies once the garbage of building it is gone: for SGCL the pages holding live managed objects after a full collection (free slots left in a page by erasures stay counted, they are reusable by objects of that type), for `std` the bytes malloc reports in use (blocks freed and kept by malloc are not counted). The peak RSS adds what waits for a collection on one side and what malloc keeps on the other.

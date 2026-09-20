@@ -20,6 +20,17 @@ namespace sgcl {
     class atomic_ref;
     class collector;
 
+    // The write barrier of a store into a tracked_ptr, off: the tag of
+    // the store that leaves it out, `p.store(q, barrier::off)`, for the
+    // copy of a node that never changes, whose source is shaded once
+    // afterwards (the immutable containers). A tag, so that the store
+    // without the barrier is an overload of its own, chosen at compile
+    // time; every other store has the barrier and needs no tag.
+    struct barrier {
+        struct off_t {};
+        static constexpr off_t off = {};
+    };
+
     template<class, size_t, class>
     class array;
     template<class, class, class>

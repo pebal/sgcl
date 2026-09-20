@@ -39,25 +39,25 @@ class timed_out : public std::runtime_error { public: timed_out(); };
 ```
 
 ```cpp
-sgcl::task<int> fetch(sgcl::stop_token tok) {
-    size_t which = co_await sgcl::async_select(
-        sgcl::timeout(300ms, [] {}),                                    // the work: here, a wait
+task<int> fetch(stop_token tok) {
+    size_t which = co_await async_select(
+        timeout(300ms, [] {}),                                    // the work: here, a wait
         tok.on_stop([] {})                                              // or the stop
     );
     co_return which == 0 ? 42 : -1;
 }
 
-sgcl::task<> caller(sgcl::stop_token tok) {
-    sgcl::stop_source src(tok);                                         // the task's own source, under the caller's token
-    sgcl::optional<int> r = co_await sgcl::timeout(fetch(src.token()), 50ms, src);   // nullopt after 50 ms, and fetch stopped
-    sgcl::stop_source own;
+task<> caller(stop_token tok) {
+    stop_source src(tok);                                         // the task's own source, under the caller's token
+    optional<int> r = co_await timeout(fetch(src.token()), 50ms, src);   // nullopt after 50 ms, and fetch stopped
+    stop_source own;
     try {
-        int v = co_await sgcl::with_deadline(fetch(own.token()), 1s);   // 42, in time
-    } catch (const sgcl::timed_out&) {
+        int v = co_await with_deadline(fetch(own.token()), 1s);   // 42, in time
+    } catch (const timed_out&) {
     }
-    sgcl::stop_source deadline;
+    stop_source deadline;
     deadline.stop_after(1s);
-    int w = co_await sgcl::with_deadline(fetch(deadline.token()), deadline.token());   // the same deadline for both
+    int w = co_await with_deadline(fetch(deadline.token()), deadline.token());   // the same deadline for both
 }
 ```
 
@@ -67,14 +67,16 @@ sgcl::task<> caller(sgcl::stop_token tok) {
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 using namespace std::chrono_literals;
 
 // A lookup with a budget: the fast source answers in time, the slow one
 // does not and is stopped through its source; a third is given a
 // deadline and throws. Nothing here holds a thread while it waits.
-sgcl::task<sgcl::string> lookup(sgcl::string name, int ms, sgcl::stop_token tok) {
-    size_t which = co_await sgcl::async_select(
-        sgcl::timeout(std::chrono::milliseconds(ms), [] {}),       // the work
+task<string> lookup(string name, int ms, stop_token tok) {
+    size_t which = co_await async_select(
+        timeout(std::chrono::milliseconds(ms), [] {}),       // the work
         tok.on_stop([] {})                                         // or the stop
     );
     if (which == 1) {
@@ -84,18 +86,18 @@ sgcl::task<sgcl::string> lookup(sgcl::string name, int ms, sgcl::stop_token tok)
 }
 
 int main() {
-    sgcl::stop_source fast, slow, late;
-    auto a = sgcl::timeout(lookup("fast", 10, fast.token()), 100ms, fast).join();
-    std::cout << (a ? *a : sgcl::string("fast timed out")) << "\n";
-    auto b = sgcl::timeout(lookup("slow", 500, slow.token()), 50ms, slow).join();
-    sgcl::this_thread::sleep_for(20ms);                            // the slow one sees its stop
-    std::cout << (b ? *b : sgcl::string("slow timed out")) << "\n";
+    stop_source fast, slow, late;
+    auto a = timeout(lookup("fast", 10, fast.token()), 100ms, fast).join();
+    std::cout << (a ? *a : string("fast timed out")) << "\n";
+    auto b = timeout(lookup("slow", 500, slow.token()), 50ms, slow).join();
+    this_thread::sleep_for(20ms);                            // the slow one sees its stop
+    std::cout << (b ? *b : string("slow timed out")) << "\n";
     try {
-        sgcl::with_deadline(lookup("late", 500, late.token()), 50ms).join();   // not stopped: runs on
-    } catch (const sgcl::timed_out& e) {
+        with_deadline(lookup("late", 500, late.token()), 50ms).join();   // not stopped: runs on
+    } catch (const timed_out& e) {
         std::cout << "late: " << e.what() << "\n";
     }
-    sgcl::this_thread::sleep_for(500ms);                           // the late one finishes on its own, unseen
+    this_thread::sleep_for(500ms);                           // the late one finishes on its own, unseen
     return a && !b && slow.stop_requested() ? 0 : 1;
 }
 ```

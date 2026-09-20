@@ -49,20 +49,20 @@ The base of a promise type whose coroutines get their frames from the managed he
 A promise of your own derives from `managed_frame` and returns, from `get_return_object`, an object that holds a `frame_ptr<promise_type>` made from the handle. Everything else about the promise is ordinary C++20: `initial_suspend`, `final_suspend`, `return_value`/`return_void`, `yield_value`, `unhandled_exception`, and any members it needs, `tracked_ptr` members included, since the promise lives in the frame:
 
 ```cpp
-struct Node { int value; sgcl::tracked_ptr<Node> next; };
+struct Node { int value; tracked_ptr<Node> next; };
 
 // A coroutine type of your own: the promise derives from managed_frame
 class walker {
 public:
-    struct promise_type : sgcl::managed_frame {
-        sgcl::tracked_ptr<Node> current;                      // in the frame: a root
+    struct promise_type : managed_frame {
+        tracked_ptr<Node> current;                      // in the frame: a root
 
         walker get_return_object() {
             return walker(std::coroutine_handle<promise_type>::from_promise(*this));
         }
         std::suspend_always initial_suspend() noexcept { return {}; }
         std::suspend_always final_suspend() noexcept { return {}; }
-        std::suspend_always yield_value(sgcl::tracked_ptr<Node> n) noexcept {
+        std::suspend_always yield_value(tracked_ptr<Node> n) noexcept {
             current = n;                                    // co_yield: keep the node, suspend
             return {};
         }
@@ -74,14 +74,14 @@ public:
         _frame.resume();
         return !_frame.done();
     }
-    const sgcl::tracked_ptr<Node>& current() const { return _frame.promise().current; }
+    const tracked_ptr<Node>& current() const { return _frame.promise().current; }
 
 private:
     explicit walker(std::coroutine_handle<promise_type> h) : _frame(h) {}   // takes the frame over
-    sgcl::frame_ptr<promise_type> _frame;
+    frame_ptr<promise_type> _frame;
 };
 
-walker walk(sgcl::tracked_ptr<Node> head) {                   // the parameter: in the frame, a root
+walker walk(tracked_ptr<Node> head) {                   // the parameter: in the frame, a root
     for (auto n = head; n; n = n->next) {
         co_yield n;
     }
@@ -115,10 +115,10 @@ frame_ptr& operator=(const frame_ptr&) = delete;
 The default constructor makes an empty `frame_ptr`: `false`, `done()`. The constructor from a handle takes the coroutine's frame over: `h` must be the handle of a coroutine whose promise derives from `managed_frame`, and no other `frame_ptr` may have taken that frame; the place to call it is the promise's `get_return_object`, with `std::coroutine_handle<Promise>::from_promise(*this)`. A move leaves the source empty; move assignment destroys the coroutine the target held first. The destructor destroys the coroutine, if any (see `destroy`).
 
 ```cpp
-struct promise_type : sgcl::managed_frame {
+struct promise_type : managed_frame {
     my_coroutine get_return_object() {
         // the frame_ptr is made here, from the handle of this promise's coroutine
-        return my_coroutine(sgcl::frame_ptr<promise_type>(std::coroutine_handle<promise_type>::from_promise(*this)));
+        return my_coroutine(frame_ptr<promise_type>(std::coroutine_handle<promise_type>::from_promise(*this)));
     }
     // ...
 };
@@ -133,7 +133,7 @@ explicit operator bool() const noexcept;
 `true` when the `frame_ptr` holds a coroutine, `false` when empty (default-constructed, moved from, or after `destroy()`).
 
 ```cpp
-sgcl::frame_ptr<P> f;                   // empty
+frame_ptr<P> f;                   // empty
 if (!f) { /* nothing to resume */ }
 ```
 
@@ -187,7 +187,7 @@ bool done() const noexcept;
 `true` when the `frame_ptr` is empty or the coroutine is suspended at its final suspend point.
 
 ```cpp
-sgcl::frame_ptr<P> f;
+frame_ptr<P> f;
 bool d = f.done();                    // true: nothing to resume
 ```
 
@@ -232,11 +232,11 @@ struct promise_type : detail::TaskPromiseBase {   // : managed_frame
 The promise of a `task`. `initial_suspend` is `suspend_always`, so the coroutine body does not run until `spawn()` or the first `resume()`; at the final suspension the frame with its result stays until the `task` is destroyed, the task is marked done (one word: running, done, or the handle of the coroutine awaiting it), a thread in `join()` is woken, and a coroutine that `co_await`ed the task is handed to the scheduler. The value goes into `value`, an exception into `error`; `result()` reads them. A coroutine returning `task<T>` may `co_await` a channel, another task, `sgcl::yield()`, or `std::suspend_always{}` (the plain "give control back to the resumer", for a task run by hand).
 
 ```cpp
-sgcl::task<int> count_to(int n) {           // nothing runs yet: the task is lazy
+task<int> count_to(int n) {           // nothing runs yet: the task is lazy
     int i = 0;
     while (i < n) {
         ++i;
-        co_await sgcl::yield();           // to the back of the scheduler's queue; the frame keeps i
+        co_await yield();           // to the back of the scheduler's queue; the frame keeps i
     }
     co_return i;
 }
@@ -251,7 +251,7 @@ task() noexcept = default;
 An empty task: `done()` is `true`, `resume()`, `join()` and `result()` may not be called. A `task` with a coroutine comes from calling a coroutine function that returns one; it is move constructible and move assignable, not copyable.
 
 ```cpp
-sgcl::task<int> t;                          // empty, to be assigned
+task<int> t;                          // empty, to be assigned
 t = count_to(3);                          // the coroutine, suspended before its first statement
 ```
 
@@ -265,7 +265,7 @@ template<class T> task<T> spawn(task<T> t);   // the free function: spawn(f()) f
 Puts the task on the scheduler's queue and returns at once; a worker runs it. Once, before the task runs. The free function returns the task, for `auto t = sgcl::spawn(f());`. Both are `[[nodiscard]]`: a task object dropped destroys the coroutine, so a task nobody waits for is started with `sgcl::go(f())` instead.
 
 ```cpp
-auto t = sgcl::spawn(count_to(3));        // running on a worker, or about to
+auto t = spawn(count_to(3));        // running on a worker, or about to
 ```
 
 #### resume
@@ -277,7 +277,7 @@ void resume();
 Runs the coroutine on the calling thread to its next suspension or to its end, as a `std::coroutine_handle` would: for a task driven by hand, without the scheduler. Precondition: not empty, not `done()`, not spawned. An exception the coroutine throws does not escape `resume()`: the promise stores it and the task is `done()`; `result()` rethrows it.
 
 ```cpp
-sgcl::task<int> step(int n) {
+task<int> step(int n) {
     int i = 0;
     while (i < n) {
         ++i;
@@ -285,7 +285,7 @@ sgcl::task<int> step(int n) {
     }
     co_return i;
 }
-sgcl::task<int> t = step(3);
+task<int> t = step(3);
 t.resume();                               // i == 1, suspended
 t.resume();                               // i == 2
 ```
@@ -300,7 +300,7 @@ Whether the coroutine has ended (or the task is empty). From any thread.
 
 ```cpp
 while (!t.done()) {
-    sgcl::this_thread::yield();            // or join(), which waits without spinning
+    this_thread::yield();            // or join(), which waits without spinning
 }
 ```
 
@@ -314,7 +314,7 @@ void join();                              // task<void>
 Waits, on the calling thread, until the task is done, and returns `result()`. A task nobody started yet is put on the scheduler first: `count_to(3).join()` is `spawn(count_to(3)).join()`. For a thread; not from a task on a worker, which would block the worker (`co_await` the task there; debug builds assert it).
 
 ```cpp
-int n = sgcl::spawn(count_to(3)).join();   // 3, or the exception the coroutine threw
+int n = spawn(count_to(3)).join();   // 3, or the exception the coroutine threw
 ```
 
 #### co_await task
@@ -326,9 +326,9 @@ awaiter operator co_await() noexcept;    // co_await t: T, or void; rethrows
 From a coroutine with a managed frame: suspends it until the task is done, with no thread held, and gives the result. A task nobody started yet is put on the scheduler first, so `co_await count_to(3)` runs the task on a worker and waits for it; a task that is done already does not suspend. One coroutine may await a task at a time; the same coroutine may await it again after.
 
 ```cpp
-sgcl::task<int> twice() {
-    int a = co_await sgcl::spawn(count_to(3));
-    int b = co_await sgcl::spawn(count_to(4));
+task<int> twice() {
+    int a = co_await spawn(count_to(3));
+    int b = co_await spawn(count_to(4));
     co_return a + b;                      // 7
 }
 ```
@@ -343,7 +343,7 @@ void result();                            // task<void>
 The value the coroutine `co_return`ed, a reference into the frame that is valid while the task holds it; for `task<void>`, nothing. If the coroutine ended with an exception, `result()` rethrows it, every time it is called. Precondition: not empty and `done()` (the value of a coroutine that has not returned yet does not exist).
 
 ```cpp
-auto t = sgcl::spawn(count_to(3));
+auto t = spawn(count_to(3));
 t.join();
 int n = t.result();                       // 3, again
 ```
@@ -357,8 +357,8 @@ void detach() noexcept;
 Lets go of the task: it runs on, or stays wherever it waits, and destroys its frame when it is done (the locals and parameters with it: a task it awaited, a `root_ptr` it held, released), the memory the collector's from then on; a task detached after it is done is destroyed at once. The task object is empty after. For a task whose result nobody needs; `sgcl::go(f())` is a spawn and a detach in one. A task detached before anyone started it never runs: its frame is left to the collector as it is, its locals never destroyed.
 
 ```cpp
-auto t = sgcl::spawn(log_forever(queue));
-t.detach();                               // the same as sgcl::go(log_forever(queue));
+auto t = spawn(log_forever(queue));
+t.detach();                               // the same as go(log_forever(queue));
 ```
 
 #### go
@@ -370,7 +370,7 @@ template<class T> void go(task<T> t);
 Puts the task on the scheduler and lets go of it, Go's `go f()`: `t.spawn().detach()`. For a task nobody waits for; the handle of one somebody does is kept from `sgcl::spawn`.
 
 ```cpp
-sgcl::go(log_forever(queue));
+go(log_forever(queue));
 ```
 
 #### destroy
@@ -382,7 +382,7 @@ void destroy() noexcept;
 Destroys the coroutine, running the destructors of its locals and promise, and leaves the task empty; the frame's memory goes to the collector. For a task that never ran or is done, never for one that is queued or waiting (detach it instead). The task's destructor does the same.
 
 ```cpp
-sgcl::task<int> t = count_to(3);
+task<int> t = count_to(3);
 t.resume();
 t.destroy();                              // the frame's locals are gone; t is empty and done()
 ```
@@ -415,8 +415,8 @@ struct promise_type : managed_frame {
 The promise of a `generator`. Lazy like `task`: nothing runs until the first `next()` (or `begin()`). `co_yield v` moves `v` into `value` and suspends; the coroutine ends with `co_return;` or by falling off its end, and may not `co_return` a value.
 
 ```cpp
-sgcl::generator<int> squares(int n) {
-    for (int i : sgcl::range(1, n + 1)) {
+generator<int> squares(int n) {
+    for (int i : range(1, n + 1)) {
         co_yield i * i;                       // value, then suspended until the next next()
     }
 }
@@ -446,7 +446,7 @@ public:
 An input iterator over the values, for the range-for. Dereferencing gives the current value as `const T&`; `++` runs the coroutine to its next `co_yield` and turns into `end()` when the coroutine ends. Post-increment returns nothing. Two iterators are equal when they refer to the same generator or are both `end()`. An exception the coroutine throws comes out of `++`.
 
 ```cpp
-sgcl::generator<int> g = squares(3);
+generator<int> g = squares(3);
 for (auto it = g.begin(); it != g.end(); ++it) {
     int v = *it;                              // 1, 4, 9
 }
@@ -461,7 +461,7 @@ generator() noexcept = default;
 An empty generator: `next()` returns `false`, `begin() == end()`, `value()` may not be called. A generator with a coroutine comes from calling a coroutine function that returns one; move constructible and move assignable, not copyable.
 
 ```cpp
-sgcl::generator<int> g;                         // empty: no values
+generator<int> g;                         // empty: no values
 g = squares(4);                               // the coroutine, not started yet
 ```
 
@@ -474,7 +474,7 @@ bool next();
 Runs the coroutine to its next `co_yield`: `true`, and `value()` is the yielded value; or to its end: `false`. On an empty or finished generator, `false` at once. An exception the coroutine throws is rethrown by `next()`, after which the generator is finished.
 
 ```cpp
-sgcl::generator<int> g = squares(4);
+generator<int> g = squares(4);
 while (g.next()) {
     int v = g.value();                        // 1, 4, 9, 16
 }
@@ -489,7 +489,7 @@ const T& value() const noexcept;
 The value of the last `co_yield`, a reference into the frame (the promise's `value`): overwritten by the next `co_yield`, gone when the generator is destroyed. Precondition: the last `next()` returned `true`.
 
 ```cpp
-sgcl::generator<int> g = squares(4);
+generator<int> g = squares(4);
 if (g.next()) {
     const int& first = g.value();             // 1
 }
@@ -519,7 +519,7 @@ void destroy() noexcept;
 Destroys the coroutine, running the destructors of its locals and promise, and leaves the generator empty; the destructor does the same. A generator abandoned in the middle of its values is destroyed the same way, wherever it was suspended.
 
 ```cpp
-sgcl::generator<int> g = squares(100);
+generator<int> g = squares(100);
 g.next();
 g.destroy();                                  // the other 99 never happen; g is empty
 ```
@@ -539,13 +539,13 @@ bool done() const noexcept;
 A generator that may wait: a coroutine that `co_yield`s values and `co_await`s between them (a channel, a sleep, a task), consumed from a task with `while (auto v = co_await g.next())`. The consumer and the generator hand control to each other directly, without the scheduler's queue: `next()` resumes the generator on the consumer's worker, a `co_yield` resumes the consumer where the generator is, and while the generator waits for something the consumer waits with it, no thread held by either. The generator runs as part of its consumer: at every `next()` its frame takes the consumer's executor and task-locals, so a wait of its own resumes it where the consumer runs (an [executor](executor.md), a strand) and the functions under it, and the consumer resumed by the yield, see the consumer's [task-locals](task_local.md); a local the generator sets itself lasts until its next yield. Both frames are on the managed heap: the generator's held by the `async_generator` object, the consumer's by the generator's promise while it waits, and a value yielded is held by the promise until the consumer takes it. Move-only; single pass; `next()` past the end gives nothing again; an exception the generator throws comes out of the `next()` that ran into it.
 
 ```cpp
-sgcl::async_generator<int> tens(sgcl::channel<int>& in) {
+async_generator<int> tens(channel<int>& in) {
     while (auto v = co_await in.async_receive()) {    // waits between yields
         co_yield *v * 10;
     }
 }
 
-sgcl::task<int> consume(sgcl::channel<int>& in) {
+task<int> consume(channel<int>& in) {
     auto g = tens(in);
     int sum = 0;
     while (auto v = co_await g.next()) {              // nothing once in is closed and drained
@@ -563,25 +563,27 @@ sgcl::task<int> consume(sgcl::channel<int>& in) {
 #include <coroutine>
 #include <iostream>
 
+using namespace sgcl;
+
 struct Node {
-    Node(int v, sgcl::tracked_ptr<Node> n) : value(v), next(n) {}
+    Node(int v, tracked_ptr<Node> n) : value(v), next(n) {}
     int value;
-    sgcl::tracked_ptr<Node> next;
+    tracked_ptr<Node> next;
 };
 
 // Yields the nodes of a chain it builds as it goes: the local keeps
 // the whole chain alive while the generator is suspended
-sgcl::generator<sgcl::tracked_ptr<Node>> chain(int count) {
-    sgcl::tracked_ptr<Node> last;                         // a local in a managed frame: a root
-    for (int i : sgcl::range(1, count + 1)) {
-        sgcl::tracked_ptr n = sgcl::make_tracked<Node>(i, last);
+generator<tracked_ptr<Node>> chain(int count) {
+    tracked_ptr<Node> last;                         // a local in a managed frame: a root
+    for (int i : range(1, count + 1)) {
+        tracked_ptr n = make_tracked<Node>(i, last);
         last = n;
         co_yield n;
     }
 }
 
 // Sums a chain one node per resume: the parameter copy in the frame keeps the head
-sgcl::task<int> sum(sgcl::tracked_ptr<Node> head) {
+task<int> sum(tracked_ptr<Node> head) {
     int s = 0;
     for (auto n = head; n; n = n->next) {
         s += n->value;
@@ -591,17 +593,17 @@ sgcl::task<int> sum(sgcl::tracked_ptr<Node> head) {
 }
 
 int main() {
-    sgcl::tracked_ptr<Node> head;
+    tracked_ptr<Node> head;
     for (auto& n : chain(4)) {                          // the generator's frame holds the chain
         head = n;                                       // the last one yielded is the head
     }
-    sgcl::collector::force_collect();                     // optional, only to show the point at once: the
+    collector::force_collect();                     // optional, only to show the point at once: the
                                                         // generator is gone, head keeps the chain
-    sgcl::task<int> t = sum(head);
+    task<int> t = sum(head);
     head = nullptr;                                     // the task's frame is the only root now
     while (!t.done()) {
         t.resume();
-        sgcl::collector::force_collect();                 // optional: the chain survives every cycle
+        collector::force_collect();                 // optional: the chain survives every cycle
     }
     std::cout << t.result() << '\n';                    // 10
 }

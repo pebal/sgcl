@@ -21,17 +21,17 @@ Go's `sync.Cond` and `std::condition_variable_any` over the module's [mutex](mut
 ```cpp
 void notify_one();  void notify_all();
 void wait(mutex::guard& g);                              // a thread: the mutex let go of, the wait, the mutex taken back
-template<class Lock> void wait(Lock& lock);              // the same with a lock that has unlock() and lock(): std::unique_lock<sgcl::mutex>
+template<class Lock> void wait(Lock& lock);              // the same with a lock that has unlock() and lock(): std::unique_lock<mutex>
 template<class Lock, class Pred> void wait(Lock& lock, Pred pred);   // until pred(), checked under the mutex before every wait
 task<> async_wait(mutex::guard& g);                      // a task: co_await; the mutex taken back with a co_await too
 template<class Pred> task<> async_wait(mutex::guard& g, Pred pred);
 ```
 
 ```cpp
-sgcl::mutex m;
-sgcl::condition_variable changed;
+mutex m;
+condition_variable changed;
 bool flag = false;                              // guarded by m
-auto wait_for_flag = [](sgcl::mutex& m, sgcl::condition_variable& changed, bool& flag) -> sgcl::task<> {
+auto wait_for_flag = [](mutex& m, condition_variable& changed, bool& flag) -> task<> {
     auto guard = co_await m.async_scoped_lock();
     co_await changed.async_wait(guard, [&] { return flag; });   // the mutex held again here
 };

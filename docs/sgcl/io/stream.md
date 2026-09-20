@@ -98,20 +98,20 @@ A reader of your own, in memory, with the async form that needs no waiting:
 ```cpp
 class counting_reader final : public io::reader {
 public:
-    explicit counting_reader(sgcl::tracked_ptr<io::reader> r) : _r(std::move(r)) {}
-    io::result<size_t> read(sgcl::slice<std::byte> b) override {
+    explicit counting_reader(tracked_ptr<io::reader> r) : _r(std::move(r)) {}
+    io::result<size_t> read(slice<std::byte> b) override {
         auto n = _r->read(b);
         if (n) bytes += *n;
         return n;
     }
-    sgcl::task<io::result<size_t>> async_read(sgcl::slice<std::byte> b) override {
+    task<io::result<size_t>> async_read(slice<std::byte> b) override {
         auto n = co_await _r->async_read(b);
         if (n) bytes += *n;
         co_return n;
     }
     size_t bytes = 0;
 private:
-    sgcl::tracked_ptr<io::reader> _r;
+    tracked_ptr<io::reader> _r;
 };
 ```
 
@@ -133,7 +133,7 @@ tracked_ptr<writer> discard();                                                  
 ```
 
 ```cpp
-sgcl::tracked_ptr head = sgcl::make_tracked<io::limit_reader>(*io::open("big.bin"), 1024);   // the first kilobyte
+tracked_ptr head = make_tracked<io::limit_reader>(*io::open("big.bin"), 1024);   // the first kilobyte
 auto bytes = head->read_all();
 ```
 
@@ -155,7 +155,7 @@ vector<std::byte> release();                                     // takes the by
 A growing block of bytes in memory that is read from the front and written at the back, `bytes.Buffer`: a reader for a parser to consume, a writer for a response to accumulate, the stream of a test.
 
 ```cpp
-sgcl::tracked_ptr out = sgcl::make_tracked<io::buffer>();
+tracked_ptr out = make_tracked<io::buffer>();
 out->write_text("GET / HTTP/1.1\r\n");
 out->write_text("Host: example.com\r\n\r\n");
 auto n = io::copy(*socket, *out);   // the whole request in one write
@@ -167,29 +167,31 @@ auto n = io::copy(*socket, *out);   // the whole request in one write
 #include "sgcl/sgcl.h"
 #include <iostream>
 
-namespace io = sgcl::io;
+using namespace sgcl;
+
+namespace io = io;
 
 // A reader that upper-cases ASCII on the way through
 class upper_reader final : public io::reader {
 public:
-    explicit upper_reader(sgcl::tracked_ptr<io::reader> r) : _r(std::move(r)) {}
-    io::result<size_t> read(sgcl::slice<std::byte> b) override {
+    explicit upper_reader(tracked_ptr<io::reader> r) : _r(std::move(r)) {}
+    io::result<size_t> read(slice<std::byte> b) override {
         auto n = _r->read(b);
         if (n) for (auto& c : b.first(*n)) c = std::byte(std::toupper(int(c)));
         return n;
     }
-    sgcl::task<io::result<size_t>> async_read(sgcl::slice<std::byte> b) override {
+    task<io::result<size_t>> async_read(slice<std::byte> b) override {
         auto n = co_await _r->async_read(b);
         if (n) for (auto& c : b.first(*n)) c = std::byte(std::toupper(int(c)));
         co_return n;
     }
 private:
-    sgcl::tracked_ptr<io::reader> _r;
+    tracked_ptr<io::reader> _r;
 };
 
 int main() {
-    sgcl::tracked_ptr src = sgcl::make_tracked<io::buffer>("hello, streams\n");
-    sgcl::tracked_ptr up = sgcl::make_tracked<upper_reader>(src);
+    tracked_ptr src = make_tracked<io::buffer>("hello, streams\n");
+    tracked_ptr up = make_tracked<upper_reader>(src);
     auto n = io::copy(*io::stdout(), *up);            // HELLO, STREAMS
     std::cout << *n << " bytes\n";
 }

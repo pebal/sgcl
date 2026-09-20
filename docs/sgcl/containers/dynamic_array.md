@@ -47,13 +47,13 @@ dynamic_array(dynamic_array&& other) noexcept;
 The default constructor holds no buffer. `dynamic_array(count)` holds `count` value-initialized elements; for `tracked_ptr` elements the buffer is already zeroed, so they are null pointers without a constructor run. The range constructor takes the count from a forward range in advance; a single-pass range is collected into a `vector` first. A copy has a buffer of its own; a move takes the buffer over and leaves `other` empty. A `count` above `max_size()` throws `std::length_error`. An element constructor that throws takes the elements built before it with it and the array holds nothing.
 
 ```cpp
-sgcl::dynamic_array<int> zeros(5);                           // 0 0 0 0 0
-sgcl::dynamic_array<sgcl::string> names(3, "n");              // "n" "n" "n"
-sgcl::dynamic_array<int> digits = {1, 2, 3};
-sgcl::vector src = {4, 5, 6, 7};
-sgcl::dynamic_array from(src.begin(), src.end());            // deduced: sgcl::dynamic_array<int>
-sgcl::dynamic_array<int> taken = std::move(digits);          // digits is empty now
-sgcl::dynamic_array<sgcl::tracked_ptr<int>> ptrs(10);          // ten null pointers, in a managed buffer
+dynamic_array<int> zeros(5);                           // 0 0 0 0 0
+dynamic_array<string> names(3, "n");              // "n" "n" "n"
+dynamic_array<int> digits = {1, 2, 3};
+vector src = {4, 5, 6, 7};
+dynamic_array from(src.begin(), src.end());            // deduced: dynamic_array<int>
+dynamic_array<int> taken = std::move(digits);          // digits is empty now
+dynamic_array<tracked_ptr<int>> ptrs(10);          // ten null pointers, in a managed buffer
 ```
 
 ### Destructor
@@ -75,8 +75,8 @@ dynamic_array& operator=(std::initializer_list<T> ilist);
 Copy assignment assigns the elements in place when the sizes are equal, else builds a copy and swaps it in. Move assignment destroys the current elements and takes the other buffer over. Assignment from an initializer list builds a fresh array and swaps it in.
 
 ```cpp
-sgcl::dynamic_array<int> a = {1, 2, 3};
-sgcl::dynamic_array<int> b(3);
+dynamic_array<int> a = {1, 2, 3};
+dynamic_array<int> b(3);
 b = a;                  // same size: assigned in place, b keeps its buffer
 b = {7, 8};             // a new buffer of two
 a = std::move(b);       // a holds 7 8, b is empty
@@ -95,10 +95,10 @@ slice<T> as_slice(size_type pos, size_type n = size_type(-1));                  
 ```
 
 ```cpp
-sgcl::dynamic_array<int> a(4, 1);
+dynamic_array<int> a(4, 1);
 a.front() = 0;
 a.back() = 9;
-sgcl::slice<int> all = a.as_slice();          // 0 1 1 9: valid for as long as a is, the buffer never moves
+slice<int> all = a.as_slice();          // 0 1 1 9: valid for as long as a is, the buffer never moves
 ```
 
 ### Iterators
@@ -129,7 +129,7 @@ size_type max_size() const noexcept;                    // PTRDIFF_MAX / sizeof(
 `dynamic_array` carries [mixin::enumerable](../core/mixin/enumerable.md), [mixin::equatable](../core/mixin/equatable.md), [mixin::comparable](../core/mixin/comparable.md), [mixin::ordered](../core/mixin/ordered.md), [mixin::sequence](../core/mixin/sequence.md) and the contiguous category: everything a `vector` answers.
 
 ```cpp
-sgcl::dynamic_array<int> a = {5, 3, 9, 3};
+dynamic_array<int> a = {5, 3, 9, 3};
 assert(a.contains(9) && a.index_of(3) == 1 && a.min() == 3);
 a.sort();                                        // 3 3 5 9
 assert(a.is_sorted() && a.binary_search(5));
@@ -144,7 +144,7 @@ friend void swap(dynamic_array& l, dynamic_array& r) noexcept;
 ```
 
 ```cpp
-sgcl::dynamic_array<int> a = {1, 2}, b = {3, 4, 5};
+dynamic_array<int> a = {1, 2}, b = {3, 4, 5};
 swap(a, b);                                     // a is 3 4 5, b is 1 2; no element moved
 ```
 
@@ -166,26 +166,28 @@ dynamic_array(InputIt, InputIt) -> dynamic_array<std::iter_value_t<InputIt>>;
 #include <iostream>
 #include <numeric>
 
+using namespace sgcl;
+
 struct Holder {
-    sgcl::dynamic_array<int> values;                  // a managed buffer, one handle inside the object
+    dynamic_array<int> values;                  // a managed buffer, one handle inside the object
 };
 
 int main() {
     // A buffer sized at creation: the elements are on the managed heap
-    sgcl::dynamic_array<int> squares(8);
-    for (size_t i : sgcl::range(squares.size())) {
+    dynamic_array<int> squares(8);
+    for (size_t i : range(squares.size())) {
         squares[i] = int(i * i);
     }
     int* third = &squares[3];                         // stays valid: the buffer never moves
-    sgcl::dynamic_array copy = squares;               // a deep copy, a buffer of its own
+    dynamic_array copy = squares;               // a deep copy, a buffer of its own
     copy.reverse();
 
     // Inside a managed object: the buffer goes with the object
-    sgcl::tracked_ptr h = sgcl::make_tracked<Holder>();
+    tracked_ptr h = make_tracked<Holder>();
     h->values = std::move(squares);                 // the buffer is handed over, squares is empty
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
-    sgcl::collector::force_collect(true);
+    collector::force_collect(true);
     std::cout << "sum of squares " << std::accumulate(h->values.begin(), h->values.end(), 0)
               << ", reversed copy starts with " << copy.front() << ", third " << *third << "\n";
     return *third == 9 && squares.empty() ? 0 : 1;

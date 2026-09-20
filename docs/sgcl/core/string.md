@@ -96,20 +96,20 @@ std::basic_ostream& operator<<(std::basic_ostream&, const basic_string&);
 void swap(basic_string&, basic_string&) noexcept;
 template<class T> string to_string(T number);              // an integral or a floating-point number; "true"/"false" for a bool; a char as a string of one
 template<class T> optional<T> parse(std::string_view text, int base = 10);   // an integer from its text; parse<double>(text), parse<bool>(text): nullopt unless the text is exactly one number that fits
-template<...> struct std::hash<sgcl::basic_string<...>>;   // the cached hash; transparent: a std::string_view, a slice or a literal hashes as the string would
-template<...> struct std::equal_to<sgcl::basic_string<...>>;   // transparent: a string against a std view, a slice or a literal
-template<...> struct std::less<sgcl::basic_string<...>>;       // transparent
+template<...> struct std::hash<basic_string<...>>;   // the cached hash; transparent: a std::string_view, a slice or a literal hashes as the string would
+template<...> struct std::equal_to<basic_string<...>>;   // transparent: a string against a std view, a slice or a literal
+template<...> struct std::less<basic_string<...>>;       // transparent
 ```
 
 The equality compares the words first (a copy is the same object), then the lengths, then the hashes when both have been computed (different hashes: unequal, without reading the characters), then the characters.
 
 ```cpp
-sgcl::string name = "alice";                  // one object: 8 bytes of length and hash, six characters, in a slot of 16
-sgcl::string same = name;                     // the same object
-sgcl::string other("alice");                  // another object, equal contents
+string name = "alice";                  // one object: 8 bytes of length and hash, six characters, in a slot of 16
+string same = name;                     // the same object
+string other("alice");                  // another object, equal contents
 assert(same.object() == name.object() && other == name && other.object() != name.object());
 assert(name.starts_with("al") && name.substr(1, 3) == "lic" && name + "!" == "alice!");
-sgcl::map<sgcl::string, int> ages;    // a string as a key, the hash kept in the string's object
+map<string, int> ages;    // a string as a key, the hash kept in the string's object
 ages[name] = 30;
 assert(ages.at("alice") == 30);               // searched with the literal: no string made for it
 assert(ages.find(std::string_view("alice")) != ages.end() && !ages.contains("bob"));
@@ -120,24 +120,24 @@ assert(ages.find(std::string_view("alice")) != ages.end() && !ages.contains("bob
 The operations past `std::string` return a new string, or the same object when there is nothing to change (`trim` of a string without white space at its ends, `replace` of what does not occur, `to_lower` of a string with no upper-case letter), so a result may be compared by `object()` as by `==`. `split` and `fields` return `pieces`: a value of a few words (the string, the separator as a copy, the limit) that is a forward range of [`string_slice`](slice.md)s into the string, each piece found as the walk reaches it, one `find` per step and no allocation, as `std::views::split` and Go's `strings.SplitSeq`. Each piece holds the string's object, so it is valid on its own, wherever it is kept: `for (sgcl::string_slice piece : s.split(','))` walks them, `sgcl::vector<sgcl::string_slice> parts(s.split(','))` keeps them (every sequence has a constructor from a range), `sgcl::vector<sgcl::string> strings(s.split(','))` makes a string of each, and `join` takes the range as it is. `split` keeps an empty piece where two separators meet or one ends the string, as Go's `strings.Split` does and Java's `split` does not; with `max_parts` the last piece holds the rest of the string; an empty separator splits into characters; an empty string splits into nothing. `fields` drops the empty pieces: the words. `replace` goes left to right without overlapping and never looks into what it has put in; an empty `from` changes nothing. `join` takes any range whose elements a `std::string_view` is made of: strings, slices, literals, `std::string`.
 
 ```cpp
-sgcl::string line = "  name = alice, bob ,carol  ";
-sgcl::vector<sgcl::string> names;
-for (sgcl::string_slice part : line.trim().trim_prefix("name = ").split(',')) {   // a slice per piece, trimmed as a slice, kept as a string
-    names.push_back(sgcl::string(part.trim()));
+string line = "  name = alice, bob ,carol  ";
+vector<string> names;
+for (string_slice part : line.trim().trim_prefix("name = ").split(',')) {   // a slice per piece, trimmed as a slice, kept as a string
+    names.push_back(string(part.trim()));
 }
 assert(names.size() == 3 && names[1] == "bob");
-assert(sgcl::string::join(names, "; ") == "alice; bob; carol");
-sgcl::vector<sgcl::string_slice> words(line.fields());         // "name", "=", "alice,", "bob", ",carol": slices, each holding the line
+assert(string::join(names, "; ") == "alice; bob; carol");
+vector<string_slice> words(line.fields());         // "name", "=", "alice,", "bob", ",carol": slices, each holding the line
 assert(words.size() == 5 && words[2] == "alice," && words[2].object() == line.object());
 size_t letters = 0;
-for (sgcl::string_slice piece : line.split(',')) {            // slices: nothing allocated
+for (string_slice piece : line.split(',')) {            // slices: nothing allocated
     letters += piece.size();
 }
 assert(letters == line.size() - 2);
-sgcl::string title = "the quick brown fox";
+string title = "the quick brown fox";
 assert(title.replace(" ", "_").to_upper() == "THE_QUICK_BROWN_FOX");
 assert(title.replace("quick", "slow", 1).trim_suffix(" fox") == "the slow brown");
-assert(sgcl::string("ab").repeat(3) == "ababab");
+assert(string("ab").repeat(3) == "ababab");
 assert(title.to_lower().object() == title.object());           // nothing to change: the same object
 ```
 
@@ -147,23 +147,25 @@ assert(title.to_lower().object() == title.object());           // nothing to cha
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // A document tree whose element names are shared: every <p> holds the
 // same string object, and a name compares by the word before it compares
 // by the characters. Nothing is freed by hand, nothing is counted.
 struct Element {
-    sgcl::string name;
-    sgcl::string text;
-    sgcl::vector<sgcl::tracked_ptr<Element>> children;
+    string name;
+    string text;
+    vector<tracked_ptr<Element>> children;
 };
 
-sgcl::tracked_ptr<Element> make(sgcl::string name, sgcl::string text = {}) {
-    sgcl::tracked_ptr e = sgcl::make_tracked<Element>();
+tracked_ptr<Element> make(string name, string text = {}) {
+    tracked_ptr e = make_tracked<Element>();
     e->name = name;                             // a word: the name's object is shared
     e->text = text;
     return e;
 }
 
-int count(const sgcl::tracked_ptr<Element>& e, const sgcl::string& name) {
+int count(const tracked_ptr<Element>& e, const string& name) {
     int n = e->name == name ? 1 : 0;            // the same object: a comparison of two words
     for (auto& child : e->children) {
         n += count(child, name);
@@ -172,12 +174,12 @@ int count(const sgcl::tracked_ptr<Element>& e, const sgcl::string& name) {
 }
 
 int main() {
-    sgcl::string p = "p", div = "div";            // the names, made once
-    sgcl::tracked_ptr root = make(div);
-    for (int i : sgcl::range(3)) {
-        sgcl::tracked_ptr section = make(div);
-        for (int j : sgcl::range(4)) {
-            section->children.push_back(make(p, "paragraph " + sgcl::string(std::to_string(j))));
+    string p = "p", div = "div";            // the names, made once
+    tracked_ptr root = make(div);
+    for (int i : range(3)) {
+        tracked_ptr section = make(div);
+        for (int j : range(4)) {
+            section->children.push_back(make(p, "paragraph " + string(std::to_string(j))));
         }
         root->children.push_back(section);
     }

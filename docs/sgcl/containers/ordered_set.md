@@ -35,7 +35,7 @@ void to_back(const_iterator pos) noexcept;  void to_front(const_iterator pos) no
 `insert` and `emplace` put a new element at the end of the order and leave a present one where it is. `erase` takes the element out of the order; `erase(pos)` returns the next in the order; `erase(first, last)` is a range of the order. `extract` takes the node out of the order, and an inserted handle goes to the end. `merge` appends what it takes. A copy reproduces the order; `operator==` compares the contents and ignores it.
 
 ```cpp
-sgcl::ordered_set<int> seen;
+ordered_set<int> seen;
 for (int v : {3, 1, 3, 2, 1}) {
     seen.insert(v);                           // 3 1 2: each value once, in first-seen order
 }
@@ -48,7 +48,7 @@ assert(seen.front() == 2 && seen.back() == 1);
 `ordered_set` carries [mixin::enumerable](../core/mixin/enumerable.md): `index_of` is the position in insertion order; `contains` is the set's own ([the mixins](../core/mixin/README.md)).
 
 ```cpp
-sgcl::ordered_set<int> s = {5, 3};
+ordered_set<int> s = {5, 3};
 assert(s.index_of(3) == 1 && s.exists([](int x) { return x == 5; }));
 ```
 
@@ -58,18 +58,20 @@ assert(s.index_of(3) == 1 && s.exists([](int x) { return x == 5; }));
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 struct Node {
-    sgcl::string name;
-    sgcl::vector<sgcl::tracked_ptr<Node>> edges;
+    string name;
+    vector<tracked_ptr<Node>> edges;
 };
 
 // The nodes reachable from `start`, each once, in the order the walk
 // first reaches them: the set is the visited set and the report at once
-sgcl::ordered_set<sgcl::tracked_ptr<Node>> reach(const sgcl::tracked_ptr<Node>& start) {
-    sgcl::ordered_set<sgcl::tracked_ptr<Node>> visited;
-    sgcl::vector<sgcl::tracked_ptr<Node>> stack = {start};
+ordered_set<tracked_ptr<Node>> reach(const tracked_ptr<Node>& start) {
+    ordered_set<tracked_ptr<Node>> visited;
+    vector<tracked_ptr<Node>> stack = {start};
     while (!stack.empty()) {
-        sgcl::tracked_ptr node = stack.back();
+        tracked_ptr node = stack.back();
         stack.pop_back();
         if (visited.insert(node).second) {        // new: its edges next
             for (const auto& edge : node->edges) {
@@ -81,9 +83,9 @@ sgcl::ordered_set<sgcl::tracked_ptr<Node>> reach(const sgcl::tracked_ptr<Node>& 
 }
 
 int main() {
-    sgcl::tracked_ptr a = sgcl::make_tracked<Node>("a");
-    sgcl::tracked_ptr b = sgcl::make_tracked<Node>("b");
-    sgcl::tracked_ptr c = sgcl::make_tracked<Node>("c");
+    tracked_ptr a = make_tracked<Node>("a");
+    tracked_ptr b = make_tracked<Node>("b");
+    tracked_ptr c = make_tracked<Node>("c");
     a->edges = {b, c};
     b->edges = {a};                               // a cycle
     c->edges = {b};

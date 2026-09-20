@@ -47,6 +47,8 @@ bool empty() const noexcept;
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 struct Window {
     explicit Window(int id) : id(id) {}
     int id;
@@ -55,16 +57,16 @@ struct Window {
 int main() {
     // Every window there is, without owning any: a window is gone when
     // its owner drops it, and the set notices
-    sgcl::weak_set<Window> windows;
-    sgcl::tracked_ptr main_window = sgcl::make_tracked<Window>(1);
+    weak_set<Window> windows;
+    tracked_ptr main_window = make_tracked<Window>(1);
     windows.insert(main_window);
     {
-        sgcl::tracked_ptr dialog = sgcl::make_tracked<Window>(2);
+        tracked_ptr dialog = make_tracked<Window>(2);
         windows.insert(dialog);
         std::cout << windows.size() << " windows\n";              // 2
     }   // the dialog's last strong pointer is gone
-    sgcl::collector::clear_stack();          // the dead frame zeroed, so that the conservative scan keeps nothing
-    sgcl::collector::force_collect(true);    // optional, for the demonstration: the cycle clears the entry
+    collector::clear_stack();          // the dead frame zeroed, so that the conservative scan keeps nothing
+    collector::force_collect(true);    // optional, for the demonstration: the cycle clears the entry
     for (auto window : windows) {          // tracked_ptr<Window>, held: the live ones
         std::cout << "window " << window->id << "\n";              // window 1
     }

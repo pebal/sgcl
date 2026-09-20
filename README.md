@@ -41,23 +41,25 @@ The pointers and the containers, in one file (`examples/example.cpp` has the lon
 #include <memory>
 #include <vector>
 
+using namespace sgcl;
+
 struct Node {
     int value;
-    sgcl::vector<sgcl::tracked_ptr<Node>> edges;   // any graph, cycles included
+    vector<tracked_ptr<Node>> edges;   // any graph, cycles included
 };
 
 int main() {
     // make_tracked returns a unique_ptr: destroyed at scope exit, deterministically
-    sgcl::unique_ptr unique = sgcl::make_tracked<int>(42);
-    auto also_unique = sgcl::make_tracked<int>(2);   // the same type, deduced
+    unique_ptr unique = make_tracked<int>(42);
+    auto also_unique = make_tracked<int>(2);   // the same type, deduced
 
     // A tracked_ptr hands the object to the collector: destroyed when unreachable
-    sgcl::tracked_ptr tracked = sgcl::make_tracked<int>(24);
+    tracked_ptr tracked = make_tracked<int>(24);
     tracked = std::move(unique);                   // the 42 now belongs to the collector
 
     // A cycle, collected like anything else
-    sgcl::tracked_ptr a = sgcl::make_tracked<Node>(1);
-    sgcl::tracked_ptr b = sgcl::make_tracked<Node>(2);
+    tracked_ptr a = make_tracked<Node>(1);
+    tracked_ptr b = make_tracked<Node>(2);
     a->edges.push_back(b);
     b->edges.push_back(a);
     a = b = nullptr;                               // garbage, no leak
@@ -65,32 +67,32 @@ int main() {
     // Base classes and the dynamic type
     struct Shape { virtual ~Shape() = default; };
     struct Circle : Shape { double r = 1; };
-    sgcl::tracked_ptr<Shape> shape = sgcl::make_tracked<Circle>();
+    tracked_ptr<Shape> shape = make_tracked<Circle>();
     if (shape.is<Circle>()) {
-        sgcl::tracked_ptr<Circle> circle = shape.as<Circle>();
+        tracked_ptr<Circle> circle = shape.as<Circle>();
         std::cout << "a circle of radius " << circle->r << '\n';
     }
-    sgcl::tracked_ptr<void> any = shape;             // type() still knows: Circle
+    tracked_ptr<void> any = shape;             // type() still knows: Circle
 
     // An alias into a member keeps the whole object
-    sgcl::tracked_ptr node = sgcl::make_tracked<Node>(7);
-    sgcl::tracked_ptr<int> value(&node->value);
+    tracked_ptr node = make_tracked<Node>(7);
+    tracked_ptr<int> value(&node->value);
     node = nullptr;
     std::cout << *value << '\n';                   // 7, the Node lives on
 
     // Containers with the interfaces of std, their nodes and buffers managed
-    sgcl::map<std::string, sgcl::tracked_ptr<Node>> index;
-    sgcl::list numbers = {1, 2, 3};
-    sgcl::vector<sgcl::tracked_ptr<Node>> nodes(10);
+    map<std::string, tracked_ptr<Node>> index;
+    list numbers = {1, 2, 3};
+    vector<tracked_ptr<Node>> nodes(10);
 
     // A tracked_ptr lives on a stack or inside a managed object; anywhere
     // else (a std container, a global, new memory) the root is a root_ptr
     // ([The pointer and its places](docs/sgcl/core/README.md#the-pointer-and-its-places)).
-    std::vector<sgcl::root_ptr<Node>> kept = {value.as<Node>()};    // fine: a cell roots the Node
-    static sgcl::root_ptr<Node> root = nodes[0];                    // fine: a global
-    auto holder = new sgcl::root_ptr<Node>(nodes[1]);               // fine: a root in new memory
-    // std::vector<sgcl::tracked_ptr<Node>> edges;                  // not allowed: never scanned, the object is lost
-    // static sgcl::tracked_ptr<Node> root;                         // not allowed: a global is neither a stack nor an object
+    std::vector<root_ptr<Node>> kept = {value.as<Node>()};    // fine: a cell roots the Node
+    static root_ptr<Node> root = nodes[0];                    // fine: a global
+    auto holder = new root_ptr<Node>(nodes[1]);               // fine: a root in new memory
+    // std::vector<tracked_ptr<Node>> edges;                  // not allowed: never scanned, the object is lost
+    // static tracked_ptr<Node> root;                         // not allowed: a global is neither a stack nor an object
     delete holder;
 }
 ```
@@ -101,11 +103,13 @@ Tasks and a channel, the shape of a Go program: a coroutine on the scheduler rec
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 struct Job {
     int id;
 };
 
-sgcl::task<> worker(sgcl::channel<sgcl::tracked_ptr<Job>>& jobs, sgcl::channel<int>& results) {
+task<> worker(channel<tracked_ptr<Job>>& jobs, channel<int>& results) {
     while (auto job = co_await jobs.async_receive()) {   // suspends while jobs is empty; empty once jobs is closed and drained
         co_await results.async_send((*job)->id * 2);     // suspends while results is full
     }
@@ -113,12 +117,12 @@ sgcl::task<> worker(sgcl::channel<sgcl::tracked_ptr<Job>>& jobs, sgcl::channel<i
 }
 
 int main() {
-    sgcl::channel<sgcl::tracked_ptr<Job>> jobs(8);
-    sgcl::channel<int> results(8);
-    sgcl::task w = sgcl::spawn(worker(jobs, results));   // runs on the pool of workers whenever a job comes
-    sgcl::thread producer([&] {
-        for (int i : sgcl::range(100)) {
-            jobs.send(sgcl::make_tracked<Job>(i));       // waits when the buffer of eight is full
+    channel<tracked_ptr<Job>> jobs(8);
+    channel<int> results(8);
+    task w = spawn(worker(jobs, results));   // runs on the pool of workers whenever a job comes
+    thread producer([&] {
+        for (int i : range(100)) {
+            jobs.send(make_tracked<Job>(i));       // waits when the buffer of eight is full
         }
         jobs.close();
     });
@@ -135,9 +139,9 @@ int main() {
 The frame of a coroutine is heap memory too. A `root_ptr` among its parameters, locals or promise is fine in any frame; a `tracked_ptr` is allowed only when the promise derives from `managed_frame`, which `task` and `generator` do, and a managed frame costs nothing at each use of the pointer ([Coroutines](docs/sgcl/async/README.md#coroutines)):
 
 ```cpp
-std::generator<sgcl::root_ptr<Node>> chain(int count);       // a plain frame: each root_ptr in it roots its Node through a cell
-sgcl::generator<sgcl::tracked_ptr<Node>> chain(int count);   // a managed frame: the frame itself is a managed object, no cells
-// std::generator<sgcl::tracked_ptr<Node>> chain(int count); // not allowed: a plain frame is never scanned
+std::generator<root_ptr<Node>> chain(int count);       // a plain frame: each root_ptr in it roots its Node through a cell
+generator<tracked_ptr<Node>> chain(int count);   // a managed frame: the frame itself is a managed object, no cells
+// std::generator<tracked_ptr<Node>> chain(int count); // not allowed: a plain frame is never scanned
 ```
 
 ## The rules, in short
@@ -151,7 +155,7 @@ The rules in full, with what each costs and what breaking one looks like: [docs/
 [docs/](docs/README.md) is the reference and the guide: a README per module ([core](docs/sgcl/core/README.md), [containers](docs/sgcl/containers/README.md), [concurrent](docs/sgcl/concurrent/README.md), [async](docs/sgcl/async/README.md)), a page per class with every member, its signature as declared in the header, the rules that apply and an example that compiles, and the chapter on [the garbage collector](docs/garbage_collector/README.md). [docs/garbage_collector/diagnostics.md](docs/garbage_collector/diagnostics.md) is where to start when the memory grows, an object lives too long or dies too early, or a cycle costs more than it should.
 
 ## Dependencies and usage
-C++20 and nothing else: no external library, no runtime to link. For LLDB, `command script import <sgcl>/lldb/sgcl.py` (in `~/.lldbinit`) shows the pointers and containers as they are ([docs/diagnostics.md](docs/garbage_collector/diagnostics.md#in-the-debugger)). Copy the `sgcl` directory into your include path and `#include "sgcl/sgcl.h"`, or add this tree with CMake and link the `sgcl` interface target. The library is four modules, one directory each and each a header of its own for a program that wants only that much: `sgcl/core/core.h` (the collector and the pointers), `sgcl/containers/containers.h`, `sgcl/concurrent/concurrent.h` and `sgcl/async/async.h`, each depending only on those before it. The tests need googletest in `external/` and build one program per module (`tests_core`, `tests_containers`, `tests_concurrent`, `tests_async`, `tests_io`; `ctest -R async` runs one); the benchmarks build with the tree, and their Go and Java counterparts need only a Go and a JDK to run `benchmarks/compare.sh`.
+C++20 and nothing else: no external library, no runtime to link. For LLDB, `command script import <sgcl>/lldb/sgcl.py` (in `~/.lldbinit`) shows the pointers and containers as they are ([docs/diagnostics.md](docs/garbage_collector/diagnostics.md#in-the-debugger)). Copy the `sgcl` directory into your include path and `#include "sgcl/sgcl.h"`, or add this tree with CMake and link the `sgcl` interface target. The library is five modules, one directory each and each a header of its own for a program that wants only that much: `sgcl/core/core.h` (the collector and the pointers), `sgcl/containers/containers.h`, `sgcl/concurrent/concurrent.h`, `sgcl/async/async.h` and `sgcl/io/io.h`, each depending only on those before it. The tests need googletest in `external/` and build one program per module (`tests_core`, `tests_containers`, `tests_concurrent`, `tests_async`, `tests_io`; `ctest -R async` runs one); the benchmarks build with the tree, and their Go and Java counterparts need only a Go and a JDK to run `benchmarks/compare.sh`.
 
 ## Compilers and platforms
 Written for clang, gcc and MSVC on macOS, Linux and Windows; the current version has been built and tested on Apple Silicon (macOS, Apple clang) only, the other platforms are pending. On Windows, gcc's handling of thread-local destructors makes it a poor choice; clang and MSVC are fine. On macOS every access to a thread-local variable is a call into the dynamic loader, which is what the registration check in a `tracked_ptr` constructor costs there (about a nanosecond); Linux and Windows read a segment register.

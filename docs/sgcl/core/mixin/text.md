@@ -12,8 +12,8 @@ namespace sgcl::mixin {
 `mixin::text<Derived, CharT>` gives whatever holds characters through `data()` and `size()` the read side of `std::string_view` as members: `view()` and the conversion to a `std::basic_string_view`, `length`, `at`, `copy`, `compare`, `starts_with`, `ends_with`, `contains`, `find`, `rfind`, `find_first_of` and the rest, `str()` as a `std::basic_string`, `npos`. [string](../string.md) and [slice\<const CharT\>](../slice.md) carry it, so a piece of a string answers what the string does; the operations that make a new object (`substr`, `trim`, `split`) stay with the class, whose type they return. Every operation runs on a `std::basic_string_view` over the characters.
 
 ```cpp
-sgcl::string s = "key = value";
-sgcl::slice<const char> v = s.as_slice(6);        // "value"
+string s = "key = value";
+slice<const char> v = s.as_slice(6);        // "value"
 assert(s.starts_with("key") && v.contains('a') && v.find("lu") == 2 && s.compare(v) < 0);
 std::string_view std_view = v;                    // the conversion: what a std interface takes
 ```

@@ -44,12 +44,12 @@ reverse_iterator rend() noexcept;    const_reverse_iterator rend() const noexcep
 The order of insertion, oldest first, unchanged by a rehash. The bucket interface (`begin(n)`, `end(n)`) walks the chain as in `map`.
 
 ```cpp
-sgcl::ordered_map<sgcl::string, int> m;
+ordered_map<string, int> m;
 m["c"] = 1;
 m["a"] = 2;
 m["b"] = 3;
 m["a"] = 4;                                   // present: the value changes, the place does not
-sgcl::string keys;
+string keys;
 for (const auto& [key, value] : m) {
     keys = keys + key;                        // "cab", always
 }
@@ -77,7 +77,7 @@ void to_front(const_iterator pos) noexcept;   // the oldest
 Moves the element at `pos` to the end (the start) of the order, as if it had been inserted last (first) from now on; nothing else changes, the iterator stays valid, O(1). The element that is last (first) already is left alone: a load, no relink, so a cache whose hits go mostly to its newest element pays nothing for them.
 
 ```cpp
-sgcl::ordered_map<sgcl::string, int> m = {{"a", 1}, {"b", 2}, {"c", 3}};
+ordered_map<string, int> m = {{"a", 1}, {"b", 2}, {"c", 3}};
 m.to_back(m.find("a"));                       // b c a
 m.to_front(m.find("c"));                      // c b a
 assert(m.front().first == "c" && m.back().first == "a");
@@ -104,8 +104,8 @@ A copy (the constructor, `operator=`) reproduces the order. `swap` and a move ca
 `ordered_map` carries [mixin::enumerable](../core/mixin/enumerable.md) (over the pairs, in insertion order; `contains` its own) and [mixin::lookup](../core/mixin/lookup.md) ([the mixins](../core/mixin/README.md)).
 
 ```cpp
-sgcl::ordered_map<sgcl::string, int> m = {{"b", 2}, {"a", 1}};
-assert(m.value_or("c", 0) == 0 && m.index_of(std::pair<const sgcl::string, int>{"a", 1}) == 1);   // the position in insertion order
+ordered_map<string, int> m = {{"b", 2}, {"a", 1}};
+assert(m.value_or("c", 0) == 0 && m.index_of(std::pair<const string, int>{"a", 1}) == 1);   // the position in insertion order
 ```
 
 ## Example
@@ -114,13 +114,15 @@ assert(m.value_or("c", 0) == 0 && m.index_of(std::pair<const sgcl::string, int>{
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // A cache of `capacity` entries that drops the least recently used one:
 // an ordered_map, the oldest first, touched entries moved to the back
 struct Cache {
     size_t capacity;
-    sgcl::ordered_map<sgcl::string, sgcl::string> entries;
+    ordered_map<string, string> entries;
 
-    const sgcl::string* get(std::string_view key) {
+    const string* get(std::string_view key) {
         auto it = entries.find(key);              // a string_view: no string made for the lookup
         if (it == entries.end()) {
             return nullptr;
@@ -129,7 +131,7 @@ struct Cache {
         return &it->second;
     }
 
-    void put(sgcl::string key, sgcl::string value) {
+    void put(string key, string value) {
         auto [it, inserted] = entries.insert_or_assign(std::move(key), std::move(value));
         if (!inserted) {
             entries.to_back(it);

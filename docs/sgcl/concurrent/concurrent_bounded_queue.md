@@ -41,7 +41,7 @@ concurrent_bounded_queue(const concurrent_bounded_queue&) = delete;
 A queue of `capacity` rounded up to a power of two, at least two: one managed buffer of that many cells, every cell free.
 
 ```cpp
-sgcl::concurrent_bounded_queue<sgcl::tracked_ptr<Request>> requests(1000);   // a ring of 1024
+concurrent_bounded_queue<tracked_ptr<Request>> requests(1000);   // a ring of 1024
 ```
 
 ### try_push, try_emplace
@@ -55,10 +55,10 @@ template<class... A> bool try_emplace(A&&... a);
 Wins the enqueue position when the cell there is free, constructs the element in the cell (from `a...` in place for `try_emplace`) and publishes it; `false`, and nothing constructed, when the cell still holds the element of the previous lap, the queue full at that moment.
 
 ```cpp
-if (!requests.try_push(sgcl::make_tracked<Request>(1))) {   // full: the caller decides
+if (!requests.try_push(make_tracked<Request>(1))) {   // full: the caller decides
     drop_or_wait();
 }
-requests.try_emplace(sgcl::make_tracked<Request>(2));
+requests.try_emplace(make_tracked<Request>(2));
 ```
 
 ### push
@@ -70,13 +70,13 @@ void push(T value);
 The element appended, waiting for room while the queue is full: on the sequence of the cell at the enqueue position, which the consumer releasing that cell notifies.
 
 ```cpp
-requests.push(sgcl::make_tracked<Request>(3));   // blocks until a pop makes room
+requests.push(make_tracked<Request>(3));   // blocks until a pop makes room
 ```
 
 ### try_pop, pop
 
 ```cpp
-optional<T> try_pop();   // sgcl::optional, the alias of std::optional (sgcl/core/aliases.h)
+optional<T> try_pop();   // optional, the alias of std::optional (sgcl/core/aliases.h)
 T pop();
 ```
 
@@ -86,7 +86,7 @@ T pop();
 while (auto r = requests.try_pop()) {
     (*r)->handle();
 }
-sgcl::tracked_ptr next = requests.pop();   // blocks until a push
+tracked_ptr next = requests.pop();   // blocks until a push
 ```
 
 ### size, capacity, empty, full
@@ -106,6 +106,8 @@ bool full() const noexcept;
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // A pipeline stage with bounded buffering: producers push messages and
 // wait when the ring is full, consumers pop them in order; the queue is
 // a member of a managed object, and the ring is allocated once
@@ -114,23 +116,23 @@ struct Message {
 };
 
 struct Stage {
-    sgcl::concurrent_bounded_queue<sgcl::tracked_ptr<Message>> inbox{64};   // inside a managed object: sgcl::
+    concurrent_bounded_queue<tracked_ptr<Message>> inbox{64};   // inside a managed object: 
 };
 
 int main() {
-    sgcl::tracked_ptr stage = sgcl::make_tracked<Stage>();
-    sgcl::atomic<int> received = 0, out_of_order = 0;
-    sgcl::vector<sgcl::thread> threads;
-    for (int p : sgcl::range(4)) {
+    tracked_ptr stage = make_tracked<Stage>();
+    atomic<int> received = 0, out_of_order = 0;
+    vector<thread> threads;
+    for (int p : range(4)) {
         threads.emplace_back([&, p] {
-            for (int i : sgcl::range(1000)) {
-                stage->inbox.push(sgcl::make_tracked<Message>(p, i));   // waits while the ring is full
+            for (int i : range(1000)) {
+                stage->inbox.push(make_tracked<Message>(p, i));   // waits while the ring is full
             }
         });
         threads.emplace_back([&] {
             int last[4] = {-1, -1, -1, -1};
-            for (int i : sgcl::range(1000)) {
-                sgcl::tracked_ptr m = stage->inbox.pop();   // FIFO per producer, at every consumer
+            for (int i : range(1000)) {
+                tracked_ptr m = stage->inbox.pop();   // FIFO per producer, at every consumer
                 out_of_order += m->seq <= last[m->producer];
                 last[m->producer] = m->seq;
                 ++received;

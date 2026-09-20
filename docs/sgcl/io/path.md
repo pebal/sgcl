@@ -65,12 +65,14 @@ for (auto& p : *io::path::glob("tests/*/*.cpp")) ...
 #include "sgcl/sgcl.h"
 #include <iostream>
 
-namespace io = sgcl::io;
+using namespace sgcl;
+
+namespace io = io;
 
 // Renames every *.jpeg under a directory to *.jpg
 int main(int argc, char** argv) {
     auto root = argc > 1 ? argv[1] : ".";
-    io::walk_dir(root, [](const io::dir_entry& e, const sgcl::optional<io::error>&) {
+    io::walk_dir(root, [](const io::dir_entry& e, const optional<io::error>&) {
         if (io::path::ext(e.path) == ".jpeg") {
             auto to = io::path::join(io::path::dir(e.path), io::path::stem(e.path) + ".jpg");
             if (auto r = io::rename(e.path, to)) std::cout << e.path << " -> " << io::path::base(to) << '\n';

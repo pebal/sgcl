@@ -209,11 +209,11 @@ namespace sgcl {
         }
 
         // For an immutable structure copying a node: the words of the
-        // copy stored without the barrier, `dst.store(src, detail::
-        // unshaded)`, relaxed, one word at a time (the collector may read
-        // the copy meanwhile: a word, never a torn vector store), and
-        // then one shade() of the pointer to the source, which the copy
-        // took its words from. The barrier's promise is that whatever a
+        // copy stored without the barrier, `dst.store(src, barrier::off)`,
+        // relaxed, one word at a time (the collector may read the copy
+        // meanwhile: a word, never a torn vector store), and then one
+        // shade() of the pointer to the source, which the copy took its
+        // words from. The barrier's promise is that whatever a
         // pointer is stored to is reachable in the current cycle; the
         // source node, never modified, holds exactly the words the copy
         // holds, so making it reachable makes the marking visit it and
@@ -221,12 +221,12 @@ namespace sgcl {
         // word. Sound only while the source is held through the copy and
         // the shade (im: the caller's version), and only for a node whose
         // words never change.
-        void store(const tracked_ptr& p, detail::unshaded_t) noexcept {
+        void store(const tracked_ptr& p, barrier::off_t) noexcept {
             _ptr()->store_no_update(p.get(), std::memory_order_relaxed);
         }
 
         // The same as a constructor, for a word of a node built in place
-        tracked_ptr(const tracked_ptr& p, detail::unshaded_t) noexcept
+        tracked_ptr(const tracked_ptr& p, barrier::off_t) noexcept
         : _raw_ptr(p.get(), detail::unshaded) {
             detail::os::escape(this);
             assert(detail::thread_registered());

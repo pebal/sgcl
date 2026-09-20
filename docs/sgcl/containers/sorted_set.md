@@ -60,11 +60,11 @@ set(set&& other) noexcept(std::is_nothrow_move_constructible_v<Compare>);
 The default constructor allocates nothing. The range and list constructors insert in order with `end()` as the hint (sorted input costs one comparison per element); duplicates are dropped. A range of another type (`string_view`s for `string` keys) is converted once per element, into its node, before the node's key is compared: the source need not be comparable with the keys at all. A copy has nodes of its own: the tree copied shape for shape, a node per element with its colour and its links, no comparison and no rebalancing; a move takes the tree over and leaves `other` empty. A constructor or comparator that throws destroys the elements built so far.
 
 ```cpp
-sgcl::sorted_set primes = {5, 3, 2, 7, 3};                          // 2 3 5 7
-sgcl::sorted_set<int, std::greater<int>> desc(std::greater<int>{});
-sgcl::vector<sgcl::string> words = {"b", "a"};
-sgcl::sorted_set<sgcl::string> from_range(words.begin(), words.end());    // a b
-sgcl::sorted_set<int> taken = std::move(primes);                         // primes is empty now
+sorted_set primes = {5, 3, 2, 7, 3};                          // 2 3 5 7
+sorted_set<int, std::greater<int>> desc(std::greater<int>{});
+vector<string> words = {"b", "a"};
+sorted_set<string> from_range(words.begin(), words.end());    // a b
+sorted_set<int> taken = std::move(primes);                         // primes is empty now
 ```
 
 ### Destructor
@@ -86,7 +86,7 @@ set& operator=(std::initializer_list<value_type> ilist);
 Copy assignment clears this set (destroying its elements at once), takes `other`'s comparator and copies its tree shape for shape, as the copy constructor does (an element copy that throws leaves the set empty); move assignment clears and takes the tree over; the list form clears and inserts.
 
 ```cpp
-sgcl::sorted_set<int> a = {1, 2}, b;
+sorted_set<int> a = {1, 2}, b;
 b = a;
 b = {5, 6};                  // the old elements die here
 a = std::move(b);            // a is 5 6, b is empty
@@ -102,7 +102,7 @@ value_compare value_comp() const;
 Copies of the comparator (the same type for both, as in `std::set`).
 
 ```cpp
-sgcl::sorted_set s = {1, 2};
+sorted_set s = {1, 2};
 bool less = s.value_comp()(*s.begin(), *s.rbegin());   // true
 ```
 
@@ -118,8 +118,8 @@ reverse_iterator rend() const noexcept;          const_reverse_iterator crend() 
 `iterator` and `const_iterator` are one type, yielding `const Key&`: a key is never modified in place. `begin()` is the smallest key in O(1), `--end()` the largest. Before the first insertion `begin()` and `end()` are both null iterators, equal to each other, neither of which may be dereferenced or moved; an `end()` taken then does not compare equal to `end()` after the first insertion. Iterators are raw node pointers: copying and advancing costs a load, and they may be kept in unmanaged memory (a `std::vector<iterator>`) while their element is in the set.
 
 ```cpp
-sgcl::sorted_set<sgcl::string> s = {"b", "a", "c"};
-sgcl::string joined;
+sorted_set<string> s = {"b", "a", "c"};
+string joined;
 for (const auto& key : s) {             // a b c
     joined += key;
 }
@@ -145,7 +145,7 @@ void clear() noexcept;
 Destroys every element at once and unlinks every node; the header stays. The nodes are reclaimed by the collector.
 
 ```cpp
-sgcl::sorted_set<sgcl::string> s = {"a", "b"};
+sorted_set<string> s = {"a", "b"};
 s.clear();                     // both strings are destroyed here
 bool gone = s.empty();         // true
 ```
@@ -166,12 +166,12 @@ iterator insert(const_iterator hint, node_type&& nh);
 As in `std::set`: the single-element forms return the element with the key and whether it was inserted, and nothing is built for a key already there. The hinted forms are O(1) amortized when the key belongs right before `hint`; an append in sorted order at `end()` costs one comparison. The range and list forms insert one by one with `end()` as the hint; a range of another type is converted once per element, into the node, as `emplace_hint` would. The node-handle forms link the node of `nh` without copying the element: on success `nh` is empty afterwards; on a duplicate key the returned `node` (or `nh`, for the hinted form) keeps it and `position` is the element in the way. An empty handle inserts nothing (`position == end()`, `inserted == false`).
 
 ```cpp
-sgcl::sorted_set<sgcl::string> s;
+sorted_set<string> s;
 auto [it, inserted] = s.insert("a");                  // inserted: true
 inserted = s.insert("a").second;                      // false
 s.insert(s.end(), "z");                               // an append: one comparison
 s.insert({"b", "c"});
-sgcl::sorted_set<sgcl::string> other = {"q"};
+sorted_set<string> other = {"q"};
 auto r = s.insert(other.extract("q"));                // relinked, no copy: r.inserted is true
 ```
 
@@ -185,7 +185,7 @@ template<class... A> iterator emplace_hint(const_iterator hint, A&&... a);
 Builds the key from `a...` in a new node before its place is known, as in `std`; if the key is already there the new element is destroyed and the existing one returned. A comparator that throws destroys the new element and leaves the set as it was.
 
 ```cpp
-sgcl::sorted_set<sgcl::string> s;
+sorted_set<string> s;
 s.emplace(3, 'x');                          // "xxx"
 auto [it, fresh] = s.emplace("xxx");        // fresh: false
 s.emplace_hint(s.end(), "zzz");
@@ -202,7 +202,7 @@ size_type erase(const key_type& key);
 Destroys the element at once, unlinks the node (the collector reclaims it later) and returns the iterator after it. Erasing `[begin(), end())` is a `clear()`. The key form returns 0 or 1. There is no transparent `erase`.
 
 ```cpp
-sgcl::sorted_set s = {1, 2, 3, 4};
+sorted_set s = {1, 2, 3, 4};
 s.erase(2);
 for (auto it = s.begin(); it != s.end();) {
     it = *it % 2 ? s.erase(it) : std::next(it);   // 1 and 3 go
@@ -220,7 +220,7 @@ friend void swap(set& lhs, set& rhs) noexcept(noexcept(lhs.swap(rhs)));   // fre
 Exchanges the trees, counts and comparators; no element is touched, and every iterator keeps pointing at its element, now in the other set.
 
 ```cpp
-sgcl::sorted_set<int> a = {1}, b = {2};
+sorted_set<int> a = {1}, b = {2};
 auto it = a.begin();
 swap(a, b);                       // it still points at 1, which is in b now
 bool moved = it == b.begin();     // true
@@ -236,7 +236,7 @@ node_type extract(const key_type& key);
 Unlinks the node and hands it over in a node handle, the element untouched; the handle destroys the element if it dies unused. The key form returns an empty handle when the key is absent. See [node_type](#node_type-the-node-handle).
 
 ```cpp
-sgcl::sorted_set<sgcl::string> s = {"a", "b"};
+sorted_set<string> s = {"a", "b"};
 auto nh = s.extract("a");         // s holds "b"
 nh.value() += "!";                // the key may change outside a set
 s.insert(std::move(nh));          // "a!" "b"; no string was copied
@@ -245,15 +245,15 @@ s.insert(std::move(nh));          // "a!" "b"; no string was copied
 ### merge
 
 ```cpp
-template<class Traits2> void merge(detail::RbTree<Traits2>& source);    // any sgcl::sorted_set or sorted_multiset<Key, C2>
+template<class Traits2> void merge(detail::RbTree<Traits2>& source);    // any sorted_set or sorted_multiset<Key, C2>
 template<class Traits2> void merge(detail::RbTree<Traits2>&& source);
 ```
 
 Relinks the nodes of `source` whose keys are not yet here into this set; a node whose key is already here stays in `source`. No element is copied or destroyed; iterators follow their nodes. `source` may be a `sgcl::sorted_set` or `sgcl::sorted_multiset` with the same `Key` and any comparator.
 
 ```cpp
-sgcl::sorted_set a = {1, 3};
-sgcl::sorted_multiset b = {2, 3, 3};
+sorted_set a = {1, 3};
+sorted_multiset b = {2, 3, 3};
 a.merge(b);                       // a: 1 2 3;  b keeps both 3s
 ```
 
@@ -271,9 +271,9 @@ template<class K> bool contains(const K& key) const;          //   "
 O(log n), reading raw pointers only. `count` is 0 or 1. The `K` overloads exist for a transparent comparator, which `std::less` of a [string](../core/string.md) is.
 
 ```cpp
-sgcl::sorted_set<sgcl::string> s = {"apple"};
-bool has = s.contains("apple");    // no sgcl::string is built for the literal
-sgcl::string line = "apple pie";
+sorted_set<string> s = {"apple"};
+bool has = s.contains("apple");    // no string is built for the literal
+string line = "apple pie";
 bool piece = s.contains(line.as_slice(0, 5));   // a slice of another string, nothing built either
 ```
 
@@ -291,7 +291,7 @@ template<class K> iterator upper_bound(const K& key) const;                     
 As in `std::set`: `lower_bound` is the first element not less than `key`, `upper_bound` the first greater, `equal_range` both.
 
 ```cpp
-sgcl::sorted_set s = {10, 20, 30};
+sorted_set s = {10, 20, 30};
 auto from = s.lower_bound(15);    // 20
 auto to = s.upper_bound(25);      // 30
 auto between = std::distance(from, to);   // 1
@@ -302,7 +302,7 @@ auto between = std::distance(from, to);   // 1
 `sorted_set` carries [mixin::enumerable](../core/mixin/enumerable.md) — `exists`, `all`, `count_of`, `find_if`, `for_each`, `index_of` (the position in the order); `contains` is the set's own, by the key, `min()` and `max()` the ends of the order, O(1) — [mixin::equatable](../core/mixin/equatable.md), [mixin::comparable](../core/mixin/comparable.md) and the bidirectional category ([the mixins](../core/mixin/README.md)); not `mixin::ordered` (the order is the set's, `lower_bound` its own), not `mixin::sequence`.
 
 ```cpp
-sgcl::sorted_set<int> s = {3, 1, 2};
+sorted_set<int> s = {3, 1, 2};
 assert(s.min() == 1 && s.max() == 3 && s.index_of(3) == 2 && s.count_of([](int x) { return x > 1; }) == 2);
 ```
 
@@ -316,7 +316,7 @@ friend auto operator<=>(const set& lhs, const set& rhs);
 Element-wise in order, as for `std::set`: `==` compares sizes first; `<=>` is lexicographical with the synthesized three-way comparison, so `!=`, `<`, `<=`, `>` and `>=` follow.
 
 ```cpp
-sgcl::sorted_set<int> a = {1, 2}, b = {1, 3};
+sorted_set<int> a = {1, 2}, b = {1, 3};
 bool less = a < b;                                // true
 auto ord = a <=> b;                               // std::strong_ordering::less
 ```
@@ -360,7 +360,7 @@ namespace std { using sgcl::erase_if; }
 Erases every element for which `pred(*it)` is true and returns how many.
 
 ```cpp
-sgcl::sorted_set s = {1, 2, 3, 4};
+sorted_set s = {1, 2, 3, 4};
 auto n = std::erase_if(s, [](int x) { return x % 2 == 0; });   // 2; s is 1 3
 ```
 
@@ -374,10 +374,10 @@ set(std::initializer_list<Key>, Compare = Compare()) -> sorted_set<Key, Compare>
 ```
 
 ```cpp
-sgcl::sorted_set s = {3, 1, 2};                                // sorted_set<int>
-sgcl::vector<sgcl::string> src = {"b", "a"};
-sgcl::sorted_set from_range(src.begin(), src.end());           // sorted_set<sgcl::string>
-sgcl::sorted_set greater({3, 1}, std::greater<int>());         // sorted_set<int, std::greater<int>>
+sorted_set s = {3, 1, 2};                                // sorted_set<int>
+vector<string> src = {"b", "a"};
+sorted_set from_range(src.begin(), src.end());           // sorted_set<string>
+sorted_set greater({3, 1}, std::greater<int>());         // sorted_set<int, std::greater<int>>
 ```
 
 From an iterator pair or an initializer list, as for `std::set`; an initializer list of a map spells its pairs out (`std::pair{1, 2.0}`), since a braced pair alone names no type.
@@ -388,23 +388,25 @@ From an iterator pair or an initializer list, as for `std::set`; an initializer 
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 struct Node {
-    sgcl::string name;
-    sgcl::sorted_set<sgcl::tracked_ptr<Node>> peers;       // a set of traced pointers inside a managed object
+    string name;
+    sorted_set<tracked_ptr<Node>> peers;       // a set of traced pointers inside a managed object
 };
 
 int main() {
     // A graph whose edges are sets: each node is reachable from its peers
-    sgcl::tracked_ptr a = sgcl::make_tracked<Node>("a");
-    sgcl::tracked_ptr b = sgcl::make_tracked<Node>("b");
-    sgcl::tracked_ptr c = sgcl::make_tracked<Node>("c");
+    tracked_ptr a = make_tracked<Node>("a");
+    tracked_ptr b = make_tracked<Node>("b");
+    tracked_ptr c = make_tracked<Node>("c");
     a->peers.insert(b);
     b->peers.insert(a);                         // a cycle
     b->peers.insert(c);
     b->peers.insert(c);                         // a duplicate: nothing is inserted
 
     // A set of values on the stack: keys in order, each exactly once
-    sgcl::sorted_set<sgcl::string> names;
+    sorted_set<string> names;
     for (const auto& peer : b->peers) {         // pointers compare by address: any order
         names.insert(peer->name);
     }
@@ -421,8 +423,8 @@ int main() {
     a = b = c = nullptr;
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
-    sgcl::collector::force_collect(true);
-    std::cout << sgcl::collector::get_live_object_count() << " live objects\n";     // the header and three nodes of `names`
+    collector::force_collect(true);
+    std::cout << collector::get_live_object_count() << " live objects\n";     // the header and three nodes of `names`
     return node_count == 3 ? 0 : 1;
 }
 ```

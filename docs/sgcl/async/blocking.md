@@ -62,14 +62,14 @@ struct statistics {
 ```
 
 ```cpp
-sgcl::task<std::string> read_file(std::string path) {
-    co_return co_await sgcl::spawn_blocking([path] {              // the read on the pool: the worker is free meanwhile
+task<std::string> read_file(std::string path) {
+    co_return co_await spawn_blocking([path] {              // the read on the pool: the worker is free meanwhile
         std::ifstream in(path);
         return std::string(std::istreambuf_iterator<char>(in), {});
     });
 }
-sgcl::task<int> resolve(std::string host) {
-    co_return co_await sgcl::blocking([host] {                    // getaddrinfo blocks: not on a worker
+task<int> resolve(std::string host) {
+    co_return co_await blocking([host] {                    // getaddrinfo blocks: not on a worker
         addrinfo* found = nullptr;
         int rc = ::getaddrinfo(host.c_str(), nullptr, nullptr, &found);
         if (rc == 0) {
@@ -78,19 +78,19 @@ sgcl::task<int> resolve(std::string host) {
         return rc;
     });
 }
-sgcl::task<bool> resolve_within(std::string host, sgcl::duration d) {
-    sgcl::blocking_task<int> job = sgcl::spawn_blocking([host] { return legacy_lookup(host); });
-    co_return co_await sgcl::async_select(                        // bounded: on a timeout the job runs on, its result dropped
+task<bool> resolve_within(std::string host, duration d) {
+    blocking_task<int> job = spawn_blocking([host] { return legacy_lookup(host); });
+    co_return co_await async_select(                        // bounded: on a timeout the job runs on, its result dropped
         job.result().on_ready([] {}),
-        sgcl::timeout(d, [] {})
+        timeout(d, [] {})
     ) == 0;
 }
-sgcl::blocking_pool::statistics from_a_thread() {
-    int rc = sgcl::spawn_blocking([] { return legacy_lookup("db"); }).join();   // a thread waits for the job instead
-    sgcl::blocking_pool::wait_idle();                             // every job queued so far has run
-    auto st = sgcl::blocking_pool::get_statistics();              // st.threads, st.idle, st.queued
-    sgcl::blocking_pool::stop();                                  // the threads gone; the next spawn_blocking starts the pool again
-    return rc == 0 ? st : sgcl::blocking_pool::statistics{};
+blocking_pool::statistics from_a_thread() {
+    int rc = spawn_blocking([] { return legacy_lookup("db"); }).join();   // a thread waits for the job instead
+    blocking_pool::wait_idle();                             // every job queued so far has run
+    auto st = blocking_pool::get_statistics();              // st.threads, st.idle, st.queued
+    blocking_pool::stop();                                  // the threads gone; the next spawn_blocking starts the pool again
+    return rc == 0 ? st : blocking_pool::statistics{};
 }
 ```
 
@@ -102,6 +102,8 @@ sgcl::blocking_pool::statistics from_a_thread() {
 #include <chrono>
 #include <iostream>
 #include <thread>
+
+using namespace sgcl;
 
 using namespace std::chrono_literals;
 
@@ -115,10 +117,10 @@ int legacy_lookup(int id) {
     return id * 10;
 }
 
-sgcl::task<int> lookup_all(int count) {
-    sgcl::vector<sgcl::blocking_task<int>> calls;
-    for (int id : sgcl::range(count)) {
-        calls.push_back(sgcl::spawn_blocking([id] { return legacy_lookup(id); }));   // queued at once: a thread of the pool each
+task<int> lookup_all(int count) {
+    vector<blocking_task<int>> calls;
+    for (int id : range(count)) {
+        calls.push_back(spawn_blocking([id] { return legacy_lookup(id); }));   // queued at once: a thread of the pool each
     }
     int sum = 0;
     for (auto& call : calls) {
@@ -127,7 +129,7 @@ sgcl::task<int> lookup_all(int count) {
     co_return sum;
 }
 
-sgcl::task<> heartbeat(std::atomic<bool>& done, std::atomic<int>& beats) {
+task<> heartbeat(std::atomic<bool>& done, std::atomic<int>& beats) {
     while (!done) {
         co_await sgcl::sleep(2ms);
         ++beats;
@@ -137,17 +139,17 @@ sgcl::task<> heartbeat(std::atomic<bool>& done, std::atomic<int>& beats) {
 int main() {
     std::atomic<bool> done = {false};
     std::atomic<int> beats = {0};
-    auto pulse = sgcl::spawn(heartbeat(done, beats));
+    auto pulse = spawn(heartbeat(done, beats));
     auto start = std::chrono::steady_clock::now();
-    int sum = sgcl::spawn(lookup_all(50)).join();
+    int sum = spawn(lookup_all(50)).join();
     bool together = std::chrono::steady_clock::now() - start < 500ms;   // fifty sequential calls would take a second
     done = true;
     pulse.join();
-    auto pool = sgcl::blocking_pool::get_statistics();
+    auto pool = blocking_pool::get_statistics();
     std::cout << "sum " << sum << ", the calls ran together: " << (together ? "yes" : "no")
               << ", the heartbeat kept beating: " << (beats > 0 ? "yes" : "no")
               << ", threads of the pool: " << pool.threads << "\n";
-    sgcl::scheduler::stop();                                             // the workers, the timer thread and the pool joined
+    scheduler::stop();                                             // the workers, the timer thread and the pool joined
     return sum == 12250 && together && beats > 0 ? 0 : 1;
 }
 ```

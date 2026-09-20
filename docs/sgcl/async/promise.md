@@ -38,23 +38,23 @@ template<class F> auto on_ready(F f);                 // a case of a select: f()
 ```
 
 ```cpp
-sgcl::task<int> awaits(sgcl::promise<int>& p) {
+task<int> awaits(promise<int>& p) {
     co_return co_await p;                             // the value, when it is set; no thread held
 }
-sgcl::task<int> awaits_briefly(sgcl::promise<int>& p) {
+task<int> awaits_briefly(promise<int>& p) {
     int v = -1;
-    co_await sgcl::async_select(                      // a task waits, but not forever
+    co_await async_select(                      // a task waits, but not forever
         p.on_ready([&] { v = p.result(); }),
-        sgcl::timeout(1s, [] { /* gave up */ })
+        timeout(1s, [] { /* gave up */ })
     );
     co_return v;
 }
 void setter_and_getter() {
-    sgcl::promise<int> p;
-    sgcl::thread th([&] { p.set_value(42); });        // any thread sets it, once
+    promise<int> p;
+    thread th([&] { p.set_value(42); });        // any thread sets it, once
     int v = p.get();                                  // a thread waits instead: 42
     th.join();
-    sgcl::promise<> done;                             // a completion without a value
+    promise<> done;                             // a completion without a value
     done.set_value();
     done.get();                                       // set already: no wait
 }
@@ -67,6 +67,8 @@ void setter_and_getter() {
 #include <cstring>
 #include <iostream>
 #include <thread>
+
+using namespace sgcl;
 
 // A C library that does its work on a thread of its own and reports
 // through a callback with a void* context: a promise turns that into a
@@ -83,7 +85,7 @@ void c_read_async(const char* text, char* buffer, completion done, void* context
 }
 
 struct Context {
-    sgcl::root_ptr<sgcl::promise<int>> done;
+    root_ptr<promise<int>> done;
 };
 
 void on_read(void* context, int result) {
@@ -92,17 +94,17 @@ void on_read(void* context, int result) {
     delete ctx;
 }
 
-sgcl::task<int> read_line(char* buffer) {
-    sgcl::tracked_ptr done = sgcl::make_tracked<sgcl::promise<int>>();   // a managed object: the frame holds it, the context holds it too
+task<int> read_line(char* buffer) {
+    tracked_ptr done = make_tracked<promise<int>>();   // a managed object: the frame holds it, the context holds it too
     c_read_async("hello", buffer, on_read, new Context{done});
     co_return co_await *done;                                            // suspended until on_read, no thread held
 }
 
 int main() {
     char buffer[64];
-    int n = sgcl::spawn(read_line(buffer)).join();
+    int n = spawn(read_line(buffer)).join();
     std::cout << "read " << n << " bytes: " << buffer << "\n";
-    sgcl::scheduler::stop();
+    scheduler::stop();
     return n == 5 ? 0 : 1;
 }
 ```

@@ -53,13 +53,15 @@ key_compare key_comp() const;
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // Timestamps from many threads, read back in order while they arrive
 int main() {
-    sgcl::concurrent_sorted_set<long> stamps;
-    sgcl::vector<sgcl::thread> threads;
-    for (int t : sgcl::range(4)) {
+    concurrent_sorted_set<long> stamps;
+    vector<thread> threads;
+    for (int t : range(4)) {
         threads.emplace_back([&, t] {
-            for (long i : sgcl::range(1000L)) {
+            for (long i : range(1000L)) {
                 stamps.insert(i * 4 + t);
             }
         });

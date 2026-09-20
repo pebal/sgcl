@@ -65,14 +65,14 @@ template<class F> function(F) -> function</* the signature of F::operator() */>;
 
 ```cpp
 struct Node { int value; };
-sgcl::tracked_ptr node = sgcl::make_tracked<Node>(1);
-sgcl::function<int()> f = [node] { return node->value; };   // a closure with a pointer: in a managed node of its own
-sgcl::function<int(int)> g = [](int x) { return x + 1; };   // no pointers: inside the function
-sgcl::function<int(int)> h = g;
-assert(f() == 1 && g(1) == 2 && h(1) == 2 && !sgcl::function<void()>());
+tracked_ptr node = make_tracked<Node>(1);
+function<int()> f = [node] { return node->value; };   // a closure with a pointer: in a managed node of its own
+function<int(int)> g = [](int x) { return x + 1; };   // no pointers: inside the function
+function<int(int)> h = g;
+assert(f() == 1 && g(1) == 2 && h(1) == 2 && !function<void()>());
 assert(f.target_type() != typeid(void) && g.target<int (*)(int)>() == nullptr);
 node = nullptr;                                            // f still holds the Node
-sgcl::move_only_function<int() const> m = [p = std::make_unique<int>(2)] { return *p; };   // a move-only closure
+move_only_function<int() const> m = [p = std::make_unique<int>(2)] { return *p; };   // a move-only closure
 assert(m() == 2);
 ```
 
@@ -82,18 +82,20 @@ assert(m() == 2);
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // An event with listeners: each listener a function capturing the object
-// it works on, kept in an sgcl::vector where a tracked pointer may live.
+// it works on, kept in an vector where a tracked pointer may live.
 // The listener's objects live while the listener does; a listener
 // capturing the button that holds it would be a cycle, collected with
 // the button.
 struct Label {
-    sgcl::string text;
+    string text;
 };
 
 struct Button {
-    sgcl::vector<sgcl::function<void(const sgcl::string&)>> on_click;   // the closures in managed nodes
-    void click(const sgcl::string& what) {
+    vector<function<void(const string&)>> on_click;   // the closures in managed nodes
+    void click(const string& what) {
         for (auto& f : on_click) {
             f(what);
         }
@@ -102,12 +104,12 @@ struct Button {
 
 int main() {
     Button button;
-    sgcl::tracked_ptr label = sgcl::make_tracked<Label>();
-    button.on_click.push_back([label](const sgcl::string& what) { label->text = "clicked " + what; });   // the closure in a managed node: label followed
-    button.on_click.push_back([](const sgcl::string& what) { std::cout << "log: " << what << "\n"; });   // no pointers: inside the function
-    sgcl::tracked_ptr<Label> seen = label;
+    tracked_ptr label = make_tracked<Label>();
+    button.on_click.push_back([label](const string& what) { label->text = "clicked " + what; });   // the closure in a managed node: label followed
+    button.on_click.push_back([](const string& what) { std::cout << "log: " << what << "\n"; });   // no pointers: inside the function
+    tracked_ptr<Label> seen = label;
     label = nullptr;                                     // the listener keeps the label
-    sgcl::collector::force_collect(true);                  // optional, for the demonstration only
+    collector::force_collect(true);                  // optional, for the demonstration only
     button.click("ok");
     std::cout << seen->text << "\n";                     // clicked ok
     button.on_click.clear();                             // the closures destroyed now; the label lives on through seen

@@ -1,8 +1,10 @@
 # sgcl::mixin and sgcl::req: the mixins and the requirements
 
 ```cpp
-#include "sgcl/core/mixin/mixin.h"   // the mixins, namespace sgcl::mixin; or "sgcl/core/core.h", "sgcl/sgcl.h"
-#include "sgcl/core/req.h"           // the requirements, namespace sgcl::req
+#include "sgcl/core/mixin/mixin.h"   // the mixins, namespace mixin; or "sgcl/core/core.h", "sgcl/sgcl.h"
+#include "sgcl/core/req.h"           // the requirements, namespace req
+
+using namespace sgcl;
 ```
 
 Two families of names with one purpose: to say what a type of the library is, in a way a class head declares and a function parameter can ask for. Each in a namespace of its own, so that the names are the plain words — `mixin::ordered` in a class head, `req::ordered` in a parameter — and never meet a type's.
@@ -27,7 +29,7 @@ void sort_in_place(req::sequence auto& r) requires req::ordered<decltype(r)> { r
 | [mixin::ordered](ordered.md) | the order of the whole range: `is_sorted`, `binary_search`, `sorted_index_of`, `lower_bound`, `upper_bound`; `sort`, `sort_by`, `stable_sort` where the elements are written | the range has an order |
 | [mixin::sequence](sequence.md) | `fill`, `reverse` | the elements are written through the iterator |
 | [mixin::lookup](lookup.md) | a map by its key: `get`, `try_get`, `value_or`, `contains_key`, `keys`, `values`, `values_of`; over `find` as an iterator or as a pointer | a map |
-| `mixin::bidirectional`, `mixin::random_access`, `mixin::contiguous` ([req](../req.md#the-categories)) | nothing: a declaration of the iterator's category, where a concept can ask for it | walked backwards; reached by position; one block, `data()` |
+| `mixin::bidirectional`, `mixin::random_access`, `mixin::contiguous` ([req](../req.md#the-requirements)) | nothing: a declaration of the iterator's category, where a concept can ask for it | walked backwards; reached by position; one block, `data()` |
 | [mixin::text](text.md) | the read side of `std::string_view` over `data()` and `size()`: `find`, `starts_with`, `contains`, `compare`, `substr`… | text: `string`, `slice<const CharT>` |
 
 Every condition is on a method, never on the class: `Derived` is not yet complete when the base is instantiated, so a method exists (`requires`) only for the elements and the categories that allow it, and a class that carries `mixin::ordered` over elements without `<` simply has no `sort()`, with one line of diagnostic when it is called. The mixins are independent — none inherits another; a container lists in its class head every one it carries — and a name lives in one mixin only, because a name found in two bases is ambiguous: every `sort` is `mixin::ordered`'s, `contains` of a value is `mixin::enumerable`'s.
@@ -78,16 +80,16 @@ Derive from the mixins it can honour and give `begin()` and `end()`; the require
 ```cpp
 template<class T>
 class ring
-: public sgcl::mixin::enumerable<ring<T>>
-, public sgcl::mixin::random_access<ring<T>>
-, public sgcl::mixin::bidirectional<ring<T>>
-, public sgcl::mixin::equatable<ring<T>>
-, public sgcl::mixin::comparable<ring<T>>
-, public sgcl::mixin::ordered<ring<T>>
-, public sgcl::mixin::sequence<ring<T>> {
+: public mixin::enumerable<ring<T>>
+, public mixin::random_access<ring<T>>
+, public mixin::bidirectional<ring<T>>
+, public mixin::equatable<ring<T>>
+, public mixin::comparable<ring<T>>
+, public mixin::ordered<ring<T>>
+, public mixin::sequence<ring<T>> {
     ...
 };
-static_assert(sgcl::req::ordered<ring<int>>);
+static_assert(req::ordered<ring<int>>);
 ```
 
 The pages: [mixin::enumerable](enumerable.md), [mixin::equatable](equatable.md), [mixin::comparable](comparable.md), [mixin::ordered](ordered.md), [mixin::sequence](sequence.md), [mixin::lookup](lookup.md), [mixin::text](text.md), [req](../req.md); the tests in `tests/core/mixin.cpp`.

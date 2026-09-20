@@ -44,7 +44,7 @@ A line longer than the block is assembled in a vector the reader owns first, and
 
 ```cpp
 auto f = io::open("access.log");
-sgcl::tracked_ptr r = sgcl::make_tracked<io::buffered_reader>(*f);
+tracked_ptr r = make_tracked<io::buffered_reader>(*f);
 size_t errors = 0;
 for (auto line : r->lines()) {
     if (line.contains(" 500 ")) ++errors;
@@ -55,8 +55,8 @@ if (r->last_error()) std::cerr << r->last_error()->message() << '\n';
 In a task, the same without holding a thread:
 
 ```cpp
-sgcl::task<size_t> count(sgcl::tracked_ptr<io::reader> src) {
-    sgcl::tracked_ptr r = sgcl::make_tracked<io::buffered_reader>(std::move(src));
+task<size_t> count(tracked_ptr<io::reader> src) {
+    tracked_ptr r = make_tracked<io::buffered_reader>(std::move(src));
     r->set_max_line(64 * 1024);                     // a stream that is not trusted
     size_t n = 0;
     while (auto line = co_await r->async_read_line()) {
@@ -82,11 +82,11 @@ tracked_ptr<writer> underlying() const noexcept;
 
 ```cpp
 auto f = io::create("out.csv");
-sgcl::tracked_ptr w = sgcl::make_tracked<io::buffered_writer>(*f);
+tracked_ptr w = make_tracked<io::buffered_writer>(*f);
 for (auto& row : rows) {
     w->write_text(row.name);
     w->write_byte(std::byte(','));
-    w->write_text(sgcl::to_string(row.count));
+    w->write_text(to_string(row.count));
     w->write_byte(std::byte('\n'));
 }
 if (auto r = w->close(); !r) std::cerr << r.error().message() << '\n';   // the block written, the file closed
@@ -98,16 +98,18 @@ if (auto r = w->close(); !r) std::cerr << r.error().message() << '\n';   // the 
 #include "sgcl/sgcl.h"
 #include <iostream>
 
-namespace io = sgcl::io;
+using namespace sgcl;
+
+namespace io = io;
 
 int main(int argc, char** argv) {
-    auto in = argc > 1 ? io::open(argv[1]) : io::result<sgcl::tracked_ptr<io::file>>(io::stdin());
+    auto in = argc > 1 ? io::open(argv[1]) : io::result<tracked_ptr<io::file>>(io::stdin());
     if (!in) { std::cerr << in.error().message() << '\n'; return 1; }
-    sgcl::tracked_ptr r = sgcl::make_tracked<io::buffered_reader>(*in);
-    sgcl::tracked_ptr w = sgcl::make_tracked<io::buffered_writer>(io::stdout());
+    tracked_ptr r = make_tracked<io::buffered_reader>(*in);
+    tracked_ptr w = make_tracked<io::buffered_writer>(io::stdout());
     size_t n = 0;
     for (auto line : r->lines()) {                    // numbered lines, as cat -n
-        w->write_text(sgcl::to_string(++n));
+        w->write_text(to_string(++n));
         w->write_text("  ");
         w->write_text(line);                          // the line from the block: no string made
         w->write_byte(std::byte('\n'));

@@ -41,15 +41,15 @@ decltype(auto) max() const;  template<class Compare> decltype(auto) max(Compare 
 ```
 
 ```cpp
-sgcl::vector v = {5, 3, 9, 3};
-assert(v.contains(9) && v.index_of(3) == 1 && v.last_index_of(3) == 3 && v.index_of(7) == sgcl::npos);
+vector v = {5, 3, 9, 3};
+assert(v.contains(9) && v.index_of(3) == 1 && v.last_index_of(3) == 3 && v.index_of(7) == npos);
 assert(v.find_index([](int x) { return x > 4; }) == 0 && v.exists([](int x) { return x == 9; }) && !v.all([](int x) { return x > 3; }));
 if (int* big = v.find_if([](int x) { return x > 8; })) {
     *big = 8;
 }
 assert(v.count_of([](int x) { return x == 3; }) == 2 && v.min() == 3 && v.max() == 8);
 struct point { int x, y; };                      // no ==, no <
-sgcl::vector<point> pts = {{1, 2}, {3, 0}};
+vector<point> pts = {{1, 2}, {3, 0}};
 assert(pts.min([](point a, point b) { return a.y < b.y; }).x == 3);   // a comparator asks nothing of point
 ```
 
@@ -59,16 +59,18 @@ assert(pts.min([](point a, point b) { return a.y < b.y; }).x == 3);   // a compa
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // A function over any range of the library: a set, a slice, a list, a
 // vector; what it asks for is what the parameter says
-size_t count_odd(const sgcl::req::enumerable auto& r) {
+size_t count_odd(const req::enumerable auto& r) {
     return r.count_of([](int x) { return x % 2 != 0; });
 }
 
 int main() {
-    sgcl::vector v = {1, 2, 3, 4, 5};
-    sgcl::sorted_set<int> s = {7, 8, 9};
-    std::cout << count_odd(v) << " " << count_odd(s) << " " << count_odd(v.as_slice(1, 3)) << " " << count_odd(sgcl::range(10)) << "\n";
+    vector v = {1, 2, 3, 4, 5};
+    sorted_set<int> s = {7, 8, 9};
+    std::cout << count_odd(v) << " " << count_odd(s) << " " << count_odd(v.as_slice(1, 3)) << " " << count_odd(range(10)) << "\n";
     return 0;
 }
 ```

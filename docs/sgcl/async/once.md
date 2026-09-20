@@ -24,7 +24,7 @@ bool called() const noexcept;
 ```
 
 ```cpp
-sgcl::once init;
+once init;
 init.call([] { /* once, before anyone goes on */ });
 ```
 

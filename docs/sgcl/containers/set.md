@@ -64,11 +64,11 @@ set(set&& other);
 The default constructor allocates nothing (`bucket_count() == 0`). A bucket count is rounded up to a power of two. The range constructor, given a forward range, sizes the table for the distance first; duplicates are dropped. A copy reproduces `other`'s bucket count, order and `max_load_factor`; a move takes the table over and leaves `other` empty. A constructor or hasher that throws destroys the elements built so far.
 
 ```cpp
-sgcl::set primes = {5, 3, 2, 7, 3};                      // 2 3 5 7, in some order
-sgcl::set<int> sized(100);                                     // 128 buckets
-sgcl::vector<sgcl::string> words = {"b", "a"};
-sgcl::set from_range(words.begin(), words.end());              // deduced: set<sgcl::string>
-sgcl::set<int> taken = std::move(primes);                      // primes is empty now
+set primes = {5, 3, 2, 7, 3};                      // 2 3 5 7, in some order
+set<int> sized(100);                                     // 128 buckets
+vector<string> words = {"b", "a"};
+set from_range(words.begin(), words.end());              // deduced: set<string>
+set<int> taken = std::move(primes);                      // primes is empty now
 ```
 
 ### Destructor
@@ -90,7 +90,7 @@ set& operator=(std::initializer_list<value_type> ilist);
 Copy assignment builds a copy of `other` and swaps it in; move assignment clears this set (destroying its elements at once) and takes the table over; the list form builds a new table with this set's hasher, equality and `max_load_factor` and swaps it in.
 
 ```cpp
-sgcl::set<int> a = {1, 2}, b;
+set<int> a = {1, 2}, b;
 b = a;
 b = {5, 6};                  // the old elements die here
 a = std::move(b);            // a is {5, 6}, b is empty
@@ -106,8 +106,8 @@ iterator end() noexcept;                  const_iterator end() const noexcept;  
 Forward iterators over one chain of nodes; `end()` is a null iterator. The order is the chain's and changes with a rehash. An iterator is a raw node pointer: copying and advancing it costs a load, and it may be kept in unmanaged memory (a `std::vector<iterator>`) while its element is in the set.
 
 ```cpp
-sgcl::set<sgcl::string> s = {"a", "b"};
-sgcl::string joined;
+set<string> s = {"a", "b"};
+string joined;
 for (const auto& key : s) {
     joined += key;                         // "ab" or "ba"
 }
@@ -134,7 +134,7 @@ void clear() noexcept;
 Destroys every element at once and unlinks every node; the bucket array, the hasher, the equality and `max_load_factor` stay.
 
 ```cpp
-sgcl::set<sgcl::string> s = {"a", "b"};
+set<string> s = {"a", "b"};
 s.clear();                     // both strings are destroyed here
 bool gone = s.empty();         // true
 ```
@@ -157,12 +157,12 @@ iterator insert(const_iterator hint, node_type&& nh);
 The single-element forms return the element with the key and whether it was inserted; nothing is built when the key is already there (the `P&&` forms go through `emplace`, which builds the key first and destroys it again on a duplicate). The hint is ignored. The table grows before the node is linked when the size has reached the threshold; an existing key never rehashes. The node-handle forms link the node of `nh` without copying the element: on success `nh` is empty afterwards; on a duplicate the returned `node` (or `nh`) keeps it and `position` is the element in the way. An empty handle inserts nothing.
 
 ```cpp
-sgcl::set<sgcl::string> s;
+set<string> s;
 auto [it, inserted] = s.insert("a");                  // inserted: true
 inserted = s.insert("a").second;                      // false
 s.insert(s.end(), "z");                               // the hint is ignored
 s.insert({"b", "c"});
-sgcl::set<sgcl::string> other = {"q"};
+set<string> other = {"q"};
 auto r = s.insert(other.extract("q"));                // relinked, no copy: r.inserted is true
 ```
 
@@ -176,7 +176,7 @@ template<class... A> iterator emplace_hint(const_iterator hint, A&&... a);
 Builds the key from `a...` in a new node before it is looked up, as in `std`; if it is already there the new element is destroyed and the existing one returned. A single `value_type` argument is inserted without the detour. The hint is ignored. A hasher or equality that throws destroys the new element and leaves the set as it was.
 
 ```cpp
-sgcl::set<sgcl::string> s;
+set<string> s;
 s.emplace(3, 'x');                          // "xxx"
 auto [it, fresh] = s.emplace("xxx");        // fresh: false
 s.emplace_hint(s.end(), "zzz");
@@ -195,7 +195,7 @@ template<class K> size_type erase(K&& key);   // when Hash and KeyEqual are tran
 Destroys the element at once, unlinks the node (the collector reclaims it later) and returns the iterator after it. The key forms return 0 or 1. Erasing during an iteration: `it = s.erase(it)`. The bucket count never shrinks on an erase.
 
 ```cpp
-sgcl::set s = {1, 2, 3, 4};
+set s = {1, 2, 3, 4};
 s.erase(2);
 for (auto it = s.begin(); it != s.end();) {
     it = *it % 2 ? s.erase(it) : std::next(it);   // 1 and 3 go
@@ -213,7 +213,7 @@ friend void swap(set& lhs, set& rhs) noexcept(noexcept(lhs.swap(rhs)));
 Exchanges the tables, counts, load factors, hashers and equalities; no element is touched, and every iterator keeps pointing at its element, now in the other set.
 
 ```cpp
-sgcl::set<int> a = {1}, b = {2};
+set<int> a = {1}, b = {2};
 auto it = a.begin();
 swap(a, b);                       // it still points at 1, which is in b now
 bool moved = it == b.find(1);     // true
@@ -230,7 +230,7 @@ template<class K> node_type extract(K&& key);   // when Hash and KeyEqual are tr
 Unlinks the node and hands it over in a node handle, the element untouched; the handle destroys the element if it dies unused. The key forms return an empty handle when the key is absent. This is the way to change a key. See [node_type](#node_type-the-node-handle).
 
 ```cpp
-sgcl::set<sgcl::string> s = {"a", "b"};
+set<string> s = {"a", "b"};
 auto nh = s.extract("a");         // s holds "b"
 nh.value() += "!";                // the key may change outside a set
 s.insert(std::move(nh));          // "a!" and "b"; no string was copied
@@ -239,15 +239,15 @@ s.insert(std::move(nh));          // "a!" and "b"; no string was copied
 ### merge
 
 ```cpp
-template<class Traits2> void merge(detail::HashTable<Traits2>& source);    // any sgcl::set or multiset<Key, H2, E2>
+template<class Traits2> void merge(detail::HashTable<Traits2>& source);    // any set or multiset<Key, H2, E2>
 template<class Traits2> void merge(detail::HashTable<Traits2>&& source);
 ```
 
 Relinks the nodes of `source` whose keys are not yet here into this set, rehashing them with this set's hasher; a node whose key is already here stays in `source`. No element is copied or destroyed; iterators follow their nodes. `source` may be a `sgcl::set` or `sgcl::multiset` with the same `Key` and any hasher and equality. Merging a set into itself does nothing.
 
 ```cpp
-sgcl::set a = {1, 3};
-sgcl::multiset b = {2, 3, 3};
+set a = {1, 3};
+multiset b = {2, 3, 3};
 a.merge(b);                       // a: 1 2 3;  b keeps both 3s
 ```
 
@@ -270,9 +270,9 @@ template<class K> std::pair<iterator, iterator> equal_range(const K& key);  //  
 O(1) on average, reading raw pointers only; the cached hash is compared before the key. `count` is 0 or 1. The `K` overloads exist when both `Hash` and `KeyEqual` declare `is_transparent`.
 
 ```cpp
-sgcl::set<sgcl::string> s = {"apple"};   // std::hash and std::equal_to of a string are transparent
-bool has = s.contains("apple");    // no sgcl::string is built for the literal
-sgcl::string line = "apple pie";
+set<string> s = {"apple"};   // std::hash and std::equal_to of a string are transparent
+bool has = s.contains("apple");    // no string is built for the literal
+string line = "apple pie";
 bool piece = s.contains(line.as_slice(0, 5));   // a slice of another string, nothing built either
 ```
 
@@ -291,7 +291,7 @@ local_iterator end(size_type n);                const_local_iterator end(size_ty
 As in `std`. `bucket_count()` is 0 or a power of two; `bucket(key)` is the hash masked by `bucket_count() - 1` (0 while there are no buckets). A local iterator walks the nodes of one bucket and stops at its end; for an `n` beyond `bucket_count()` the range is empty.
 
 ```cpp
-sgcl::set s = {1, 2, 3};
+set s = {1, 2, 3};
 size_t n = s.bucket(2);
 size_t in_bucket = 0;
 for (auto it = s.begin(n); it != s.end(n); ++it) {
@@ -313,9 +313,9 @@ void reserve(size_type count);
 `load_factor()` is `size() / bucket_count()` (0 with no buckets); `max_load_factor()` defaults to 1.0. `max_load_factor(z)` takes effect on the next insertion (a value that is not positive, or not a number, is ignored). `rehash(count)` makes the bucket count the smallest power of two not below `count` and not below `size() / max_load_factor()`; it may shrink the table, and `rehash(0)` on an empty set leaves it without buckets. `reserve(count)` is `rehash` for `count` elements. A rehash relinks the nodes, hashes nothing and invalidates no iterator.
 
 ```cpp
-sgcl::set<int> s;
+set<int> s;
 s.reserve(1000);                                  // 1024 buckets: no rehash while inserting 1000 elements
-for (int i : sgcl::range(1000)) {
+for (int i : range(1000)) {
     s.insert(i);
 }
 bool fits = s.load_factor() <= s.max_load_factor();   // true
@@ -335,7 +335,7 @@ Copies of the hasher and the equality.
 `set` carries [mixin::enumerable](../core/mixin/enumerable.md): `exists`, `all`, `count_of`, `find_if`, `for_each`; `contains` is the set's own, by the key ([the mixins](../core/mixin/README.md)). Its `==` is its own, in any order; no `<=>`, the iteration order not being a value.
 
 ```cpp
-sgcl::set<int> s = {1, 2, 3};
+set<int> s = {1, 2, 3};
 assert(s.contains(2) && s.count_of([](int x) { return x % 2; }) == 2);
 ```
 
@@ -348,7 +348,7 @@ friend bool operator==(const set& lhs, const set& rhs);
 Equal sizes and every element of `lhs` found in `rhs` (found by key, then compared with `==`), whatever the bucket counts and orders. `!=` follows; there is no ordering.
 
 ```cpp
-sgcl::set<int> a = {1, 2}, b(1000);
+set<int> a = {1, 2}, b(1000);
 b.insert({2, 1});
 bool same = a == b;                               // true
 ```
@@ -389,7 +389,7 @@ namespace std { using sgcl::erase_if; }
 Erases every element for which `pred(*it)` is true and returns how many.
 
 ```cpp
-sgcl::set s = {1, 2, 3, 4};
+set s = {1, 2, 3, 4};
 auto n = std::erase_if(s, [](int x) { return x % 2 == 0; });   // 2; s holds 1 and 3
 ```
 
@@ -403,9 +403,9 @@ set(std::initializer_list<Key>, size_t = 0, Hash = Hash(), KeyEqual = KeyEqual()
 ```
 
 ```cpp
-sgcl::vector<sgcl::string> src = {"a", "b"};
-sgcl::set from_range(src.begin(), src.end());      // set<sgcl::string>
-sgcl::set from_list = {1, 2, 3};                   // set<int>
+vector<string> src = {"a", "b"};
+set from_range(src.begin(), src.end());      // set<string>
+set from_list = {1, 2, 3};                   // set<int>
 ```
 
 ## Example
@@ -414,23 +414,25 @@ sgcl::set from_list = {1, 2, 3};                   // set<int>
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 struct Node {
-    sgcl::string name;
-    sgcl::set<sgcl::tracked_ptr<Node>> peers;       // a set of traced pointers inside a managed object
+    string name;
+    set<tracked_ptr<Node>> peers;       // a set of traced pointers inside a managed object
 };
 
 int main() {
     // A graph whose edges are sets: each node is reachable from its peers
-    sgcl::tracked_ptr a = sgcl::make_tracked<Node>("a");
-    sgcl::tracked_ptr b = sgcl::make_tracked<Node>("b");
-    sgcl::tracked_ptr c = sgcl::make_tracked<Node>("c");
+    tracked_ptr a = make_tracked<Node>("a");
+    tracked_ptr b = make_tracked<Node>("b");
+    tracked_ptr c = make_tracked<Node>("c");
     a->peers.insert(b);
     b->peers.insert(a);                         // a cycle
     b->peers.insert(c);
     bool again = b->peers.insert(c).second;     // false: a duplicate, nothing is inserted
 
     // A set of values on the stack, each name once
-    sgcl::set<sgcl::string> names;
+    set<string> names;
     for (const auto& peer : b->peers) {         // pointers hash by address: any order
         names.insert(peer->name);
     }
@@ -442,8 +444,8 @@ int main() {
     a = b = c = nullptr;
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
-    sgcl::collector::force_collect(true);
-    std::cout << sgcl::collector::get_live_object_count() << " live objects\n";     // the nodes, buckets and sentinel of `names`
+    collector::force_collect(true);
+    std::cout << collector::get_live_object_count() << " live objects\n";     // the nodes, buckets and sentinel of `names`
     return !again && names.size() == 3 ? 0 : 1;
 }
 ```

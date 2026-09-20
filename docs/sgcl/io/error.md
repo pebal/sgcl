@@ -71,10 +71,10 @@ The value or the error; tested with `if (r)`, read with `*r` / `r->`, the error 
 ```cpp
 io::result<string> first_line(const string& path) {
     auto f = io::open(path);
-    if (!f) return sgcl::unexpected(f.error());
-    sgcl::tracked_ptr lines = sgcl::make_tracked<io::buffered_reader>(*f);
+    if (!f) return unexpected(f.error());
+    tracked_ptr lines = make_tracked<io::buffered_reader>(*f);
     auto line = lines->read_line();
-    if (!line) return sgcl::unexpected(line.error());
+    if (!line) return unexpected(line.error());
     return line->value_or(string());
 }
 ```
@@ -93,7 +93,9 @@ error last_error(const string& op, const string& path = {}) noexcept;
 #include "sgcl/sgcl.h"
 #include <iostream>
 
-namespace io = sgcl::io;
+using namespace sgcl;
+
+namespace io = io;
 
 int main() {
     auto r = io::read_text("/etc/hosts");

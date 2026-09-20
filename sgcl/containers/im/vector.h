@@ -37,7 +37,7 @@ namespace sgcl::im {
         // Made by make() only (the constructors are private), so that a
         // branch is always a managed object and the copy may shade its
         // source: the copy takes the words without the barrier
-        // (tracked_ptr::store with detail::unshaded), then makes the
+        // (tracked_ptr::store with barrier::off), then makes the
         // source reachable in this cycle through a tracked_ptr to it,
         // whose construction is the barrier. The source never changes,
         // so the marking, visiting it, marks every child the copy holds:
@@ -65,7 +65,7 @@ namespace sgcl::im {
 
             VectorBranch(const VectorBranch& o) noexcept {
                 for (size_t i = 0; i < 32; ++i) {
-                    children[i].store(o.children[i], sgcl::detail::unshaded);
+                    children[i].store(o.children[i], barrier::off);
                 }
             }
         };

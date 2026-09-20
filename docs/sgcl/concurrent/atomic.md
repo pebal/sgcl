@@ -49,10 +49,10 @@ Null by default or from `nullptr`; from a `unique_ptr<T>&&`, whose object is rel
 
 ```cpp
 struct Node { int value = 0; };
-sgcl::atomic<sgcl::tracked_ptr<Node>> empty;                                 // null
-sgcl::atomic<sgcl::tracked_ptr<Node>> made(sgcl::make_tracked<Node>());         // from a unique_ptr
-sgcl::tracked_ptr node = sgcl::make_tracked<Node>();
-sgcl::atomic<sgcl::tracked_ptr<Node>> shared(node);                           // from a tracked_ptr
+atomic<tracked_ptr<Node>> empty;                                 // null
+atomic<tracked_ptr<Node>> made(make_tracked<Node>());         // from a unique_ptr
+tracked_ptr node = make_tracked<Node>();
+atomic<tracked_ptr<Node>> shared(node);                           // from a tracked_ptr
 ```
 
 ### operator=, operator value_type
@@ -67,9 +67,9 @@ operator value_type() const noexcept;
 `a = p` is `a.store(p)` with `std::memory_order_seq_cst`; `tracked_ptr<T> p = a` is `a.load()`.
 
 ```cpp
-sgcl::atomic<sgcl::tracked_ptr<int>> a;
-a = sgcl::make_tracked<int>(1);             // a store
-sgcl::tracked_ptr<int> p = a;               // a load, seq_cst
+atomic<tracked_ptr<int>> a;
+a = make_tracked<int>(1);             // a store
+tracked_ptr<int> p = a;               // a load, seq_cst
 a = nullptr;
 assert(*p == 1 && !a.load());
 ```
@@ -77,7 +77,7 @@ assert(*p == 1 && !a.load());
 ### is_always_lock_free, is_lock_free
 
 ```cpp
-static constexpr bool is_always_lock_free;   // sgcl::atomic<void*>::is_always_lock_free
+static constexpr bool is_always_lock_free;   // atomic<void*>::is_always_lock_free
 bool is_lock_free() const noexcept;
 ```
 
@@ -92,8 +92,8 @@ value_type load(const std::memory_order m = std::memory_order_seq_cst) const noe
 The pointer, as a `tracked_ptr` that holds the object. The word is read, a hazard pointer to it published on the calling thread's record, and the word read again until the two reads agree; the `tracked_ptr` is then constructed and the hazard cleared. The collector reads the hazards before it reclaims anything, so the object cannot be freed between the read and the hold. The order is at least `acquire`: `relaxed` and `consume` are raised to it.
 
 ```cpp
-sgcl::atomic<sgcl::tracked_ptr<int>> a(sgcl::make_tracked<int>(1));
-sgcl::tracked_ptr p = a.load(std::memory_order_acquire);     // tracked_ptr<int>: the 1, held
+atomic<tracked_ptr<int>> a(make_tracked<int>(1));
+tracked_ptr p = a.load(std::memory_order_acquire);     // tracked_ptr<int>: the 1, held
 assert(*p == 1);
 ```
 
@@ -108,9 +108,9 @@ void store(tracked_ptr<T> p, const std::memory_order m = std::memory_order_seq_c
 Replaces the pointer: with null, with the object of a `unique_ptr` (released to the collector), or with a copy of a `tracked_ptr`, taken by value so that its target is held for the length of the call. The old object lives on for whoever holds it. The store carries the write barrier.
 
 ```cpp
-sgcl::atomic<sgcl::tracked_ptr<int>> a;
-a.store(sgcl::make_tracked<int>(1));                         // from a unique_ptr
-sgcl::tracked_ptr two = sgcl::make_tracked<int>(2);
+atomic<tracked_ptr<int>> a;
+a.store(make_tracked<int>(1));                         // from a unique_ptr
+tracked_ptr two = make_tracked<int>(2);
 a.store(two, std::memory_order_release);                   // from a tracked_ptr
 a.store(nullptr);
 ```
@@ -125,8 +125,8 @@ tracked_ptr<T> exchange(std::nullptr_t, const std::memory_order m = std::memory_
 Replaces the pointer and returns the old one, held: the old object is under the hazard pointer from before the exchange until the returned `tracked_ptr` holds it, so it cannot be reclaimed in between. The exchange carries the write barrier.
 
 ```cpp
-sgcl::atomic<sgcl::tracked_ptr<Node>> head;
-sgcl::tracked_ptr all = head.exchange(nullptr);            // the whole list taken, in one step
+atomic<tracked_ptr<Node>> head;
+tracked_ptr all = head.exchange(nullptr);            // the whole list taken, in one step
 ```
 
 ### compare_exchange_strong, compare_exchange_weak
@@ -146,16 +146,16 @@ bool compare_exchange_weak(tracked_ptr<T>& e, tracked_ptr<T> n, const std::memor
 The compare-exchange of `std::atomic`: when the word equals `e`, it is replaced by `n` (or null) and `true` is returned; otherwise `e` is set to the current value, loaded with `acquire` and held, and `false` is returned. The `weak` form may fail spuriously and belongs in a loop. With one order `m`, the failure order is derived from it as `std::atomic` does; with two, `s` is the order of the success and `f` of the failure. No ABA: the object `e` holds cannot be reused while `e` holds it, so an equal address is the same object.
 
 ```cpp
-struct Item { int value; sgcl::tracked_ptr<Item> next; };
-sgcl::atomic<sgcl::tracked_ptr<Item>> head;
+struct Item { int value; tracked_ptr<Item> next; };
+atomic<tracked_ptr<Item>> head;
 
 // push: the new item's next is the head as last seen, until the CAS lands
-sgcl::tracked_ptr item = sgcl::make_tracked<Item>(1);
+tracked_ptr item = make_tracked<Item>(1);
 item->next = head.load();
 while (!head.compare_exchange_weak(item->next, item)) {}
 
 // pop: the head replaced by its next, or null
-sgcl::tracked_ptr top = head.load();
+tracked_ptr top = head.load();
 while (top && !head.compare_exchange_weak(top, top->next)) {}
 assert(top && top->value == 1 && !head.load());
 ```
@@ -172,9 +172,9 @@ void notify_all() noexcept;
 The waiting of `std::atomic`: `wait(p)` blocks while the word equals `p` (or null), `notify_one` and `notify_all` wake the threads blocked in `wait` after a store.
 
 ```cpp
-sgcl::atomic<sgcl::tracked_ptr<int>> slot;
-sgcl::thread producer([&slot] {         // the lambda captures a reference: no tracked_ptr copied to the heap
-    slot.store(sgcl::make_tracked<int>(1));
+atomic<tracked_ptr<int>> slot;
+thread producer([&slot] {         // the lambda captures a reference: no tracked_ptr copied to the heap
+    slot.store(make_tracked<int>(1));
     slot.notify_one();
 });
 slot.wait(nullptr);                    // until the slot is not null
@@ -209,12 +209,12 @@ public:
 A `string` is one word to an object never modified, so the atomic of a string is the atomic of that word: the operations above with a string on the outside, one word in size. A load is one atomic load (with the hazard pointer of every atomic load) and the string it returns is the object as it was, whatever is stored meanwhile; a store is the store of the object the caller has already made; nothing is copied and nothing allocated beyond the strings themselves. The compare-exchanges compare identity, the object, as a compare-exchange on a word does: two strings of the same characters made apart are two objects, and the expected one must be the one loaded or stored from here, not one equal to it (`sgcl::string("a")` is never the string that is there); an exchange for a change of contents loads, decides, and exchanges against what it loaded. `atomic<string>` lives where a `string` does, on a stack or inside a managed object.
 
 ```cpp
-static sgcl::atomic<sgcl::string> current_host = sgcl::string("localhost");   // a global, read by every thread
+static atomic<string> current_host = string("localhost");   // a global, read by every thread
 
-sgcl::string host = current_host.load();                 // one load: the string as it was
-current_host = sgcl::string("db.internal");              // a store: the old one dies with its last reader
-sgcl::string seen = current_host.load();
-if (!current_host.compare_exchange_strong(seen, sgcl::string("db2.internal"))) {
+string host = current_host.load();                 // one load: the string as it was
+current_host = string("db.internal");              // a store: the old one dies with its last reader
+string seen = current_host.load();
+if (!current_host.compare_exchange_strong(seen, string("db2.internal"))) {
     // someone stored since: seen is what is there now
 }
 ```
@@ -226,6 +226,8 @@ if (!current_host.compare_exchange_strong(seen, sgcl::string("db2.internal"))) {
 #include <cassert>
 #include <iostream>
 
+using namespace sgcl;
+
 // A configuration replaced at run time under readers on other threads: the
 // readers load it, the writer stores a new one, and the old one is
 // collected when the last reader drops it. No lock, no count.
@@ -235,29 +237,29 @@ struct Config {
 };
 
 int main() {
-    sgcl::atomic current = sgcl::make_tracked<Config>(0);   // on main's stack, where a tracked_ptr may live
+    atomic current = make_tracked<Config>(0);   // on main's stack, where a tracked_ptr may live
 
-    sgcl::vector<sgcl::thread> readers;
-    for (int t : sgcl::range(4)) {
+    vector<thread> readers;
+    for (int t : range(4)) {
         readers.emplace_back([&current] {                // by reference: main's frame outlives the threads it joins
             int last = -1;
-            for (int i : sgcl::range(100000)) {
-                sgcl::tracked_ptr config = current.load();      // held: cannot be reclaimed under this thread
+            for (int i : range(100000)) {
+                tracked_ptr config = current.load();      // held: cannot be reclaimed under this thread
                 assert(config->version >= last);              // versions only go up
                 last = config->version;
             }
         });
     }
 
-    for (int version : sgcl::range(1, 101)) {
-        current.store(sgcl::make_tracked<Config>(version));      // the old Config lives on for its readers
+    for (int version : range(1, 101)) {
+        current.store(make_tracked<Config>(version));      // the old Config lives on for its readers
     }
     for (auto& r : readers) {
         r.join();
     }
     std::cout << "final version " << current.load()->version << '\n';   // 100
 
-    sgcl::collector::force_collect(true);     // optional, for the demonstration only: the collector runs its cycles by itself
+    collector::force_collect(true);     // optional, for the demonstration only: the collector runs its cycles by itself
     return 0;
 }
 ```

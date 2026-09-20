@@ -24,11 +24,11 @@ void reverse() noexcept;            // the elements in the opposite order, in pl
 ```
 
 ```cpp
-sgcl::vector v = {1, 2, 3};
+vector v = {1, 2, 3};
 v.reverse();                        // 3 2 1
-sgcl::slice<int> tail = v.as_slice(1);
+slice<int> tail = v.as_slice(1);
 tail.fill(0);                       // 3 0 0: the slice writes the vector's elements
-static_assert(sgcl::req::sequence<sgcl::vector<int>> && !sgcl::req::sequence<sgcl::slice<const int>> && !sgcl::req::sequence<sgcl::im::vector<int>>);
+static_assert(req::sequence<vector<int>> && !req::sequence<slice<const int>> && !req::sequence<im::vector<int>>);
 ```
 
 ## Example
@@ -37,16 +37,18 @@ static_assert(sgcl::req::sequence<sgcl::vector<int>> && !sgcl::req::sequence<sgc
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // A sequence of one's own with the mixins it can honour: a ring of the
 // last N values, a managed buffer under it; contains, max and sort come
 // from the mixins, begin and end are all they ask for.
 template<class T, size_t N>
 class ring
-: public sgcl::mixin::enumerable<ring<T, N>>
-, public sgcl::mixin::random_access<ring<T, N>>
-, public sgcl::mixin::bidirectional<ring<T, N>>
-, public sgcl::mixin::ordered<ring<T, N>>
-, public sgcl::mixin::sequence<ring<T, N>> {
+: public mixin::enumerable<ring<T, N>>
+, public mixin::random_access<ring<T, N>>
+, public mixin::bidirectional<ring<T, N>>
+, public mixin::ordered<ring<T, N>>
+, public mixin::sequence<ring<T, N>> {
 public:
     void push(const T& value) {
         if (_values.size() < N) {
@@ -63,7 +65,7 @@ public:
     auto end() const { return _values.end(); }
 
 private:
-    sgcl::vector<T> _values;
+    vector<T> _values;
     size_t _next = 0;
 };
 

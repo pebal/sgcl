@@ -27,9 +27,9 @@ class guard;                                   // the lock held for a scope; own
 ```
 
 ```cpp
-sgcl::mutex m;
+mutex m;
 int counter = 0;                                // guarded by m
-auto add = [](sgcl::mutex& m, int& counter) -> sgcl::task<> {
+auto add = [](mutex& m, int& counter) -> task<> {
     auto guard = co_await m.async_scoped_lock();
     ++counter;
 };

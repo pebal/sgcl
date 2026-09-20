@@ -64,22 +64,22 @@ template<class... Ts> void swap(variant<Ts...>&, variant<Ts...>&) noexcept(...);
 bool operator==, !=, <, <=, >, >= (const variant<Ts...>&, const variant<Ts...>&);   // when every alternative has ==, or <
 auto operator<=>(const variant<Ts...>&, const variant<Ts...>&);                     // when every alternative has <=>
 template<class T> struct variant_size; template<size_t I, class T> struct variant_alternative;   // and _v, _t; std::variant_size, std::variant_alternative specialized
-template<class... Ts> struct std::hash<sgcl::variant<Ts...>>;                       // when every alternative has a hash
+template<class... Ts> struct std::hash<variant<Ts...>>;                       // when every alternative has a hash
 ```
 
 `get` throws `bad_variant_access` (the one of `std`) on the wrong index, `visit` on a valueless variant. `visit` over several variants calls the visitor with one alternative of each; the visitor (a callable or a pointer to member, through `std::invoke`) returns one type for every combination of alternatives, as with `std::visit` (ill-formed otherwise: a constraint), or `visit<R>` converts each result to the `R` given. `get<T>`, `get_if<T>` and `holds_alternative<T>` are ill-formed for a type that is not exactly one alternative.
 
 ```cpp
 struct Node { int value; };
-using Value = sgcl::variant<int, sgcl::tracked_ptr<Node>, sgcl::string>;
+using Value = variant<int, tracked_ptr<Node>, string>;
 
-Value v = sgcl::make_tracked<Node>(1);           // index 1: the pointer, in the word of its own
-assert(sgcl::holds_alternative<sgcl::tracked_ptr<Node>>(v));
-assert(sgcl::get<1>(v)->value == 1);
+Value v = make_tracked<Node>(1);           // index 1: the pointer, in the word of its own
+assert(holds_alternative<tracked_ptr<Node>>(v));
+assert(get<1>(v)->value == 1);
 v = 5;                                           // index 0: the int; the pointer destroyed, the word null
 v = "text";                                      // index 2: the string
-auto described = sgcl::visit([](const auto& x) -> sgcl::string {
-    if constexpr(std::is_same_v<std::remove_cvref_t<decltype(x)>, sgcl::string>) {
+auto described = visit([](const auto& x) -> string {
+    if constexpr(std::is_same_v<std::remove_cvref_t<decltype(x)>, string>) {
         return x;
     } else {
         return "not a string";
@@ -94,17 +94,19 @@ assert(described == "text");
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // A tree of values: a leaf holds a number or a name, a branch holds its
 // children. The children are tracked pointers, next to the data, in one
 // variant per node: the collector follows them.
 struct Node;
-using Children = sgcl::vector<sgcl::tracked_ptr<Node>>;
+using Children = vector<tracked_ptr<Node>>;
 struct Node {
-    sgcl::variant<double, sgcl::string, Children> value;
+    variant<double, string, Children> value;
 };
 
-double sum(const sgcl::tracked_ptr<Node>& node) {
-    return sgcl::visit([](const auto& v) -> double {
+double sum(const tracked_ptr<Node>& node) {
+    return visit([](const auto& v) -> double {
         using T = std::remove_cvref_t<decltype(v)>;
         if constexpr(std::is_same_v<T, double>) {
             return v;
@@ -121,15 +123,15 @@ double sum(const sgcl::tracked_ptr<Node>& node) {
 }
 
 int main() {
-    sgcl::tracked_ptr root = sgcl::make_tracked<Node>();
+    tracked_ptr root = make_tracked<Node>();
     Children children;
-    children.push_back(sgcl::make_tracked<Node>(Node{1.5}));
-    children.push_back(sgcl::make_tracked<Node>(Node{sgcl::string("name")}));
-    children.push_back(sgcl::make_tracked<Node>(Node{2.5}));
+    children.push_back(make_tracked<Node>(Node{1.5}));
+    children.push_back(make_tracked<Node>(Node{string("name")}));
+    children.push_back(make_tracked<Node>(Node{2.5}));
     root->value = std::move(children);
     std::cout << sum(root) << "\n";              // 4
     root->value = 0.0;                           // the children unreferenced: collected
-    sgcl::collector::force_collect(true);          // optional, for the demonstration only
+    collector::force_collect(true);          // optional, for the demonstration only
     return 0;
 }
 ```

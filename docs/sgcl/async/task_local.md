@@ -38,16 +38,16 @@ template<class U> task<U> with(T value, task<U> t);   // a task that runs t with
 `with(v, t)` is a task of its own, the wrapper: it sets the value, awaits `t`, which inherits it, and returns what `t` returned; the task that awaits or spawns the wrapper keeps its own value.
 
 ```cpp
-sgcl::task_local<sgcl::tracked_ptr<User>> current_user;
+task_local<tracked_ptr<User>> current_user;
 
-sgcl::task<> handle(sgcl::tracked_ptr<Request> r) {
+task<> handle(tracked_ptr<Request> r) {
     co_await current_user.set(r->user);           // for this task and the ones it starts
     co_await validate(r);                         // sees the user, and so does what validate calls
-    sgcl::go(audit(r));                           // a detached task: inherits it too
+    go(audit(r));                           // a detached task: inherits it too
     co_await current_user.with(admin, repair(r)); // repair runs as admin; this task stays r->user
 }
 
-sgcl::task<> validate(sgcl::tracked_ptr<Request> r) {
+task<> validate(tracked_ptr<Request> r) {
     if (auto u = current_user.get(); !u || !(*u)->may(r)) throw forbidden();
     co_return;
 }
@@ -59,44 +59,46 @@ sgcl::task<> validate(sgcl::tracked_ptr<Request> r) {
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // A request id and a user, set once by the handler and read by every
 // function and task under it: the logger takes no arguments for them.
 using namespace std::chrono_literals;
 
-sgcl::task_local<int> request_id;
-sgcl::task_local<sgcl::string> user;
+task_local<int> request_id;
+task_local<string> user;
 
 void log(const char* what) {                         // a plain function: the values of the task that called it
     std::cout << "[request " << request_id.get_or(0) << ", " << user.get_or("nobody") << "] " << what << "\n";
 }
 
-sgcl::task<> store(int value) {
+task<> store(int value) {
     log("storing");
     co_await sgcl::sleep(1ms);                       // the values survive a wait
     std::cout << "  value " << value << "\n";
     log("stored");
 }
 
-sgcl::task<> audit() {
+task<> audit() {
     co_await user.set("auditor");                    // this task's own: the handler keeps its user
     log("audited");
 }
 
-sgcl::task<> handle(int id, sgcl::string who, int value) {
+task<> handle(int id, string who, int value) {
     co_await request_id.set(id);
     co_await user.set(who);
     log("handling");
     co_await store(value);                           // an awaited task inherits both
-    co_await sgcl::spawn(audit());                   // a spawned one too, and sets one of its own
+    co_await spawn(audit());                   // a spawned one too, and sets one of its own
     co_await user.with("guest", store(value + 1));   // store runs as guest
     log("done");
 }
 
 int main() {
-    sgcl::spawn(handle(1, "ann", 10)).join();
-    sgcl::spawn(handle(2, "bob", 20)).join();
+    spawn(handle(1, "ann", 10)).join();
+    spawn(handle(2, "bob", 20)).join();
     log("outside a task");
-    sgcl::scheduler::stop();
+    scheduler::stop();
     return 0;
 }
 ```

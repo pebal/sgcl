@@ -26,10 +26,10 @@ template<class F> auto on_done(F f);           // a case of a select: f() when t
 ```
 
 ```cpp
-sgcl::wait_group all;
+wait_group all;
 all.add(2);
-sgcl::go([](sgcl::wait_group& all) -> sgcl::task<> { all.done(); co_return; }(all));
-sgcl::go([](sgcl::wait_group& all) -> sgcl::task<> { all.done(); co_return; }(all));
+go([](wait_group& all) -> task<> { all.done(); co_return; }(all));
+go([](wait_group& all) -> task<> { all.done(); co_return; }(all));
 all.wait();                                     // both done
 ```
 
@@ -39,6 +39,8 @@ all.wait();                                     // both done
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 using namespace std::chrono_literals;
 
 // A crawler with a bound: at most three fetches at once (the semaphore),
@@ -46,14 +48,14 @@ using namespace std::chrono_literals;
 // done, and an event that starts them together. Every wait here is a
 // task's, no thread held.
 struct Site {
-    sgcl::semaphore slots{3};
-    sgcl::mutex lock;
-    sgcl::wait_group pending;
-    sgcl::event go;
+    semaphore slots{3};
+    mutex lock;
+    wait_group pending;
+    event go;
     int fetched = 0;   // guarded by lock
 };
 
-sgcl::task<> fetch(sgcl::tracked_ptr<Site> site, int page) {
+task<> fetch(tracked_ptr<Site> site, int page) {
     co_await site->go.async_wait();                          // all start together
     co_await site->slots.async_acquire();                    // three at a time
     co_await sgcl::sleep(1ms);                               // the fetch
@@ -66,10 +68,10 @@ sgcl::task<> fetch(sgcl::tracked_ptr<Site> site, int page) {
 }
 
 int main() {
-    sgcl::tracked_ptr site = sgcl::make_tracked<Site>();
-    for (int page : sgcl::range(20)) {
+    tracked_ptr site = make_tracked<Site>();
+    for (int page : range(20)) {
         site->pending.add();
-        sgcl::go(fetch(site, page));
+        go(fetch(site, page));
     }
     site->go.set();
     site->pending.wait();                                    // this thread waits for the twenty

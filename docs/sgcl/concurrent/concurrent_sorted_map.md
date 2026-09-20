@@ -30,7 +30,7 @@ A node is one managed object: the bottom link and the element, then the links of
 ```cpp
 using key_type = Key;
 using mapped_type = T;
-using value_type = pair<const Key, T>;   // sgcl::pair, the alias of std::pair (sgcl/core/aliases.h)
+using value_type = pair<const Key, T>;   // pair, the alias of std::pair (sgcl/core/aliases.h)
 using key_compare = Compare;
 using size_type = size_t;
 using difference_type = ptrdiff_t;
@@ -53,9 +53,9 @@ concurrent_sorted_map(const concurrent_sorted_map&) = delete;
 An empty map (the head node on the managed heap), or one built at once from a range or a list: the elements sorted (the first of two with one key kept, as `insert` keeps it) and every node linked behind the last at each of its levels, a store each and no search, which is what the inserts would cost, a search each; 110 to 200 ns per element for 200,000 random keys against 380 to 600 by the inserts.
 
 ```cpp
-sgcl::concurrent_sorted_map<int, sgcl::tracked_ptr<Session>> sessions;              // a global: sgcl::
-sgcl::concurrent_sorted_map<sgcl::string, int, std::greater<sgcl::string>> by_name_desc;
-sgcl::concurrent_sorted_map<int, int> m = {{1, 10}, {2, 20}};
+concurrent_sorted_map<int, tracked_ptr<Session>> sessions;              // a global: 
+concurrent_sorted_map<string, int, std::greater<string>> by_name_desc;
+concurrent_sorted_map<int, int> m = {{1, 10}, {2, 20}};
 ```
 
 ### begin, end, cbegin, cend
@@ -136,7 +136,7 @@ template<class... A> pair<iterator, bool> try_emplace(Key&& key, A&&... a);
 Inserts an element unless its key is taken: the element and `true`, or the one already there and `false`, as `std::map`. `emplace` builds the element from `a...` first, in a node of its own, and drops the node when the key turns out to be taken (the collector reclaims it); `try_emplace` searches once and builds nothing when the key is there: the element is built from the key and `a...` only when it is absent, and linked between the neighbours that search found (an insertion of a key that may be present costs one search, not a lookup and then one, which is what `emplace` cannot do, its key being inside the element it builds). A concurrent insertion of the same key wins or loses at the compare-exchange on the bottom list: exactly one of them returns `true`.
 
 ```cpp
-auto [it, inserted] = sessions.try_emplace(42, sgcl::make_tracked<Session>());
+auto [it, inserted] = sessions.try_emplace(42, make_tracked<Session>());
 if (!inserted) {
     // another thread's session under 42: it->second
 }
@@ -179,6 +179,8 @@ key_compare key_comp() const;
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // A registry shared by writers and readers: writers insert and erase,
 // readers look up and walk, nobody locks and nobody frees
 struct Entry {
@@ -187,21 +189,21 @@ struct Entry {
 };
 
 int main() {
-    sgcl::concurrent_sorted_map<int, sgcl::tracked_ptr<Entry>> registry;   // could as well be a global
-    sgcl::atomic<long> found = 0;
-    sgcl::vector<sgcl::thread> threads;
-    for (int w : sgcl::range(4)) {
+    concurrent_sorted_map<int, tracked_ptr<Entry>> registry;   // could as well be a global
+    atomic<long> found = 0;
+    vector<thread> threads;
+    for (int w : range(4)) {
         threads.emplace_back([&, w] {
-            for (int i : sgcl::range(250)) {
+            for (int i : range(250)) {
                 int id = i * 4 + w;                              // 1000 keys between the four writers
-                registry.try_emplace(id, sgcl::make_tracked<Entry>(id));
+                registry.try_emplace(id, make_tracked<Entry>(id));
             }
             for (int id = w; id < 1000; id += 8) {
                 registry.erase(id);                              // half of this writer's keys taken out again
             }
         });
         threads.emplace_back([&] {
-            for (int i : sgcl::range(10000)) {
+            for (int i : range(10000)) {
                 if (auto it = registry.find(i % 1000); it != registry.end()) {
                     ++it->second->hits;                          // the entry lives while `it` does, erased or not
                     ++found;

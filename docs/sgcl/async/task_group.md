@@ -39,15 +39,15 @@ template<class F> auto on_done(F f);                            // a case of a s
 ```
 
 ```cpp
-sgcl::task<> fetch(sgcl::string url, sgcl::channel<sgcl::string>& out, sgcl::stop_token tok) {
-    co_await sgcl::async_select(
+task<> fetch(string url, channel<string>& out, stop_token tok) {
+    co_await async_select(
         out.on_send(url + ": ok"),                                 // the work, here a send
         tok.on_stop([] {})                                         // or the stop: another child failed, or the caller gave up
     );
 }
 
-sgcl::task<> fetch_all(sgcl::vector<sgcl::string> urls, sgcl::channel<sgcl::string>& out, sgcl::stop_token tok) {
-    sgcl::task_group g(tok);                                       // a scope under the caller's token
+task<> fetch_all(vector<string> urls, channel<string>& out, stop_token tok) {
+    task_group g(tok);                                       // a scope under the caller's token
     for (auto& url : urls) {
         g.spawn(fetch(url, out, g.token()));                       // every child gets the group's token
     }
@@ -61,13 +61,15 @@ sgcl::task<> fetch_all(sgcl::vector<sgcl::string> urls, sgcl::channel<sgcl::stri
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 using namespace std::chrono_literals;
 
 // Eight workers on one scope: seven serve requests until told to stop,
 // one fails after a while. The failure stops the scope, the others leave
 // when their token says so, and the wait gives the exception once every
 // worker has finished: nothing runs on past the scope.
-sgcl::task<int> worker(int id, sgcl::stop_token tok, sgcl::atomic<int>& left) {
+task<int> worker(int id, stop_token tok, atomic<int>& left) {
     if (id == 3) {
         co_await sgcl::sleep(10ms);
         throw std::runtime_error("worker 3 failed");
@@ -78,9 +80,9 @@ sgcl::task<int> worker(int id, sgcl::stop_token tok, sgcl::atomic<int>& left) {
 }
 
 int main() {
-    sgcl::atomic<int> left = {0};
-    sgcl::task_group g;
-    for (int id : sgcl::range(8)) {
+    atomic<int> left = {0};
+    task_group g;
+    for (int id : range(8)) {
         g.spawn(worker(id, g.token(), left));                 // a result is dropped: the group reports exceptions only
     }
     try {

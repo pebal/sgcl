@@ -40,13 +40,13 @@ constexpr array(T... elements);              // N parameters of type T, one per 
 The braces of an aggregate, as a constructor: `N` parameters of type `T`, one per element, generated from an index sequence that is a third, defaulted template parameter of the class (`array<T, N>` is spelled as ever). Each element is constructed in place from its argument; a fourth argument for an `array<T, 3>` is an error at compile time; an element that only moves is moved in; an element that is itself an aggregate takes its brace, `array<point, 2> p = {{1, 2}, {3, 4}}`, one level for one level. What the constructor does not do that the aggregate did: fill in the rest when fewer elements are given — `array<int, 3> a = {7}` is an error, `= {}` the way to zero.
 
 ```cpp
-sgcl::array<int, 3> a = {1, 2, 3};
-sgcl::array<sgcl::tracked_ptr<int>, 2> roots = {};             // two null pointers, on the stack
-roots[0] = sgcl::make_tracked<int>(5);
-constexpr sgcl::array<int, 2> c = {4, 5};                    // constexpr: everything is
+array<int, 3> a = {1, 2, 3};
+array<tracked_ptr<int>, 2> roots = {};             // two null pointers, on the stack
+roots[0] = make_tracked<int>(5);
+constexpr array<int, 2> c = {4, 5};                    // constexpr: everything is
 static_assert(c[1] == 5 && c.size() == 2 && c.contains(4));
-sgcl::array<std::unique_ptr<int>, 2> owned = {std::make_unique<int>(1), std::make_unique<int>(2)};   // moved in
-sgcl::array<int, 4> raw;                                     // uninitialized, as int[4]
+array<std::unique_ptr<int>, 2> owned = {std::make_unique<int>(1), std::make_unique<int>(2)};   // moved in
+array<int, 4> raw;                                     // uninitialized, as int[4]
 ```
 
 ### at, operator[]
@@ -96,9 +96,9 @@ constexpr size_type max_size() const noexcept;          // N
 `array<T, N>` carries [mixin::enumerable](../core/mixin/enumerable.md), [mixin::equatable](../core/mixin/equatable.md), [mixin::comparable](../core/mixin/comparable.md), [mixin::ordered](../core/mixin/ordered.md), [mixin::sequence](../core/mixin/sequence.md) and the contiguous category: everything a `vector` answers, `constexpr`, so a table built at compile time can be searched at compile time.
 
 ```cpp
-constexpr sgcl::array primes = {2, 3, 5, 7, 11};
+constexpr array primes = {2, 3, 5, 7, 11};
 static_assert(primes.is_sorted() && primes.binary_search(7) && primes.sorted_index_of(11) == 4 && primes.max() == 11);
-sgcl::array a = {5, 3, 9, 3};
+array a = {5, 3, 9, 3};
 assert(a.contains(9) && a.index_of(3) == 1 && a.find_index([](int x) { return x > 4; }) == 0);
 if (int* big = a.find_if([](int x) { return x > 8; })) {
     *big = 8;
@@ -121,7 +121,7 @@ friend constexpr void swap(array& l, array& r) noexcept(noexcept(l.swap(r)));
 `==` and `<=>` come with [mixin::equatable](../core/mixin/equatable.md) and [mixin::comparable](../core/mixin/comparable.md): element-wise, as for `std::array`, `<=>` lexicographical with the synthesized three-way comparison (`<=>` of `T` when it has one, else a `std::weak_ordering` built from `<`), and only for elements that compare. Two `array<T, 0>` are equal.
 
 ```cpp
-sgcl::array<double, 2> e = {1.0, 2.0}, f = {1.0, 3.0};
+array<double, 2> e = {1.0, 2.0}, f = {1.0, 3.0};
 bool less = e < f;                                    // true
 bool equal = (e <=> f) == std::partial_ordering::less;   // true: double's ordering
 ```
@@ -134,7 +134,7 @@ array(T, U...) -> array<T, 1 + sizeof...(U)>;                  // all of the sam
 ```
 
 ```cpp
-sgcl::array fixed = {1.5, 2.5};                         // sgcl::array<double, 2>
+array fixed = {1.5, 2.5};                         // array<double, 2>
 ```
 
 ### get, to_array, the tuple interface
@@ -148,18 +148,18 @@ template<class T, size_t N> constexpr array<std::remove_cv_t<T>, N> to_array(T (
 template<class T, size_t N> constexpr array<std::remove_cv_t<T>, N> to_array(T (&&a)[N]);
 
 namespace std {
-    template<class T, size_t N> struct tuple_size<sgcl::array<T, N>>;                    // N
-    template<size_t I, class T, size_t N> struct tuple_element<I, sgcl::array<T, N>>;   // T
+    template<class T, size_t N> struct tuple_size<array<T, N>>;                    // N
+    template<size_t I, class T, size_t N> struct tuple_element<I, array<T, N>>;   // T
 }
 ```
 
 `get<I>` is the `I`-th element with a `static_assert` on the range, `to_array` builds an array from a built-in array (copying or moving the elements), and the `std` specializations make structured bindings work.
 
 ```cpp
-sgcl::array<int, 3> a = {1, 2, 3};
+array<int, 3> a = {1, 2, 3};
 auto [x, y, z] = a;                          // structured bindings
-sgcl::get<1>(a) = 20;
-auto b = sgcl::to_array({3, 2, 1});            // sgcl::array<int, 3>
+get<1>(a) = 20;
+auto b = to_array({3, 2, 1});            // array<int, 3>
 ```
 
 ## Example
@@ -168,20 +168,22 @@ auto b = sgcl::to_array({3, 2, 1});            // sgcl::array<int, 3>
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 struct Node {
     int value = 0;
-    sgcl::tracked_ptr<Node> next;
+    tracked_ptr<Node> next;
 };
 
 struct Holder {
-    sgcl::array<sgcl::tracked_ptr<Node>, 3> nodes;      // three pointers inline, traced with the object
+    array<tracked_ptr<Node>, 3> nodes;      // three pointers inline, traced with the object
 };
 
 int main() {
     // A fixed set of roots on the stack, as one object
-    sgcl::array<sgcl::tracked_ptr<Node>, 8> roots = {};
-    for (int i : sgcl::range(8)) {
-        roots[i] = sgcl::make_tracked<Node>();
+    array<tracked_ptr<Node>, 8> roots = {};
+    for (int i : range(8)) {
+        roots[i] = make_tracked<Node>();
         roots[i]->value = i;
         if (i) {
             roots[i]->next = roots[i - 1];          // a chain, rooted through the array
@@ -189,17 +191,17 @@ int main() {
     }
 
     // Inside a managed object: the pointers go with the object
-    sgcl::tracked_ptr h = sgcl::make_tracked<Holder>();
+    tracked_ptr h = make_tracked<Holder>();
     h->nodes[2] = roots[7];
 
-    sgcl::tracked_ptr<Node> keep = roots[3];
+    tracked_ptr<Node> keep = roots[3];
     roots.fill(nullptr);                            // the chain lives on behind keep and h->nodes[2]
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
-    sgcl::collector::force_collect(true);
+    collector::force_collect(true);
 
     // A table known at compile time, searched at compile time
-    constexpr sgcl::array squares = {0, 1, 4, 9, 16, 25};
+    constexpr array squares = {0, 1, 4, 9, 16, 25};
     static_assert(squares.binary_search(16) && squares.sorted_index_of(9) == 3);
     std::cout << "node behind keep " << keep->next->value << ", squares up to " << squares.max()
               << ", " << squares.count_of([](int x) { return x % 2 == 0; }) << " even\n";

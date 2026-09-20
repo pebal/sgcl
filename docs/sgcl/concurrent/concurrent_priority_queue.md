@@ -62,11 +62,11 @@ concurrent_priority_queue(const concurrent_priority_queue&) = delete;
 An empty queue, nothing allocated until the first push; the elements of the range or the list pushed one by one.
 
 ```cpp
-sgcl::concurrent_priority_queue<int> a;                              // std::less: the smallest first
-sgcl::concurrent_priority_queue<int, std::greater<int>> b;           // the largest first
-sgcl::concurrent_priority_queue<int> c = {3, 1, 2};                  // holds 1, 2, 3
+concurrent_priority_queue<int> a;                              // std::less: the smallest first
+concurrent_priority_queue<int, std::greater<int>> b;           // the largest first
+concurrent_priority_queue<int> c = {3, 1, 2};                  // holds 1, 2, 3
 auto shorter = [](const std::string& x, const std::string& y) { return x.size() < y.size(); };
-sgcl::concurrent_priority_queue<std::string, decltype(shorter)> d(shorter);
+concurrent_priority_queue<std::string, decltype(shorter)> d(shorter);
 ```
 
 ### push, emplace
@@ -82,19 +82,19 @@ Under the lock: the element (constructed from `a...` for `emplace`) with the nex
 ```cpp
 struct Request { int priority; void handle() {} };
 struct ByPriority {
-    bool operator()(const sgcl::tracked_ptr<Request>& a, const sgcl::tracked_ptr<Request>& b) const noexcept {
+    bool operator()(const tracked_ptr<Request>& a, const tracked_ptr<Request>& b) const noexcept {
         return a->priority < b->priority;
     }
 };
-sgcl::concurrent_priority_queue<sgcl::tracked_ptr<Request>, ByPriority> requests;   // a global: sgcl::
-requests.push(sgcl::make_tracked<Request>(2));
-requests.emplace(sgcl::make_tracked<Request>(1));
+concurrent_priority_queue<tracked_ptr<Request>, ByPriority> requests;   // a global: 
+requests.push(make_tracked<Request>(2));
+requests.emplace(make_tracked<Request>(1));
 ```
 
 ### try_pop, pop
 
 ```cpp
-optional<T> try_pop();   // sgcl::optional, the alias of std::optional (sgcl/core/aliases.h)
+optional<T> try_pop();   // optional, the alias of std::optional (sgcl/core/aliases.h)
 T pop();
 ```
 
@@ -104,7 +104,7 @@ T pop();
 while (auto r = requests.try_pop()) {   // the least priority first
     (*r)->handle();
 }
-sgcl::tracked_ptr next = requests.pop();   // blocks until a push
+tracked_ptr next = requests.pop();   // blocks until a push
 ```
 
 ### try_top
@@ -116,7 +116,7 @@ optional<T> try_top() const;
 A copy of the least element, taken under the lock, or nothing when the queue is empty; the queue is not changed. For a copyable `T` only.
 
 ```cpp
-sgcl::concurrent_priority_queue<int> q = {5, 2, 8};
+concurrent_priority_queue<int> q = {5, 2, 8};
 if (auto least = q.try_top()) {   // a copy of 2; the queue still holds it
     std::cout << *least << " " << q.size() << "\n";   // 2 3
 }
@@ -127,7 +127,7 @@ if (auto least = q.try_top()) {   // a copy of 2; the queue still holds it
 Elements equal by `Compare` come out in the order they went in:
 
 ```cpp
-sgcl::concurrent_priority_queue<int> ties;
+concurrent_priority_queue<int> ties;
 ties.push(1);
 ties.push(1);
 ties.push(0);
@@ -165,6 +165,8 @@ A copy of the comparator.
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // Jobs from many threads, taken in the order of their priority, equal
 // priorities in the order they came; the queue is a member of a managed
 // object, its heap a buffer on the managed heap
@@ -173,22 +175,22 @@ struct Job {
 };
 
 struct ByPriority {
-    bool operator()(const sgcl::tracked_ptr<Job>& a, const sgcl::tracked_ptr<Job>& b) const noexcept {
+    bool operator()(const tracked_ptr<Job>& a, const tracked_ptr<Job>& b) const noexcept {
         return a->priority < b->priority;
     }
 };
 
 struct Scheduler {
-    sgcl::concurrent_priority_queue<sgcl::tracked_ptr<Job>, ByPriority> jobs;   // inside a managed object: sgcl::
+    concurrent_priority_queue<tracked_ptr<Job>, ByPriority> jobs;   // inside a managed object: 
 };
 
 int main() {
-    sgcl::tracked_ptr scheduler = sgcl::make_tracked<Scheduler>();
-    sgcl::vector<sgcl::thread> producers;
-    for (int p : sgcl::range(4)) {
+    tracked_ptr scheduler = make_tracked<Scheduler>();
+    vector<thread> producers;
+    for (int p : range(4)) {
         producers.emplace_back([&, p] {
-            for (int i : sgcl::range(1000)) {
-                scheduler->jobs.emplace(sgcl::make_tracked<Job>(i % 3, p, i));
+            for (int i : range(1000)) {
+                scheduler->jobs.emplace(make_tracked<Job>(i % 3, p, i));
             }
         });
     }
@@ -198,7 +200,7 @@ int main() {
     int taken = 0, out_of_order = 0, count[3] = {0, 0, 0};
     int priority = 0, last[4] = {-1, -1, -1, -1};
     while (auto job = scheduler->jobs.try_pop()) {   // the least priority first, at every pop
-        sgcl::tracked_ptr j = *job;
+        tracked_ptr j = *job;
         if (j->priority != priority) {               // the next priority: every producer's jobs from the start
             priority = j->priority;
             for (int& l : last) {

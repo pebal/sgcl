@@ -50,15 +50,15 @@ template<class... A> void emplace(A&&... a);
 Creates a node on the managed heap holding the element (constructed from `a...` in place for `emplace`), links it above the current head and publishes it with a compare-exchange, retrying against concurrent pushes and pops; then notifies one thread waiting in `pop`.
 
 ```cpp
-sgcl::concurrent_stack<sgcl::tracked_ptr<Work>> tasks;   // a global: sgcl::
-tasks.push(sgcl::make_tracked<Work>(1));
-tasks.emplace(sgcl::make_tracked<Work>(2));            // the element built from its arguments
+concurrent_stack<tracked_ptr<Work>> tasks;   // a global: 
+tasks.push(make_tracked<Work>(1));
+tasks.emplace(make_tracked<Work>(2));            // the element built from its arguments
 ```
 
 ### try_pop, pop
 
 ```cpp
-optional<T> try_pop();   // sgcl::optional, the alias of std::optional (sgcl/core/aliases.h)
+optional<T> try_pop();   // optional, the alias of std::optional (sgcl/core/aliases.h)
 T pop();
 ```
 
@@ -68,7 +68,7 @@ T pop();
 if (auto t = tasks.try_pop()) {
     (*t)->run();
 }
-sgcl::tracked_ptr next = tasks.pop();   // blocks until a push
+tracked_ptr next = tasks.pop();   // blocks until a push
 ```
 
 ### empty, size
@@ -94,6 +94,8 @@ Takes the whole stack off the head with a compare-exchange and destroys every el
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // Producers push jobs, consumers pop them and block while there are
 // none: the classic shape, with nothing in it about who frees a node
 struct Job {
@@ -101,18 +103,18 @@ struct Job {
 };
 
 int main() {
-    sgcl::concurrent_stack<sgcl::tracked_ptr<Job>> jobs;   // on the stack: sgcl::
-    sgcl::atomic done = 0;
-    sgcl::vector<sgcl::thread> threads;
-    for (int p : sgcl::range(4)) {
+    concurrent_stack<tracked_ptr<Job>> jobs;   // on the stack: 
+    atomic done = 0;
+    vector<thread> threads;
+    for (int p : range(4)) {
         threads.emplace_back([&, p] {
-            for (int i : sgcl::range(1000)) {
-                jobs.emplace(sgcl::make_tracked<Job>(p * 1000 + i));
+            for (int i : range(1000)) {
+                jobs.emplace(make_tracked<Job>(p * 1000 + i));
             }
         });
         threads.emplace_back([&] {
-            for (int i : sgcl::range(1000)) {
-                sgcl::tracked_ptr job = jobs.pop();     // waits when the stack is empty
+            for (int i : range(1000)) {
+                tracked_ptr job = jobs.pop();     // waits when the stack is empty
                 done += job->id >= 0;
             }                                           // the job is garbage once nothing holds it
         });

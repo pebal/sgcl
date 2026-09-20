@@ -31,15 +31,15 @@ tracked_ptr<channel<void>> writable(int fd);
 
 ```cpp
 int fd = /* a socket, a pipe */ 0;
-sgcl::task<int> read_one(int fd) {
-    co_await sgcl::readable(fd)->async_receive();          // no thread held
+task<int> read_one(int fd) {
+    co_await readable(fd)->async_receive();          // no thread held
     char c;
     co_return ::read(fd, &c, 1) == 1 ? c : -1;
 }
-sgcl::task<bool> read_one_within(int fd, sgcl::duration d) {
-    co_return co_await sgcl::async_select(
-        sgcl::readable(fd)->on_receive([] {}),
-        sgcl::timeout(d, [] {})
+task<bool> read_one_within(int fd, duration d) {
+    co_return co_await async_select(
+        readable(fd)->on_receive([] {}),
+        timeout(d, [] {})
     ) == 0;                                                 // the data came in time
 }
 ```
@@ -52,18 +52,20 @@ sgcl::task<bool> read_one_within(int fd, sgcl::duration d) {
 #include <string>
 #include <unistd.h>
 
+using namespace sgcl;
+
 using namespace std::chrono_literals;
 
 // An echo over a pipe: a reader task waits for each byte without holding
 // a thread, a writer thread sends them slowly; the reader gives up on a
 // gap longer than 50 ms. The waits are channels: bounded by a timeout,
 // awaited by a task, reclaimed by the collector.
-sgcl::task<sgcl::string> read_all(int fd) {
+task<string> read_all(int fd) {
     std::string got;                                          // the scratch buffer; the string is made once, at the end
     for (;;) {
-        size_t which = co_await sgcl::async_select(
-            sgcl::readable(fd)->on_receive([] {}),
-            sgcl::timeout(50ms, [] {})
+        size_t which = co_await async_select(
+            readable(fd)->on_receive([] {}),
+            timeout(50ms, [] {})
         );
         if (which == 1) {
             break;                                            // nothing for 50 ms: done
@@ -74,7 +76,7 @@ sgcl::task<sgcl::string> read_all(int fd) {
         }
         got += c;
     }
-    co_return sgcl::string(got);
+    co_return string(got);
 }
 
 int main() {
@@ -82,9 +84,9 @@ int main() {
     if (::pipe(fd) != 0) {
         return 1;
     }
-    auto reader = sgcl::spawn(read_all(fd[0]));
-    for (char c : sgcl::string("hello")) {
-        sgcl::this_thread::sleep_for(5ms);
+    auto reader = spawn(read_all(fd[0]));
+    for (char c : string("hello")) {
+        this_thread::sleep_for(5ms);
         [[maybe_unused]] auto n = ::write(fd[1], &c, 1);
     }
     std::cout << reader.join() << "\n";                       // hello

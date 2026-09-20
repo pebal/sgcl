@@ -52,15 +52,15 @@ template<class F> auto otherwise(F f);                           // f(): nothing
 ```
 
 ```cpp
-sgcl::channel<int> jobs(8);
-sgcl::channel<int> results(8);
-sgcl::channel<void> stop;
+channel<int> jobs(8);
+channel<int> results(8);
+channel<void> stop;
 bool running = true;
 while (running) {
-    sgcl::select(
+    select(
         jobs.on_receive([&](int job) { results.send(job * 2); }),     // served: an element came
         stop.on_receive([&] { running = false; }),                    // served: a signal, or stop closed
-        sgcl::otherwise([] { sgcl::this_thread::yield(); })            // nothing at once: a poll, not a wait
+        otherwise([] { this_thread::yield(); })            // nothing at once: a poll, not a wait
     );
 }
 ```
@@ -71,22 +71,24 @@ while (running) {
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // A worker that serves two queues and a stop signal: jobs come on one
 // channel, urgent ones on another; the worker takes whichever has
 // something, urgent or not, and ends on the signal. Everything it holds
 // is managed; the channels hold the jobs while they wait.
 struct Job {
-    sgcl::string name;
+    string name;
     int cost;
 };
 
-sgcl::task<int> worker(sgcl::channel<sgcl::tracked_ptr<Job>>& jobs, sgcl::channel<sgcl::tracked_ptr<Job>>& urgent, sgcl::channel<void>& stop) {
+task<int> worker(channel<tracked_ptr<Job>>& jobs, channel<tracked_ptr<Job>>& urgent, channel<void>& stop) {
     int done = 0;
     bool running = true;
     while (running) {
-        co_await sgcl::async_select(
-            urgent.on_receive([&](sgcl::tracked_ptr<Job> job) { done += job->cost; }),
-            jobs.on_receive([&](sgcl::tracked_ptr<Job> job) { done += job->cost; }),
+        co_await async_select(
+            urgent.on_receive([&](tracked_ptr<Job> job) { done += job->cost; }),
+            jobs.on_receive([&](tracked_ptr<Job> job) { done += job->cost; }),
             stop.on_receive([&] { running = false; })
         );
     }
@@ -94,17 +96,17 @@ sgcl::task<int> worker(sgcl::channel<sgcl::tracked_ptr<Job>>& jobs, sgcl::channe
 }
 
 int main() {
-    sgcl::channel<sgcl::tracked_ptr<Job>> jobs(4), urgent(4);
-    sgcl::channel<void> stop;
-    auto w = sgcl::spawn(worker(jobs, urgent, stop));
-    for (int i : sgcl::range(10)) {
-        jobs.send(sgcl::make_tracked<Job>("job " + sgcl::to_string(i), 1));
+    channel<tracked_ptr<Job>> jobs(4), urgent(4);
+    channel<void> stop;
+    auto w = spawn(worker(jobs, urgent, stop));
+    for (int i : range(10)) {
+        jobs.send(make_tracked<Job>("job " + to_string(i), 1));
         if (i % 3 == 0) {
-            urgent.send(sgcl::make_tracked<Job>("urgent " + sgcl::to_string(i), 10));
+            urgent.send(make_tracked<Job>("urgent " + to_string(i), 10));
         }
     }
     while (!jobs.empty() || !urgent.empty()) {
-        sgcl::this_thread::yield();                            // the worker drains both
+        this_thread::yield();                            // the worker drains both
     }
     stop.close();                                             // the worker's loop ends
     std::cout << "cost " << w.join() << "\n";                 // cost 50

@@ -29,11 +29,11 @@ class shared_guard;  class guard;
 ```
 
 ```cpp
-sgcl::shared_mutex table;
-auto read = [](sgcl::shared_mutex& table) -> sgcl::task<> {
+shared_mutex table;
+auto read = [](shared_mutex& table) -> task<> {
     auto guard = co_await table.async_scoped_lock_shared();   // with the other readers
 };
-auto write = [](sgcl::shared_mutex& table) -> sgcl::task<> {
+auto write = [](shared_mutex& table) -> task<> {
     auto guard = co_await table.async_scoped_lock();          // alone
 };
 ```
@@ -47,32 +47,34 @@ A table read by four tasks and grown by one, the readers' results handed to the 
 #include <iostream>
 #include <mutex>
 
+using namespace sgcl;
+
 // A table read by many tasks and grown by one, under a shared_mutex; the
 // readers' results handed to the main thread through a queue under a
 // mutex with a condition variable. Every wait of a task is a co_await.
 struct Table {
-    sgcl::shared_mutex lock;
-    sgcl::vector<int> squares;   // guarded by lock
+    shared_mutex lock;
+    vector<int> squares;   // guarded by lock
 };
 
 struct Results {
-    sgcl::mutex lock;
-    sgcl::condition_variable ready;
-    sgcl::vector<long> queue;    // guarded by lock
+    mutex lock;
+    condition_variable ready;
+    vector<long> queue;    // guarded by lock
     int pending = 0;             // guarded by lock
 };
 
-sgcl::task<> reader(sgcl::tracked_ptr<Table> table, sgcl::tracked_ptr<Results> results, int rounds) {
+task<> reader(tracked_ptr<Table> table, tracked_ptr<Results> results, int rounds) {
     long consistent = 0;
-    for (int round : sgcl::range(rounds)) {
+    for (int round : range(rounds)) {
         (void)round;
         auto guard = co_await table->lock.async_scoped_lock_shared();   // any number of readers at once, never with the writer
         bool ok = true;
-        for (size_t i : sgcl::range(table->squares.size())) {
+        for (size_t i : range(table->squares.size())) {
             ok = ok && table->squares[i] == (int)((i + 1) * (i + 1));
         }
         consistent += ok;
-        co_await sgcl::yield();
+        co_await yield();
     }
     auto guard = co_await results->lock.async_scoped_lock();
     results->queue.push_back(consistent);
@@ -80,23 +82,23 @@ sgcl::task<> reader(sgcl::tracked_ptr<Table> table, sgcl::tracked_ptr<Results> r
     results->ready.notify_one();
 }
 
-sgcl::task<> writer(sgcl::tracked_ptr<Table> table, int rounds) {
-    for (int i : sgcl::range(rounds)) {
+task<> writer(tracked_ptr<Table> table, int rounds) {
+    for (int i : range(rounds)) {
         auto guard = co_await table->lock.async_scoped_lock();         // alone: the readers wait, and new ones queue behind it
         table->squares.push_back((i + 1) * (i + 1));
-        co_await sgcl::yield();
+        co_await yield();
     }
 }
 
 int main() {
-    sgcl::tracked_ptr table = sgcl::make_tracked<Table>();
-    sgcl::tracked_ptr results = sgcl::make_tracked<Results>();
+    tracked_ptr table = make_tracked<Table>();
+    tracked_ptr results = make_tracked<Results>();
     results->pending = 4;
-    for (int i : sgcl::range(4)) {
+    for (int i : range(4)) {
         (void)i;
-        sgcl::go(reader(table, results, 100));
+        go(reader(table, results, 100));
     }
-    sgcl::task<> w = sgcl::spawn(writer(table, 100));
+    task<> w = spawn(writer(table, 100));
     long total = 0;
     std::unique_lock lock(results->lock);                                  // this thread: the standard's lock over the module's mutex
     results->ready.wait(lock, [&] { return results->pending == 0; });     // the predicate, checked under the mutex before each wait
@@ -107,7 +109,7 @@ int main() {
     w.join();
     std::cout << table->squares.size() << " squares, the last " << table->squares.back() << "\n";
     std::cout << results->queue.size() << " readers, " << total << " consistent looks at the table\n";
-    sgcl::scheduler::stop();
+    scheduler::stop();
 }
 ```
 

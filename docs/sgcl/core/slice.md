@@ -75,22 +75,22 @@ template<class T> slice<std::byte> as_writable_bytes(const slice<T>& s) noexcept
 ```
 
 ```cpp
-sgcl::string text = "name = alice, bob";
-sgcl::string_slice value = text.as_slice(7);          // "alice, bob": a piece of text that holds it
-sgcl::slice<const char> name = value.trim_prefix("alice, ");   // "bob", the same owner, nothing copied
+string text = "name = alice, bob";
+string_slice value = text.as_slice(7);          // "alice, bob": a piece of text that holds it
+slice<const char> name = value.trim_prefix("alice, ");   // "bob", the same owner, nothing copied
 for (auto piece : text.split(','))                    // the pieces of a string: slices of it
     std::cout << piece.trim() << '\n';
 
-sgcl::vector<std::byte> buffer(4096);
-sgcl::slice<std::byte> room = buffer;                  // the buffer's own object as the owner
+vector<std::byte> buffer(4096);
+slice<std::byte> room = buffer;                  // the buffer's own object as the owner
 auto n = file->read(room);                             // io::reader::read takes a slice; an async_read holds the buffer while the task waits
 auto data = room.first(*n);
 
 int local[16];
-sgcl::slice<int> ints(local);                          // a stack array: no owner, a span
+slice<int> ints(local);                          // a stack array: no owner, a span
 ints.fill(0);
-sgcl::vector v = {5, 3, 4};
-sgcl::slice<int> tail = v.as_slice(1);
+vector v = {5, 3, 4};
+slice<int> tail = v.as_slice(1);
 tail.sort();                                           // the mixins: v is 5 3 4 now, the slice sorted in place; tail.max() is 4
 ```
 
@@ -100,18 +100,20 @@ tail.sort();                                           // the mixins: v is 5 3 4
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // A tokenizer whose tokens are slices of the text: nothing copied, the
 // text alive for as long as any token is, wherever the tokens go
 struct Token {
-    sgcl::string_slice text;
+    string_slice text;
     int line;
 };
 
-sgcl::vector<Token> tokenize(const sgcl::string& source) {
-    sgcl::vector<Token> tokens;
+vector<Token> tokenize(const string& source) {
+    vector<Token> tokens;
     int line = 1;
     for (auto raw : source.split('\n')) {                          // each piece a slice of source
-        for (auto word : sgcl::string(raw).fields()) {             // the words of the line (fields is the string's: a string of the line, one allocation per line)
+        for (auto word : string(raw).fields()) {             // the words of the line (fields is the string's: a string of the line, one allocation per line)
             tokens.push_back({word, line});
         }
         ++line;
@@ -120,12 +122,12 @@ sgcl::vector<Token> tokenize(const sgcl::string& source) {
 }
 
 int main() {
-    sgcl::vector<Token> tokens;
+    vector<Token> tokens;
     {
-        sgcl::string source = "let x = 1\nlet y = x + 2";          // dies at the brace, as a variable
+        string source = "let x = 1\nlet y = x + 2";          // dies at the brace, as a variable
         tokens = tokenize(source);
     }
-    sgcl::collector::force_collect();                              // optional, to show the result at once
+    collector::force_collect();                              // optional, to show the result at once
     for (auto& t : tokens) {                                       // the texts live on: each slice holds its line
         std::cout << t.line << ": " << t.text << '\n';
     }

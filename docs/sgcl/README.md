@@ -20,7 +20,7 @@ The sections below list the same pages by what they are.
 
 | page | header | what it is |
 |---|---|---|
-| [tracked_ptr](core/tracked_ptr.md) | `sgcl/core/tracked_ptr.h` | the pointer the collector follows: one word, a write barrier, no count; aliases, `type()`, `is<U>()`, `as<U>()`, `if_alive()`; `shade()` and the unshaded store for the copies of immutable nodes |
+| [tracked_ptr](core/tracked_ptr.md) | `sgcl/core/tracked_ptr.h` | the pointer the collector follows: one word, a write barrier, no count; aliases, `type()`, `is<U>()`, `as<U>()`, `if_alive()`; `shade()` and the store with `barrier::off` for the copies of immutable nodes |
 | [unique_ptr](core/unique_ptr.md) | `sgcl/core/unique_ptr.h` | what `make_tracked` returns: a `std::unique_ptr` to a managed object, deterministic until moved into a `tracked_ptr` |
 | [make_tracked](core/make_tracked.md) | `sgcl/core/make_tracked.h` | creates an object on the managed heap |
 | [root_ptr](core/root_ptr.md) | `sgcl/core/root_ptr.h` | a root that lives anywhere (a global, a `std` container, a lambda on the heap): a cell of a managed block under it, the `tracked_ptr` it holds its object by one step away; the pointer of an interpreter's handle table or a program's globals |
@@ -147,4 +147,4 @@ Structures shared by any number of threads without a lock, the textbook algorith
 
 ## Reading the pages
 
-Every page has the same layout: the include and the declaration, what the class is and how it differs from `std`, the rules that apply to it (where an object of the class may live, what it may hold, thread safety, what happens in destructors), the members in the order of the header, each with its signature and a short example, one complete program at the end, and links to the related pages and README sections. The examples use C++20 class template argument deduction (`sgcl::tracked_ptr p = sgcl::make_tracked<T>();`) and every `force_collect()` in them is optional, there to show the result at once.
+Every page has the same layout: the include and the declaration, what the class is and how it differs from `std`, the rules that apply to it (where an object of the class may live, what it may hold, thread safety, what happens in destructors), the members in the order of the header, each with its signature and a short example, one complete program at the end, and links to the related pages and README sections. The examples use C++20 class template argument deduction (`tracked_ptr p = make_tracked<T>();`) and every `force_collect()` in them is optional, there to show the result at once. The code on the pages assumes `using namespace sgcl;` — each complete program says so after its includes, and the snippets of the members write the names bare; the synopsis blocks stand inside `namespace sgcl` as the headers do. One name the pages qualify: `sgcl::sleep`, which `<unistd.h>` makes ambiguous under the using-directive.

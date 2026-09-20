@@ -55,9 +55,9 @@ Committed memory has a ceiling: by default 90% of the cgroup memory limit on Lin
 
 ```cpp
 // Current committed size of the managed heap in bytes
-auto used = sgcl::collector::get_committed_memory();
+auto used = collector::get_committed_memory();
 
 // Ceiling on the committed size; 0 disables it
-auto limit = sgcl::collector::get_memory_limit();
-sgcl::collector::set_memory_limit(size_t(4) << 30);   // 4 GB
+auto limit = collector::get_memory_limit();
+collector::set_memory_limit(size_t(4) << 30);   // 4 GB
 ```

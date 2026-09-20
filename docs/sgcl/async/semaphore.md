@@ -27,8 +27,8 @@ size_t available() const noexcept;             // the permits free now
 ```
 
 ```cpp
-sgcl::semaphore slots(4);                       // four at a time
-auto fetch = [](sgcl::semaphore& slots) -> sgcl::task<> {
+semaphore slots(4);                       // four at a time
+auto fetch = [](semaphore& slots) -> task<> {
     co_await slots.async_acquire();
     // ... at most four here
     slots.release();

@@ -30,7 +30,7 @@ The map is two words and its function objects: the size and a `tracked_ptr` to t
 ```cpp
 using key_type = Key;
 using mapped_type = T;
-using value_type = pair<const Key, T>;   // sgcl::pair, the alias of std::pair (sgcl/core/aliases.h)
+using value_type = pair<const Key, T>;   // pair, the alias of std::pair (sgcl/core/aliases.h)
 using hasher = Hash;
 using key_equal = KeyEqual;
 using size_type = size_t;
@@ -53,9 +53,9 @@ map& operator=(const map&) noexcept;
 An empty map holds no node at all. A range or a list is built at once, not by an insert per element: the elements are taken into a buffer, sorted by their hashes in the trie's order (the low chunk first, as the trie consumes it), and the trie is made from the root down, every node allocated once at its size and every entry constructed once; a key that occurs twice keeps its last occurrence, as an insert would replace the earlier. 90 ns per element for 200,000 random `long` keys, against 700 for the inserts that would build the same map (the benchmarks page).
 
 ```cpp
-sgcl::im::map<sgcl::string, int> ports = {{"http", 80}, {"https", 443}};
+im::map<string, int> ports = {{"http", 80}, {"https", 443}};
 std::map<int, int> squares = {{1, 1}, {2, 4}, {3, 9}};
-sgcl::im::map from_range(squares.begin(), squares.end());   // deduced: map<int, int>
+im::map from_range(squares.begin(), squares.end());   // deduced: map<int, int>
 ```
 
 ### begin, end, cbegin, cend, size, empty, hash_function, key_eq
@@ -84,11 +84,11 @@ template<class K> const T* find(const K& key) const;   // when Hash and KeyEqual
 The value under the key, or null: log32(*n*) nodes walked, the key compared once (once per element of a chain when hashes collide); 13 ns for a random key of a hundred thousand `int`s.
 
 ```cpp
-sgcl::im::map<sgcl::string, int> ports = {{"http", 80}, {"https", 443}};
+im::map<string, int> ports = {{"http", 80}, {"https", 443}};
 if (auto p = ports.find("https")) {          // a literal: transparent, no string made
     std::cout << *p << '\n';
 }
-sgcl::string url = "ftp://host";
+string url = "ftp://host";
 bool known = ports.contains(url.as_slice(0, 3)); // false: a view of another string, nothing built
 ```
 
@@ -106,7 +106,7 @@ template<class... A> map emplace(const Key& key, A&&... a) const;
 The map with `value` under `key`, added, or in place of the value there (the size grows only when the key was absent): the nodes on the path copied, log32(*n*) of them, the rest shared. `emplace` builds the value from the arguments. 590 ns per insert while building a hundred thousand `int`s, 750 ns replacing values in the built map.
 
 ```cpp
-sgcl::im::map<sgcl::string, int> ports = {{"http", 80}};
+im::map<string, int> ports = {{"http", 80}};
 auto more = ports.insert("https", 443);      // ports has one element, more has two
 auto changed = more.insert("http", 8080);    // more still says 80
 auto built = ports.emplace("ssh", 22);
@@ -122,7 +122,7 @@ template<class K> map erase(const K& key) const;   // when Hash and KeyEqual are
 The map without the element under the key: the path copied, a node emptied dropped, a subtrie left with one element folded into its parent; the same map, sharing everything, when the key is absent. 670 ns per erase over a hundred thousand `int`s.
 
 ```cpp
-sgcl::im::map<sgcl::string, int> ports = {{"http", 80}, {"https", 443}};
+im::map<string, int> ports = {{"http", 80}, {"https", 443}};
 auto fewer = ports.erase("http");            // ports still has both
 ```
 
@@ -140,7 +140,7 @@ The same keys with equal values, whatever the two share.
 `im::map` carries [mixin::enumerable](../../core/mixin/enumerable.md) over its pairs (`contains` and `find` its own, by the key) and [mixin::lookup](../../core/mixin/lookup.md), the reads by the key over its `find` — `get`, `try_get`, `value_or`, `contains_key`, `keys`, `values` ([the mixins](../../core/mixin/README.md)).
 
 ```cpp
-sgcl::im::map<int, int> m = sgcl::im::map<int, int>().insert(1, 10);
+im::map<int, int> m = im::map<int, int>().insert(1, 10);
 assert(m.contains(1) && m.exists([](const auto& kv) { return kv.second == 10; }));
 assert(*m.get(1) == 10 && !m.get(2) && m.value_or(2, 0) == 0 && m.contains_key(1));
 ```
@@ -151,16 +151,18 @@ assert(*m.get(1) == 10 && !m.get(2) && m.value_or(2, 0) == 0 && m.contains_key(1
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // A configuration read on every request by many threads and changed
 // once in a while by one: the readers take a snapshot, the writer
 // publishes a new version that shares all but one path with the old
 // one, and nobody copies a map or takes a lock
 int main() {
-    sgcl::copy_on_write<sgcl::im::map<sgcl::string, int>> limits(sgcl::im::map<sgcl::string, int>{{"connections", 100}, {"requests", 1000}});
-    sgcl::atomic stop = false;
-    sgcl::atomic<long> reads = 0, inconsistent = 0;
-    sgcl::vector<sgcl::thread> readers;
-    for (int r : sgcl::range(4)) {
+    copy_on_write<im::map<string, int>> limits(im::map<string, int>{{"connections", 100}, {"requests", 1000}});
+    atomic stop = false;
+    atomic<long> reads = 0, inconsistent = 0;
+    vector<thread> readers;
+    for (int r : range(4)) {
         readers.emplace_back([&] {
             while (!stop) {
                 auto snapshot = limits.load();                      // one load: this version, for as long as snapshot lives
@@ -171,7 +173,7 @@ int main() {
             }
         });
     }
-    for (int i : sgcl::range(1, 101)) {
+    for (int i : range(1, 101)) {
         limits.update([i](auto& m) {                                // two paths copied, the rest of the map shared
             m = m.insert("connections", 100 * i).insert("requests", 1000 * i);
         });
@@ -194,7 +196,7 @@ The output of one run (the reads depend on how the threads interleave):
 
 ## Measured
 
-On an Apple M-series core, `-O2`, `map<long, long>` of 200,000 random keys (`bench_im`): `insert` 480 ns a version each (`std::unordered_map`: 52), `find` 24 ns (`std::unordered_map`: 10), the constructor from a range 91 ns per element; against [immer](https://github.com/arximboldi/immer)'s map, the same trie over atomic reference counts, 452, 16 and 154 ([Benchmarks](benchmarks.md)). An insert or an erase copies four nodes, three of them full: the links copied without the barrier and each source node shaded once ([tracked_ptr: shade](../../core/tracked_ptr.md#shade)), the elements as any copy, which is where the time goes; the find's gap to immer is the entry holding its link and its element apart, a load more per level. One version of a hundred thousand `int` pairs is 2.99 MB, 30 bytes per element; a second version differing in one value adds 1.6 KB, a third with one more element 1.7 KB.
+On an Apple M-series core, `-O2`, `map<long, long>` of 200,000 random keys (`bench_im`): `insert` 480 ns a version each (`std::unordered_map`: 52), `find` 24 ns (`std::unordered_map`: 10), the constructor from a range 91 ns per element; against [immer](https://github.com/arximboldi/immer)'s map, the same trie over atomic reference counts, 452, 16 and 154 ([Benchmarks](benchmarks.md)). An insert or an erase copies four nodes, three of them full: the links copied without the barrier and each source node shaded once ([tracked_ptr: shade](../../core/tracked_ptr.md#shade-storep-barrieroff)), the elements as any copy, which is where the time goes; the find's gap to immer is the entry holding its link and its element apart, a load more per level. One version of a hundred thousand `int` pairs is 2.99 MB, 30 bytes per element; a second version differing in one value adds 1.6 KB, a third with one more element 1.7 KB.
 
 ## See also
 

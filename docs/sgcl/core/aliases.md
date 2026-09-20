@@ -30,34 +30,36 @@ Where the library hands one back: `optional<T>` from [channel](../async/channel.
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 struct Node {
     int value;
-    sgcl::tracked_ptr<Node> next;
+    tracked_ptr<Node> next;
 };
 
 // The first node with a value above the limit, or nothing: an optional of
 // a tracked_ptr, the pointer at a fixed offset of its own, so that the
 // node found stays alive as long as the optional holds it.
-sgcl::optional<sgcl::tracked_ptr<Node>> first_above(sgcl::tracked_ptr<Node> n, int limit) {
+optional<tracked_ptr<Node>> first_above(tracked_ptr<Node> n, int limit) {
     for (; n; n = n->next) {
         if (n->value > limit) {
             return n;
         }
     }
-    return sgcl::nullopt;
+    return nullopt;
 }
 
 int main() {
-    sgcl::tracked_ptr head = sgcl::make_tracked<Node>(1);
-    head->next = sgcl::make_tracked<Node>(5);
-    head->next->next = sgcl::make_tracked<Node>(9);
+    tracked_ptr head = make_tracked<Node>(1);
+    head->next = make_tracked<Node>(5);
+    head->next->next = make_tracked<Node>(9);
 
     if (auto found = first_above(head, 4)) {
         std::cout << (*found)->value << "\n";                     // 5
     }
     std::cout << first_above(head, 10).has_value() << "\n";       // 0
 
-    sgcl::pair<sgcl::tracked_ptr<Node>, int> counted{head, 3};    // a pointer and a count, each in a word of its own
+    pair<tracked_ptr<Node>, int> counted{head, 3};    // a pointer and a count, each in a word of its own
     auto [node, count] = counted;
     std::cout << node->value << " " << count << "\n";             // 1 3
     return 0;

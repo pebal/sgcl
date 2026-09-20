@@ -51,10 +51,10 @@ vector& operator=(const vector&) noexcept;
 An empty vector holds no node at all. The range and the list constructors fill the leaves in place, 32 elements at a time, so building from a range costs what `std::vector` costs plus the branches.
 
 ```cpp
-sgcl::im::vector<int> empty;
-sgcl::im::vector<int> primes = {2, 3, 5, 7};
+im::vector<int> empty;
+im::vector<int> primes = {2, 3, 5, 7};
 std::vector<int> v(1000, 1);
-sgcl::im::vector from_range(v.begin(), v.end());   // deduced: vector<int>
+im::vector from_range(v.begin(), v.end());   // deduced: vector<int>
 ```
 
 ### size, empty, depth
@@ -88,7 +88,7 @@ const_reverse_iterator rend() const noexcept;
 A random-access iterator, so the algorithms of `<algorithm>` and `std::ranges` apply. It remembers the leaf it is in and walks the trie once in 32 elements: 0.55 ns per element over a hundred thousand.
 
 ```cpp
-sgcl::im::vector<int> v = {5, 3, 9, 1};
+im::vector<int> v = {5, 3, 9, 1};
 auto smallest = std::ranges::min_element(v);   // an iterator: *smallest is 1
 auto sum = std::accumulate(v.begin(), v.end(), 0);
 ```
@@ -104,7 +104,7 @@ template<class... A> vector emplace_back(A&&... a) const;
 The vector with one more element at the end. The tail is copied with the element appended, and when it was full it goes into the trie as it is, along a copied path, with the element alone in a new tail: 21 ns per push of an `int`, a hundred thousand times over.
 
 ```cpp
-sgcl::im::vector<int> v = {1, 2};
+im::vector<int> v = {1, 2};
 auto w = v.push_back(3);   // v is {1, 2}, w is {1, 2, 3}
 ```
 
@@ -126,7 +126,7 @@ vector set(size_type i, T&& value) const;
 The vector with the element at `i` replaced: the branches on the path to it and the leaf copied, everything else shared. 185 ns for a random position of a hundred thousand `int`s.
 
 ```cpp
-sgcl::im::vector<int> v = {1, 2, 3};
+im::vector<int> v = {1, 2, 3};
 auto w = v.set(1, 20);   // v is {1, 2, 3}, w is {1, 20, 3}
 ```
 
@@ -144,9 +144,9 @@ The same elements in the same order, whatever the two share.
 `im::vector` carries [mixin::enumerable](../../core/mixin/enumerable.md), [mixin::comparable](../../core/mixin/comparable.md), [mixin::ordered](../../core/mixin/ordered.md) and the random-access category ([the mixins](../../core/mixin/README.md)): it answers what a `vector` answers — `contains`, `index_of`, `min`, `is_sorted`, `binary_search`, `lower_bound` — and has no `sort()`, nothing being written in place; its `==` is its own, a version and its copy equal by the trie.
 
 ```cpp
-sgcl::im::vector<int> v = sgcl::im::vector<int>().push_back(1).push_back(3);
+im::vector<int> v = im::vector<int>().push_back(1).push_back(3);
 assert(v.contains(3) && v.is_sorted() && v.binary_search(3) && v.max() == 3);
-static_assert(sgcl::req::ordered<sgcl::im::vector<int>> && !sgcl::req::sequence<sgcl::im::vector<int>>);
+static_assert(req::ordered<im::vector<int>> && !req::sequence<im::vector<int>>);
 ```
 
 ## Example
@@ -155,12 +155,14 @@ static_assert(sgcl::req::ordered<sgcl::im::vector<int>> && !sgcl::req::sequence<
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // An undo history in one line per step: every version of the document
 // is kept, and the versions share all but what each step changed
 int main() {
-    sgcl::vector<sgcl::im::vector<char>> history;
-    sgcl::im::vector<char> text;
-    sgcl::string word = "persistent";
+    vector<im::vector<char>> history;
+    im::vector<char> text;
+    string word = "persistent";
     for (char c : word) {
         text = text.push_back(c);
         history.push_back(text);              // a version: four words, no copy of the text
@@ -168,12 +170,12 @@ int main() {
     text = text.set(0, 'P');
     history.push_back(text);
     for (auto& version : history) {
-        std::cout << sgcl::string(version.begin(), version.end()) << '\n';
+        std::cout << string(version.begin(), version.end()) << '\n';
     }
     // the versions differing in one element share the rest: a hundred
     // thousand ints twice costs the one vector plus a path
-    sgcl::im::vector<int> big;
-    for (int i : sgcl::range(100000)) {
+    im::vector<int> big;
+    for (int i : range(100000)) {
         big = big.push_back(i);
     }
     auto changed = big.set(50000, -1);
@@ -201,7 +203,7 @@ Persistent
 
 ## Measured
 
-On an Apple M-series core, `-O2`, `vector<long>` of a million elements (`bench_im`): `push_back` 22 ns a version each (`std::vector`: 0.4), `set` at a random position 133 ns, `operator[]` at a random position 5 ns (`std::vector`: 0.5), a million built at once 4.9 ns per element; against [immer](https://github.com/arximboldi/immer)'s vector, the same trie over atomic reference counts, 31, 308, 3.6 and 2.8 ([Benchmarks](benchmarks.md)). One version of a hundred thousand `int`s is 439 KB, 4.4 bytes per element; a second version differing in one element adds 0.9 KB, a third with one more element 0.9 KB. A change costs the copy of a path — the branches copied without the barrier, each source shaded once ([tracked_ptr: shade](../../core/tracked_ptr.md#shade)) — a read costs a few dependent loads: the price of every version staying what it was.
+On an Apple M-series core, `-O2`, `vector<long>` of a million elements (`bench_im`): `push_back` 22 ns a version each (`std::vector`: 0.4), `set` at a random position 133 ns, `operator[]` at a random position 5 ns (`std::vector`: 0.5), a million built at once 4.9 ns per element; against [immer](https://github.com/arximboldi/immer)'s vector, the same trie over atomic reference counts, 31, 308, 3.6 and 2.8 ([Benchmarks](benchmarks.md)). One version of a hundred thousand `int`s is 439 KB, 4.4 bytes per element; a second version differing in one element adds 0.9 KB, a third with one more element 0.9 KB. A change costs the copy of a path — the branches copied without the barrier, each source shaded once ([tracked_ptr: shade](../../core/tracked_ptr.md#shade-storep-barrieroff)) — a read costs a few dependent loads: the price of every version staying what it was.
 
 ## See also
 

@@ -67,8 +67,8 @@ The same given the coroutine function rather than its task — a lambda **with c
 
 ```cpp
 int n = 7;
-sgcl::tracked_ptr node = make_tracked<Node>();
-auto t = sgcl::spawn([n, node]() -> sgcl::task<int> {   // the closure lives in the task's frame; node is rooted by it
+tracked_ptr node = make_tracked<Node>();
+auto t = spawn([n, node]() -> task<int> {   // the closure lives in the task's frame; node is rooted by it
     co_await sgcl::sleep(10ms);
     co_return node->value + n;
 });
@@ -77,7 +77,7 @@ auto t = sgcl::spawn([n, node]() -> sgcl::task<int> {   // the closure lives in 
 ### yield
 
 ```cpp
-struct yield {   // an awaitable: co_await sgcl::yield()
+struct yield {   // an awaitable: co_await yield()
     bool await_ready() const noexcept;
     template<class P> void await_suspend(std::coroutine_handle<P>);
     void await_resume() const noexcept;
@@ -92,6 +92,8 @@ The running task goes to the back of the queue and the worker takes the next rea
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // A pipeline of tasks: producers send jobs on one channel, workers turn
 // each into a result on another, one task sums the results. Nothing
 // here is a thread: every wait is a co_await, every task a frame on the
@@ -100,19 +102,19 @@ struct Job {
     int id;
 };
 
-sgcl::task<> producer(sgcl::channel<sgcl::tracked_ptr<Job>>& jobs, int from, int count) {
-    for (int i : sgcl::range(count)) {
-        co_await jobs.async_send(sgcl::make_tracked<Job>(from + i));   // suspends while jobs is full
+task<> producer(channel<tracked_ptr<Job>>& jobs, int from, int count) {
+    for (int i : range(count)) {
+        co_await jobs.async_send(make_tracked<Job>(from + i));   // suspends while jobs is full
     }
 }
 
-sgcl::task<> worker(sgcl::channel<sgcl::tracked_ptr<Job>>& jobs, sgcl::channel<int>& results) {
+task<> worker(channel<tracked_ptr<Job>>& jobs, channel<int>& results) {
     while (auto job = co_await jobs.async_receive()) {                 // suspends while jobs is empty
         co_await results.async_send((*job)->id * 2);
     }
 }
 
-sgcl::task<long> summer(sgcl::channel<int>& results) {
+task<long> summer(channel<int>& results) {
     long sum = 0;
     while (auto r = co_await results.async_receive()) {
         sum += *r;
@@ -121,16 +123,16 @@ sgcl::task<long> summer(sgcl::channel<int>& results) {
 }
 
 int main() {
-    sgcl::channel<sgcl::tracked_ptr<Job>> jobs(8);
-    sgcl::channel<int> results(8);
-    sgcl::vector<sgcl::task<>> producers, workers;
-    for (int p : sgcl::range(4)) {
-        producers.push_back(sgcl::spawn(producer(jobs, p * 100, 100)));
+    channel<tracked_ptr<Job>> jobs(8);
+    channel<int> results(8);
+    vector<task<>> producers, workers;
+    for (int p : range(4)) {
+        producers.push_back(spawn(producer(jobs, p * 100, 100)));
     }
-    for (int w : sgcl::range(3)) {
-        workers.push_back(sgcl::spawn(worker(jobs, results)));
+    for (int w : range(3)) {
+        workers.push_back(spawn(worker(jobs, results)));
     }
-    auto sum = sgcl::spawn(summer(results));
+    auto sum = spawn(summer(results));
     for (auto& p : producers) {
         p.join();                                      // this thread waits; the tasks run on the workers
     }

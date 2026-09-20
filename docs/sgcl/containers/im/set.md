@@ -49,7 +49,7 @@ friend bool operator!=(const set& a, const set& b);
 ```
 
 ```cpp
-sgcl::im::set<sgcl::string> seen = {"alice", "bob"};
+im::set<string> seen = {"alice", "bob"};
 auto with_carol = seen.insert("carol");          // seen has two elements, with_carol three
 bool was_there = seen.contains("carol");         // false: a literal, transparent
 auto without_bob = with_carol.erase("bob");      // a literal again
@@ -60,7 +60,7 @@ auto without_bob = with_carol.erase("bob");      // a literal again
 `im::set` carries [mixin::enumerable](../../core/mixin/enumerable.md) (`contains` and `find` its own) ([the mixins](../../core/mixin/README.md)).
 
 ```cpp
-sgcl::im::set<int> s = sgcl::im::set<int>().insert(2);
+im::set<int> s = im::set<int>().insert(2);
 assert(s.contains(2) && s.count_of([](int x) { return x > 1; }) == 1);
 ```
 
@@ -70,16 +70,18 @@ assert(s.contains(2) && s.count_of([](int x) { return x > 1; }) == 1);
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // The ids seen so far, one version per step: what was seen at step k is
 // still known at the end, and the versions share all but a path each
 int main() {
-    sgcl::vector<sgcl::im::set<int>> at_step;
-    sgcl::im::set<int> seen;
+    vector<im::set<int>> at_step;
+    im::set<int> seen;
     for (int id : {7, 3, 7, 9, 3, 1}) {
         seen = seen.insert(id);
         at_step.push_back(seen);                      // two words: the version as it is now
     }
-    for (int k : sgcl::range(at_step.size())) {
+    for (int k : range(at_step.size())) {
         std::cout << "step " << k << ": " << at_step[k].size() << " ids, 9 " << (at_step[k].contains(9) ? "seen" : "not yet") << '\n';
     }
     return seen.size() == 4 ? 0 : 1;

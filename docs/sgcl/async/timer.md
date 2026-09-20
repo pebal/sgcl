@@ -38,7 +38,7 @@ Under them one thread with a heap of timers, asleep until the earliest is due an
 ### sleep, sleep_until
 
 ```cpp
-explicit sleep(duration d) noexcept;          // an awaitable: co_await sleep(d)
+explicit sleep(duration d) noexcept;          // an awaitable: co_await sgcl::sleep(d)
 explicit sleep_until(time_point t) noexcept;  // co_await sleep_until(t)
 void wait() const;                            // both: the thread blocked instead, through the clock
 ```
@@ -62,26 +62,26 @@ template<class F> auto timeout(time_point t, F f);   // the same at a point
 ```
 
 ```cpp
-auto t = sgcl::spawn([]() -> sgcl::task<> {
+auto t = spawn([]() -> task<> {
     co_await sgcl::sleep(100ms);                                 // no thread held
 }());
-auto later = sgcl::after(50ms);
+auto later = after(50ms);
 later->receive();                                                // true, after 50 ms; false from then on
-sgcl::channel<int> data;
-sgcl::select(
+channel<int> data;
+select(
     data.on_receive([](int v) { /* came in time */ }),
-    sgcl::timeout(1s, [] { /* did not */ })
+    timeout(1s, [] { /* did not */ })
 );
-auto every = sgcl::tick(10ms);
+auto every = tick(10ms);
 for (int i = 0; i < 3 && every->receive(); ++i) { /* at 10, 20, 30 ms */ }
 every->close();                                                  // no more ticks
-auto deadline = sgcl::clock::now() + 50ms;                       // a point: the same for a task and a thread
-auto u = sgcl::spawn([](sgcl::time_point deadline) -> sgcl::task<> {
-    co_await sgcl::sleep_until(deadline);
+auto deadline = clock::now() + 50ms;                       // a point: the same for a task and a thread
+auto u = spawn([](time_point deadline) -> task<> {
+    co_await sleep_until(deadline);
 }(deadline));
-sgcl::sleep_until(deadline).wait();                              // this thread, until the same point
-sgcl::at(deadline)->receive();                                   // true at once: the point has passed
-auto aligned = sgcl::tick(1s, std::chrono::ceil<std::chrono::seconds>(sgcl::clock::now()));   // on the whole seconds
+sleep_until(deadline).wait();                              // this thread, until the same point
+at(deadline)->receive();                                   // true at once: the point has passed
+auto aligned = tick(1s, std::chrono::ceil<std::chrono::seconds>(clock::now()));   // on the whole seconds
 aligned->close();
 ```
 
@@ -91,18 +91,20 @@ aligned->close();
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 using namespace std::chrono_literals;
 
 // A poller: every 10 ms it takes what came on the channel, and it gives
 // up on a request that took too long. Nothing here holds a thread while
 // it waits: the sleeps, the ticks and the timeouts are timers, the task
 // a frame on the managed heap.
-sgcl::task<int> poll(sgcl::channel<int>& data, sgcl::channel<void>& stop) {
-    auto every = sgcl::tick(10ms);
+task<int> poll(channel<int>& data, channel<void>& stop) {
+    auto every = tick(10ms);
     int seen = 0, ticks = 0, late = 0;
     bool running = true;
     while (running) {
-        co_await sgcl::async_select(
+        co_await async_select(
             every->on_receive([&] { ++ticks; }),
             data.on_receive([&](int) { ++seen; }),
             stop.on_receive([&] { running = false; })
@@ -110,21 +112,21 @@ sgcl::task<int> poll(sgcl::channel<int>& data, sgcl::channel<void>& stop) {
     }
     every->close();
     // a request with a deadline
-    sgcl::channel<int> reply;
-    co_await sgcl::async_select(
+    channel<int> reply;
+    co_await async_select(
         reply.on_receive([&](int) {}),
-        sgcl::timeout(20ms, [&] { ++late; })
+        timeout(20ms, [&] { ++late; })
     );
     co_return seen + late * 1000;
 }
 
 int main() {
-    sgcl::channel<int> data(8);
-    sgcl::channel<void> stop;
-    auto p = sgcl::spawn(poll(data, stop));
-    for (int i : sgcl::range(5)) {
+    channel<int> data(8);
+    channel<void> stop;
+    auto p = spawn(poll(data, stop));
+    for (int i : range(5)) {
         data.send(i);
-        sgcl::this_thread::sleep_for(15ms);
+        this_thread::sleep_for(15ms);
     }
     stop.close();
     int result = p.join();

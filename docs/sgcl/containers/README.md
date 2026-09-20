@@ -19,16 +19,16 @@ The containers of the standard library with their nodes and buffers on the manag
 
 ```cpp
 struct Node { int value; };
-sgcl::weak_map<Node, std::string> names;   // a name for any object, kept outside it
+weak_map<Node, std::string> names;   // a name for any object, kept outside it
 {
-    sgcl::tracked_ptr node = sgcl::make_tracked<Node>(42);
+    tracked_ptr node = make_tracked<Node>(42);
     names[node] = "the answer";
     if (auto it = names.find(node); it != names.end()) {
         std::cout << it->key->value << ": " << it->value << "\n";   // 42: the answer
     }
 }   // the last strong pointer is gone
-sgcl::collector::clear_stack();          // the dead frame zeroed, so that the conservative scan keeps nothing
-sgcl::collector::force_collect(true);    // optional, for the demonstration: the cycle clears the key
+collector::clear_stack();          // the dead frame zeroed, so that the conservative scan keeps nothing
+collector::force_collect(true);    // optional, for the demonstration: the cycle clears the key
 std::cout << names.sweep() << " entry gone\n";   // 1
 ```
 

@@ -20,7 +20,7 @@ For those places there is `root_ptr<T>`: a root that lives anywhere, over a cell
 - `weak_ptr<T>`: a pointer that keeps nothing alive. `lock()` is the object as a `tracked_ptr` while it is reachable and null once a cycle has found it unreachable; `expired()`, `reset()`; made from a `tracked_ptr` or another `weak_ptr` ([Weak pointers](README.md#weak-pointers)).
 - `weak_map<Key, T>`, `weak_multimap<Key, T>`, `weak_set<Key>`: containers keyed by objects they do not keep alive; an entry dies with its object ([Weak containers](../containers/README.md#weak-containers)).
 - `variant<Ts...>`, `any`, `function<R(Args...)>`, `move_only_function`, `expected<T, E>`: the interfaces of their `std` namesakes, safe to hold a `tracked_ptr` or a `weak_ptr` next to other alternatives, values, captures or errors, which the `std` ones are not ([variant, any, function and expected](README.md#variant-any-function-and-expected)). `optional`, `pair` and `tuple` hold one correctly as they are and are aliased under the library's names, so that the safe set is one namespace.
-- `string` (`basic_string<CharT>`, `wstring`, `u8string`, `u16string`, `u32string`): an immutable string on the managed heap, one word, shared by copying, compared and hashed by its contents, no destructor ([string](../containers/README.md#string)).
+- `string` (`basic_string<CharT>`, `wstring`, `u8string`, `u16string`, `u32string`): an immutable string on the managed heap, one word, shared by copying, compared and hashed by its contents, no destructor ([string](#string)).
 - `concurrent_queue<T>`, `concurrent_stack<T>`, `concurrent_sorted_map<Key, T>`, `concurrent_sorted_set<Key>`, `concurrent_map<Key, T>`, `concurrent_set<Key>`: lock-free structures shared by any number of threads, with `push`/`try_pop`/`pop`, and `find`/`insert`/`try_emplace`/`erase` with weakly consistent iteration for the maps and sets; `copy_on_write<T>`: a value loaded as an immutable snapshot and replaced whole by a copy and a compare-exchange; `channel<T>`: `send`/`receive` with the waiting of both sides, `try_*`, `async_*` for coroutines, `close` ([Lock-free containers](../concurrent/README.md#lock-free-containers)).
 - The containers, listed below.
 
@@ -31,9 +31,9 @@ For those places there is `root_ptr<T>`: a root that lives anywhere, over a cell
 A `tracked_ptr` may point into the middle of a managed object: to a member or to a base subobject. Such an alias behaves like the aliasing constructor of `std::shared_ptr`: the object it points into stays alive for as long as the alias does.
 
 ```cpp
-struct Item { int value; sgcl::string name; };
-sgcl::tracked_ptr item = sgcl::make_tracked<Item>();
-sgcl::tracked_ptr<int> alias(&item->value);
+struct Item { int value; string name; };
+tracked_ptr item = make_tracked<Item>();
+tracked_ptr<int> alias(&item->value);
 item = nullptr;                    // the Item lives on: the alias keeps it
 ```
 
@@ -44,15 +44,15 @@ What a `tracked_ptr` may not address is an element of a container's buffer (`sgc
 
 ```cpp
 struct Node { int value; };
-sgcl::variant<int, sgcl::tracked_ptr<Node>, std::string> v = sgcl::make_tracked<Node>(1);   // the pointer in a word of its own
+variant<int, tracked_ptr<Node>, std::string> v = make_tracked<Node>(1);   // the pointer in a word of its own
 v = 5;                                                   // the int elsewhere: the word is null now
-sgcl::any a = sgcl::vector<sgcl::tracked_ptr<Node>>{sgcl::make_tracked<Node>(2)};   // the vector in a managed node of its own
-if (auto p = sgcl::any_cast<sgcl::vector<sgcl::tracked_ptr<Node>>>(&a)) {
+any a = vector<tracked_ptr<Node>>{make_tracked<Node>(2)};   // the vector in a managed node of its own
+if (auto p = any_cast<vector<tracked_ptr<Node>>>(&a)) {
     std::cout << (*p)[0]->value << "\n";
 }
-sgcl::tracked_ptr node = sgcl::make_tracked<Node>(3);
-sgcl::function<int()> f = [node] { return node->value; };   // the closure in a managed node of its own: node lives while f holds it
-sgcl::expected<sgcl::tracked_ptr<Node>, std::string> r = sgcl::unexpected("not found");   // the pointer and the string laid out apart
+tracked_ptr node = make_tracked<Node>(3);
+function<int()> f = [node] { return node->value; };   // the closure in a managed node of its own: node lives while f holds it
+expected<tracked_ptr<Node>, std::string> r = unexpected("not found");   // the pointer and the string laid out apart
 std::cout << f() << " " << r.error() << "\n";
 ```
 
@@ -60,18 +60,18 @@ std::cout << f() << " " << r.error() << "\n";
 `sgcl::string` is an immutable string on the managed heap: one word, a pointer to an object holding the length, the characters and a terminator, and the hash once something has asked for it, of exactly that size (a string of ten characters is an object of 20 bytes). What a string is in Java or Go rather than in C++: made once, never modified, shared by copying the word, compared and hashed by its contents, reclaimed by the collector, with no destructor and no reference count. The empty string is null. There is no small-string optimization, and the string is not a buffer to build in: text is built as a `std::string` or a `string_view` and made a `string` once; the read side of `std::string` and all of `std::string_view` are there (`size`, `[]`, the `find`s, `starts_with`, `substr` as a new string, `+` as a new string, the comparisons and `<=>`, `std::hash`, `operator<<`, the conversions), and so are `wstring`, `u8string`, `u16string`, `u32string`. `sgcl::string` lives anywhere; the two kinds convert into each other and share the object ([string](string.md)). A map or a set keyed by strings is searched with a `string_view` or a literal and makes no string for the search: the hash, the equality and the order of a `string` are transparent, and the hash of a view is the hash the string keeps. A string shared between threads and replaced at run time is an `atomic<string>` (`static sgcl::atomic<sgcl::string> host;`): the atomic of the string's word, a load for the string as it was, a store for a new one, compare-exchange by identity.
 
 ```cpp
-struct Element { sgcl::string name; sgcl::vector<sgcl::tracked_ptr<Element>> children; };
-sgcl::string p = "p";                                // one object, made once
-sgcl::tracked_ptr e = sgcl::make_tracked<Element>();
+struct Element { string name; vector<tracked_ptr<Element>> children; };
+string p = "p";                                // one object, made once
+tracked_ptr e = make_tracked<Element>();
 e->name = p;                                       // a word copied: the object shared
 assert(e->name == p && e->name.object() == p.object() && e->name == "p");
-sgcl::map<sgcl::string, int> counts;       // the hash computed once, kept in the string's object
+map<string, int> counts;       // the hash computed once, kept in the string's object
 ++counts[p];
 ```
 
 A piece of a string is a [slice](slice.md) that holds the string's object: the owner and a range, so `p.as_slice(1, 2)` and every piece of `p.split(',')` is a substring with no copy and no lifetime to watch, kept in a container or a managed object as it is; `std::string_view` remains the borrowed view for what takes one. A `slice<T>` is the same over any contiguous managed storage — a vector's buffer, a reader's block — and, without an owner, over unmanaged memory, where it is what `std::span` is: one type for both, the buffers of io among them.
 
-What it costs, in nanoseconds per operation, against a `std::string` member, Go's string and Java's `String` (`benchmarks/core/string.cpp` and its Go and Java counterparts, the setup of the containers module's "Benchmarks" section ([containers](../containers/README.md#benchmarks)), one thread): 2 M strings of 10 and of 100 characters made from a text buffer and stored in nodes, copied from node to node, hashed once each as a map key would be, and hashed eight times in a row (a key used again and again); `sgcl::string` in the same managed nodes:
+What it costs, in nanoseconds per operation, against a `std::string` member, Go's string and Java's `String` (`benchmarks/core/string.cpp` and its Go and Java counterparts, the setup of the containers module's "Benchmarks" section ([containers](../containers/benchmarks.md)), one thread): 2 M strings of 10 and of 100 characters made from a text buffer and stored in nodes, copied from node to node, hashed once each as a map key would be, and hashed eight times in a row (a key used again and again); `sgcl::string` in the same managed nodes:
 
 | operation, length | `sgcl::string` | `std::string` | Go string | Java `String` |
 |---|---|---|---|---|
@@ -90,14 +90,14 @@ Below its small buffer (22 characters in libc++, 15 in libstdc++ and MSVC) a `st
 `weak_ptr<T>` is a pointer the collector does not follow: the object lives as long as something else reaches it, and `lock()` says which. It is one word, a `tracked_ptr` to a small cell on the managed heap that holds the target as a word the collector clears instead of tracing; a `weak_ptr` made from a `tracked_ptr` gets a cell of its own, copies share it, and the cell is collected with the last copy. It lives wherever a `tracked_ptr` may, and threads share it the way they share a `tracked_ptr` (rule 6).
 
 ```cpp
-struct Item { sgcl::string name; };
-sgcl::tracked_ptr item = sgcl::make_tracked<Item>("x");
-sgcl::weak_ptr cached = item;                  // a cell, allocated once
+struct Item { string name; };
+tracked_ptr item = make_tracked<Item>("x");
+weak_ptr cached = item;                  // a cell, allocated once
 if (auto p = cached.lock()) {                  // the Item, held by p
     p->name = "y";
 }
 item = nullptr;                                // unreachable now
-sgcl::collector::force_collect(true);          // optional, for the demonstration only: the next cycle clears it anyway
+collector::force_collect(true);          // optional, for the demonstration only: the next cycle clears it anyway
 assert(cached.expired() && !cached.lock());    // cleared, never dangling
 ```
 
@@ -123,10 +123,10 @@ A destructor is the object's own business and runs on the collector's threads un
 
 ```cpp
 struct Texture { GLuint id; };
-sgcl::expiry_queue<Texture> gone;                        // on the stack, or inside a managed object
+expiry_queue<Texture> gone;                        // on the stack, or inside a managed object
 
-sgcl::tracked_ptr texture = sgcl::make_tracked<Texture>(upload(pixels));
-auto entry = gone.watch(texture, [](sgcl::tracked_ptr<Texture> t) { glDeleteTextures(1, &t->id); });
+tracked_ptr texture = make_tracked<Texture>(upload(pixels));
+auto entry = gone.watch(texture, [](tracked_ptr<Texture> t) { glDeleteTextures(1, &t->id); });
 // ... the texture is used, shared, dropped by everyone; or freed by hand: entry.cancel(), and the function is never called
 gone.drain();                                            // in the render loop: the GL name freed on this thread, the object destroyed by a later cycle
 ```
@@ -146,11 +146,11 @@ Everything the collector relies on, in one place; the sections below say why.
 A global root is a `unique_ptr`: the object it owns is reachable, and so is everything reachable from it, for as long as the global lives. When the global has to point at an object that other threads share and that is replaced at run time (a current configuration, a snapshot), a `unique_ptr` is the wrong shape, since assigning it destroys the old object at once, under the threads still using it; the root is then a `root_ptr`, under an `atomic_ref` when the replacement races with the readers. Readers `load()`, a writer `store()`s, and the old configuration is collected when the last reader drops it:
 
 ```cpp
-static sgcl::root_ptr<Config> current;                        // the root, for the life of the program: a global
+static root_ptr<Config> current;                        // the root, for the life of the program: a global
 
-sgcl::atomic_ref a(current);                                  // the atomic of the root: the word of its cell
-sgcl::tracked_ptr<Config> config = a.load();                  // a reader: held until dropped
-a.store(sgcl::make_tracked<Config>(...));                     // a writer: the old one lives on for its readers
+atomic_ref a(current);                                  // the atomic of the root: the word of its cell
+tracked_ptr<Config> config = a.load();                  // a reader: held until dropped
+a.store(make_tracked<Config>(...));                     // a writer: the old one lives on for its readers
 ```
 
 The same with the atomic inside is a `unique_ptr` to a managed object holding it: `static sgcl::unique_ptr current = sgcl::make_tracked<sgcl::atomic<sgcl::tracked_ptr<Config>>>();`, read and written through `current->`.
@@ -158,8 +158,8 @@ The same with the atomic inside is a `unique_ptr` to a managed object holding it
 A managed object held from anywhere else in unmanaged memory (a `std::vector`, a `new`ed object, a lambda run on another thread) is a `root_ptr`, or a `std::shared_ptr` from `to_shared()` where the holder has to be a `shared_ptr`: its control block owns a managed holder of the pointer, a root that lives exactly as long as the last copy of the `shared_ptr`, and the object stays managed, destroyed on the collector's threads once nothing reaches it. Two allocations per call, so a named function, not a conversion:
 
 ```cpp
-std::vector<sgcl::root_ptr<Node>> kept;               // a std container: no tracked_ptr may live in it
-sgcl::tracked_ptr node = sgcl::make_tracked<Node>();
+std::vector<root_ptr<Node>> kept;               // a std container: no tracked_ptr may live in it
+tracked_ptr node = make_tracked<Node>();
 kept.emplace_back(node);                              // a root_ptr: a cell on the managed heap, the Node's root
 std::vector<std::shared_ptr<Node>> shared;
 shared.push_back(node.to_shared());                   // or a shared_ptr: the Node lives while it does

@@ -56,9 +56,9 @@ A cache of `capacity` entries with no time to live (`ttl` zero) or one, looking 
 
 ```cpp
 using namespace std::chrono_literals;
-sgcl::concurrent_cache<int, sgcl::tracked_ptr<Session>> sessions(10000);        // ten thousand, no expiry
-sgcl::concurrent_cache<sgcl::string, sgcl::string> tokens(1000, 5min);           // a thousand, none older than five minutes
-sgcl::concurrent_cache<sgcl::string, sgcl::string> exact(100, {}, 16);           // sixteen entries looked at per eviction
+concurrent_cache<int, tracked_ptr<Session>> sessions(10000);        // ten thousand, no expiry
+concurrent_cache<string, string> tokens(1000, 5min);           // a thousand, none older than five minutes
+concurrent_cache<string, string> exact(100, {}, 16);           // sixteen entries looked at per eviction
 ```
 
 ### get
@@ -74,8 +74,8 @@ A copy of the value under `key`, or `nullopt`: absent, or older than the time to
 if (auto session = sessions.get(id)) {                     // a tracked_ptr<Session>, held by the optional
     (*session)->touch();
 }
-sgcl::string header = "bearer 7f3a";
-sgcl::optional<sgcl::string> t = tokens.get(header.as_slice(7));   // a slice of the header: no string made for the lookup
+string header = "bearer 7f3a";
+optional<string> t = tokens.get(header.as_slice(7));   // a slice of the header: no string made for the lookup
 ```
 
 ### put
@@ -88,7 +88,7 @@ void put(const Key& key, T&& value);
 Inserts a copy of the value under `key`, or replaces the value there (in a box the entry points to from then on: no moment of absence, a `get` in flight reads the old value whole); then, if the size is past the capacity, evicts down to it, one pass of `sample` entries per entry over. The value is copied into a new node so that an insertion lost to another thread's of the same key (the node built, then found taken, and dropped) loses nothing; a replacement moves. A `put` renews the time to live of the entry.
 
 ```cpp
-sessions.put(id, sgcl::make_tracked<Session>(id));         // inserted, or the value replaced
+sessions.put(id, make_tracked<Session>(id));         // inserted, or the value replaced
 ```
 
 ### get_or_compute
@@ -100,7 +100,7 @@ template<class F> T get_or_compute(const Key& key, F&& f);
 The value under `key`, or, when it is absent or stale, `f()` computed, put under the key and returned. Two threads that miss the same key at once both compute; one insertion wins and both return its value, so `f` is a function of the key alone, called once or more, and never while anything is locked. The miss and the hit inside are counted.
 
 ```cpp
-sgcl::tracked_ptr doc = documents.get_or_compute(name, [&] { return load(name); });   // loaded once, then a hit
+tracked_ptr doc = documents.get_or_compute(name, [&] { return load(name); });   // loaded once, then a hit
 ```
 
 ### erase, clear
@@ -139,31 +139,33 @@ double hit_rate = double(cache.hits()) / double(cache.hits() + cache.misses());
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // A cache of documents in front of a slow load, shared by the worker
 // threads through one managed object: a hit is a wait-free lookup, a
 // miss loads the document and puts it, and the cache keeps the hundred
 // most recently read, none older than ten minutes
 struct Document {
-    sgcl::string name;
+    string name;
     int size;
 };
 
 struct Server {
-    sgcl::concurrent_cache<sgcl::string, sgcl::tracked_ptr<Document>> documents{100, std::chrono::minutes(10)};
+    concurrent_cache<string, tracked_ptr<Document>> documents{100, std::chrono::minutes(10)};
 };
-static sgcl::root_ptr<Server> server = sgcl::make_tracked<Server>();   // a global: a root
+static root_ptr<Server> server = make_tracked<Server>();   // a global: a root
 
-sgcl::tracked_ptr<Document> load(const sgcl::string& name) {           // the slow part
-    return sgcl::make_tracked<Document>(name, int(name.size()));
+tracked_ptr<Document> load(const string& name) {           // the slow part
+    return make_tracked<Document>(name, int(name.size()));
 }
 
 int main() {
-    sgcl::vector<sgcl::thread> threads;
-    for (int t : sgcl::range(4)) {
+    vector<thread> threads;
+    for (int t : range(4)) {
         threads.emplace_back([t] {
-            for (int i : sgcl::range(10000)) {
-                sgcl::string name = "doc" + sgcl::to_string((i * 7 + t) % 50);   // fifty documents, read over and over
-                sgcl::tracked_ptr doc = server->documents.get_or_compute(name, [&] { return load(name); });
+            for (int i : range(10000)) {
+                string name = "doc" + to_string((i * 7 + t) % 50);   // fifty documents, read over and over
+                tracked_ptr doc = server->documents.get_or_compute(name, [&] { return load(name); });
                 if (doc->name != name) {
                     return;
                 }
@@ -178,7 +180,7 @@ int main() {
         std::cout << (*doc)->name << " is " << (*doc)->size << " characters\n";
     }
 
-    sgcl::concurrent_cache<sgcl::string, sgcl::string> small(2);   // the two-line LRU cache of ordered_map, shared
+    concurrent_cache<string, string> small(2);   // the two-line LRU cache of ordered_map, shared
     small.put("a", "1");
     small.put("b", "2");
     small.get("a");                                                // a is newer than b now

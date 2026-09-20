@@ -56,11 +56,11 @@ forward_list(forward_list&& other);
 Every constructor allocates the sentinel. `forward_list(count)` holds `count` value-initialized elements, `forward_list(count, value)` `count` copies. A copy has nodes of its own; a move takes the chain of `other`, which keeps its sentinel and is empty. An element constructor that throws leaves the list empty and the exception propagates.
 
 ```cpp
-sgcl::forward_list<int> zeros(4);                          // 0 0 0 0
-sgcl::forward_list<sgcl::string> words(2, "x");             // "x" "x"
-sgcl::forward_list digits = {1, 2, 3};
-sgcl::forward_list<int> copy(digits.begin(), digits.end());
-sgcl::forward_list<int> taken = std::move(digits);         // digits is empty now
+forward_list<int> zeros(4);                          // 0 0 0 0
+forward_list<string> words(2, "x");             // "x" "x"
+forward_list digits = {1, 2, 3};
+forward_list<int> copy(digits.begin(), digits.end());
+forward_list<int> taken = std::move(digits);         // digits is empty now
 ```
 
 ### Destructor
@@ -82,8 +82,8 @@ forward_list& operator=(std::initializer_list<T> ilist);
 Copy assignment is `assign(other.begin(), other.end())`. Move assignment clears this list and takes the chain of `other`, which is empty afterwards.
 
 ```cpp
-sgcl::forward_list a = {1, 2, 3};
-sgcl::forward_list<int> b;
+forward_list a = {1, 2, 3};
+forward_list<int> b;
 b = a;              // a copy, in nodes of its own
 b = {4, 5};         // two elements
 b = std::move(a);   // a is empty
@@ -100,7 +100,7 @@ void assign(std::initializer_list<T> ilist);
 Replaces the contents: the existing elements are assigned over in their nodes, the surplus erased, the missing ones appended.
 
 ```cpp
-sgcl::forward_list l = {1, 2, 3};
+forward_list l = {1, 2, 3};
 l.assign(2, 9);          // 9 9, in the first two nodes
 l.assign({7, 8, 9, 10});
 ```
@@ -128,7 +128,7 @@ const_iterator cend() const noexcept;
 Forward iterators, raw node pointers. `before_begin()` is the sentinel, the position to insert or erase after for the front; it must not be dereferenced. `end()` is a null iterator. An iterator keeps nothing alive by itself and is invalidated only by the erasure of its own element.
 
 ```cpp
-sgcl::forward_list l = {3, 1, 2};
+forward_list l = {3, 1, 2};
 auto it = std::ranges::find(l, 1);
 *it = 10;                                      // 3 10 2
 auto before = l.before_begin();
@@ -166,7 +166,7 @@ template<class... A> iterator emplace_after(const_iterator pos, A&&... a);
 Inserts after `pos` (`before_begin()` for the front) and returns an iterator to the last inserted element (`pos` when nothing is inserted). A node is made and its element constructed in one step, so no node ever holds an unconstructed element; a range is built as a chain and linked in, so a throwing constructor leaves the list as it was.
 
 ```cpp
-sgcl::forward_list l = {1, 4};
+forward_list l = {1, 4};
 auto it = l.insert_after(l.begin(), 2);        // 1 2 4, it -> 2
 it = l.insert_after(it, 2, 3);                 // 1 2 3 3 4, it -> the second 3
 l.emplace_after(it, 9);                        // 1 2 3 3 9 4
@@ -183,7 +183,7 @@ iterator erase_after(const_iterator first, const_iterator last);
 Destroys the element after `pos`, or the elements in `(first, last)`, and unlinks their nodes; returns the iterator to the element after the erased ones (`end()` when there is none after `pos`). The nodes are the collector's once unlinked.
 
 ```cpp
-sgcl::forward_list l = {1, 2, 3, 4, 5};
+forward_list l = {1, 2, 3, 4, 5};
 auto it = l.erase_after(l.before_begin());     // 2 3 4 5, it -> 2
 l.erase_after(it, l.end());                    // 2
 ```
@@ -200,11 +200,11 @@ void pop_front();
 Prepends an element in a node of its own, (`emplace_front`) returning a reference to it; `pop_front` destroys the first element and unlinks its node. The list must not be empty for `pop_front`.
 
 ```cpp
-sgcl::forward_list<sgcl::tracked_ptr<int>> ptrs;
-for (int i : sgcl::range(1000)) {
-    ptrs.push_front(sgcl::make_tracked<int>(i));
+forward_list<tracked_ptr<int>> ptrs;
+for (int i : range(1000)) {
+    ptrs.push_front(make_tracked<int>(i));
 }
-int& first = *ptrs.emplace_front(sgcl::make_tracked<int>(-1));
+int& first = *ptrs.emplace_front(make_tracked<int>(-1));
 ptrs.pop_front();                                  // the int behind `first` is unreachable now
 ```
 
@@ -218,7 +218,7 @@ void resize(size_type count, const value_type& value);
 Erases the elements past `count`, or appends value-initialized elements (copies of `value`) up to it; one walk of the list.
 
 ```cpp
-sgcl::forward_list l = {1, 2, 3};
+forward_list l = {1, 2, 3};
 l.resize(5);          // 1 2 3 0 0
 l.resize(2);          // 1 2
 l.resize(4, 7);       // 1 2 7 7
@@ -248,8 +248,8 @@ void fill(const auto& value);  void reverse() noexcept;
 The members of the mixins every sequence of the library carries ([the mixins](../core/mixin/README.md)): the questions of [mixin::enumerable](../core/mixin/enumerable.md), the order of [mixin::ordered](../core/mixin/ordered.md), the writes of [mixin::sequence](../core/mixin/sequence.md), so that `x.sort()` reads as `x.push_back(x)` does. A question that compares elements exists only for elements that compare; `index_of`, `last_index_of` and `find_index` give the position, or `npos` when nothing matches, `find_if` the element the predicate accepts first, or null. `reverse` and `sort` are the list's own, on the nodes (below).
 
 ```cpp
-sgcl::forward_list l = {5, 3, 9, 3};
-assert(l.contains(9) && l.index_of(3) == 1 && l.last_index_of(3) == 3 && l.index_of(7) == sgcl::npos);
+forward_list l = {5, 3, 9, 3};
+assert(l.contains(9) && l.index_of(3) == 1 && l.last_index_of(3) == 3 && l.index_of(7) == npos);
 assert(l.find_index([](int x) { return x > 4; }) == 0 && l.exists([](int x) { return x == 9; }) && !l.all([](int x) { return x > 3; }));
 if (int* big = l.find_if([](int x) { return x > 8; })) {
     *big = 8;
@@ -285,7 +285,7 @@ template<class Compare> void merge(forward_list&& other, Compare comp);
 Merges two sorted lists into this one, stable: of equal elements, those of this list come first; `other` is empty afterwards. The nodes are relinked, never copied.
 
 ```cpp
-sgcl::forward_list<int> a = {1, 3, 5}, b = {2, 4, 6};
+forward_list<int> a = {1, 3, 5}, b = {2, 4, 6};
 a.merge(b);                                    // a is 1 2 3 4 5 6, b is empty
 ```
 
@@ -303,7 +303,7 @@ void splice_after(const_iterator pos, forward_list&& other, const_iterator first
 Moves the nodes of `other`, the node after `it`, or the nodes in `(first, last)`, after `pos`; no element is copied or destroyed and every iterator stays valid, now naming an element of this list. `other` may be this list. Moving all of `other` walks it to its last node.
 
 ```cpp
-sgcl::forward_list<int> a = {1, 2}, b = {3, 4, 5};
+forward_list<int> a = {1, 2}, b = {3, 4, 5};
 a.splice_after(a.begin(), b, b.before_begin());   // a is 1 3 2, b is 4 5
 a.splice_after(a.before_begin(), b);              // a is 4 5 1 3 2, b is empty
 ```
@@ -318,7 +318,7 @@ template<class UnaryPredicate> size_type remove_if(UnaryPredicate pred);
 Erase every element equal to `value`, or satisfying `pred`, and return how many were erased.
 
 ```cpp
-sgcl::forward_list l = {1, 2, 2, 3, 4};
+forward_list l = {1, 2, 2, 3, 4};
 size_t twos = l.remove(2);                                       // 2; l is 1 3 4
 size_t big = l.remove_if([](int x) { return x > 2; });           // 2; l is 1
 ```
@@ -333,7 +333,7 @@ template<class BinaryPredicate> size_type unique(BinaryPredicate pred);
 Erases every element equal to the one before it (`pred(previous, current)`), keeping the first of each run; returns how many were erased.
 
 ```cpp
-sgcl::forward_list l = {1, 1, 2, 2, 2, 3};
+forward_list l = {1, 1, 2, 2, 2, 3};
 size_t dropped = l.unique();                   // 3; l is 1 2 3
 ```
 
@@ -355,7 +355,7 @@ template<class Compare> void sort(Compare comp);
 A stable merge sort in place: the nodes are relinked, never detached.
 
 ```cpp
-sgcl::forward_list l = {3, 1, 2};
+forward_list l = {3, 1, 2};
 l.sort();                                      // 1 2 3
 l.sort(std::greater<>());                      // 3 2 1
 ```
@@ -370,7 +370,7 @@ friend auto operator<=>(const forward_list& lhs, const forward_list& rhs);
 From [mixin::equatable](../core/mixin/equatable.md) and [mixin::comparable](../core/mixin/comparable.md), for elements that compare. Element-wise, as for `std::forward_list`, in one walk of both lists: `<=>` is lexicographical with the synthesized three-way comparison (`<=>` of `T` when it has one, else a `std::weak_ordering` built from `<`), so `<`, `<=`, `>`, `>=` and `!=` follow.
 
 ```cpp
-sgcl::forward_list<int> a = {1, 2}, b = {1, 3};
+forward_list<int> a = {1, 2}, b = {1, 3};
 bool less = a < b;                  // true
 bool same = a == b;                 // false
 ```
@@ -385,7 +385,7 @@ template<class T, class Pred> typename forward_list<T>::size_type erase_if(forwa
 Declared in `sgcl` and brought into `std`: `remove_if` under the standard names, returning how many elements were erased.
 
 ```cpp
-sgcl::forward_list l = {1, 2, 2, 3, 4};
+forward_list l = {1, 2, 2, 3, 4};
 size_t twos = std::erase(l, 2);                                  // 2; l is 1 3 4
 size_t big = std::erase_if(l, [](int x) { return x > 2; });      // 2; l is 1
 ```
@@ -400,8 +400,8 @@ class forward_list<unique_ptr<T>> : public std::forward_list<unique_ptr<T>>;
 A `unique_ptr` owns its object and needs no tracing, so a forward_list of them is a plain `std::forward_list` with the constructors of the base: it may live anywhere a `std::forward_list` may, and the objects die when their `unique_ptr` does.
 
 ```cpp
-sgcl::forward_list<sgcl::unique_ptr<int>> owned;
-owned.push_front(sgcl::make_tracked<int>(1));
+forward_list<unique_ptr<int>> owned;
+owned.push_front(make_tracked<int>(1));
 owned.pop_front();                                 // the int is destroyed here, deterministically
 ```
 
@@ -412,22 +412,24 @@ owned.pop_front();                                 // the int is destroyed here,
 #include <iostream>
 #include <ranges>
 
+using namespace sgcl;
+
 struct Vertex {
     int id;
-    sgcl::forward_list<sgcl::tracked_ptr<Vertex>> edges;       // an adjacency list, inside the vertex
+    forward_list<tracked_ptr<Vertex>> edges;       // an adjacency list, inside the vertex
 };
 
 int main() {
     // A list of values on the stack: the nodes are on the managed heap
-    sgcl::forward_list numbers = {5, 3, 9, 1};
+    forward_list numbers = {5, 3, 9, 1};
     numbers.push_front(7);
     numbers.sort();                                 // 1 3 5 7 9, the nodes relinked in place
     numbers.remove_if([](int x) { return x > 5; });
 
     // A graph: every vertex points at every other, so every vertex is in a cycle
-    sgcl::forward_list<sgcl::tracked_ptr<Vertex>> vertices;
-    for (int i : sgcl::range(100)) {
-        vertices.push_front(sgcl::make_tracked<Vertex>(i));
+    forward_list<tracked_ptr<Vertex>> vertices;
+    for (int i : range(100)) {
+        vertices.push_front(make_tracked<Vertex>(i));
     }
     for (const auto& v : vertices) {
         for (const auto& w : vertices) {
@@ -438,20 +440,20 @@ int main() {
     }
 
     // Keep one vertex, drop the list: the whole graph stays reachable through it
-    sgcl::tracked_ptr keep = vertices.front();
+    tracked_ptr keep = vertices.front();
     vertices.clear();
-    keep->edges.remove_if([](const sgcl::tracked_ptr<Vertex>& w) { return w->id % 2; });     // the odd ids, kept by the cycle still
+    keep->edges.remove_if([](const tracked_ptr<Vertex>& w) { return w->id % 2; });     // the odd ids, kept by the cycle still
 
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
-    sgcl::collector::force_collect(true);
+    collector::force_collect(true);
     int edges = int(std::ranges::distance(keep->edges));
     std::cout << std::ranges::distance(numbers) << " numbers, vertex " << keep->id << " with "
-              << edges << " edges, " << sgcl::collector::get_live_object_count() << " live objects\n";
+              << edges << " edges, " << collector::get_live_object_count() << " live objects\n";
 
     keep = nullptr;                                 // the cycle is unreachable now: collected as a whole
-    sgcl::collector::force_collect(true);             // optional, as above
-    std::cout << sgcl::collector::get_live_object_count() << " live objects after the graph is gone\n";
+    collector::force_collect(true);             // optional, as above
+    std::cout << collector::get_live_object_count() << " live objects after the graph is gone\n";
     return std::ranges::distance(numbers) == 3 && edges == 50 ? 0 : 1;
 }
 ```

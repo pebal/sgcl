@@ -25,7 +25,7 @@ namespace sgcl {
 
 ```cpp
 using value_type = T;
-using snapshot = tracked_ptr<const T>;   // tracked_ptr<const T>, sgcl::tracked_ptr<const T> for sgcl::copy_on_write
+using snapshot = tracked_ptr<const T>;   // tracked_ptr<const T>, tracked_ptr<const T> for copy_on_write
 ```
 
 ### Constructors
@@ -39,8 +39,8 @@ copy_on_write(const copy_on_write&) = delete;
 ```
 
 ```cpp
-sgcl::copy_on_write<Config> config(std::in_place, "localhost", 8080);   // a global: sgcl::
-sgcl::copy_on_write<sgcl::vector<sgcl::tracked_ptr<Listener>>> listeners;
+copy_on_write<Config> config(std::in_place, "localhost", 8080);   // a global: 
+copy_on_write<vector<tracked_ptr<Listener>>> listeners;
 ```
 
 ### load
@@ -96,6 +96,8 @@ Replaces the value with `desired` if the current one is still the one `expected`
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // A routing table read on every request by many threads and replaced
 // by one: readers take a snapshot and never see a half-changed table,
 // the writer never waits for a reader, and no reader waits for anything
@@ -104,11 +106,11 @@ struct Route {
 };
 
 int main() {
-    sgcl::copy_on_write<sgcl::vector<Route>> table(sgcl::vector<Route>{{1, 10}, {2, 20}});
-    sgcl::atomic stop = false;
-    sgcl::atomic<long> lookups = 0, inconsistent = 0;
-    sgcl::vector<sgcl::thread> readers;
-    for (int r : sgcl::range(8)) {
+    copy_on_write<vector<Route>> table(vector<Route>{{1, 10}, {2, 20}});
+    atomic stop = false;
+    atomic<long> lookups = 0, inconsistent = 0;
+    vector<thread> readers;
+    for (int r : range(8)) {
         readers.emplace_back([&] {
             while (!stop) {
                 auto t = table.load();                    // one load: the table as it was, for as long as t lives
@@ -121,7 +123,7 @@ int main() {
             }
         });
     }
-    for (int i : sgcl::range(3, 101)) {
+    for (int i : range(3, 101)) {
         table.update([i](auto& t) { t.push_back({i, 10 * i}); });   // a copy with one more route, swapped in
     }
     stop = true;

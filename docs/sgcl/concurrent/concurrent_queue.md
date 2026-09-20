@@ -50,15 +50,15 @@ template<class... A> void emplace(A&&... a);
 Creates a node on the managed heap holding the element (constructed from `a...` in place for `emplace`), walks from the tail to the last node and links the new one after it with a compare-exchange on its link; swings the tail when the walk went two nodes or more (a failure there is another push's success). Notifies the threads waiting in `pop`, when there are any: `pop` counts itself before its last look, and a push with nobody counted notifies nothing (a notify with nobody waiting is a fetch-add and a fence on a table the library shares, and a wake through the kernel now and then; the lists of waiters the async module keeps in these queues never block in `pop`, and the notify was half of a hop between two tasks over a rendezvous, measured).
 
 ```cpp
-sgcl::concurrent_queue<sgcl::tracked_ptr<Request>> requests;   // a global: sgcl::
-requests.push(sgcl::make_tracked<Request>(1));
-requests.emplace(sgcl::make_tracked<Request>(2));
+concurrent_queue<tracked_ptr<Request>> requests;   // a global: 
+requests.push(make_tracked<Request>(1));
+requests.emplace(make_tracked<Request>(2));
 ```
 
 ### try_pop, pop
 
 ```cpp
-optional<T> try_pop();   // sgcl::optional, the alias of std::optional (sgcl/core/aliases.h)
+optional<T> try_pop();   // optional, the alias of std::optional (sgcl/core/aliases.h)
 T pop();
 ```
 
@@ -68,7 +68,7 @@ T pop();
 while (auto r = requests.try_pop()) {
     (*r)->handle();
 }
-sgcl::tracked_ptr next = requests.pop();   // blocks until a push
+tracked_ptr next = requests.pop();   // blocks until a push
 ```
 
 ### empty, size
@@ -94,6 +94,8 @@ Pops every element there is, destroying each on the calling thread.
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // A pipeline stage: producers push messages, consumers pop them in
 // order; the queue is a member of a managed object, and nothing in the
 // program frees a node
@@ -102,23 +104,23 @@ struct Message {
 };
 
 struct Stage {
-    sgcl::concurrent_queue<sgcl::tracked_ptr<Message>> inbox;   // inside a managed object: sgcl::
+    concurrent_queue<tracked_ptr<Message>> inbox;   // inside a managed object: 
 };
 
 int main() {
-    sgcl::tracked_ptr stage = sgcl::make_tracked<Stage>();
-    sgcl::atomic<int> received = 0, out_of_order = 0;
-    sgcl::vector<sgcl::thread> threads;
-    for (int p : sgcl::range(4)) {
+    tracked_ptr stage = make_tracked<Stage>();
+    atomic<int> received = 0, out_of_order = 0;
+    vector<thread> threads;
+    for (int p : range(4)) {
         threads.emplace_back([&, p] {
-            for (int i : sgcl::range(1000)) {
-                stage->inbox.emplace(sgcl::make_tracked<Message>(p, i));
+            for (int i : range(1000)) {
+                stage->inbox.emplace(make_tracked<Message>(p, i));
             }
         });
         threads.emplace_back([&] {
             int last[4] = {-1, -1, -1, -1};
-            for (int i : sgcl::range(1000)) {
-                sgcl::tracked_ptr m = stage->inbox.pop();   // FIFO per producer, at every consumer
+            for (int i : range(1000)) {
+                tracked_ptr m = stage->inbox.pop();   // FIFO per producer, at every consumer
                 out_of_order += m->seq <= last[m->producer];
                 last[m->producer] = m->seq;
                 ++received;

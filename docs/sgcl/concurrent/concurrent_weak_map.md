@@ -61,8 +61,8 @@ The live entries, each once, in the order of the table's list (the bit reversal 
 
 ```cpp
 struct Session { int id; };
-sgcl::concurrent_weak_map<Session, sgcl::tracked_ptr<Stats>> stats;   // shared by the workers
-for (auto [session, s] : stats) {   // session: sgcl::tracked_ptr<Session>, held; s: sgcl::tracked_ptr<Stats>&
+concurrent_weak_map<Session, tracked_ptr<Stats>> stats;   // shared by the workers
+for (auto [session, s] : stats) {   // session: tracked_ptr<Session>, held; s: tracked_ptr<Stats>&
     std::cout << session->id << ' ' << s->requests << '\n';
 }
 ```
@@ -89,7 +89,7 @@ pair<iterator, bool> insert(const key_pointer& object, T&& value);
 A value for the object, `T(a...)`, unless the object has one: the entry and whether one was added. One search: nothing is built, no weak cell either, when the object has an entry; of two threads inserting the same object exactly one gets `true`, the other the entry the first made. Every insertion counts towards the next sweep. A null pointer is not an object (debug builds assert).
 
 ```cpp
-auto [it, fresh] = stats.try_emplace(session, sgcl::make_tracked<Stats>());   // one Stats per session, whoever gets there first
+auto [it, fresh] = stats.try_emplace(session, make_tracked<Stats>());   // one Stats per session, whoever gets there first
 ++it->value->requests;
 ```
 
@@ -126,6 +126,8 @@ The entries, the dead ones not yet swept included; a snapshot under concurrent m
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 struct Session {
     explicit Session(int id) : id(id) {}
     int id;
@@ -133,23 +135,23 @@ struct Session {
 
 // A counter attached to a session from outside, by any thread
 struct Stats {
-    sgcl::atomic<int> requests = 0;
+    atomic<int> requests = 0;
 };
 
 int main() {
     // Statistics per session, shared by the workers: the map holds the
     // sessions weakly, so a session dropped by its owner takes its entry
     // with it, and nobody removes stale ones by hand
-    sgcl::concurrent_weak_map<Session, sgcl::tracked_ptr<Stats>> stats;
-    sgcl::tracked_ptr main_session = sgcl::make_tracked<Session>(1);
+    concurrent_weak_map<Session, tracked_ptr<Stats>> stats;
+    tracked_ptr main_session = make_tracked<Session>(1);
     {
-        sgcl::tracked_ptr guest = sgcl::make_tracked<Session>(2);
-        sgcl::vector<sgcl::thread> workers;
-        for (int t : sgcl::range(4)) {
+        tracked_ptr guest = make_tracked<Session>(2);
+        vector<thread> workers;
+        for (int t : range(4)) {
             workers.emplace_back([&, t] {
-                for (int i : sgcl::range(1000)) {
-                    sgcl::tracked_ptr<Session> session = (i + t) % 3 ? main_session : guest;
-                    auto [it, fresh] = stats.try_emplace(session, sgcl::make_tracked<Stats>());   // one Stats per session, whoever gets there first
+                for (int i : range(1000)) {
+                    tracked_ptr<Session> session = (i + t) % 3 ? main_session : guest;
+                    auto [it, fresh] = stats.try_emplace(session, make_tracked<Stats>());   // one Stats per session, whoever gets there first
                     ++it->value->requests;
                 }
             });
@@ -161,8 +163,8 @@ int main() {
             std::cout << "session " << session->id << ": " << s->requests << " requests\n";
         }
     }   // the guest's last strong pointer is gone
-    sgcl::collector::clear_stack();          // the dead frame zeroed, so that the conservative scan keeps nothing
-    sgcl::collector::force_collect(true);    // optional, for the demonstration: the cycle clears the guest's entry
+    collector::clear_stack();          // the dead frame zeroed, so that the conservative scan keeps nothing
+    collector::force_collect(true);    // optional, for the demonstration: the cycle clears the guest's entry
     std::cout << stats.size() << " entries, " << stats.sweep() << " swept, " << stats.size() << " left\n";
 }
 ```

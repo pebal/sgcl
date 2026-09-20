@@ -46,14 +46,14 @@ void stop_after(duration d);                        // the stop by a timer: a de
 ```
 
 ```cpp
-sgcl::stop_source server;
-sgcl::stop_source connection(server.token());       // stops with the server
+stop_source server;
+stop_source connection(server.token());       // stops with the server
 connection.stop_after(30s);                         // or on its own, in 30 s
-sgcl::stop_token tok = connection.token();
-sgcl::channel<int> requests(8);
+stop_token tok = connection.token();
+channel<int> requests(8);
 bool running = true;
 while (running) {
-    sgcl::select(
+    select(
         requests.on_receive([&](int r) { /* serve */ }),
         tok.on_stop([&] { running = false; })       // the server stopped, or the deadline
     );
@@ -66,17 +66,19 @@ while (running) {
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 using namespace std::chrono_literals;
 
 // A server with workers: each worker serves requests until its token
 // says stop; the server's source stops them all, a worker's own deadline
 // stops it alone. The tokens live in the tasks' frames, on the managed
 // heap, and the state they share is garbage once the last is gone.
-sgcl::task<int> worker(sgcl::channel<int>& requests, sgcl::stop_token tok) {
+task<int> worker(channel<int>& requests, stop_token tok) {
     int served = 0;
     bool running = true;
     while (running) {
-        co_await sgcl::async_select(
+        co_await async_select(
             requests.on_receive([&](int) { ++served; }),
             tok.on_stop([&] { running = false; })
         );
@@ -85,16 +87,16 @@ sgcl::task<int> worker(sgcl::channel<int>& requests, sgcl::stop_token tok) {
 }
 
 int main() {
-    sgcl::stop_source server;
-    sgcl::channel<int> requests(8);
-    sgcl::stop_source short_lived(server.token());
+    stop_source server;
+    channel<int> requests(8);
+    stop_source short_lived(server.token());
     short_lived.stop_after(20ms);                                   // this worker's deadline
-    auto a = sgcl::spawn(worker(requests, server.token()));
-    auto b = sgcl::spawn(worker(requests, short_lived.token()));
-    for (int i : sgcl::range(10)) {
+    auto a = spawn(worker(requests, server.token()));
+    auto b = spawn(worker(requests, short_lived.token()));
+    for (int i : range(10)) {
         requests.send(i);
     }
-    sgcl::this_thread::sleep_for(50ms);                              // b's deadline passes
+    this_thread::sleep_for(50ms);                              // b's deadline passes
     server.request_stop();                                          // a stops; b already did
     std::cout << a.join() + b.join() << " served\n";                // 10 served
     return a.result() + b.result() == 10 ? 0 : 1;

@@ -81,8 +81,9 @@ namespace sgcl::detail {
         FreeMask = Reserved | Unused
     };
 
-    // The tag of a store without the barrier (tracked_ptr::store): the
-    // copy of an immutable node, its source shaded once afterwards
+    // The tag of a Pointer built as a word alone, without the barrier
+    // (tracked_ptr's store with barrier::off): the copy of an immutable
+    // node, its source shaded once afterwards
     struct unshaded_t {};
     inline constexpr unshaded_t unshaded;
 

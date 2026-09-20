@@ -103,6 +103,8 @@ A channel that carries nothing but the fact of a send: a signal of readiness, a 
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // A pipeline of coroutines and threads: producers send jobs on one
 // channel, a coroutine turns each into a result on another, a thread
 // collects; nobody locks, nobody frees, the buffers hold the producers
@@ -111,7 +113,7 @@ struct Job {
     int id;
 };
 
-sgcl::task<> worker(sgcl::channel<sgcl::tracked_ptr<Job>>& jobs, sgcl::channel<int>& results) {
+task<> worker(channel<tracked_ptr<Job>>& jobs, channel<int>& results) {
     while (auto job = co_await jobs.async_receive()) {     // suspends while jobs is empty
         co_await results.async_send((*job)->id * 2);       // suspends while results is full
     }
@@ -119,19 +121,19 @@ sgcl::task<> worker(sgcl::channel<sgcl::tracked_ptr<Job>>& jobs, sgcl::channel<i
 }
 
 int main() {
-    sgcl::channel<sgcl::tracked_ptr<Job>> jobs(8);
-    sgcl::channel<int> results(8);
-    sgcl::task w = sgcl::spawn(worker(jobs, results));   // on the scheduler: runs whenever a job comes
-    sgcl::vector<sgcl::thread> producers;
-    for (int p : sgcl::range(4)) {
+    channel<tracked_ptr<Job>> jobs(8);
+    channel<int> results(8);
+    task w = spawn(worker(jobs, results));   // on the scheduler: runs whenever a job comes
+    vector<thread> producers;
+    for (int p : range(4)) {
         producers.emplace_back([&, p] {
-            for (int i : sgcl::range(100)) {
-                jobs.send(sgcl::make_tracked<Job>(p * 100 + i));   // waits when the buffer of eight is full
+            for (int i : range(100)) {
+                jobs.send(make_tracked<Job>(p * 100 + i));   // waits when the buffer of eight is full
             }
         });
     }
     long sum = 0;
-    sgcl::thread collector([&] {
+    thread collector([&] {
         for (int r : results) {                            // until results is closed
             sum += r;
         }

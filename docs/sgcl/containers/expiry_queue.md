@@ -29,7 +29,7 @@ The difference from a destructor: a destructor runs on the collector's threads u
 ```cpp
 using value_type = tracked_ptr<T>;
 using weak_type = weak_ptr<T>;
-using function_type = function<void(value_type)>;   // sgcl::function of the queue's kind
+using function_type = function<void(value_type)>;   // function of the queue's kind
 using size_type = size_t;
 ```
 
@@ -50,11 +50,11 @@ An empty queue costs nothing beyond an empty `sgcl::vector`. A move hands the en
 
 ```cpp
 struct Cache {
-    sgcl::expiry_queue<Entry> evicted;     // inside a managed object: allowed
+    expiry_queue<Entry> evicted;     // inside a managed object: allowed
 };
-sgcl::tracked_ptr cache = sgcl::make_tracked<Cache>();
-sgcl::expiry_queue<Entry> local;           // on a stack: allowed
-sgcl::expiry_queue<Entry> moved = std::move(local);
+tracked_ptr cache = make_tracked<Cache>();
+expiry_queue<Entry> local;           // on a stack: allowed
+expiry_queue<Entry> moved = std::move(local);
 ```
 
 ### watch
@@ -67,9 +67,9 @@ entry watch(const value_type& object, F&& on_expire);
 Adds an entry for `object`: a fresh weak cell marked as watched, with `on_expire` stored as a `function_type`, and returns the entry's handle (below), which the caller may keep or discard; the pointer of the other kind converts to `value_type` on the way in. A null `object` gets no entry and an empty handle is returned. Once every so many calls (as many as the queue had entries after its last drain, at least 16) the call runs `drain()` itself, so `on_expire` functions of earlier entries may run inside `watch()`. An object may be watched by several entries or several queues; the cycle that finds it unreachable marks every one of them expired, and each function gets the object.
 
 ```cpp
-sgcl::expiry_queue<Texture> gone;
-sgcl::tracked_ptr texture = sgcl::make_tracked<Texture>(upload(pixels));
-auto entry = gone.watch(texture, [](sgcl::tracked_ptr<Texture> t) {
+expiry_queue<Texture> gone;
+tracked_ptr texture = make_tracked<Texture>(upload(pixels));
+auto entry = gone.watch(texture, [](tracked_ptr<Texture> t) {
     release(t->id);                      // the object, with its data, one last time
 });
 assert(entry.weak().lock() == texture);  // the ordinary weak pointer to it
@@ -91,7 +91,7 @@ public:
 The handle of one entry, sharing the entry's cell; copies share the entry, and it lives where the queue's pointers live. `cancel()` withdraws the entry: the object is no longer kept for the queue, its function will not be called, and the entry leaves the queue with the next `drain()` (until then `size()` counts it); true when the entry was still pending, false for an entry drained or cancelled before, or an empty handle. The answer is exact even against a `drain()` running on another thread: one atomic flag decides, and a `cancel()` that sets it first, even between the drain's look at the entry and its call, is the one that returns true, and the function is not called. What `drain()` does to an entry after calling its function, and `clear()` to every entry, `cancel()` does to one without the call: for a resource the program released by hand, or an object another owner took over. From any thread, one atomic flag. `expired()` is true once a cycle has found the object unreachable (its function waits for `drain()`, or ran, or the entry was cancelled after). `weak()` is an ordinary `weak_type` to the object, sharing the cell, holding nothing; dropping it, or the handle, cancels nothing.
 
 ```cpp
-auto entry = gone.watch(texture, [](sgcl::tracked_ptr<Texture> t) { release(t->id); });
+auto entry = gone.watch(texture, [](tracked_ptr<Texture> t) { release(t->id); });
 // ... the program releases the texture itself
 release(texture->id);
 entry.cancel();                          // no second release when nothing reaches the texture
@@ -147,6 +147,8 @@ assert(gone.empty());
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // A resource outside the managed heap: released by the queue's function
 // on the program's thread, not by the destructor on the collector's.
 struct Texture {
@@ -161,10 +163,10 @@ static void release_texture(int id) {
 // The pointers juggled here stay in a frame of their own: the stack is
 // scanned conservatively, and a stale word in main's frame would keep an
 // object alive (README, "Stack roots").
-static void use_textures(sgcl::expiry_queue<Texture>& gone, sgcl::tracked_ptr<Texture>& kept) {
-    for (int id : sgcl::range(1, 4)) {
-        sgcl::tracked_ptr texture = sgcl::make_tracked<Texture>(id);
-        gone.watch(texture, [](sgcl::tracked_ptr<Texture> t) { release_texture(t->id); });
+static void use_textures(expiry_queue<Texture>& gone, tracked_ptr<Texture>& kept) {
+    for (int id : range(1, 4)) {
+        tracked_ptr texture = make_tracked<Texture>(id);
+        gone.watch(texture, [](tracked_ptr<Texture> t) { release_texture(t->id); });
         if (id == 2) {
             kept = texture;   // the program keeps this one
         }
@@ -172,20 +174,20 @@ static void use_textures(sgcl::expiry_queue<Texture>& gone, sgcl::tracked_ptr<Te
 }   // textures 1 and 3 are unreachable now; the queue keeps them for drain()
 
 int main() {
-    sgcl::expiry_queue<Texture> gone;            // lives where a tracked_ptr may: here on the stack
-    sgcl::tracked_ptr<Texture> kept;
+    expiry_queue<Texture> gone;            // lives where a tracked_ptr may: here on the stack
+    tracked_ptr<Texture> kept;
     use_textures(gone, kept);
     std::cout << gone.size() << " textures watched\n";
 
-    sgcl::collector::force_collect(true);        // optional, for the demonstration only: the collector runs its cycles by itself
+    collector::force_collect(true);        // optional, for the demonstration only: the collector runs its cycles by itself
     std::cout << gone.drain() << " released by the first drain\n";   // 1 and 3, in either order
     std::cout << gone.size() << " still watched: texture " << kept->id << "\n";
 
     // the function may keep the object: its return to life
-    sgcl::tracked_ptr<Texture> revived;
-    gone.watch(kept, [&revived](sgcl::tracked_ptr<Texture> t) { revived = t; });
+    tracked_ptr<Texture> revived;
+    gone.watch(kept, [&revived](tracked_ptr<Texture> t) { revived = t; });
     kept = nullptr;
-    sgcl::collector::force_collect(true);        // optional, as above
+    collector::force_collect(true);        // optional, as above
     gone.drain();                              // texture 2's first entry releases it, the second revives it
     std::cout << "texture " << revived->id << " is back\n";
     return 0;

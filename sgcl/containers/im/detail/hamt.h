@@ -81,13 +81,13 @@ namespace sgcl::im::detail {
         // A copy of `from`, an entry of an immutable node: the link
         // without the barrier (the node it came from is shaded once by
         // the copying helper), the element as any copy
-        HamtEntry(const HamtEntry& from, sgcl::detail::unshaded_t) noexcept(std::is_nothrow_copy_constructible_v<V>)
-        : link(from.link, sgcl::detail::unshaded) {
+        HamtEntry(const HamtEntry& from, barrier::off_t) noexcept(std::is_nothrow_copy_constructible_v<V>)
+        : link(from.link, barrier::off) {
         }
 
         template<class... A>
-        HamtEntry(const HamtEntry& from, sgcl::detail::unshaded_t, std::in_place_t, A&&... a)
-        : link(from.link, sgcl::detail::unshaded)
+        HamtEntry(const HamtEntry& from, barrier::off_t, std::in_place_t, A&&... a)
+        : link(from.link, barrier::off)
         , value(std::forward<A>(a)...) {
         }
 
@@ -641,9 +641,9 @@ namespace sgcl::im::detail {
         static void _copy(Entry* at, const HamtHead& node, const Entry* from, uint32_t bit) {
             auto& entry = from[_position(node.bitmap, bit)];
             if (node.subtries & bit) {
-                ::new (static_cast<void*>(at)) Entry(entry, sgcl::detail::unshaded);
+                ::new (static_cast<void*>(at)) Entry(entry, barrier::off);
             } else {
-                ::new (static_cast<void*>(at)) Entry(entry, sgcl::detail::unshaded, std::in_place, entry.value);
+                ::new (static_cast<void*>(at)) Entry(entry, barrier::off, std::in_place, entry.value);
             }
         }
 

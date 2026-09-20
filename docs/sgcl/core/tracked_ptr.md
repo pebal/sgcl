@@ -63,10 +63,10 @@ Every constructor registers the calling thread with the collector on first conta
 struct Base { virtual ~Base() = default; };
 struct Item : Base { int value = 7; };
 
-sgcl::tracked_ptr item = sgcl::make_tracked<Item>();   // from a unique_ptr: the collector owns the Item now
-sgcl::tracked_ptr<Base> base = item;                    // a base class
-sgcl::tracked_ptr alias(&item->value);                  // tracked_ptr<int>, into the Item
-sgcl::tracked_ptr<Item> none;                           // null
+tracked_ptr item = make_tracked<Item>();   // from a unique_ptr: the collector owns the Item now
+tracked_ptr<Base> base = item;                    // a base class
+tracked_ptr alias(&item->value);                  // tracked_ptr<int>, into the Item
+tracked_ptr<Item> none;                           // null
 item = nullptr;
 base = nullptr;
 assert(*alias == 7);                                    // the alias keeps the Item
@@ -97,11 +97,11 @@ tracked_ptr& operator=(tracked_ptr<U>&& p) noexcept;
 One store with the barrier, no temporary. Assigning `nullptr` drops the reference; the object lives on if anything else reaches it. Assigning a `unique_ptr&&` releases its object to the collector. A move assignment is a copy: the source keeps its value.
 
 ```cpp
-struct Node { sgcl::tracked_ptr<Node> next; };
+struct Node { tracked_ptr<Node> next; };
 
-sgcl::tracked_ptr head = sgcl::make_tracked<Node>();
-head->next = sgcl::make_tracked<Node>();   // from a unique_ptr
-sgcl::tracked_ptr<Node> second;
+tracked_ptr head = make_tracked<Node>();
+head->next = make_tracked<Node>();   // from a unique_ptr
+tracked_ptr<Node> second;
 second = head->next;                       // a copy
 head = nullptr;                            // the first Node is garbage, the second lives through `second`
 ```
@@ -116,9 +116,9 @@ operator const tracked_ptr<void>&() const noexcept;
 Every `tracked_ptr<T>` is a `tracked_ptr<void>&`: the same word seen without its type, so a function taking a `tracked_ptr<void>&` takes any of them. `type()`, `is<U>()` and `as<U>()` still work on it, since the type is the object's, not the pointer's. A `tracked_ptr<void>` by value is made through the converting constructor (`T*` converts to `void*`).
 
 ```cpp
-sgcl::tracked_ptr number = sgcl::make_tracked<int>(1);
-sgcl::tracked_ptr<void>& ref = number;    // the same word
-sgcl::tracked_ptr<void> any = number;     // a copy
+tracked_ptr number = make_tracked<int>(1);
+tracked_ptr<void>& ref = number;    // the same word
+tracked_ptr<void> any = number;     // a copy
 assert(ref.is<int>() && any.is<int>());
 ```
 
@@ -143,7 +143,7 @@ The object. Not for `tracked_ptr<void>`. Debug builds assert the pointer is not 
 
 ```cpp
 struct Point { int x, y; };
-sgcl::tracked_ptr p = sgcl::make_tracked<Point>(1, 2);
+tracked_ptr p = make_tracked<Point>(1, 2);
 p->x = (*p).y;
 ```
 
@@ -157,7 +157,7 @@ The raw pointer. A raw pointer keeps nothing alive by itself: it is valid while 
 
 ```cpp
 struct Item { int value = 1; };
-sgcl::tracked_ptr item = sgcl::make_tracked<Item>();
+tracked_ptr item = make_tracked<Item>();
 Item* raw = item.get();     // valid while `item` (or another tracked_ptr) keeps the object
 raw->value = 2;
 ```
@@ -178,7 +178,7 @@ struct Node {
         }
     }
     bool detached = false;
-    sgcl::tracked_ptr<Node> peer;
+    tracked_ptr<Node> peer;
 };
 ```
 
@@ -193,8 +193,8 @@ void reset(element_type* p) noexcept;
 
 ```cpp
 struct Item { int value = 3; };
-sgcl::tracked_ptr item = sgcl::make_tracked<Item>();
-sgcl::tracked_ptr<int> alias;
+tracked_ptr item = make_tracked<Item>();
+tracked_ptr<int> alias;
 alias.reset(&item->value);   // an alias into the Item
 alias.reset();               // null
 ```
@@ -208,32 +208,33 @@ void swap(tracked_ptr& p) noexcept;
 Exchanges the two pointers, through a temporary on the stack. There is no free `swap` for `tracked_ptr`; `std::swap` works through the move operations.
 
 ```cpp
-sgcl::tracked_ptr a = sgcl::make_tracked<int>(1);
-sgcl::tracked_ptr b = sgcl::make_tracked<int>(2);
+tracked_ptr a = make_tracked<int>(1);
+tracked_ptr b = make_tracked<int>(2);
 a.swap(b);
 assert(*a == 2 && *b == 1);
 ```
 
-### shade, store(p, unshaded)
+### shade, store(p, barrier::off)
 
 ```cpp
+struct barrier { struct off_t {}; static constexpr off_t off; };   // sgcl::barrier (types.h): the tag of the store without the write barrier
 void shade() const noexcept;                                     // the write barrier for the target, on demand
-void store(const tracked_ptr& p, detail::unshaded_t) noexcept;   // the word alone, relaxed, no barrier
-tracked_ptr(const tracked_ptr& p, detail::unshaded_t) noexcept;  // the same as a constructor
+void store(const tracked_ptr& p, barrier::off_t) noexcept;       // the word alone, relaxed, no barrier: an overload of its own
+tracked_ptr(const tracked_ptr& p, barrier::off_t) noexcept;      // the same as a constructor
 ```
 
-For an immutable structure copying one of its nodes ([im](../containers/im/README.md)). The write barrier's promise is that whatever a pointer is stored to is reachable in the current cycle; a node that never changes holds exactly the words its copy holds, so the copy may take the words without the barrier — `dst.store(src, detail::unshaded)`, a relaxed store of the word, one word at a time (the collector may read the copy meanwhile: a word, never a torn vector store) — and then, the copy complete, one `shade()` of a pointer to the source makes the source reachable in this cycle, and the marking, visiting it, marks every child the copy holds: one barrier for the node in place of one per word. Two rules: the source is held by the caller through the copy and the shade (the version being copied holds it), and the shade comes **after** the copy is complete, never before (the copies of `im` made with a shade of the root ahead of them lost nodes). `shade()` is `_update` of the pointer's target: the state and the card, as a store of the pointer would leave them; on a pointer just made from a raw address it is the barrier that construction ran, once more.
+For an immutable structure copying one of its nodes ([im](../containers/im/README.md)). The write barrier's promise is that whatever a pointer is stored to is reachable in the current cycle; a node that never changes holds exactly the words its copy holds, so the copy may take the words without the barrier — `dst.store(src, barrier::off)`, a relaxed store of the word, one word at a time (the collector may read the copy meanwhile: a word, never a torn vector store) — and then, the copy complete, one `shade()` of a pointer to the source makes the source reachable in this cycle, and the marking, visiting it, marks every child the copy holds: one barrier for the node in place of one per word. Two rules: the source is held by the caller through the copy and the shade (the version being copied holds it), and the shade comes **after** the copy is complete, never before (the copies of `im` made with a shade of the root ahead of them lost nodes). `shade()` is `_update` of the pointer's target: the state and the card, as a store of the pointer would leave them; on a pointer just made from a raw address it is the barrier that construction ran, once more.
 
 ```cpp
 struct branch {
-    sgcl::tracked_ptr<void> children[32];
-    static sgcl::unique_ptr<branch> make(const branch& from) {   // the copy, then the shade
-        sgcl::unique_ptr<branch> copy = sgcl::make_tracked<branch>(from);
-        ((sgcl::tracked_ptr<const branch>)&from).shade();
+    tracked_ptr<void> children[32];
+    static unique_ptr<branch> make(const branch& from) {   // the copy, then the shade
+        unique_ptr<branch> copy = make_tracked<branch>(from);
+        ((tracked_ptr<const branch>)&from).shade();
         return copy;
     }
     branch(const branch& o) noexcept {
-        for (auto i : sgcl::range(32)) children[i].store(o.children[i], sgcl::detail::unshaded);
+        for (auto i : range(32)) children[i].store(o.children[i], barrier::off);
     }
 };
 ```
@@ -249,14 +250,14 @@ The object held from unmanaged memory. Returns a `std::shared_ptr` to the object
 The object stays managed: when the last `shared_ptr` is gone the holder is released and the object lives on if anything else reaches it, and is destroyed on a collector thread, under the rules of destructors, once nothing does. A `shared_ptr` from `to_shared()` is not a deterministic owner the way `unique_ptr` is.
 
 ```cpp
-struct Node { int value = 7; sgcl::tracked_ptr<Node> next; };
+struct Node { int value = 7; tracked_ptr<Node> next; };
 
 std::vector<std::shared_ptr<Node>> kept;           // a std container: no tracked_ptr may live in it
-sgcl::tracked_ptr node = sgcl::make_tracked<Node>();
-node->next = sgcl::make_tracked<Node>();
+tracked_ptr node = make_tracked<Node>();
+node->next = make_tracked<Node>();
 kept.push_back(node.to_shared());                  // the Node and its next live while the shared_ptr does
 node = nullptr;
-sgcl::collector::force_collect();                  // optional, to show the result at once
+collector::force_collect();                  // optional, to show the result at once
 assert(kept[0]->next->value == 7);
 kept.clear();                                      // the last copy: the holder is released, the Node is garbage
 ```
@@ -279,13 +280,13 @@ The dynamic type of the object, read from the metadata of its page, without virt
 struct Shape { virtual ~Shape() = default; };
 struct Circle : Shape { double r = 1; };
 
-sgcl::tracked_ptr<Shape> shape = sgcl::make_tracked<Circle>();
+tracked_ptr<Shape> shape = make_tracked<Circle>();
 assert(shape.type() == typeid(Circle));
 assert(shape.is<Circle>() && !shape.is<Shape>());
-if (sgcl::tracked_ptr circle = shape.as<Circle>()) {   // tracked_ptr<Circle>
+if (tracked_ptr circle = shape.as<Circle>()) {   // tracked_ptr<Circle>
     circle->r = 2;
 }
-sgcl::tracked_ptr radius(&shape.as<Circle>()->r);      // an alias into the Circle
+tracked_ptr radius(&shape.as<Circle>()->r);      // an alias into the Circle
 assert(radius.is<Circle>());                            // the object's type, not the alias's
 assert(radius.as<Circle>() == shape);                   // back to the whole object
 ```
@@ -302,9 +303,9 @@ template<typename T> tracked_ptr(unique_ptr<T>&&) -> tracked_ptr<T>;
 
 ```cpp
 struct Item { int value; };
-sgcl::tracked_ptr item = sgcl::make_tracked<Item>(4);   // tracked_ptr<Item>
-sgcl::tracked_ptr copy = item;                          // tracked_ptr<Item>
-sgcl::tracked_ptr value(&item->value);                  // tracked_ptr<int>
+tracked_ptr item = make_tracked<Item>(4);   // tracked_ptr<Item>
+tracked_ptr copy = item;                          // tracked_ptr<Item>
+tracked_ptr value(&item->value);                  // tracked_ptr<int>
 ```
 
 ### Comparisons
@@ -321,8 +322,8 @@ template<class T> bool operator==(std::nullptr_t, const tracked_ptr<T>& r) noexc
 The addresses compared, as with raw pointers: all six relational operators between two `tracked_ptr`s (of any two types whose raw pointers have a common type) and between a `tracked_ptr` and `nullptr`.
 
 ```cpp
-sgcl::tracked_ptr a = sgcl::make_tracked<int>(1);
-sgcl::tracked_ptr b = a;
+tracked_ptr a = make_tracked<int>(1);
+tracked_ptr b = a;
 assert(a == b && a != nullptr && nullptr < a && a <= b);
 ```
 
@@ -340,10 +341,10 @@ The casts of `std::shared_ptr`: a `tracked_ptr<T>` to the result of the cast of 
 struct Shape { virtual ~Shape() = default; };
 struct Circle : Shape { double r = 1; };
 
-sgcl::tracked_ptr<const Shape> shape = sgcl::make_tracked<Circle>();
-sgcl::tracked_ptr circle = sgcl::dynamic_pointer_cast<const Circle>(shape);   // null for another Shape
-sgcl::tracked_ptr mutable_shape = sgcl::const_pointer_cast<Shape>(shape);
-sgcl::tracked_ptr known = sgcl::static_pointer_cast<Circle>(mutable_shape);
+tracked_ptr<const Shape> shape = make_tracked<Circle>();
+tracked_ptr circle = dynamic_pointer_cast<const Circle>(shape);   // null for another Shape
+tracked_ptr mutable_shape = const_pointer_cast<Shape>(shape);
+tracked_ptr known = static_pointer_cast<Circle>(mutable_shape);
 assert(circle && known->r == 1);
 ```
 
@@ -358,14 +359,14 @@ Prints the address, as `s << p.get()`.
 ### std::hash
 
 ```cpp
-template<class T> struct std::hash<sgcl::tracked_ptr<T>>;
+template<class T> struct std::hash<tracked_ptr<T>>;
 ```
 
 The hash of the address, `std::hash<T*>`. A `tracked_ptr` can be the key of an `sgcl::map` or `set` (not of a `std` one, where it would live in unmanaged memory).
 
 ```cpp
-sgcl::tracked_ptr item = sgcl::make_tracked<int>(1);
-sgcl::set<sgcl::tracked_ptr<int>> seen;
+tracked_ptr item = make_tracked<int>(1);
+set<tracked_ptr<int>> seen;
 seen.insert(item);
 assert(seen.contains(item));
 ```
@@ -376,6 +377,8 @@ assert(seen.contains(item));
 #include "sgcl/sgcl.h"
 #include <cassert>
 #include <iostream>
+
+using namespace sgcl;
 
 struct Shape {
     virtual ~Shape() = default;
@@ -399,34 +402,34 @@ struct Node {
         }
     }
     int id;
-    sgcl::tracked_ptr<Node> next;
+    tracked_ptr<Node> next;
 };
 
 int main() {
     // A ring of three nodes: a cycle, collected like anything else
-    sgcl::tracked_ptr a = sgcl::make_tracked<Node>(1);   // tracked_ptr<Node>, deduced
-    a->next = sgcl::make_tracked<Node>(2);
-    a->next->next = sgcl::make_tracked<Node>(3);
+    tracked_ptr a = make_tracked<Node>(1);   // tracked_ptr<Node>, deduced
+    a->next = make_tracked<Node>(2);
+    a->next->next = make_tracked<Node>(3);
     a->next->next->next = a;
-    sgcl::tracked_ptr b = a->next;                       // a second root into the ring
+    tracked_ptr b = a->next;                       // a second root into the ring
     a = nullptr;                                         // the ring lives on through b
     assert(b->next->next->next == b);                    // three steps around the ring
 
     // A base class and the dynamic type
-    sgcl::tracked_ptr<Shape> shape = sgcl::make_tracked<Circle>(2);
+    tracked_ptr<Shape> shape = make_tracked<Circle>(2);
     std::cout << "area " << shape->area() << '\n';
     if (shape.is<Circle>()) {
-        sgcl::tracked_ptr circle = shape.as<Circle>();   // tracked_ptr<Circle>
+        tracked_ptr circle = shape.as<Circle>();   // tracked_ptr<Circle>
         std::cout << "radius " << circle->r << '\n';
     }
 
     // An alias into a member keeps the whole object
-    sgcl::tracked_ptr id(&b->id);                        // tracked_ptr<int>
+    tracked_ptr id(&b->id);                        // tracked_ptr<int>
     b = nullptr;
     std::cout << "id " << *id << '\n';                   // 2: the ring is still alive
 
     id = nullptr;                                        // nothing reaches the ring now
-    sgcl::collector::force_collect(true);                // optional, for the demonstration only: the collector runs its cycles by itself
+    collector::force_collect(true);                // optional, for the demonstration only: the collector runs its cycles by itself
     return 0;
 }
 ```

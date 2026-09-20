@@ -46,9 +46,9 @@ The requirements (`namespace sgcl::req`) are the concepts of the library: what a
 | `req::lookup<R>` | `sorted_map`, `sorted_multimap`, `map`, `multimap`, `ordered_map`, `im::map` | `get`, `contains_key` |
 
 ```cpp
-static_assert(sgcl::req::ordered<sgcl::vector<int>> && !sgcl::req::ordered<sgcl::sorted_set<int>> && !sgcl::req::enumerable<std::vector<int>>);
+static_assert(req::ordered<vector<int>> && !req::ordered<sorted_set<int>> && !req::enumerable<std::vector<int>>);
 struct point { int x, y; };
-static_assert(sgcl::req::enumerable<sgcl::vector<point>> && !sgcl::req::ordered<sgcl::vector<point>>);   // iterates; has no order
+static_assert(req::enumerable<vector<point>> && !req::ordered<vector<point>>);   // iterates; has no order
 ```
 
 ## Example
@@ -58,25 +58,27 @@ static_assert(sgcl::req::enumerable<sgcl::vector<point>> && !sgcl::req::ordered<
 #include <iostream>
 #include <vector>
 
+using namespace sgcl;
+
 // Two functions, each asking for exactly what its body uses
-size_t count_odd(const sgcl::req::enumerable auto& r) {
+size_t count_odd(const req::enumerable auto& r) {
     return r.count_of([](int x) { return x % 2 != 0; });
 }
 
-void sort_and_print(sgcl::req::ordered auto& r) requires sgcl::req::sequence<decltype(r)> {
+void sort_and_print(req::ordered auto& r) requires req::sequence<decltype(r)> {
     r.sort();
     r.for_each([](int x) { std::cout << x << " "; });
     std::cout << "\n";
 }
 
 int main() {
-    sgcl::vector v = {3, 1, 2};
+    vector v = {3, 1, 2};
     std::vector<int> sv = {9, 7, 8};
     sort_and_print(v);
     // sort_and_print(sv);                       // error: std::vector<int> does not satisfy req::ordered
-    sgcl::range r(sv.begin(), sv.end());         // the adapter: a range of the library over std's iterators
+    range r(sv.begin(), sv.end());         // the adapter: a range of the library over std's iterators
     sort_and_print(r);                           // sorts sv
-    std::cout << count_odd(v) << " " << count_odd(r) << " " << count_odd(sgcl::range(4)) << "\n";
+    std::cout << count_odd(v) << " " << count_odd(r) << " " << count_odd(range(4)) << "\n";
     return 0;
 }
 ```

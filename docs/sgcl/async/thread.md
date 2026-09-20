@@ -23,15 +23,17 @@ namespace sgcl {
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // Four threads count the elements of a shared set; the set stays in
 // main's frame, referenced from each closure, and is joined before it
 // is gone.
 int main() {
-    sgcl::concurrent_set<int> seen;
-    sgcl::vector<sgcl::thread> workers;
-    for (int t : sgcl::range(4)) {
+    concurrent_set<int> seen;
+    vector<thread> workers;
+    for (int t : range(4)) {
         workers.emplace_back([&seen, t] {              // by reference: main's frame outlives the threads it joins
-            for (int i : sgcl::range(1000)) {
+            for (int i : range(1000)) {
                 seen.insert(t * 1000 + i);
             }
         });

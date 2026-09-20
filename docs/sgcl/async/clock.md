@@ -58,16 +58,16 @@ void advance_to(time_point t);
 ```
 
 ```cpp
-sgcl::manual_clock clock;
+manual_clock clock;
 clock.install();
-auto t = sgcl::spawn([]() -> sgcl::task<int> {
+auto t = spawn([]() -> task<int> {
     co_await sgcl::sleep(30s);                   // thirty seconds of the manual clock
     co_return 1;
 }());
 clock.advance(29s);                              // not yet
 clock.advance(1s);                               // the task ran to its end before this returned
 int one = t.join();                              // 1, microseconds after the spawn
-auto every = sgcl::tick(1s);
+auto every = tick(1s);
 clock.advance(1s);
 bool ticked = every->try_receive();              // true: one tick per period advanced
 every->close();
@@ -80,29 +80,31 @@ clock.uninstall();                               // the steady clock again
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 using namespace std::chrono_literals;
 
 // A request that gives up after thirty seconds, and a heartbeat every
 // ten: the test of both under a manual clock, where thirty seconds are
 // three advances and no waiting at all
-sgcl::task<const char*> request(sgcl::channel<int>& reply) {
+task<const char*> request(channel<int>& reply) {
     const char* result = "no reply";
-    co_await sgcl::async_select(
+    co_await async_select(
         reply.on_receive([&](int) { result = "replied"; }),
-        sgcl::timeout(30s, [&] { result = "timed out"; })
+        timeout(30s, [&] { result = "timed out"; })
     );
     co_return result;
 }
 
 int main() {
-    sgcl::manual_clock clock;
+    manual_clock clock;
     clock.install();                          // the module's time stops here
     auto wall = std::chrono::steady_clock::now();
-    sgcl::channel<int> reply;
-    auto r = sgcl::spawn(request(reply));
-    auto heartbeat = sgcl::tick(10s);
+    channel<int> reply;
+    auto r = spawn(request(reply));
+    auto heartbeat = tick(10s);
     int beats = 0;
-    for (int i : sgcl::range(3)) {
+    for (int i : range(3)) {
         (void)i;
         clock.advance(10s);                   // the tick fires; the third time, the timeout too
         if (heartbeat->try_receive()) {
@@ -112,7 +114,7 @@ int main() {
     heartbeat->close();
     auto took = std::chrono::steady_clock::now() - wall;
     std::cout << beats << " heartbeats, the request " << r.join() << ", in " << (took < 1s ? "under" : "over") << " a second of wall time\n";
-    sgcl::scheduler::stop();
+    scheduler::stop();
 }
 ```
 

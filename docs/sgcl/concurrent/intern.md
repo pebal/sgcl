@@ -50,9 +50,9 @@ A pool of its own, for the values of one subsystem, or when the default pool's l
 
 ```cpp
 struct Symbols {
-    sgcl::intern<sgcl::string> names;   // inside a managed object, as any tracked pointer
+    intern<string> names;   // inside a managed object, as any tracked pointer
 };
-sgcl::intern<Point, PointHash> points;   // on the stack
+intern<Point, PointHash> points;   // on the stack
 ```
 
 ### get, find
@@ -67,8 +67,8 @@ template<class K> handle find(const K& value) const noexcept;
 `get` is the canonical object of the value: the pool's when one is alive, or a new one made from the value and entered. `find` is the same object when one is alive, or null (the empty string for a pool of strings), and never makes one.
 
 ```cpp
-sgcl::tracked_ptr<const Point> a = points.get({1, 2});
-sgcl::tracked_ptr<const Point> b = points.get({1, 2});
+tracked_ptr<const Point> a = points.get({1, 2});
+tracked_ptr<const Point> b = points.get({1, 2});
 assert(a == b);                                  // one object
 assert(points.find({2, 1}) == nullptr);
 ```
@@ -84,8 +84,8 @@ template<class K> static handle make(const K& value);   // when Hash and KeyEqua
 The default pool of the type, one for the program, and `get` on it: Go's `unique.Make`.
 
 ```cpp
-sgcl::tracked_ptr<const Point> p = sgcl::intern<Point, PointHash>::make({1, 2});
-sgcl::string host = sgcl::intern<sgcl::string>::make(view);   // the string itself, made if its value is new
+tracked_ptr<const Point> p = intern<Point, PointHash>::make({1, 2});
+string host = intern<string>::make(view);   // the string itself, made if its value is new
 ```
 
 ### intern_string
@@ -97,9 +97,9 @@ string intern_string(std::string_view s);
 `intern<string>::make(s)`: the string of these characters, interned in the default pool of strings, the one every thread holds for them; a `string_view` or a literal, no string made when the value is known.
 
 ```cpp
-sgcl::string a = sgcl::intern_string("alpha");
-sgcl::string line = "alpha 512";
-sgcl::string b = sgcl::intern_string(line.as_slice(0, 5));   // a slice of another string: no string made when the value is known
+string a = intern_string("alpha");
+string line = "alpha 512";
+string b = intern_string(line.as_slice(0, 5));   // a slice of another string: no string made when the value is known
 assert(a.object() == b.object());                // the same object: compared in one word
 ```
 
@@ -121,8 +121,10 @@ The entries, the dead ones not yet swept included; `sweep()` drops the dead ones
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 struct Record {
-    sgcl::string host;    // one of a few values, repeated in every record
+    string host;    // one of a few values, repeated in every record
     int bytes;
 };
 
@@ -141,34 +143,34 @@ int main() {
     // Log records parsed by several threads: the host field takes one of a
     // few values, so every record holds the one interned string of its
     // host, and records of the same host share the object
-    sgcl::concurrent_queue<sgcl::tracked_ptr<Record>> records;
-    sgcl::vector<sgcl::thread> parsers;
-    for (int t : sgcl::range(4)) {
+    concurrent_queue<tracked_ptr<Record>> records;
+    vector<thread> parsers;
+    for (int t : range(4)) {
         parsers.emplace_back([&, t] {
-            for (int i : sgcl::range(1000)) {
-                sgcl::string line = (i + t) % 2 ? "alpha.example 512" : "beta.example 1024";   // a line read from a file
-                sgcl::string_slice host = line.as_slice(0, line.find(' '));
-                records.push(sgcl::make_tracked<Record>(sgcl::intern_string(host), 512));   // no string made once the host is known
+            for (int i : range(1000)) {
+                string line = (i + t) % 2 ? "alpha.example 512" : "beta.example 1024";   // a line read from a file
+                string_slice host = line.as_slice(0, line.find(' '));
+                records.push(make_tracked<Record>(intern_string(host), 512));   // no string made once the host is known
             }
         });
     }
     for (auto& p : parsers) {
         p.join();
     }
-    sgcl::string alpha = sgcl::intern_string("alpha.example");   // the object the parsers got
+    string alpha = intern_string("alpha.example");   // the object the parsers got
     int of_alpha = 0;
     while (auto r = records.try_pop()) {
         if ((*r)->host.object() == alpha.object()) {   // compared by identity: one word
             ++of_alpha;
         }
     }
-    std::cout << of_alpha << " records of alpha.example, " << sgcl::intern<sgcl::string>::pool().size() << " strings in the pool\n";
+    std::cout << of_alpha << " records of alpha.example, " << intern<string>::pool().size() << " strings in the pool\n";
 
     // A pool of values: one object per distinct value, compared by pointer
-    sgcl::intern<Point, PointHash> points;
-    sgcl::tracked_ptr<const Point> a = points.get({1, 2});
-    sgcl::tracked_ptr<const Point> b = points.get({1, 2});
-    sgcl::tracked_ptr<const Point> c = points.get({2, 1});
+    intern<Point, PointHash> points;
+    tracked_ptr<const Point> a = points.get({1, 2});
+    tracked_ptr<const Point> b = points.get({1, 2});
+    tracked_ptr<const Point> c = points.get({2, 1});
     std::cout << (a == b) << ' ' << (a == c) << ' ' << points.size() << " points\n";
 }
 ```

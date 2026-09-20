@@ -49,7 +49,7 @@ The free functions, in `sgcl`:
 
 ```cpp
 void swap(any&, any&) noexcept;
-template<class T, class... A> any make_any(A&&...);                              // an sgcl::any; sgcl::make_any makes a sgcl::any
+template<class T, class... A> any make_any(A&&...);                              // an any; make_any makes a any
 template<class T, class U, class... A> any make_any(std::initializer_list<U>, A&&...);
 template<class T> T any_cast(const any&);   // T, const T&: bad_any_cast on another type
 template<class T> T any_cast(any&);         // T, T&
@@ -62,14 +62,14 @@ template<class T> T* any_cast(any*) noexcept;
 
 ```cpp
 struct Node { int value; };
-struct Counted { sgcl::tracked_ptr<Node> node; int count; };
+struct Counted { tracked_ptr<Node> node; int count; };
 
-sgcl::any a = sgcl::tracked_ptr(sgcl::make_tracked<Node>(1));   // in the word
-sgcl::any b = Counted{sgcl::make_tracked<Node>(2), 7};               // in a managed node of its own
-sgcl::any c = 3;                                                  // in the buffer
-assert(sgcl::any_cast<sgcl::tracked_ptr<Node>>(a)->value == 1);
-assert(sgcl::any_cast<Counted&>(b).count == 7);
-assert(*sgcl::any_cast<int>(&c) == 3 && sgcl::any_cast<double>(&c) == nullptr);
+any a = tracked_ptr(make_tracked<Node>(1));   // in the word
+any b = Counted{make_tracked<Node>(2), 7};               // in a managed node of its own
+any c = 3;                                                  // in the buffer
+assert(any_cast<tracked_ptr<Node>>(a)->value == 1);
+assert(any_cast<Counted&>(b).count == 7);
+assert(*any_cast<int>(&c) == 3 && any_cast<double>(&c) == nullptr);
 b.reset();                                                        // the Counted destroyed now; its Node dies with the next cycle, the node with it
 ```
 
@@ -79,26 +79,28 @@ b.reset();                                                        // the Counted
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // Properties attached to objects by name, of any type, some of them
-// tracked pointers to other objects: an sgcl::sorted_map of sgcl::any inside
+// tracked pointers to other objects: an sorted_map of any inside
 // the managed object, its pointers followed. A property pointing back
 // at its own object is a cycle: collected.
 struct Node {
     int id;
-    sgcl::sorted_map<sgcl::string, sgcl::any> properties;
+    sorted_map<string, any> properties;
 };
 
 int main() {
-    sgcl::tracked_ptr a = sgcl::make_tracked<Node>(1);
-    sgcl::tracked_ptr b = sgcl::make_tracked<Node>(2);
+    tracked_ptr a = make_tracked<Node>(1);
+    tracked_ptr b = make_tracked<Node>(2);
     a->properties["weight"] = 2.5;                              // in the buffer
-    a->properties["label"] = sgcl::string("first");             // a string, an object with a pointer word inside: in a managed node of its own
-    a->properties["peer"] = b;                                  // a sgcl::tracked_ptr in the word: b lives while a does
-    a->properties["peers"] = sgcl::vector<sgcl::tracked_ptr<Node>>{b, a};   // a container, in a managed node; a inside: a cycle through a, collected with a
+    a->properties["label"] = string("first");             // a string, an object with a pointer word inside: in a managed node of its own
+    a->properties["peer"] = b;                                  // a tracked_ptr in the word: b lives while a does
+    a->properties["peers"] = vector<tracked_ptr<Node>>{b, a};   // a container, in a managed node; a inside: a cycle through a, collected with a
     b = nullptr;
-    sgcl::collector::force_collect(true);                         // optional, for the demonstration only
-    auto& peer = sgcl::any_cast<sgcl::tracked_ptr<Node>&>(a->properties["peer"]);
-    std::cout << peer->id << " " << sgcl::any_cast<double>(a->properties["weight"]) << "\n";   // 2 2.5
+    collector::force_collect(true);                         // optional, for the demonstration only
+    auto& peer = any_cast<tracked_ptr<Node>&>(a->properties["peer"]);
+    std::cout << peer->id << " " << any_cast<double>(a->properties["weight"]) << "\n";   // 2 2.5
     return 0;
 }
 ```

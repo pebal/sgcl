@@ -57,7 +57,7 @@ friend bool operator!=(const list& a, const list& b);
 ```
 
 ```cpp
-sgcl::im::list<int> l = {1, 2, 3};
+im::list<int> l = {1, 2, 3};
 auto m = l.push_front(0);          // 0 1 2 3: one cell, the chain of l behind it
 auto n = l.pop_front();            // 2 3: the rest of l's chain, nothing made
 assert(m.pop_front() == l);        // the same chain
@@ -70,7 +70,7 @@ auto r = m.reverse();              // 3 2 1 0: a new chain
 `im::list` carries [mixin::enumerable](../../core/mixin/enumerable.md), [mixin::comparable](../../core/mixin/comparable.md) and [mixin::ordered](../../core/mixin/ordered.md) ([the mixins](../../core/mixin/README.md)): `contains`, `index_of`, `min`, `is_sorted`; no `sort()`.
 
 ```cpp
-sgcl::im::list<int> l = {1, 2, 3};
+im::list<int> l = {1, 2, 3};
 assert(l.contains(2) && l.index_of(3) == 2 && l.is_sorted() && l.min() == 1);
 ```
 
@@ -80,19 +80,21 @@ assert(l.contains(2) && l.index_of(3) == 2 && l.is_sorted() && l.min() == 1);
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // An undo history as a list of states: a change pushes the new state,
 // undo pops it, and every state is shared with every history that
 // holds it
 struct Document {
-    sgcl::im::vector<sgcl::string> lines;
+    im::vector<string> lines;
 };
 
 struct Editor {
-    sgcl::im::list<Document> history = {Document{}};   // the current state in front
+    im::list<Document> history = {Document{}};   // the current state in front
 
     const Document& current() const { return history.front(); }
 
-    void append(sgcl::string line) {
+    void append(string line) {
         history = history.push_front(Document{current().lines.push_back(std::move(line))});   // a cell and a leaf: the rest shared
     }
 

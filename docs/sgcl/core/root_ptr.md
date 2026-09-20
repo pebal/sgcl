@@ -55,18 +55,18 @@ template<class U> tracked_ptr<U> as() const noexcept;
 The free functions, in `sgcl`: `swap`, `==` with a `root_ptr`, a `tracked_ptr` and `nullptr`, `<=>` between `root_ptr`s (by address), `operator<<`, `std::hash<root_ptr<T>>` (of the address), the deduction guides from a `tracked_ptr` and a `unique_ptr`.
 
 ```cpp
-struct Node { int value; sgcl::tracked_ptr<Node> next; };
+struct Node { int value; tracked_ptr<Node> next; };
 
-std::vector<sgcl::root_ptr<Node>> handles;                 // roots on the unmanaged heap
-handles.emplace_back(sgcl::make_tracked<Node>(Node{1}));   // a cell taken, the object rooted
-sgcl::tracked_ptr<Node> n = handles[0].ptr();              // the tracked_ptr, copied onto the stack
-n->next = sgcl::make_tracked<Node>(Node{2});               // reachable through the root
+std::vector<root_ptr<Node>> handles;                 // roots on the unmanaged heap
+handles.emplace_back(make_tracked<Node>(Node{1}));   // a cell taken, the object rooted
+tracked_ptr<Node> n = handles[0].ptr();              // the tracked_ptr, copied onto the stack
+n->next = make_tracked<Node>(Node{2});               // reachable through the root
 handles.clear();                                           // the roots gone: both nodes collectable
 
-static sgcl::root_ptr<Node> current;                       // a global shared between threads
-sgcl::atomic_ref a(current);                               // the atomic of the root: the cell's word
-a.store(sgcl::make_tracked<Node>(Node{3}));
-sgcl::tracked_ptr<Node> seen = a.load();
+static root_ptr<Node> current;                       // a global shared between threads
+atomic_ref a(current);                               // the atomic of the root: the cell's word
+a.store(make_tracked<Node>(Node{3}));
+tracked_ptr<Node> seen = a.load();
 ```
 
 ## Example
@@ -76,23 +76,25 @@ sgcl::tracked_ptr<Node> seen = a.load();
 #include <iostream>
 #include <map>
 
+using namespace sgcl;
+
 // An interpreter's globals: named roots into the managed heap, kept in
 // a std::unordered_map that lives where the interpreter does. A value
 // reachable from a global stays; one dropped from the table goes with
 // the next cycle, with everything only it reached.
 struct Value {
     int number;
-    sgcl::tracked_ptr<Value> next;
+    tracked_ptr<Value> next;
 };
 
 int main() {
-    std::unordered_map<std::string, sgcl::root_ptr<Value>> globals;
-    globals["list"] = sgcl::make_tracked<Value>(Value{1});
-    globals["list"]->next = sgcl::make_tracked<Value>(Value{2});
+    std::unordered_map<std::string, root_ptr<Value>> globals;
+    globals["list"] = make_tracked<Value>(Value{1});
+    globals["list"]->next = make_tracked<Value>(Value{2});
     globals["alias"] = globals["list"];                       // a cell of its own, the same object
     std::cout << globals["alias"]->next->number << "\n";      // 2
     globals.erase("list");                                     // the alias still roots the list
-    sgcl::collector::force_collect(true);                      // optional, for the demonstration only
+    collector::force_collect(true);                      // optional, for the demonstration only
     std::cout << globals["alias"]->number << "\n";             // 1
     globals.clear();                                           // no root left: the list is collectable
     return 0;

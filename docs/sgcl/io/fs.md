@@ -112,7 +112,7 @@ template<class F> result<void> walk_dir(const string& root, F f);   // F: walk_a
 
 ```cpp
 uint64_t total = 0;
-io::walk_dir(".", [&](const io::dir_entry& e, const sgcl::optional<io::error>& err) {
+io::walk_dir(".", [&](const io::dir_entry& e, const optional<io::error>& err) {
     if (err) { std::cerr << err->message() << '\n'; return io::walk_action::next; }
     if (e.is_directory() && e.name == ".git") return io::walk_action::skip_dir;
     if (auto i = e.info()) total += i->size;
@@ -126,7 +126,9 @@ io::walk_dir(".", [&](const io::dir_entry& e, const sgcl::optional<io::error>& e
 #include "sgcl/sgcl.h"
 #include <iostream>
 
-namespace io = sgcl::io;
+using namespace sgcl;
+
+namespace io = io;
 
 // Removes the files of a directory older than a week
 int main(int argc, char** argv) {

@@ -48,10 +48,10 @@ A `range` is a range of the library ([the mixins](mixin/README.md)): it carries 
 
 ```cpp
 std::vector<int> sv = {3, 1, 2};
-sgcl::range r(sv.begin(), sv.end());
+range r(sv.begin(), sv.end());
 r.sort();                                         // sv is 1 2 3
-assert(r.is_sorted() && r.contains(2) && sgcl::range(5).max() == 4 && sgcl::range(5).count_of([](int x) { return x % 2; }) == 2);
-static_assert(sgcl::req::contiguous<decltype(r)> && sgcl::req::sequence<decltype(r)> && !sgcl::req::sequence<sgcl::range<sgcl::detail::counter<int>>>);
+assert(r.is_sorted() && r.contains(2) && range(5).max() == 4 && range(5).count_of([](int x) { return x % 2; }) == 2);
+static_assert(req::contiguous<decltype(r)> && req::sequence<decltype(r)> && !req::sequence<range<detail::counter<int>>>);
 ```
 
 ## Example
@@ -62,29 +62,31 @@ static_assert(sgcl::req::contiguous<decltype(r)> && sgcl::req::sequence<decltype
 #include <iostream>
 #include <ranges>
 
+using namespace sgcl;
+
 int main() {
     int sum = 0;
-    for (int i : sgcl::range(10)) {                 // 0..9
+    for (int i : range(10)) {                 // 0..9
         sum += i;
     }
     std::cout << sum << "\n";                       // 45
 
-    for (int i : sgcl::range(2, 5)) {               // 2, 3, 4
+    for (int i : range(2, 5)) {               // 2, 3, 4
         std::cout << i << " ";
     }
     std::cout << "\n";
-    std::cout << sgcl::range(7, 3).empty() << " " << sgcl::range(3, 8).size() << "\n";   // 1 5
+    std::cout << range(7, 3).empty() << " " << range(3, 8).size() << "\n";   // 1 5
 
-    auto squares = sgcl::range(4) | std::views::transform([](int i) { return i * i; });
+    auto squares = range(4) | std::views::transform([](int i) { return i * i; });
     std::cout << *std::ranges::max_element(squares) << "\n";   // 9
 
-    sgcl::sorted_multimap<sgcl::string, int> scores = {{"ann", 90}, {"ann", 95}, {"bob", 70}};
-    sgcl::range ann = scores.equal_range("ann");   // range<iterator>, deduced from the pair
+    sorted_multimap<string, int> scores = {{"ann", 90}, {"ann", 95}, {"bob", 70}};
+    range ann = scores.equal_range("ann");   // range<iterator>, deduced from the pair
     int best = 0;
     for (auto& [name, score] : ann) {
         best = std::max(best, score);
     }
-    sgcl::range cid = scores.equal_range("cid");
+    range cid = scores.equal_range("cid");
     std::cout << ann.size() << " " << best << " " << cid.empty() << "\n";   // 2 95 1
     return 0;
 }

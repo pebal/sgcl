@@ -15,23 +15,23 @@ The frame of a C++20 coroutine, where its parameters, locals and promise live be
 ```cpp
 struct Job { int id; };
 
-sgcl::task<> worker(sgcl::channel<sgcl::tracked_ptr<Job>>& jobs, sgcl::channel<int>& results) {
+task<> worker(channel<tracked_ptr<Job>>& jobs, channel<int>& results) {
     while (auto job = co_await jobs.async_receive()) {   // suspended while jobs is empty: no thread held
         co_await results.async_send((*job)->id * 2);     // suspended while results is full
     }
 }
 
-sgcl::task<long> summer(sgcl::channel<int>& results) {
+task<long> summer(channel<int>& results) {
     long sum = 0;
     while (auto r = co_await results.async_receive()) sum += *r;
     co_return sum;
 }
 
-sgcl::channel<sgcl::tracked_ptr<Job>> jobs(8);
-sgcl::channel<int> results(8);
-for (int w : sgcl::range(4)) sgcl::go(worker(jobs, results));   // four workers, on the pool
-auto sum = sgcl::spawn(summer(results));
-for (int i : sgcl::range(1000)) jobs.send(sgcl::make_tracked<Job>(i));      // from this thread: each send wakes a worker task
+channel<tracked_ptr<Job>> jobs(8);
+channel<int> results(8);
+for (int w : range(4)) go(worker(jobs, results));   // four workers, on the pool
+auto sum = spawn(summer(results));
+for (int i : range(1000)) jobs.send(make_tracked<Job>(i));      // from this thread: each send wakes a worker task
 jobs.close(); /* ... */ results.close();
 long total = sum.join();                                                    // this thread waits; or co_await sum from a task
 ```
@@ -39,11 +39,11 @@ long total = sum.join();                                                    // t
 A task that waits on several channels writes a `select`: one case per channel, a receive or a send with a body, and the first case its channel can serve runs its body; `otherwise` is the case taken when none can be served at once, which makes the select a poll. A thread writes the same with `select(...)` and blocks. The loop of a worker that serves a queue until told to stop:
 
 ```cpp
-sgcl::task<> worker(sgcl::channel<sgcl::tracked_ptr<Job>>& jobs, sgcl::channel<void>& stop) {
+task<> worker(channel<tracked_ptr<Job>>& jobs, channel<void>& stop) {
     bool running = true;
     while (running) {
-        co_await sgcl::async_select(
-            jobs.on_receive([&](sgcl::tracked_ptr<Job> job) { handle(job); }),   // an element came
+        co_await async_select(
+            jobs.on_receive([&](tracked_ptr<Job> job) { handle(job); }),   // an element came
             stop.on_receive([&] { running = false; })                            // a signal, or stop closed
         );
     }
@@ -62,10 +62,10 @@ Two more of the synchronization are not channels under a name but words with cha
 `generator<T>` is a coroutine that `co_yield`s values, consumed with a range-for; a `task` may also be driven by hand, `resume()` one step at a time, without the scheduler:
 
 ```cpp
-sgcl::generator<sgcl::tracked_ptr<Node>> chain(int count) {
-    sgcl::tracked_ptr<Node> last;                 // a local in the frame: a root while suspended
-    for (int i : sgcl::range(count)) {
-        sgcl::tracked_ptr n = sgcl::make_tracked<Node>(i, last);
+generator<tracked_ptr<Node>> chain(int count) {
+    tracked_ptr<Node> last;                 // a local in the frame: a root while suspended
+    for (int i : range(count)) {
+        tracked_ptr n = make_tracked<Node>(i, last);
         last = n;
         co_yield n;                               // suspended here, the chain is alive
     }

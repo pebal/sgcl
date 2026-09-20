@@ -30,7 +30,7 @@ What the library gives a program to find out what the collector is doing, what i
 Start from the types, without stopping anything for long:
 
 ```cpp
-for (auto& t : sgcl::collector::get_type_statistics()) {          // a full cycle first: what is alive, not what waits for one
+for (auto& t : collector::get_type_statistics()) {          // a full cycle first: what is alive, not what waits for one
     std::cout << t.type->name() << (t.buffers ? " buffers" : "") << ": "
               << t.live_objects << " objects, " << t.live_bytes << " bytes, " << t.pages << " pages\n";
 }
@@ -42,7 +42,7 @@ The list is sorted by bytes, so the first lines are the answer in most cases: a 
 Then the numbers over time: `get_statistics()` at intervals, from any thread, without waiting:
 
 ```cpp
-auto s = sgcl::collector::get_statistics();
+auto s = collector::get_statistics();
 std::cout << s.cycles << " cycles (" << s.full_cycles << " full), last " << s.last_cycle_ms << " ms, "
           << s.live_objects << " objects marked, " << s.live_bytes / 1048576 << " MB in use, "
           << s.committed_bytes / 1048576 << " MB committed\n";
@@ -63,7 +63,7 @@ Four things keep an object alive that the program has let go of, in the order to
 To see which it is, ask the collector:
 
 ```cpp
-sgcl::collector::explain(p, std::cerr);     // Collector::Explain(p, std::cerr)
+collector::explain(p, std::cerr);     // Collector::Explain(p, std::cerr)
 // 0x1000a0040 is held by
 //   a buffer of Item[] at 0x1000c0000, the word at byte 1040
 //   a Cache at 0x1000a0100, the word at byte 16
@@ -108,11 +108,11 @@ The mutators' side is not in the statistics: it is the write barrier on every po
 A store that lands in a particular window of a cycle, an object made after the flip of the epoch, a pointer read while the weak cells are cleared: the stress tests find these by luck, `collector::stepper` (`Collector::Stepper`) finds them on purpose. A test takes the collector and lets it through one gate at a time, doing the mutator's work in between:
 
 ```cpp
-sgcl::collector::stepper s(false);                       // young cycles; the test's thread is the mutator
-sgcl::tracked_ptr holder = sgcl::make_tracked<Node>();
+collector::stepper s(false);                       // young cycles; the test's thread is the mutator
+tracked_ptr holder = make_tracked<Node>();
 s.finish_cycle();                                      // holder is old and marked
-s.advance_to(sgcl::collector::stepper::phase::roots);    // the stacks scanned, the dirty pages traced
-holder->next = sgcl::make_tracked<Node>();               // stored into an old object after the trace: the card
+s.advance_to(collector::stepper::phase::roots);    // the stacks scanned, the dirty pages traced
+holder->next = make_tracked<Node>();               // stored into an old object after the trace: the card
 s.finish_cycle();                                      // not swept: made after the flip
 s.finish_cycle();                                      // registered now, found through the card
 ```
@@ -147,14 +147,14 @@ The methods in one listing; the tools by case, with what each costs, are above, 
 ```cpp
 // Forcing a collection: optional, the collector runs its cycles by itself
 // (used in the examples and tests only to show or check a result at once)
-sgcl::collector::force_collect();
+collector::force_collect();
 
 // Forcing a collection and waiting for the cycle to complete
-sgcl::collector::force_collect(true);
+collector::force_collect(true);
 
 // Get number of live objects
 // Note: A full GC cycle is performed before returning the data
-auto live_object_count = sgcl::collector::get_live_object_count();
+auto live_object_count = collector::get_live_object_count();
 std::cout << "live object count: " << live_object_count << std::endl;
 
 {
@@ -162,7 +162,7 @@ std::cout << "live object count: " << live_object_count << std::endl;
     // Note: A full GC cycle is performed before returning the data
     // Note: pause_guard and std::vector with raw pointers is returned
     //       The GC engine is paused until the pause guard is destroyed
-    auto [pause_guard, live_objects] = sgcl::collector::get_live_objects();
+    auto [pause_guard, live_objects] = collector::get_live_objects();
     for (auto& v: live_objects) {
         std::cout << v << " ";
     }
@@ -173,12 +173,12 @@ std::cout << "live object count: " << live_object_count << std::endl;
 // dead frames stop keeping objects alive. Called automatically by
 // force_collect() and the counting functions above; clear_stack(SIZE_MAX)
 // zeroes down to the end of the thread's stack.
-sgcl::collector::clear_stack();
+collector::clear_stack();
 
 // What the live heap is made of, by type, after a full cycle: objects by
 // their type, the buffers of the containers by their array type (T[]),
 // sorted by bytes. The answer to "what is growing".
-for (auto& t : sgcl::collector::get_type_statistics()) {
+for (auto& t : collector::get_type_statistics()) {
     std::cout << (t.buffers ? "buffers of " : "") << t.type->name() << ": " << t.live_objects
               << " x " << t.object_size << " B = " << t.live_bytes << " B"
               << (t.buffers ? "" : ", " + std::to_string(t.pages) + " pages") << std::endl;
@@ -186,17 +186,17 @@ for (auto& t : sgcl::collector::get_type_statistics()) {
 
 // Counters of the collector's work, without stopping it: cycles completed,
 // live objects and memory after the last cycle, its duration and phases, the helpers
-auto stats = sgcl::collector::get_statistics();
+auto stats = collector::get_statistics();
 std::cout << stats.cycles << " cycles, " << stats.live_objects << " objects, "
           << stats.live_bytes / 1048576 << " MB, last cycle " << stats.last_cycle_ms << " ms, "
           << stats.last_helpers_used << " helpers" << std::endl;
-for (int i : sgcl::range(8)) {                 // registration, states, roots, marking, updated, sweep, release, trim
-    std::cout << sgcl::collector::phase_names[i] << " " << stats.phases_ms[i] << " ms" << std::endl;
+for (int i : range(8)) {                 // registration, states, roots, marking, updated, sweep, release, trim
+    std::cout << collector::phase_names[i] << " " << stats.phases_ms[i] << " ms" << std::endl;
 }
 
 // What holds an object: a chain from it up to a root, as text (a full
 // cycle first, the collector paused for the walk), and what dies with it
-sgcl::collector::explain(node.get(), std::cout);
+collector::explain(node.get(), std::cout);
 // 0x100... is held by
 //   a Node at 0x100..., the word at byte 8
 //   a unique_ptr: the Node at 0x100... is its object
@@ -206,26 +206,26 @@ sgcl::collector::explain(node.get(), std::cout);
 // buffer elements, cells, stack words, a unique_ptr, weak cells), the
 // chain, what the object retains. One pause_guard at a time.
 {
-    auto [guard, referrers] = sgcl::collector::get_referrers(node.get());
+    auto [guard, referrers] = collector::get_referrers(node.get());
     for (auto& r : referrers) {
         std::cout << (r.type ? r.type->name() : "a stack word") << " at " << r.holder << " +" << r.offset << std::endl;
     }
 }
 {
-    auto [guard, path] = sgcl::collector::get_path_to_root(node.get());   // [0] holds node, [1] holds [0]'s holder, ..., a root
+    auto [guard, path] = collector::get_path_to_root(node.get());   // [0] holds node, [1] holds [0]'s holder, ..., a root
 }
-auto [objects, bytes] = sgcl::collector::get_retained(node.get());
+auto [objects, bytes] = collector::get_retained(node.get());
 
 // The collector one gate at a time, for the tests of the engine: no cycle
 // runs while the stepper lives; the calling thread is the mutator
 {
-    sgcl::collector::stepper s(false);                        // young cycles
-    s.advance_to(sgcl::collector::stepper::phase::roots);     // the stacks scanned, the dirty pages traced
-    holder->next = sgcl::make_tracked<Node>();                // a store in that window
+    collector::stepper s(false);                        // young cycles
+    s.advance_to(collector::stepper::phase::roots);     // the stacks scanned, the dirty pages traced
+    holder->next = make_tracked<Node>();                // a store in that window
     s.finish_cycle();
 }
 
 // Stop the collector: cycles run until nothing dies any more, the threads exit.
 // Optional; afterwards no cycle runs and tracked garbage stays until exit.
-sgcl::collector::terminate();
+collector::terminate();
 ```

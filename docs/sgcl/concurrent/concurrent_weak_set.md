@@ -46,23 +46,25 @@ bool empty() const noexcept;
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 struct Connection {
     explicit Connection(int id) : id(id) {}
     int id;
-    sgcl::atomic<int> notices = 0;
+    atomic<int> notices = 0;
 };
 
 int main() {
     // Every open connection, registered by the thread that accepts it and
     // owned there alone: a connection closed is gone from the set by
     // itself, and a broadcast reaches the ones still open
-    sgcl::concurrent_weak_set<Connection> open;
-    sgcl::concurrent_queue<sgcl::tracked_ptr<Connection>> kept;   // the connections still open, handed to main
-    sgcl::vector<sgcl::thread> acceptors;
-    for (int t : sgcl::range(4)) {
+    concurrent_weak_set<Connection> open;
+    concurrent_queue<tracked_ptr<Connection>> kept;   // the connections still open, handed to main
+    vector<thread> acceptors;
+    for (int t : range(4)) {
         acceptors.emplace_back([&, t] {
-            for (int i : sgcl::range(100)) {
-                sgcl::tracked_ptr c = sgcl::make_tracked<Connection>(t * 100 + i);
+            for (int i : range(100)) {
+                tracked_ptr c = make_tracked<Connection>(t * 100 + i);
                 open.insert(c);
                 if (i % 50 == 0) {
                     kept.push(c);            // stays open; the rest are closed when the iteration ends
@@ -73,7 +75,7 @@ int main() {
     for (auto& a : acceptors) {
         a.join();
     }
-    sgcl::collector::force_collect(true);    // optional, for the demonstration: the closed connections found unreachable
+    collector::force_collect(true);    // optional, for the demonstration: the closed connections found unreachable
     int reached = 0;
     for (auto c : open) {                    // tracked_ptr<Connection>, held: the open ones only
         ++c->notices;

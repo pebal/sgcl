@@ -29,7 +29,7 @@ namespace sgcl {
 ```cpp
 using key_type = Key;
 using mapped_type = T;
-using value_type = pair<const Key, T>;   // sgcl::pair, the alias of std::pair (sgcl/core/aliases.h)
+using value_type = pair<const Key, T>;   // pair, the alias of std::pair (sgcl/core/aliases.h)
 using hasher = Hash;
 using key_equal = KeyEqual;
 using size_type = size_t;
@@ -51,8 +51,8 @@ concurrent_map(const concurrent_map&) = delete;
 An empty map with 16 buckets (`buckets` rounded up to a power of two when given), or one built at once from a range or a list: as many buckets as the elements from the start, the elements sorted by their split keys (the first of two with one key kept, as `insert` keeps it) and the list linked in one pass with the dummies of the buckets in use merged in at their keys, a store each and no search; 90 to 120 ns per element for 200,000 random keys against 140 to 270 by the inserts.
 
 ```cpp
-sgcl::concurrent_map<int, sgcl::tracked_ptr<Session>> sessions;   // a global: sgcl::
-sgcl::concurrent_map<sgcl::string, int> counts(1 << 16);      // 65536 buckets from the start
+concurrent_map<int, tracked_ptr<Session>> sessions;   // a global: 
+concurrent_map<string, int> counts(1 << 16);      // 65536 buckets from the start
 ```
 
 ### begin, end, cbegin, cend, empty, size, bucket_count, reserve, hash_function, key_eq
@@ -102,7 +102,7 @@ template<class... A> pair<iterator, bool> try_emplace(Key&& key, A&&... a);
 Inserts an element unless its key is taken: the element and `true`, or the one already there and `false`, as `std::unordered_map`. `emplace` builds the element first, in a node of its own, and drops the node when the key turns out to be taken; `try_emplace` searches once and builds nothing when the key is there: the element is built from the key and `a...` only when it is absent, and linked where that search found its place. A concurrent insertion of the same key wins or loses at the compare-exchange: exactly one returns `true`.
 
 ```cpp
-auto [it, inserted] = sessions.try_emplace(42, sgcl::make_tracked<Session>());
+auto [it, inserted] = sessions.try_emplace(42, make_tracked<Session>());
 ```
 
 ### erase, clear
@@ -122,20 +122,22 @@ Erases the element under `key` (1 or 0 erased), or the one `pos` addresses if it
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 // A word count over many threads: every thread inserts or increments,
 // nobody locks, the table doubles under them as it fills
 struct Count {
-    sgcl::atomic<int> n = 0;
+    atomic<int> n = 0;
 };
 
 int main() {
-    sgcl::concurrent_map<sgcl::string, sgcl::tracked_ptr<Count>> counts;
-    sgcl::vector<sgcl::thread> threads;
-    for (int t : sgcl::range(8)) {
+    concurrent_map<string, tracked_ptr<Count>> counts;
+    vector<thread> threads;
+    for (int t : range(8)) {
         threads.emplace_back([&, t] {
-            for (int i : sgcl::range(10000)) {
-                sgcl::string word = "w" + sgcl::to_string((i * 8 + t) % 1000);
-                auto [it, fresh] = counts.try_emplace(word, sgcl::make_tracked<Count>());   // one Count per word, whoever gets there first
+            for (int i : range(10000)) {
+                string word = "w" + to_string((i * 8 + t) % 1000);
+                auto [it, fresh] = counts.try_emplace(word, make_tracked<Count>());   // one Count per word, whoever gets there first
                 ++it->second->n;
             }
         });

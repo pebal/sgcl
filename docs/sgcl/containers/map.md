@@ -64,11 +64,11 @@ map(map&& other);
 The default constructor allocates nothing (`bucket_count() == 0`). A bucket count is rounded up to a power of two; 0 means no array yet. The range constructor, given a forward range, sizes the table for the distance first; a key seen twice keeps its first value. An element of the range that is a `std::pair<Key, U>` is hashed and looked up where it is and copied once, into its node (a duplicate copies nothing); an element of any other type is converted to a `value_type` first, once. A copy reproduces `other`'s bucket count, order and `max_load_factor`; a move takes the table over and leaves `other` empty. An element constructor or hasher that throws while a constructor runs destroys the elements built so far.
 
 ```cpp
-sgcl::map<sgcl::string, int> ages = {{"ann", 31}, {"bob", 27}};
-sgcl::map<int, int> sized(100);                                         // 128 buckets, no elements
-sgcl::vector<sgcl::pair<int, int>> src = {{2, 20}, {1, 10}};
-sgcl::map from_range(src.begin(), src.end());                           // deduced: map<int, int>
-sgcl::map<sgcl::string, int> taken = std::move(ages);                    // ages is empty now
+map<string, int> ages = {{"ann", 31}, {"bob", 27}};
+map<int, int> sized(100);                                         // 128 buckets, no elements
+vector<pair<int, int>> src = {{2, 20}, {1, 10}};
+map from_range(src.begin(), src.end());                           // deduced: map<int, int>
+map<string, int> taken = std::move(ages);                    // ages is empty now
 ```
 
 ### Destructor
@@ -90,7 +90,7 @@ map& operator=(std::initializer_list<value_type> ilist);
 Copy assignment builds a copy of `other` and swaps it in (the old elements die when the temporary does); self-assignment is a no-op. Move assignment clears this map, destroying its elements at once, and takes the table over. The list form builds a new table with this map's hasher, equality and `max_load_factor` and swaps it in.
 
 ```cpp
-sgcl::map<int, int> a = {{1, 1}}, b;
+map<int, int> a = {{1, 1}}, b;
 b = a;                       // copies
 b = {{5, 5}, {6, 6}};        // the old elements die here
 a = std::move(b);            // a holds 5 and 6, b is empty
@@ -106,7 +106,7 @@ iterator end() noexcept;                  const_iterator end() const noexcept;  
 Forward iterators over one chain of nodes; `end()` is a null iterator. The order is the chain's, bucket by bucket, and changes with a rehash. An iterator is a raw node pointer: copying and advancing it costs a load, never a write barrier, and it may be kept in unmanaged memory for as long as its element is in the map.
 
 ```cpp
-sgcl::map<sgcl::string, int> m = {{"a", 1}, {"b", 2}};
+map<string, int> m = {{"a", 1}, {"b", 2}};
 int sum = 0;
 for (auto& [key, value] : m) {
     sum += value;                          // 3, in whichever order
@@ -135,7 +135,7 @@ void clear() noexcept;
 Destroys every element at once and unlinks every node; the bucket array, the hasher, the equality and `max_load_factor` stay. The nodes are reclaimed by the collector.
 
 ```cpp
-sgcl::map<int, sgcl::string> m = {{1, "a"}, {2, "b"}};
+map<int, string> m = {{1, "a"}, {2, "b"}};
 auto buckets = m.bucket_count();
 m.clear();                                  // both strings are destroyed here
 bool same = m.bucket_count() == buckets;    // true
@@ -159,11 +159,11 @@ iterator insert(const_iterator hint, node_type&& nh);
 As in `std::unordered_map`: the single-element forms return the element with the key and whether it was inserted; nothing is built when the key is already there (the `P&&` forms go through `emplace`, which builds the element first and destroys it again on a duplicate). The range form reads the key of each element where it is: a `std::pair<Key, U>` is hashed and looked up in the range and copied once, into its node, a duplicate copies nothing; an element of any other type is converted to a `value_type` first, once. The hint is ignored. The table grows before the node is linked when the size has reached the threshold; an existing key never rehashes. The node-handle forms link the node of `nh` without copying the element: on success `nh` is empty afterwards; on a duplicate key the returned `node` (or `nh`, for the hinted form) keeps it and `position` points at the element in the way. An empty handle inserts nothing (`position == end()`, `inserted == false`).
 
 ```cpp
-sgcl::map<sgcl::string, int> m;
+map<string, int> m;
 auto [it, inserted] = m.insert({"a", 1});                          // inserted: true
 inserted = m.insert(std::pair<const char*, int>("a", 2)).second;   // false: "a" stays 1
 m.insert({{"b", 2}, {"c", 3}});
-sgcl::map<sgcl::string, int> other = {{"q", 17}};
+map<string, int> other = {{"q", 17}};
 auto r = m.insert(other.extract("q"));                             // relinked, no copy: r.inserted is true
 ```
 
@@ -177,7 +177,7 @@ template<class... A> iterator emplace_hint(const_iterator hint, A&&... a);
 Builds the `value_type` from `a...` in a new node before the key is looked up, as in `std`; if the key is already there the new element is destroyed and the existing one returned (the node is garbage for the collector). A single `value_type` argument is inserted without the detour. The hint is ignored. A hasher or equality that throws destroys the new element and leaves the map as it was.
 
 ```cpp
-sgcl::map<sgcl::string, sgcl::string> m;
+map<string, string> m;
 m.emplace("k", "v");
 m.emplace(std::piecewise_construct, std::forward_as_tuple("p"), std::forward_as_tuple(3, 'x'));   // "p" -> "xxx"
 auto it = m.emplace_hint(m.end(), "z", "last");
@@ -201,7 +201,7 @@ struct Pinned {
     Pinned(const Pinned&) = delete;
     Pinned& operator=(const Pinned&) = delete;
 };
-sgcl::map<int, Pinned> m;
+map<int, Pinned> m;
 m.try_emplace(1, 10);                                       // Pinned(10) built inside the node
 auto [it, fresh] = m.try_emplace(1, 11);                    // fresh: false; no Pinned(11) was built
 m.try_emplace(m.end(), 2, 20);                              // the hinted form returns an iterator
@@ -219,7 +219,7 @@ template<class M> iterator insert_or_assign(const_iterator hint, key_type&& key,
 Inserts `{key, obj}` when the key is new (`true`), otherwise assigns `obj` to the mapped value in place (`false`). The hint is ignored.
 
 ```cpp
-sgcl::map<sgcl::string, int> m;
+map<string, int> m;
 m.insert_or_assign("a", 1);                          // inserted
 auto [it, inserted] = m.insert_or_assign("a", 2);    // assigned: inserted is false, it->second is 2
 ```
@@ -238,7 +238,7 @@ mapped_type& operator[](key_type&& key);
 `at` throws `std::out_of_range` when the key is absent, and takes a `K` for transparent hash and equality. `operator[]` inserts a value-initialized mapped value for a new key (built in place, through `try_emplace`) and returns a reference to it; for a `tracked_ptr` mapped type that is a null pointer.
 
 ```cpp
-sgcl::map<sgcl::string, int> counts;
+map<string, int> counts;
 ++counts["x"];                       // inserted as 0, now 1
 ++counts["x"];                       // 2
 int x = counts.at("x");              // 2
@@ -267,13 +267,13 @@ template<class K> optional<mapped_type> take(const K& key);   // when Hash and K
 The mapped value under the key, moved out, and the element erased; `nullopt` when the key is absent. What Java's `remove(key)` and C#'s `Remove(key, out value)` hand back (`extract` gives the node, `erase` a count).
 
 ```cpp
-sgcl::map<sgcl::string, int> m = {{"a", 1}};
-sgcl::optional<int> taken = m.take("a");           // 1, and m is empty
-sgcl::optional<int> none = m.take("a");            // nullopt
+map<string, int> m = {{"a", 1}};
+optional<int> taken = m.take("a");           // 1, and m is empty
+optional<int> none = m.take("a");            // nullopt
 ```
 
 ```cpp
-sgcl::map<int, sgcl::string> m = {{1, "a"}, {2, "b"}, {3, "c"}, {4, "d"}};
+map<int, string> m = {{1, "a"}, {2, "b"}, {3, "c"}, {4, "d"}};
 m.erase(2);                                        // "b" is destroyed here
 for (auto it = m.begin(); it != m.end();) {
     it = it->first % 2 ? m.erase(it) : std::next(it);   // 1 and 3 go
@@ -291,7 +291,7 @@ friend void swap(map& lhs, map& rhs) noexcept(noexcept(lhs.swap(rhs)));
 Exchanges the tables, counts, load factors, hashers and equalities; no element is touched, and every iterator keeps pointing at its element, now in the other map.
 
 ```cpp
-sgcl::map<int, int> a = {{1, 1}}, b = {{2, 2}};
+map<int, int> a = {{1, 1}}, b = {{2, 2}};
 auto it = a.begin();
 swap(a, b);                       // it still points at {1, 1}, which is in b now
 bool moved = it == b.find(1);     // true
@@ -308,7 +308,7 @@ template<class K> node_type extract(K&& key);   // when Hash and KeyEqual are tr
 Unlinks the node and hands it over in a node handle, the element untouched: the handle is the owner now, and destroys the element if it dies unused. The key forms return an empty handle when the key is absent. See [node_type](#node_type-the-node-handle).
 
 ```cpp
-sgcl::map<int, sgcl::string> m = {{1, "a"}, {2, "b"}};
+map<int, string> m = {{1, "a"}, {2, "b"}};
 auto nh = m.extract(1);           // m holds {2, "b"}; nh holds {1, "a"}
 nh.key() = 7;                     // the key may change outside a map
 m.insert(std::move(nh));          // {2, "b"}, {7, "a"}; no string was copied
@@ -317,15 +317,15 @@ m.insert(std::move(nh));          // {2, "b"}, {7, "a"}; no string was copied
 ### merge
 
 ```cpp
-template<class Traits2> void merge(detail::HashTable<Traits2>& source);    // any sgcl::map or multimap<Key, T, H2, E2>
+template<class Traits2> void merge(detail::HashTable<Traits2>& source);    // any map or multimap<Key, T, H2, E2>
 template<class Traits2> void merge(detail::HashTable<Traits2>&& source);
 ```
 
 Relinks the nodes of `source` whose keys are not yet here into this map, rehashing them with this map's hasher; a node whose key is already here stays in `source`. No element is copied or destroyed, and every iterator follows its node. `source` may be a `sgcl::map` or `sgcl::multimap` with the same `Key` and `T` and any hasher and equality; not an [ordered_map](ordered_map.md), whose nodes are of another shape (the call does not compile). Merging a map into itself does nothing.
 
 ```cpp
-sgcl::map<int, int> a = {{1, 1}, {3, 3}};
-sgcl::multimap<int, int> b = {{2, 2}, {3, 30}, {3, 31}};
+map<int, int> a = {{1, 1}, {3, 3}};
+multimap<int, int> b = {{2, 2}, {3, 30}, {3, 31}};
 a.merge(b);                       // a: 1 2 3;  b keeps both 3s
 ```
 
@@ -348,10 +348,10 @@ template<class K> std::pair<iterator, iterator> equal_range(const K& key);  //  
 O(1) on average, reading raw pointers only; the cached hash is compared before the key. `count` is 0 or 1; `equal_range` is an empty or a one-element range. The `K` overloads exist when both `Hash` and `KeyEqual` declare `is_transparent`, and let a `std::string_view` look up a `sgcl::string` key without building one.
 
 ```cpp
-sgcl::map<sgcl::string, int> m = {{"apple", 1}};   // std::hash and std::equal_to of a string are transparent
-bool has = m.contains("apple");    // no sgcl::string is built for the literal
-sgcl::string line = "apple pie";
-sgcl::string_slice key = line.as_slice(0, 5);   // a piece of another string, a slice holding its object
+map<string, int> m = {{"apple", 1}};   // std::hash and std::equal_to of a string are transparent
+bool has = m.contains("apple");    // no string is built for the literal
+string line = "apple pie";
+string_slice key = line.as_slice(0, 5);   // a piece of another string, a slice holding its object
 auto it = m.find(key);             // it->second == 1, nothing built either
 ```
 
@@ -370,7 +370,7 @@ local_iterator end(size_type n);                const_local_iterator end(size_ty
 As in `std`. `bucket_count()` is 0 or a power of two; `bucket(key)` is the hash masked by `bucket_count() - 1` (0 while there are no buckets); `bucket_size(n)` walks the bucket. A local iterator walks the nodes of one bucket and stops at its end; for an `n` beyond `bucket_count()` the range is empty.
 
 ```cpp
-sgcl::map<int, int> m = {{1, 1}, {2, 2}, {3, 3}};
+map<int, int> m = {{1, 1}, {2, 2}, {3, 3}};
 size_t n = m.bucket(2);
 size_t in_bucket = 0;
 for (auto it = m.begin(n); it != m.end(n); ++it) {
@@ -392,9 +392,9 @@ void reserve(size_type count);
 `load_factor()` is `size() / bucket_count()` (0 with no buckets); `max_load_factor()` defaults to 1.0. `max_load_factor(z)` sets it and takes effect on the next insertion (a value that is not positive, or not a number, is ignored). `rehash(count)` makes the bucket count the smallest power of two not below `count` and not below `size() / max_load_factor()`: it may shrink the table; `rehash(0)` on an empty table leaves it without buckets. `reserve(count)` is `rehash` for `count` elements. A rehash relinks the nodes in chain order, hashing nothing (the hash is cached) and invalidating no iterator.
 
 ```cpp
-sgcl::map<int, int> m;
+map<int, int> m;
 m.reserve(1000);                                  // 1024 buckets: no rehash while inserting 1000 elements
-for (int i : sgcl::range(1000)) {
+for (int i : range(1000)) {
     m.emplace(i, i);
 }
 bool fits = m.load_factor() <= m.max_load_factor();   // true
@@ -412,7 +412,7 @@ key_equal key_eq() const;
 Copies of the hasher and the equality.
 
 ```cpp
-sgcl::map<int, int> m;
+map<int, int> m;
 bool eq = m.key_eq()(1, 1);                       // true
 size_t h = m.hash_function()(1);
 ```
@@ -422,7 +422,7 @@ size_t h = m.hash_function()(1);
 `map` carries [mixin::enumerable](../core/mixin/enumerable.md) (`exists`, `count_of`, `find_if`, `for_each` over the pairs; `contains` its own) and [mixin::lookup](../core/mixin/lookup.md) — `get`, `try_get`, `value_or`, `contains_key`, `keys`, `values` ([the mixins](../core/mixin/README.md)); its `==` is its own, in any order.
 
 ```cpp
-sgcl::map<sgcl::string, int> ports = {{"http", 80}};
+map<string, int> ports = {{"http", 80}};
 assert(*ports.get("http") == 80 && ports.value_or("ftp", 21) == 21 && ports.all([](const auto& kv) { return kv.second > 0; }));
 ```
 
@@ -435,8 +435,8 @@ friend bool operator==(const map& lhs, const map& rhs);
 Equal sizes and, for every element of `lhs`, an element of `rhs` with an equal key and an equal value (`value_type == value_type`), whatever the bucket counts and orders. `!=` follows; there is no ordering.
 
 ```cpp
-sgcl::map<int, int> a = {{1, 1}, {2, 2}};
-sgcl::map<int, int> b(1000);
+map<int, int> a = {{1, 1}, {2, 2}};
+map<int, int> b(1000);
 b.insert({{2, 2}, {1, 1}});
 bool same = a == b;                               // true
 ```
@@ -479,7 +479,7 @@ namespace std { using sgcl::erase_if; }
 Erases every element for which `pred(*it)` is true and returns how many; each erased element is destroyed at once.
 
 ```cpp
-sgcl::map<int, int> m = {{1, 1}, {2, 2}, {3, 3}, {4, 4}};
+map<int, int> m = {{1, 1}, {2, 2}, {3, 3}, {4, 4}};
 auto n = std::erase_if(m, [](const auto& p) { return p.first % 2 == 0; });   // 2; m holds 1 and 3
 ```
 
@@ -495,9 +495,9 @@ map(std::initializer_list<std::pair<Key, T>>, size_t = 0, Hash = Hash(), KeyEqua
 From an iterator pair over pairs, or from an initializer list of `std::pair`s (the pairs must be spelled out: nested braces deduce nothing, as with `std`).
 
 ```cpp
-sgcl::vector<sgcl::pair<sgcl::string, int>> src = {{"a", 1}};
-sgcl::map from_range(src.begin(), src.end());      // map<sgcl::string, int>
-sgcl::map from_list = {std::pair{1, 2.5}};         // map<int, double>
+vector<pair<string, int>> src = {{"a", 1}};
+map from_range(src.begin(), src.end());      // map<string, int>
+map from_list = {std::pair{1, 2.5}};         // map<int, double>
 ```
 
 ## Example
@@ -506,28 +506,30 @@ sgcl::map from_list = {std::pair{1, 2.5}};         // map<int, double>
 #include "sgcl/sgcl.h"
 #include <iostream>
 
+using namespace sgcl;
+
 struct Node {
     int id;
-    sgcl::tracked_ptr<Node> next;     // a pointer inside an element: traced through the node
+    tracked_ptr<Node> next;     // a pointer inside an element: traced through the node
 };
 
 // The map object lives inside a managed object: its nodes hang off it and
 // die with it, elements included, when the Registry is collected.
 struct Registry {
-    sgcl::map<int, sgcl::tracked_ptr<Node>> by_id;
+    map<int, tracked_ptr<Node>> by_id;
 };
 
 int main() {
-    sgcl::tracked_ptr registry = sgcl::make_tracked<Registry>();
-    for (int id : sgcl::range(100)) {
+    tracked_ptr registry = make_tracked<Registry>();
+    for (int id : range(100)) {
         // operator[] inserts a null tracked_ptr; the object is made afterwards
-        registry->by_id[id] = sgcl::make_tracked<Node>(id);
+        registry->by_id[id] = make_tracked<Node>(id);
     }
     registry->by_id[0]->next = registry->by_id[1];
     registry->by_id[1]->next = registry->by_id[0];             // a cycle: collected like any other
 
     // A map on the stack, keyed by pointer: std::hash<tracked_ptr> hashes the address
-    sgcl::map<sgcl::tracked_ptr<Node>, sgcl::string> names;
+    map<tracked_ptr<Node>, string> names;
     names.try_emplace(registry->by_id[0], "zero");
     names.emplace(registry->by_id[1], "one");
     auto one = names.find(registry->by_id[1]);
@@ -539,9 +541,9 @@ int main() {
     std::erase_if(registry->by_id, [](const auto& p) { return p.first >= 2; });
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
-    sgcl::collector::force_collect(true);
+    collector::force_collect(true);
     std::cout << registry->by_id.size() << " in the registry, "
-              << sgcl::collector::get_live_object_count() << " live objects\n";
+              << collector::get_live_object_count() << " live objects\n";
     return registry->by_id.size() == 2 && names.size() == 2 ? 0 : 1;
 }
 ```

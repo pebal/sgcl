@@ -24,7 +24,7 @@ template<class K> auto values_of(const K& key);                        // every 
 ```
 
 ```cpp
-sgcl::sorted_map<sgcl::string, int> ports = {{"http", 80}, {"https", 443}};
+sorted_map<string, int> ports = {{"http", 80}, {"https", 443}};
 assert(*ports.get("http") == 80 && !ports.get("ftp"));
 assert(ports.value_or("ftp", 21) == 21 && ports.contains_key("https"));
 if (int* p = ports.try_get("http")) {
@@ -34,12 +34,12 @@ int sum = 0;
 for (int port : ports.values()) {
     sum += port;                                 // 8523
 }
-sgcl::sorted_multimap<int, sgcl::string> names = {{1, "a"}, {1, "b"}};
+sorted_multimap<int, string> names = {{1, "a"}, {1, "b"}};
 size_t n = 0;
 for (const auto& name : names.values_of(1)) {
     n += name.size();                            // 2
 }
-sgcl::im::map<int, int> im = sgcl::im::map<int, int>().insert(1, 10);
+im::map<int, int> im = im::map<int, int>().insert(1, 10);
 assert(*im.get(1) == 10 && im.value_or(2, 0) == 0);   // the same reads on the immutable map
 ```
 
