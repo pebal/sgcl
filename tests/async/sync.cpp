@@ -120,7 +120,7 @@ TEST(Sync_Test, AWaitGroupCountsTheWork) {
             wg.done();
         }(wg, done));
     }
-    EXPECT_EQ(wg.count(), 50);
+    EXPECT_LE(wg.count(), 50);   // some may be done already: under TSan the fifty go() calls outlast a 1 ms sleep
     wg.wait();
     EXPECT_EQ(done, 50);
     EXPECT_EQ(wg.count(), 0);

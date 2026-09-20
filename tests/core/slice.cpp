@@ -97,9 +97,9 @@ TEST(Slice_Tests, TheOwnerIsKeptAlive) {
     });
     settle();
     EXPECT_EQ(Int::counter, 4u);                // the holder lives: the slice is its only root
-    EXPECT_EQ(kept[0], 2);
-    EXPECT_EQ(kept[1], 3);
-    off_frame([&] {
+    off_frame([&] {                             // the reads off the test frame: a reference into the holder left in
+        EXPECT_EQ(kept[0], 2);                  // a spilled word would root it under the conservative scan (TSan's
+        EXPECT_EQ(kept[1], 3);                  // frames showed it)
         kept = slice<const Int>();
     });
     settle();
