@@ -9,7 +9,7 @@ namespace sgcl {
 }
 ```
 
-`m_lookup<Derived>` gives a map the reads by its key that `std::map` makes a program write by hand — the value as a copy in an optional, as a pointer into the map, or a default when the key is absent, one search each and no exception — and declares the class a map: `c_lookup<R>` is "R carries `m_lookup`" ([the mixins](README.md)). Over `Derived::find(key)` (an iterator, `end()` when absent) and `mapped_type`; [map](../../containers/map.md), [multimap](../../containers/multimap.md), [unordered_map](../../containers/unordered_map.md), [unordered_multimap](../../containers/unordered_multimap.md) and [ordered_map](../../containers/ordered_map.md) carry it. A key of another type is accepted wherever the map's `find` is transparent.
+`m_lookup<Derived>` gives a map the reads by its key that `std::map` makes a program write by hand — the value as a copy in an optional, as a pointer into the map, or a default when the key is absent, one search each and no exception — and declares the class a map: `c_lookup<R>` is "R carries `m_lookup`" ([the mixins](README.md)). Over `Derived::find(key)` and `mapped_type`, whichever convention `find` follows: an iterator, `end()` when absent, on the mutable maps, or a pointer to the value, null when absent, on the immutable one — told apart on the result of `find`, in the method. [map](../../containers/map.md), [multimap](../../containers/multimap.md), [unordered_map](../../containers/unordered_map.md), [unordered_multimap](../../containers/unordered_multimap.md), [ordered_map](../../containers/ordered_map.md) and [im::map](../../containers/im/map.md) carry it. A key of another type is accepted wherever the map's `find` is transparent; `values_of` exists where `equal_range` does.
 
 ## Members
 
@@ -39,6 +39,8 @@ size_t n = 0;
 for (const auto& name : names.values_of(1)) {
     n += name.size();                            // 2
 }
+sgcl::im::map<int, int> im = sgcl::im::map<int, int>().insert(1, 10);
+assert(*im.get(1) == 10 && im.value_or(2, 0) == 0);   // the same reads on the immutable map
 ```
 
 ## See also

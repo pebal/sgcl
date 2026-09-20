@@ -41,7 +41,7 @@ The concepts (`c_`) are what a parameter of a library function asks of its argum
 | `c_contiguous<R>` | `vector`, `array`, `dynamic_array`, `slice` | `data()` |
 | `c_sequence<R>` | the mutable sequences, `slice<T>`; not `im::vector`, not `slice<const T>`, not `set` | `fill`, `sort` |
 | `c_ordered<R>` | a sequence, `slice`, `im::vector`, `im::list` of comparable elements; not `set`, not `vector<point>` | `max`, `is_sorted`, `lower_bound` |
-| `c_lookup<R>` | `map`, `multimap`, `unordered_map`, `unordered_multimap`, `ordered_map` | `get`, `contains_key` |
+| `c_lookup<R>` | `map`, `multimap`, `unordered_map`, `unordered_multimap`, `ordered_map`, `im::map` | `get`, `contains_key` |
 
 ```cpp
 static_assert(sgcl::c_ordered<sgcl::vector<int>> && !sgcl::c_ordered<sgcl::set<int>> && !sgcl::c_enumerable<std::vector<int>>);

@@ -56,7 +56,9 @@ namespace sgcl::im {
     // absent (what try_get is on the mutable maps): the value is in a
     // node the map holds, valid while some version does.
     template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
-    class map : public m_enumerable<map<Key, T, Hash, KeyEqual>> {   // read as any range; contains and find by the key, its own
+    class map   // read as any range; contains and find by the key, its own; the reads of a map by its key
+    : public m_enumerable<map<Key, T, Hash, KeyEqual>>
+    , public m_lookup<map<Key, T, Hash, KeyEqual>> {
         using Trie = detail::Hamt<detail::MapTraits<Key, T, Hash, KeyEqual>>;
 
     public:

@@ -25,7 +25,7 @@ void sort_in_place(c_sequence auto& r) requires c_ordered<decltype(r)> { r.sort(
 | [m_comparable](m_comparable.md) | `<=>` between two containers, lexicographic, by the elements' `<=>` or `<` | its values are ordered |
 | [m_ordered](m_ordered.md) | the order of the whole range: `is_sorted`, `binary_search`, `sorted_index_of`, `lower_bound`, `upper_bound`; `sort`, `sort_by`, `stable_sort` where the elements are written | the range has an order |
 | [m_sequence](m_sequence.md) | `fill`, `reverse` | the elements are written through the iterator |
-| [m_lookup](m_lookup.md) | a map by its key: `get`, `try_get`, `value_or`, `contains_key`, `keys`, `values`, `values_of` | a map |
+| [m_lookup](m_lookup.md) | a map by its key: `get`, `try_get`, `value_or`, `contains_key`, `keys`, `values`, `values_of`; over `find` as an iterator or as a pointer | a map |
 | `m_bidirectional`, `m_random_access`, `m_contiguous` ([concepts](concepts.md#the-categories)) | nothing: a declaration of the iterator's category, where a concept can ask for it | walked backwards; reached by position; one block, `data()` |
 | [m_text](m_text.md) | the read side of `std::string_view` over `data()` and `size()`: `find`, `starts_with`, `contains`, `compare`, `substr`… | text: `string`, `slice<const CharT>` |
 
@@ -65,7 +65,7 @@ The page: [concepts](concepts.md).
 | [map](../../containers/map.md), [multimap](../../containers/multimap.md) | ✓ (the same) | bidirectional | ✓ | ✓ | | | ✓ |
 | [unordered_set](../../containers/unordered_set.md), [unordered_multiset](../../containers/unordered_multiset.md), [ordered_set](../../containers/ordered_set.md), [im::set](../../containers/im/set.md) | ✓ (`contains` its own) | — | (its own `==`) | | | | |
 | [unordered_map](../../containers/unordered_map.md), [unordered_multimap](../../containers/unordered_multimap.md), [ordered_map](../../containers/ordered_map.md) | ✓ (the same) | — | (its own `==`) | | | | ✓ |
-| [im::map](../../containers/im/map.md) | ✓ (the same) | — | (its own `==`) | | | | |
+| [im::map](../../containers/im/map.md) | ✓ (the same) | — | (its own `==`) | | | | ✓ |
 | [string](../string.md) | m_text only: a string enters as `as_slice()` | | | | | | |
 
 Not carried: the adaptors (`stack`, `queue`, `priority_queue`), `expiry_queue`, the weak containers and the concurrent ones — none iterates as a range of values.

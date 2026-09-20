@@ -54,6 +54,8 @@ namespace {
     concept HasMin = requires(const R& r) { r.min(); };
     template<class R>
     concept HasSort = requires(R& r) { r.sort(); };
+    template<class M>
+    concept HasValuesOf = requires(M& m) { m.values_of(1); };
 }
 
 TEST(Mixin_Tests, WhatTheContainersDeclare) {
@@ -64,7 +66,7 @@ TEST(Mixin_Tests, WhatTheContainersDeclare) {
     static_assert(c_bidirectional<list<int>> && !c_random_access<list<int>> && c_sequence<list<int>>);
     static_assert(c_enumerable<forward_list<int>> && !c_bidirectional<forward_list<int>>);
     static_assert(c_bidirectional<set<int>> && !c_ordered<set<int>> && !c_sequence<set<int>> && !c_lookup<set<int>>);
-    static_assert(c_lookup<map<int, int>> && c_lookup<multimap<int, int>> && c_lookup<unordered_map<int, int>> && c_lookup<ordered_map<int, int>>);
+    static_assert(c_lookup<map<int, int>> && c_lookup<multimap<int, int>> && c_lookup<unordered_map<int, int>> && c_lookup<ordered_map<int, int>> && c_lookup<im::map<int, int>>);
     static_assert(c_enumerable<unordered_set<int>> && !c_bidirectional<unordered_set<int>>);
     static_assert(c_random_access<im::vector<int>> && c_ordered<im::vector<int>> && !c_sequence<im::vector<int>>);
     static_assert(c_enumerable<im::list<int>> && c_ordered<im::list<int>> && c_enumerable<im::map<int, int>> && c_enumerable<im::set<int>>);
@@ -194,6 +196,20 @@ TEST(Mixin_Tests, LookupOnEveryMap) {
     EXPECT_EQ(um.get("a"), 1);
     ordered_map<int, int> om = {{5, 50}};
     EXPECT_EQ(om.value_or(6, -1), -1);
+    // the immutable map: find gives a pointer, not an iterator; the mixin tells the two apart
+    im::map<int, std::string> imm = im::map<int, std::string>().insert(1, "one").insert(2, "two");
+    static_assert(c_lookup<decltype(imm)> && !c_lookup<im::set<int>>);
+    EXPECT_EQ(*imm.get(1), "one");
+    EXPECT_FALSE(imm.get(3));
+    EXPECT_EQ(*imm.try_get(2), "two");
+    EXPECT_EQ(imm.value_or(3, "none"), "none");
+    EXPECT_TRUE(imm.contains_key(2) && has_key(imm, 1));
+    int ikeys = 0;
+    for (int k : imm.keys()) {
+        ikeys += k;
+    }
+    EXPECT_EQ(ikeys, 3);
+    static_assert(!HasValuesOf<decltype(imm)> && HasValuesOf<multimap<int, int>>);   // no equal_range: no values_of
 }
 
 TEST(Mixin_Tests, TheOrderOfARange) {
