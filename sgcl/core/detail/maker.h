@@ -196,7 +196,7 @@ namespace sgcl::detail {
         }
     };
 
-    // Sgcl buffers exist only for the containers (sgcl::vector, array,
+    // Managed buffers exist only for the containers (vector, dynamic_array,
     // the maps of deque and the buckets of the hash tables): raw storage
     // for `capacity` elements, none constructed, zeroed when the element
     // type may hold tracked pointers (a zeroed tracked_ptr is null, and the

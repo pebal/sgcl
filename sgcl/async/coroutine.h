@@ -683,7 +683,7 @@ namespace sgcl {
 
     namespace detail {
         // A callable that makes a task (or another coroutine type over a
-        // managed frame, Sgcl's Task): what spawn and go take besides a task
+        // managed frame): what spawn and go take besides a task
         template<class F>
         concept TaskFactory = std::invocable<F&> && requires {
             typename std::remove_cvref_t<std::invoke_result_t<F&>>::promise_type;

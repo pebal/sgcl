@@ -248,7 +248,7 @@ def element_type_of(valobj):
 
 
 class VectorChildren:
-    """sgcl::vector<T> and the dynamic sgcl::array<T>: the elements of the managed buffer."""
+    """sgcl::vector<T> and sgcl::dynamic_array<T>: the elements of the managed buffer."""
 
     def __init__(self, valobj, internal_dict):
         self.valobj = valobj
@@ -534,7 +534,7 @@ def size_summary(valobj, internal_dict):
 
 
 class ArrayChildren(VectorChildren):
-    """sgcl::array<T> (dynamic): _ptr and _size, as a vector; the inline one keeps LLDB's own view."""
+    """sgcl::dynamic_array<T>: _ptr and _size, as a vector; the inline array<T, N> keeps LLDB's own view of its elems."""
     pass
 
 
@@ -558,7 +558,7 @@ def __lldb_init_module(debugger, internal_dict):
     add(r"^sgcl::unique_ptr<.+>$", "unique_ptr_summary", "UniqueChildren")
     add(r"^sgcl::weak_ptr<.+>$", "weak_ptr_summary", "WeakChildren")
     add(r"^sgcl::vector<.+>$", "vector_summary", "VectorChildren")
-    add(r"^sgcl::array<.+, (18446744073709551615|-1)(ul|UL|ull|ULL)?>$", "array_summary", "ArrayChildren")
+    add(r"^sgcl::dynamic_array<.+>$", "array_summary", "ArrayChildren")
     add(r"^sgcl::deque<.+>$", "deque_summary", "DequeChildren")
     add(r"^sgcl::(list|forward_list)<.+>$", "list_summary", "ListChildren")
     add(r"^sgcl::(map|multimap|set|multiset)<.+>$", "size_summary", "TreeChildren")

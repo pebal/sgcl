@@ -53,8 +53,8 @@ namespace sgcl::im {
     // of them is dropped. Elements are const through the map; a key or a
     // value holding tracked pointers is traced where it lives, in a node.
     // find hands back a pointer to the value, null when the key is
-    // absent, as the Sgcl dictionaries do: the value is in a node the map
-    // holds, valid while some version does.
+    // absent (what try_get is on the mutable maps): the value is in a
+    // node the map holds, valid while some version does.
     template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
     class map : public m_enumerable<map<Key, T, Hash, KeyEqual>> {   // read as any range; contains and find by the key, its own
         using Trie = detail::Hamt<detail::MapTraits<Key, T, Hash, KeyEqual>>;

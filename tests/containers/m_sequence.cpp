@@ -3,7 +3,7 @@
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
-// m_sequence: the algorithms as members of the sequences; the deduction
+// The mixins' members on every sequence (m_enumerable, m_ordered, m_sequence); the deduction
 // guides of atomic, queue, stack, copy_on_write, task
 #include "sgcl/sgcl.h"
 #include "tests/types.h"

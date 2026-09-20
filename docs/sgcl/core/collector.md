@@ -169,7 +169,7 @@ struct type_statistics {
 static std::vector<type_statistics> get_type_statistics();
 ```
 
-The live objects by type after a full cycle: what a heap that grows is made of. Objects are listed by their type; the buffers of the containers (`vector`, `array<T>`, the maps of `deque`, the buckets of the hash tables) by their array type, `typeid(T[])` for elements `T`, with `buffers == true`, the slot they occupy as their bytes and no pages, since the pages of buffers belong to size classes rather than to a type. `object_size` is the slot size, at least `sizeof(T)`. Sorted by `live_bytes`, descending, then by `live_objects`. Like `get_live_objects()`: a full cycle runs first, the caller's dead frames are zeroed, the caller waits for the cycle.
+The live objects by type after a full cycle: what a heap that grows is made of. Objects are listed by their type; the buffers of the containers (`vector`, `dynamic_array<T>`, the maps of `deque`, the buckets of the hash tables) by their array type, `typeid(T[])` for elements `T`, with `buffers == true`, the slot they occupy as their bytes and no pages, since the pages of buffers belong to size classes rather than to a type. `object_size` is the slot size, at least `sizeof(T)`. Sorted by `live_bytes`, descending, then by `live_objects`. Like `get_live_objects()`: a full cycle runs first, the caller's dead frames are zeroed, the caller waits for the cycle.
 
 ```cpp
 for (auto& t : sgcl::collector::get_type_statistics()) {
