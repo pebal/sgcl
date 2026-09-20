@@ -15,20 +15,26 @@ namespace {
 
     // A directory of its own per test, removed afterwards
     struct IoFile_Tests : testing::Test {
-        string dir;
+        // A std::string: the fixture is allocated by gtest with new, where a
+        // tracked_ptr (a sgcl::string) may not live (The rules, 1)
+        std::string _dir;
 
         void SetUp() override {
             auto d = temp_dir({}, "sgcl-io-*");
             ASSERT_TRUE(d) << d.error().message();
-            dir = *d;
+            _dir = d->str();
         }
 
         void TearDown() override {
-            io::remove_all(dir);
+            io::remove_all(dir());
+        }
+
+        string dir() const {
+            return string(_dir);
         }
 
         string at(const string& name) const {
-            return path::join(dir, name);
+            return path::join(dir(), name);
         }
     };
 
@@ -140,7 +146,7 @@ TEST_F(IoFile_Tests, BufferedOverAFile) {
 }
 
 TEST_F(IoFile_Tests, TempFileAndPipe) {
-    auto t = temp_file(dir, "up-*.tmp");
+    auto t = temp_file(dir(), "up-*.tmp");
     ASSERT_TRUE(t) << t.error().message();
     auto name = path::base((*t)->path());
     EXPECT_TRUE(name.starts_with("up-"));

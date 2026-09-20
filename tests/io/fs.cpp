@@ -13,20 +13,26 @@ namespace {
     namespace io = sgcl::io;
 
     struct IoFs_Tests : testing::Test {
-        string dir;
+        // A std::string: the fixture is allocated by gtest with new, where a
+        // tracked_ptr (a sgcl::string) may not live (The rules, 1)
+        std::string _dir;
 
         void SetUp() override {
             auto d = temp_dir({}, "sgcl-fs-*");
             ASSERT_TRUE(d) << d.error().message();
-            dir = *d;
+            _dir = d->str();
         }
 
         void TearDown() override {
-            io::remove_all(dir);
+            io::remove_all(dir());
+        }
+
+        string dir() const {
+            return string(_dir);
         }
 
         string at(const string& name) const {
-            return path::join(dir, name);
+            return path::join(dir(), name);
         }
     };
 }
@@ -93,7 +99,7 @@ TEST_F(IoFs_Tests, ReadDirSortedWithTypes) {
     ASSERT_TRUE(write_file(at("b"), ""));
     ASSERT_TRUE(write_file(at("a"), ""));
     ASSERT_TRUE(io::symlink(at("a"), at("c")));
-    auto entries = read_dir(dir);
+    auto entries = read_dir(dir());
     ASSERT_TRUE(entries);
     ASSERT_EQ(entries->size(), 4u);
     EXPECT_EQ(std::string_view((*entries)[0].name), "a");
@@ -117,16 +123,16 @@ TEST_F(IoFs_Tests, WalkDirOrderSkipStop) {
     ASSERT_TRUE(write_file(at("a/g"), ""));
     ASSERT_TRUE(write_file(at("z"), ""));
     std::vector<std::string> seen;
-    auto r = walk_dir(dir, [&](const dir_entry& e, const optional<error>& err) {
+    auto r = walk_dir(dir(), [&](const dir_entry& e, const optional<error>& err) {
         EXPECT_FALSE(err);
-        seen.push_back(e.path.str().substr(dir.size() + 1));
+        seen.push_back(e.path.str().substr(_dir.size() + 1));
         return std::string_view(e.name) == "skip" ? walk_action::skip_dir : walk_action::next;
     });
     ASSERT_TRUE(r);
     std::vector<std::string> expected = {"a", "a/b", "a/b/f", "a/g", "a/skip", "z"};
     EXPECT_EQ(seen, expected);
     int count = 0;
-    walk_dir(dir, [&](const dir_entry&, const optional<error>&) {
+    walk_dir(dir(), [&](const dir_entry&, const optional<error>&) {
         return ++count == 2 ? walk_action::stop : walk_action::next;
     });
     EXPECT_EQ(count, 2);
@@ -143,7 +149,7 @@ namespace {
 
 TEST_F(IoFs_Tests, AsyncReadDir) {
     ASSERT_TRUE(write_file(at("one"), ""));
-    auto t = sgcl::spawn(count_entries(dir));
+    auto t = sgcl::spawn(count_entries(dir()));
     EXPECT_EQ(t.join(), 1u);
     sgcl::scheduler::stop();
 }
