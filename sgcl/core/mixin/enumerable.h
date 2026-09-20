@@ -5,28 +5,28 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "concepts.h"
+#include "../req.h"
 
 #include <algorithm>
 #include <iterator>
 
-namespace sgcl {
-    // m_enumerable<Derived>: the questions asked of the elements of a
+namespace sgcl::mixin {
+    // enumerable<Derived>: the questions asked of the elements of a
     // range, as members of every container of the library that iterates,
-    // and the declaration that it does: c_enumerable<R> is "R carries
-    // m_enumerable". A mixin (m_): a static interface, no virtual method,
+    // and the declaration that it does: req::enumerable<R> is "R carries
+    // enumerable". A mixin (m_): a static interface, no virtual method,
     // no state; its constructor and destructor are protected, so it
     // exists only as the base of the class that names itself as Derived
     // and gives its elements through begin() and end(). The questions
     // that compare elements exist only for elements that compare
-    // (c_equatable, c_comparable, on each method); the ones that take a
+    // (req::equatable, req::comparable, on each method); the ones that take a
     // predicate or a comparator ask nothing of the element. A container
     // whose own answer is better (a set's contains by the key, its min as
     // *begin()) hides the mixin's with a method of the same name — every
     // overload of the name with it, since a constrained overload of the
     // base and an unconstrained one of the class would be ambiguous.
     template<class Derived>
-    class m_enumerable {
+    class enumerable {
     public:
         // Searching by a predicate: the position of the first element
         // accepted (npos when none), a pointer to it (null when none)
@@ -120,8 +120,8 @@ namespace sgcl {
         }
 
     protected:
-        m_enumerable() = default;
-        ~m_enumerable() = default;
+        enumerable() = default;
+        ~enumerable() = default;
 
     private:
         constexpr auto _begin() noexcept { return static_cast<Derived&>(*this).begin(); }

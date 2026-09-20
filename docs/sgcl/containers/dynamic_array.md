@@ -126,7 +126,7 @@ size_type max_size() const noexcept;                    // PTRDIFF_MAX / sizeof(
 
 ### The mixins
 
-`dynamic_array` carries [m_enumerable](../core/mixin/m_enumerable.md), [m_equatable](../core/mixin/m_equatable.md), [m_comparable](../core/mixin/m_comparable.md), [m_ordered](../core/mixin/m_ordered.md), [m_sequence](../core/mixin/m_sequence.md) and the contiguous category: everything a `vector` answers.
+`dynamic_array` carries [mixin::enumerable](../core/mixin/enumerable.md), [mixin::equatable](../core/mixin/equatable.md), [mixin::comparable](../core/mixin/comparable.md), [mixin::ordered](../core/mixin/ordered.md), [mixin::sequence](../core/mixin/sequence.md) and the contiguous category: everything a `vector` answers.
 
 ```cpp
 sgcl::dynamic_array<int> a = {5, 3, 9, 3};
@@ -150,7 +150,7 @@ swap(a, b);                                     // a is 3 4 5, b is 1 2; no elem
 
 ### Comparisons
 
-`==` and `<=>` come with [m_equatable](../core/mixin/m_equatable.md) and [m_comparable](../core/mixin/m_comparable.md): element-wise, `<=>` lexicographical with the synthesized three-way comparison, only for elements that compare.
+`==` and `<=>` come with [mixin::equatable](../core/mixin/equatable.md) and [mixin::comparable](../core/mixin/comparable.md): element-wise, `<=>` lexicographical with the synthesized three-way comparison, only for elements that compare.
 
 ### Deduction guide
 
@@ -201,5 +201,5 @@ sum of squares 140, reversed copy starts with 49, third 9
 ## See also
 
 - [array](array.md) for `N` in the type, [vector](vector.md) for a buffer that grows, [slice](../core/slice.md) for a piece of the buffer that holds it
-- [the mixins and the concepts](../core/mixin/README.md), [tracked_ptr](../core/tracked_ptr.md), [make_tracked](../core/make_tracked.md)
+- [the mixins and the requirements](../core/mixin/README.md), [tracked_ptr](../core/tracked_ptr.md), [make_tracked](../core/make_tracked.md)
 - [README: Containers](README.md#containers), [README: The rules](../core/README.md#the-rules), [README: Pointer aliases](../core/README.md#pointer-aliases)

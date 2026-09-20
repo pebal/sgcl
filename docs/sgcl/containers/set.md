@@ -332,7 +332,7 @@ Copies of the hasher and the equality.
 
 ### The mixins
 
-`set` carries [m_enumerable](../core/mixin/m_enumerable.md): `exists`, `all`, `count_of`, `find_if`, `for_each`; `contains` is the set's own, by the key ([the mixins](../core/mixin/README.md)). Its `==` is its own, in any order; no `<=>`, the iteration order not being a value.
+`set` carries [mixin::enumerable](../core/mixin/enumerable.md): `exists`, `all`, `count_of`, `find_if`, `for_each`; `contains` is the set's own, by the key ([the mixins](../core/mixin/README.md)). Its `==` is its own, in any order; no `<=>`, the iteration order not being a value.
 
 ```cpp
 sgcl::set<int> s = {1, 2, 3};

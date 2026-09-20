@@ -399,7 +399,7 @@ for (auto it = from; it != to; ++it) { /* 20 only */ }
 
 ### The mixins
 
-`sorted_map` carries [m_enumerable](../core/mixin/m_enumerable.md) (`exists`, `all`, `count_of`, `find_if`, `for_each`, `index_of` over the pairs; `contains`, `min` and `max` are the map's own, by the key and as the ends of the order), [m_equatable](../core/mixin/m_equatable.md), [m_comparable](../core/mixin/m_comparable.md), the bidirectional category, and [m_lookup](../core/mixin/m_lookup.md): the reads by the key that `std::map` makes a program write by hand.
+`sorted_map` carries [mixin::enumerable](../core/mixin/enumerable.md) (`exists`, `all`, `count_of`, `find_if`, `for_each`, `index_of` over the pairs; `contains`, `min` and `max` are the map's own, by the key and as the ends of the order), [mixin::equatable](../core/mixin/equatable.md), [mixin::comparable](../core/mixin/comparable.md), the bidirectional category, and [mixin::lookup](../core/mixin/lookup.md): the reads by the key that `std::map` makes a program write by hand.
 
 ```cpp
 sgcl::sorted_map<sgcl::string, int> ports = {{"http", 80}, {"https", 443}};

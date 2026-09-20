@@ -141,12 +141,12 @@ The same elements in the same order, whatever the two share.
 
 ### The mixins
 
-`im::vector` carries [m_enumerable](../../core/mixin/m_enumerable.md), [m_comparable](../../core/mixin/m_comparable.md), [m_ordered](../../core/mixin/m_ordered.md) and the random-access category ([the mixins](../../core/mixin/README.md)): it answers what a `vector` answers — `contains`, `index_of`, `min`, `is_sorted`, `binary_search`, `lower_bound` — and has no `sort()`, nothing being written in place; its `==` is its own, a version and its copy equal by the trie.
+`im::vector` carries [mixin::enumerable](../../core/mixin/enumerable.md), [mixin::comparable](../../core/mixin/comparable.md), [mixin::ordered](../../core/mixin/ordered.md) and the random-access category ([the mixins](../../core/mixin/README.md)): it answers what a `vector` answers — `contains`, `index_of`, `min`, `is_sorted`, `binary_search`, `lower_bound` — and has no `sort()`, nothing being written in place; its `==` is its own, a version and its copy equal by the trie.
 
 ```cpp
 sgcl::im::vector<int> v = sgcl::im::vector<int>().push_back(1).push_back(3);
 assert(v.contains(3) && v.is_sorted() && v.binary_search(3) && v.max() == 3);
-static_assert(sgcl::c_ordered<sgcl::im::vector<int>> && !sgcl::c_sequence<sgcl::im::vector<int>>);
+static_assert(sgcl::req::ordered<sgcl::im::vector<int>> && !sgcl::req::sequence<sgcl::im::vector<int>>);
 ```
 
 ## Example

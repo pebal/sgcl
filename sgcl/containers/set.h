@@ -18,7 +18,7 @@ namespace sgcl {
     template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
     class set
     : public detail::HashTable<detail::HashSetTraits<Key, Hash, KeyEqual, true>>
-    , public m_enumerable<set<Key, Hash, KeyEqual>> {
+    , public mixin::enumerable<set<Key, Hash, KeyEqual>> {
         using Base = detail::HashTable<detail::HashSetTraits<Key, Hash, KeyEqual, true>>;
 
     public:
@@ -28,7 +28,7 @@ namespace sgcl {
 
         using Base::Base;
 
-        // By the key, the container's own, in place of m_enumerable's walk
+        // By the key, the container's own, in place of mixin::enumerable's walk
         using Base::contains;
 
         set& operator=(std::initializer_list<value_type> ilist) {

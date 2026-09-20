@@ -67,7 +67,7 @@ auto r = m.reverse();              // 3 2 1 0: a new chain
 
 ### The mixins
 
-`im::list` carries [m_enumerable](../../core/mixin/m_enumerable.md), [m_comparable](../../core/mixin/m_comparable.md) and [m_ordered](../../core/mixin/m_ordered.md) ([the mixins](../../core/mixin/README.md)): `contains`, `index_of`, `min`, `is_sorted`; no `sort()`.
+`im::list` carries [mixin::enumerable](../../core/mixin/enumerable.md), [mixin::comparable](../../core/mixin/comparable.md) and [mixin::ordered](../../core/mixin/ordered.md) ([the mixins](../../core/mixin/README.md)): `contains`, `index_of`, `min`, `is_sorted`; no `sort()`.
 
 ```cpp
 sgcl::im::list<int> l = {1, 2, 3};

@@ -93,7 +93,7 @@ constexpr size_type max_size() const noexcept;          // N
 
 ### The mixins
 
-`array<T, N>` carries [m_enumerable](../core/mixin/m_enumerable.md), [m_equatable](../core/mixin/m_equatable.md), [m_comparable](../core/mixin/m_comparable.md), [m_ordered](../core/mixin/m_ordered.md), [m_sequence](../core/mixin/m_sequence.md) and the contiguous category: everything a `vector` answers, `constexpr`, so a table built at compile time can be searched at compile time.
+`array<T, N>` carries [mixin::enumerable](../core/mixin/enumerable.md), [mixin::equatable](../core/mixin/equatable.md), [mixin::comparable](../core/mixin/comparable.md), [mixin::ordered](../core/mixin/ordered.md), [mixin::sequence](../core/mixin/sequence.md) and the contiguous category: everything a `vector` answers, `constexpr`, so a table built at compile time can be searched at compile time.
 
 ```cpp
 constexpr sgcl::array primes = {2, 3, 5, 7, 11};
@@ -118,7 +118,7 @@ friend constexpr void swap(array& l, array& r) noexcept(noexcept(l.swap(r)));
 
 ### Comparisons
 
-`==` and `<=>` come with [m_equatable](../core/mixin/m_equatable.md) and [m_comparable](../core/mixin/m_comparable.md): element-wise, as for `std::array`, `<=>` lexicographical with the synthesized three-way comparison (`<=>` of `T` when it has one, else a `std::weak_ordering` built from `<`), and only for elements that compare. Two `array<T, 0>` are equal.
+`==` and `<=>` come with [mixin::equatable](../core/mixin/equatable.md) and [mixin::comparable](../core/mixin/comparable.md): element-wise, as for `std::array`, `<=>` lexicographical with the synthesized three-way comparison (`<=>` of `T` when it has one, else a `std::weak_ordering` built from `<`), and only for elements that compare. Two `array<T, 0>` are equal.
 
 ```cpp
 sgcl::array<double, 2> e = {1.0, 2.0}, f = {1.0, 3.0};
@@ -216,5 +216,5 @@ node behind keep 2, squares up to 25, 3 even
 ## See also
 
 - [dynamic_array](dynamic_array.md): a count fixed at creation, in a managed buffer; [vector](vector.md): a buffer that grows
-- [the mixins and the concepts](../core/mixin/README.md), [tracked_ptr](../core/tracked_ptr.md), [make_tracked](../core/make_tracked.md)
+- [the mixins and the requirements](../core/mixin/README.md), [tracked_ptr](../core/tracked_ptr.md), [make_tracked](../core/make_tracked.md)
 - [README: Containers](README.md#containers), [README: The rules](../core/README.md#the-rules)

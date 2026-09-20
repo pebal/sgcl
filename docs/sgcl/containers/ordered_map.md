@@ -101,7 +101,7 @@ A copy (the constructor, `operator=`) reproduces the order. `swap` and a move ca
 
 ### The mixins
 
-`ordered_map` carries [m_enumerable](../core/mixin/m_enumerable.md) (over the pairs, in insertion order; `contains` its own) and [m_lookup](../core/mixin/m_lookup.md) ([the mixins](../core/mixin/README.md)).
+`ordered_map` carries [mixin::enumerable](../core/mixin/enumerable.md) (over the pairs, in insertion order; `contains` its own) and [mixin::lookup](../core/mixin/lookup.md) ([the mixins](../core/mixin/README.md)).
 
 ```cpp
 sgcl::ordered_map<sgcl::string, int> m = {{"b", 2}, {"a", 1}};

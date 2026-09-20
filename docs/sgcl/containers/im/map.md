@@ -137,7 +137,7 @@ The same keys with equal values, whatever the two share.
 
 ### The mixins
 
-`im::map` carries [m_enumerable](../../core/mixin/m_enumerable.md) over its pairs (`contains` and `find` its own, by the key) and [m_lookup](../../core/mixin/m_lookup.md), the reads by the key over its `find` — `get`, `try_get`, `value_or`, `contains_key`, `keys`, `values` ([the mixins](../../core/mixin/README.md)).
+`im::map` carries [mixin::enumerable](../../core/mixin/enumerable.md) over its pairs (`contains` and `find` its own, by the key) and [mixin::lookup](../../core/mixin/lookup.md), the reads by the key over its `find` — `get`, `try_get`, `value_or`, `contains_key`, `keys`, `values` ([the mixins](../../core/mixin/README.md)).
 
 ```cpp
 sgcl::im::map<int, int> m = sgcl::im::map<int, int>().insert(1, 10);

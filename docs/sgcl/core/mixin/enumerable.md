@@ -1,20 +1,23 @@
-# sgcl::m_enumerable
+# sgcl::mixin::enumerable
 
 ```cpp
-#include "sgcl/core/mixin/m_enumerable.h"   // or "sgcl/core/mixin/mixin.h", "sgcl/sgcl.h"
+#include "sgcl/core/mixin/enumerable.h"   // or "sgcl/core/mixin/mixin.h", "sgcl/sgcl.h"
 
 namespace sgcl {
-    inline constexpr size_t npos;             // the position that is no position
-    template<class Derived>
-    class m_enumerable;
+    inline constexpr size_t npos;             // the position that is no position (req.h)
+
+    namespace mixin {
+        template<class Derived>
+        class enumerable;
+    }
 }
 ```
 
-`m_enumerable<Derived>` gives a class the questions asked of the elements of a range — is there one like this, where, how many, the smallest — as members, over the `begin()` and `end()` of `Derived`, and declares the class a range of the library: `c_enumerable<R>` is "R carries `m_enumerable`" ([the mixins](README.md)). Every container that iterates carries it, from `vector` to `sorted_map`, `im::list` and `slice`; a class of your own does by deriving from it and giving `begin()` and `end()`.
+`mixin::enumerable<Derived>` gives a class the questions asked of the elements of a range — is there one like this, where, how many, the smallest — as members, over the `begin()` and `end()` of `Derived`, and declares the class a range of the library: `req::enumerable<R>` is "R carries `mixin::enumerable`" ([the mixins](README.md)). Every container that iterates carries it, from `vector` to `sorted_map`, `im::list` and `slice`; a class of your own does by deriving from it and giving `begin()` and `end()`.
 
 ## Rules
 
-- A question that compares elements exists only for elements that compare: `contains`, `index_of`, `last_index_of` for `c_equatable` elements (`==`), `min()` and `max()` for `c_comparable` ones (`<`); the forms with a predicate or a comparator ask nothing of the element. On a `vector<T>` whose `T` has neither, `v.exists(pred)` is there and `v.contains(x)` is not.
+- A question that compares elements exists only for elements that compare: `contains`, `index_of`, `last_index_of` for `req::equatable` elements (`==`), `min()` and `max()` for `req::comparable` ones (`<`); the forms with a predicate or a comparator ask nothing of the element. On a `vector<T>` whose `T` has neither, `v.exists(pred)` is there and `v.contains(x)` is not.
 - `min` and `max` on an empty range are undefined, as `front()` is; nothing is checked. They return a reference into the range, or a value where the iterator gives values (`range(n)`).
 - A container with a better answer hides the mixin's: `set::contains` by the key, `set::min()` as `*begin()`.
 - Thread safety is the container's: the members read the elements as the algorithms do.
@@ -29,11 +32,11 @@ template<class Pred> bool all(Pred pred) const;            // every element does
 template<class Pred> size_t count_of(Pred pred) const;     // how many do
 template<class F> void for_each(F f);                      // and const
 
-bool contains(const auto& value) const;                    // c_equatable elements: anything an element compares with
+bool contains(const auto& value) const;                    // req::equatable elements: anything an element compares with
 size_t index_of(const auto& value) const;                  // the first equal element's position, npos when none
 size_t last_index_of(const auto& value) const;             // the last one's (a walk of the whole range)
 
-decltype(auto) min() const;  template<class Compare> decltype(auto) min(Compare cmp) const;   // c_comparable elements, or by the comparator
+decltype(auto) min() const;  template<class Compare> decltype(auto) min(Compare cmp) const;   // req::comparable elements, or by the comparator
 decltype(auto) max() const;  template<class Compare> decltype(auto) max(Compare cmp) const;
 ```
 
@@ -58,7 +61,7 @@ assert(pts.min([](point a, point b) { return a.y < b.y; }).x == 3);   // a compa
 
 // A function over any range of the library: a set, a slice, a list, a
 // vector; what it asks for is what the parameter says
-size_t count_odd(const sgcl::c_enumerable auto& r) {
+size_t count_odd(const sgcl::req::enumerable auto& r) {
     return r.count_of([](int x) { return x % 2 != 0; });
 }
 
@@ -78,5 +81,5 @@ The output:
 
 ## See also
 
-- [the mixins and the concepts](README.md); [m_ordered](m_ordered.md), the questions about the order of the whole range
+- [the mixins and the requirements](README.md); [mixin::ordered](ordered.md), the questions about the order of the whole range
 - `tests/core/mixin.cpp`

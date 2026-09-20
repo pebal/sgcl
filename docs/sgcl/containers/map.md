@@ -419,7 +419,7 @@ size_t h = m.hash_function()(1);
 
 ### The mixins
 
-`map` carries [m_enumerable](../core/mixin/m_enumerable.md) (`exists`, `count_of`, `find_if`, `for_each` over the pairs; `contains` its own) and [m_lookup](../core/mixin/m_lookup.md) — `get`, `try_get`, `value_or`, `contains_key`, `keys`, `values` ([the mixins](../core/mixin/README.md)); its `==` is its own, in any order.
+`map` carries [mixin::enumerable](../core/mixin/enumerable.md) (`exists`, `count_of`, `find_if`, `for_each` over the pairs; `contains` its own) and [mixin::lookup](../core/mixin/lookup.md) — `get`, `try_get`, `value_or`, `contains_key`, `keys`, `values` ([the mixins](../core/mixin/README.md)); its `==` is its own, in any order.
 
 ```cpp
 sgcl::map<sgcl::string, int> ports = {{"http", 80}};

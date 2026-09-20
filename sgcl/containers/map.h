@@ -19,8 +19,8 @@ namespace sgcl {
     template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
     class map
     : public detail::HashTable<detail::HashMapTraits<Key, T, Hash, KeyEqual, true>>
-    , public m_enumerable<map<Key, T, Hash, KeyEqual>>
-    , public m_lookup<map<Key, T, Hash, KeyEqual>> {
+    , public mixin::enumerable<map<Key, T, Hash, KeyEqual>>
+    , public mixin::lookup<map<Key, T, Hash, KeyEqual>> {
         using Base = detail::HashTable<detail::HashMapTraits<Key, T, Hash, KeyEqual, true>>;
 
     public:
@@ -33,7 +33,7 @@ namespace sgcl {
 
         using Base::Base;
 
-        // By the key, the container's own, in place of m_enumerable's walk
+        // By the key, the container's own, in place of mixin::enumerable's walk
         using Base::contains;
 
         map& operator=(std::initializer_list<value_type> ilist) {

@@ -10,8 +10,8 @@
 #include <string>
 #include <string_view>
 
-namespace sgcl {
-    // m_text<Derived, CharT, Traits>: the read side of std::string_view
+namespace sgcl::mixin {
+    // text<Derived, CharT, Traits>: the read side of std::string_view
     // as members of whatever holds characters through data() and size():
     // basic_string and slice<const CharT>. A mixin (m_): a static
     // interface, no virtual method, no state; its constructor and
@@ -20,7 +20,7 @@ namespace sgcl {
     // make a new object (substr, trim, split) stay with the class, whose
     // type they return.
     template<class Derived, class CharT, class Traits = std::char_traits<CharT>>
-    class m_text {
+    class text {
     public:
         using view_type = std::basic_string_view<CharT, Traits>;
         using size_type = size_t;
@@ -103,8 +103,8 @@ namespace sgcl {
         }
 
     protected:
-        m_text() = default;
-        ~m_text() = default;
+        text() = default;
+        ~text() = default;
 
     private:
         const Derived& _self() const noexcept {

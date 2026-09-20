@@ -59,7 +59,7 @@ The entries are hashed and compared by the object's address, read from the weak 
 | [ordered_map](ordered_map.md) | `ordered_map.h` | `map` iterated in insertion order: Java's `LinkedHashMap`; `front`, `back`, `to_back`, `to_front` |
 | [ordered_set](ordered_set.md) | `ordered_set.h` | `set` iterated in insertion order: Java's `LinkedHashSet` |
 
-The questions, the order and the writes of a range (`contains`, `index_of`, `find_if`, `sort`, `reverse`, `min`, `for_each`...) are members of every container that iterates, from the mixins of `core` ([the mixins and the concepts](../core/mixin/README.md)); the maps read by their key through [m_lookup](../core/mixin/m_lookup.md).
+The questions, the order and the writes of a range (`contains`, `index_of`, `find_if`, `sort`, `reverse`, `min`, `for_each`...) are members of every container that iterates, from the mixins of `core` ([the mixins and the requirements](../core/mixin/README.md)); the maps read by their key through [mixin::lookup](../core/mixin/lookup.md).
 
 ### Weak containers
 

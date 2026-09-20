@@ -77,9 +77,9 @@ namespace sgcl::im {
     // destructors: the cells die together, in no particular order.
     template<class T>
     class list   // read as any range; == its own (a version and its copy by the chain)
-    : public m_enumerable<list<T>>
-    , public m_comparable<list<T>>
-    , public m_ordered<list<T>> {
+    : public mixin::enumerable<list<T>>
+    , public mixin::comparable<list<T>>
+    , public mixin::ordered<list<T>> {
         using Cell = detail::ListCell<T>;
 
     public:

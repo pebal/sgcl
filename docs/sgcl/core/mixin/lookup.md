@@ -1,15 +1,15 @@
-# sgcl::m_lookup
+# sgcl::mixin::lookup
 
 ```cpp
-#include "sgcl/core/mixin/m_lookup.h"   // or "sgcl/core/mixin/mixin.h", "sgcl/sgcl.h"
+#include "sgcl/core/mixin/lookup.h"   // or "sgcl/core/mixin/mixin.h", "sgcl/sgcl.h"
 
-namespace sgcl {
+namespace sgcl::mixin {
     template<class Derived>
-    class m_lookup;
+    class lookup;
 }
 ```
 
-`m_lookup<Derived>` gives a map the reads by its key that `std::map` makes a program write by hand — the value as a copy in an optional, as a pointer into the map, or a default when the key is absent, one search each and no exception — and declares the class a map: `c_lookup<R>` is "R carries `m_lookup`" ([the mixins](README.md)). Over `Derived::find(key)` and `mapped_type`, whichever convention `find` follows: an iterator, `end()` when absent, on the mutable maps, or a pointer to the value, null when absent, on the immutable one — told apart on the result of `find`, in the method. [sorted_map](../../containers/sorted_map.md), [sorted_multimap](../../containers/sorted_multimap.md), [map](../../containers/map.md), [multimap](../../containers/multimap.md), [ordered_map](../../containers/ordered_map.md) and [im::map](../../containers/im/map.md) carry it. A key of another type is accepted wherever the map's `find` is transparent; `values_of` exists where `equal_range` does.
+`mixin::lookup<Derived>` gives a map the reads by its key that `std::map` makes a program write by hand — the value as a copy in an optional, as a pointer into the map, or a default when the key is absent, one search each and no exception — and declares the class a map: `req::lookup<R>` is "R carries `mixin::lookup`" ([the mixins](README.md)). Over `Derived::find(key)` and `mapped_type`, whichever convention `find` follows: an iterator, `end()` when absent, on the mutable maps, or a pointer to the value, null when absent, on the immutable one — told apart on the result of `find`, in the method. [sorted_map](../../containers/sorted_map.md), [sorted_multimap](../../containers/sorted_multimap.md), [map](../../containers/map.md), [multimap](../../containers/multimap.md), [ordered_map](../../containers/ordered_map.md) and [im::map](../../containers/im/map.md) carry it. A key of another type is accepted wherever the map's `find` is transparent; `values_of` exists where `equal_range` does.
 
 ## Members
 
@@ -45,4 +45,4 @@ assert(*im.get(1) == 10 && im.value_or(2, 0) == 0);   // the same reads on the i
 
 ## See also
 
-- [the mixins and the concepts](README.md); the maps' own `find`, `at`, `contains`, which `m_lookup` builds on
+- [the mixins and the requirements](README.md); the maps' own `find`, `at`, `contains`, which `mixin::lookup` builds on

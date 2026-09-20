@@ -16,26 +16,21 @@ namespace sgcl {
     // The result of a search that finds nothing: the position that is no position
     inline constexpr size_t npos = SIZE_MAX;
 
-    // The concepts (c_) of the library: what a parameter of a library
-    // function asks of its argument, and what the methods of a mixin ask
-    // of the class that carries it. A concept of a container is nominal:
-    // it asks whether the type declares the mixin (derived_from), never
-    // whether the type happens to have the right members, so that only
-    // what said "I am enumerable" passes and the error for what did not
-    // is one line at the call. A concept of a value (c_equatable,
-    // c_comparable) is also structural, because a value need not be the
-    // library's: an int, a std::pair, a class with <=> of its own pass on
-    // what they can do. Used in the abbreviated form as a parameter:
-    // `size_t count_odd(const c_enumerable auto& r)`.
-    template<class Derived> class m_enumerable;
-    template<class Derived> class m_bidirectional;
-    template<class Derived> class m_random_access;
-    template<class Derived> class m_contiguous;
-    template<class Derived> class m_equatable;
-    template<class Derived> class m_comparable;
-    template<class Derived> class m_ordered;
-    template<class Derived> class m_sequence;
-    template<class Derived> class m_lookup;
+    // The mixins (namespace mixin, core/mixin/): the bases a class of the
+    // library names itself in, which give it its methods and declare what
+    // it is. Declared here for the requirements below; defined each in
+    // its header.
+    namespace mixin {
+        template<class Derived> class enumerable;
+        template<class Derived> class bidirectional;
+        template<class Derived> class random_access;
+        template<class Derived> class contiguous;
+        template<class Derived> class equatable;
+        template<class Derived> class comparable;
+        template<class Derived> class ordered;
+        template<class Derived> class sequence;
+        template<class Derived> class lookup;
+    }
 
     // A class that cannot carry a base (an aggregate: array<T, N>, whose
     // braces must stay the elements') declares a mixin here instead
@@ -61,35 +56,48 @@ namespace sgcl {
         };
     }
 
-    // Values
-    template<class T>
-    concept c_equatable = detail::Declares<T, m_equatable> || detail::EqualComparable<T>;
+    // The requirements (namespace req): what a parameter of a library
+    // function asks of its argument, and what the methods of a mixin ask
+    // of the class that carries them. A requirement of a container is
+    // nominal: it asks whether the type declares the mixin (derived_from),
+    // never whether the type happens to have the right members, so that
+    // only what said "I am enumerable" passes and the error for what did
+    // not is one line at the call. A requirement of a value (equatable,
+    // comparable) is also structural, because a value need not be the
+    // library's: an int, a std::pair, a class with <=> of its own pass on
+    // what they can do. Used in the abbreviated form as a parameter:
+    // `size_t count_odd(const req::enumerable auto& r)`.
+    namespace req {
+        // Values
+        template<class T>
+        concept equatable = detail::Declares<T, mixin::equatable> || detail::EqualComparable<T>;
 
-    template<class T>
-    concept c_comparable = detail::Declares<T, m_comparable> || std::three_way_comparable<T> || detail::LessOrdered<T>;
+        template<class T>
+        concept comparable = detail::Declares<T, mixin::comparable> || std::three_way_comparable<T> || detail::LessOrdered<T>;
 
-    // Containers: what iterates, and how
-    template<class R>
-    concept c_enumerable = detail::Declares<R, m_enumerable>;
+        // Containers: what iterates, and how
+        template<class R>
+        concept enumerable = detail::Declares<R, mixin::enumerable>;
 
-    template<class R>
-    concept c_bidirectional = c_enumerable<R> && detail::Declares<R, m_bidirectional>;
+        template<class R>
+        concept bidirectional = enumerable<R> && detail::Declares<R, mixin::bidirectional>;
 
-    template<class R>
-    concept c_random_access = c_bidirectional<R> && detail::Declares<R, m_random_access>;
+        template<class R>
+        concept random_access = bidirectional<R> && detail::Declares<R, mixin::random_access>;
 
-    template<class R>
-    concept c_contiguous = c_random_access<R> && detail::Declares<R, m_contiguous>;
+        template<class R>
+        concept contiguous = random_access<R> && detail::Declares<R, mixin::contiguous>;
 
-    // Containers: what can be done with the elements
-    template<class R>
-    concept c_sequence = c_enumerable<R> && detail::Declares<R, m_sequence>;
+        // Containers: what can be done with the elements
+        template<class R>
+        concept sequence = enumerable<R> && detail::Declares<R, mixin::sequence>;
 
-    template<class R>
-    concept c_ordered = c_enumerable<R> && detail::Declares<R, m_ordered> && c_comparable<std::ranges::range_value_t<R>>;
+        template<class R>
+        concept ordered = enumerable<R> && detail::Declares<R, mixin::ordered> && comparable<std::ranges::range_value_t<R>>;
 
-    template<class R>
-    concept c_lookup = c_enumerable<R> && detail::Declares<R, m_lookup>;
+        template<class R>
+        concept lookup = enumerable<R> && detail::Declares<R, mixin::lookup>;
+    }
 
     namespace detail {
         // A base that is the mixin or nothing, for a type whose own shape
@@ -105,14 +113,14 @@ namespace sgcl {
         // The requirements of the mixins' methods on the elements of the
         // class that carries them, named once
         template<class R>
-        concept EquatableElements = c_equatable<std::ranges::range_value_t<R>>;
+        concept EquatableElements = req::equatable<std::ranges::range_value_t<R>>;
 
         template<class R>
-        concept ComparableElements = c_comparable<std::ranges::range_value_t<R>>;
+        concept ComparableElements = req::comparable<std::ranges::range_value_t<R>>;
 
         // The order the mixins' forms without a comparator use: < alone,
         // as the algorithms of <algorithm> ask (std::ranges::less would
-        // ask for == too, and a type ordered by < alone is c_comparable)
+        // ask for == too, and a type ordered by < alone is req::comparable)
         struct Less {
             template<class A, class B>
             constexpr bool operator()(const A& a, const B& b) const {

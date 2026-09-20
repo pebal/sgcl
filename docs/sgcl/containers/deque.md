@@ -271,7 +271,7 @@ d.resize(4, 7);       // 1 2 7 7
 ### The mixins
 
 ```cpp
-// m_enumerable
+// mixin::enumerable
 template<class Pred> size_t find_index(Pred pred) const;   // npos when none
 template<class Pred> T* find_if(Pred pred) noexcept;       // null when none; and const
 template<class Pred> bool exists(Pred pred) const;  template<class Pred> bool all(Pred pred) const;
@@ -280,16 +280,16 @@ template<class F> void for_each(F f);                      // and const
 bool contains(const auto& value) const;                    // elements with ==: anything an element compares with
 size_t index_of(const auto& value) const;  size_t last_index_of(const auto& value) const;   // npos when none
 decltype(auto) min() const;  decltype(auto) max() const;   // elements with <; and with a comparator
-// m_ordered
+// mixin::ordered
 bool is_sorted() const;  bool binary_search(const auto& value) const;  size_t sorted_index_of(const auto& value) const;   // on a sorted deque; and with a comparator
 auto lower_bound(const auto& value);  auto upper_bound(const auto& value);   // and const, and with a comparator
 void sort();  template<class Compare> void sort(Compare cmp);  template<class Proj> void sort_by(Proj proj);  void stable_sort();
-// m_sequence
+// mixin::sequence
 void fill(const auto& value);  void reverse() noexcept;
-// m_equatable, m_comparable: == and <=>, below
+// mixin::equatable, mixin::comparable: == and <=>, below
 ```
 
-The members of the mixins every sequence of the library carries ([the mixins](../core/mixin/README.md)): the questions of [m_enumerable](../core/mixin/m_enumerable.md), the order of [m_ordered](../core/mixin/m_ordered.md), the writes of [m_sequence](../core/mixin/m_sequence.md), so that `x.sort()` reads as `x.push_back(x)` does. A question that compares elements exists only for elements that compare; `index_of`, `last_index_of` and `find_index` give the position, or `npos` when nothing matches, `find_if` the element the predicate accepts first, or null.
+The members of the mixins every sequence of the library carries ([the mixins](../core/mixin/README.md)): the questions of [mixin::enumerable](../core/mixin/enumerable.md), the order of [mixin::ordered](../core/mixin/ordered.md), the writes of [mixin::sequence](../core/mixin/sequence.md), so that `x.sort()` reads as `x.push_back(x)` does. A question that compares elements exists only for elements that compare; `index_of`, `last_index_of` and `find_index` give the position, or `npos` when nothing matches, `find_if` the element the predicate accepts first, or null.
 
 ```cpp
 sgcl::deque d = {5, 3, 9, 3};
@@ -324,7 +324,7 @@ friend bool operator==(const deque& lhs, const deque& rhs);
 friend auto operator<=>(const deque& lhs, const deque& rhs);
 ```
 
-From [m_equatable](../core/mixin/m_equatable.md) and [m_comparable](../core/mixin/m_comparable.md), for elements that compare. Element-wise, as for `std::deque`: `==` compares sizes first, `<=>` is lexicographical with the synthesized three-way comparison (`<=>` of `T` when it has one, else a `std::weak_ordering` built from `<`), so `<`, `<=`, `>`, `>=` and `!=` follow.
+From [mixin::equatable](../core/mixin/equatable.md) and [mixin::comparable](../core/mixin/comparable.md), for elements that compare. Element-wise, as for `std::deque`: `==` compares sizes first, `<=>` is lexicographical with the synthesized three-way comparison (`<=>` of `T` when it has one, else a `std::weak_ordering` built from `<`), so `<`, `<=`, `>`, `>=` and `!=` follow.
 
 ```cpp
 sgcl::deque<int> a = {1, 2}, b = {1, 3};

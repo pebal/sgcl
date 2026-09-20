@@ -45,7 +45,7 @@ assert(seen.front() == 2 && seen.back() == 1);
 
 ### The mixins
 
-`ordered_set` carries [m_enumerable](../core/mixin/m_enumerable.md): `index_of` is the position in insertion order; `contains` is the set's own ([the mixins](../core/mixin/README.md)).
+`ordered_set` carries [mixin::enumerable](../core/mixin/enumerable.md): `index_of` is the position in insertion order; `contains` is the set's own ([the mixins](../core/mixin/README.md)).
 
 ```cpp
 sgcl::ordered_set<int> s = {5, 3};

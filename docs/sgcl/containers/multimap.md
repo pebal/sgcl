@@ -328,7 +328,7 @@ Copies of the hasher and the equality.
 
 ### The mixins
 
-`multimap` carries [m_enumerable](../core/mixin/m_enumerable.md) (`contains` its own) and [m_lookup](../core/mixin/m_lookup.md): `get` the first value under a key, `values_of` all of them ([the mixins](../core/mixin/README.md)).
+`multimap` carries [mixin::enumerable](../core/mixin/enumerable.md) (`contains` its own) and [mixin::lookup](../core/mixin/lookup.md): `get` the first value under a key, `values_of` all of them ([the mixins](../core/mixin/README.md)).
 
 ```cpp
 sgcl::multimap<int, int> m = {{1, 10}, {1, 11}};

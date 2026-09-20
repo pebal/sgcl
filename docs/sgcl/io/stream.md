@@ -4,12 +4,14 @@
 #include "sgcl/io/stream.h"   // or "sgcl/io/io.h", "sgcl/sgcl.h"
 
 namespace sgcl::io {
-    template<class Derived> class m_reader;   // the operations over Derived::read
-    template<class Derived> class m_writer;   //                     Derived::write
-    template<class Derived> class m_seeker;   //                     Derived::seek
-    class reader : public m_reader<reader>;   // virtual read, async_read
-    class writer : public m_writer<writer>;   // virtual write, async_write
-    class seeker : public m_seeker<seeker>;   // virtual seek
+    namespace mixin {                         // sgcl/io/mixin/: the operations over one primitive
+        template<class Derived> class reader; //   Derived::read
+        template<class Derived> class writer; //   Derived::write
+        template<class Derived> class seeker; //   Derived::seek
+    }
+    class reader : public mixin::reader<reader>;   // virtual read, async_read
+    class writer : public mixin::writer<writer>;   // virtual write, async_write
+    class seeker : public mixin::seeker<seeker>;   // virtual seek
     class closer;                             // virtual close, is_closed
     class stream : public reader, public writer, public closer;
     enum class seek_from { begin, current, end };
@@ -22,7 +24,7 @@ namespace sgcl::io {
 }
 ```
 
-A stream is an interface of one primitive — `reader::read(slice<byte>)`, `writer::write(slice<const byte>)`, `seeker::seek(offset, from)`, `closer::close()` — each pure virtual, with its asynchronous twin (`async_read`, `async_write`), and a mixin over the primitive with everything else: `m_reader<Derived>` gives `read_full`, `read_all`, `read_all_text`, `copy_to` and their `async_` forms to whatever has a `read`, as [`m_enumerable`](../core/mixin/m_enumerable.md) gives the questions to whatever has `begin()` and `end()`. `reader` is `m_reader<reader>` with `read` virtual, so every class derived from it — `file`, `buffer`, `buffered_reader`, a socket, a gzip reader — has the whole set, and a `tracked_ptr<reader>` holds any of them: what an `io.Reader` value is in Go, the method table in the object rather than beside the pointer. A class of your own is a reader by deriving from `reader` and defining `read` and `async_read`; nothing else.
+A stream is an interface of one primitive — `reader::read(slice<byte>)`, `writer::write(slice<const byte>)`, `seeker::seek(offset, from)`, `closer::close()` — each pure virtual, with its asynchronous twin (`async_read`, `async_write`), and a mixin over the primitive with everything else (`namespace io::mixin`, the headers of `sgcl/io/mixin/`): `mixin::reader<Derived>` gives `read_full`, `read_all`, `read_all_text`, `copy_to` and their `async_` forms to whatever has a `read`, as [`mixin::enumerable`](../core/mixin/enumerable.md) gives the questions to whatever has `begin()` and `end()`. `reader` is `mixin::reader<reader>` with `read` virtual, so every class derived from it — `file`, `buffer`, `buffered_reader`, a socket, a gzip reader — has the whole set, and a `tracked_ptr<reader>` holds any of them: what an `io.Reader` value is in Go, the method table in the object rather than beside the pointer. A class of your own is a reader by deriving from `reader` and defining `read` and `async_read`; nothing else.
 
 `read` returns the bytes read, 0 at the end of the stream (a read of an empty slice returns 0 without touching the stream), and may return fewer than asked; `write` writes the whole slice, as Go's `Write`, and returns its size, fewer only with an error that says how far it got. `write_text` and `read_all_text` are the same bytes as text: `read_all_text` a [`string`](../core/string.md), `write_text` a string, a text [slice](../core/slice.md) (a piece of a string, a line of a [buffered_reader](buffered.md)), a literal or a `std::string_view` (a `std::string`'s characters), written from where it lies, no string made (the `const char*` overload is also what keeps a literal from being ambiguous between the string and the slice). They have names of their own so that a class overriding `write` does not hide them.
 
@@ -36,7 +38,7 @@ A stream is an interface of one primitive — `reader::read(slice<byte>)`, `writ
 
 ## Members
 
-### m_reader
+### mixin::reader
 
 ```cpp
 result<size_t> read_full(slice<std::byte> buffer);   // fills the slice: its size; the stream ending first is errc::unexpected_eof, or 0 before the first byte
@@ -49,7 +51,7 @@ task<result<string>> async_read_all_text();
 task<result<size_t>> async_copy_to(writer& w);
 ```
 
-### m_writer
+### mixin::writer
 
 ```cpp
 result<size_t> write_text(const string& text);           // and (const slice<const char>&), (const char*), (std::string_view): a string, a piece of one or a reader's line, a literal, a std::string's characters, each written from where it lies
@@ -59,7 +61,7 @@ task<result<size_t>> async_write_text(const string& text);   // the same four
 task<result<size_t>> async_copy_from(reader& r);
 ```
 
-### m_seeker
+### mixin::seeker
 
 ```cpp
 result<uint64_t> tell();      // seek(0, current)
@@ -71,17 +73,17 @@ result<void> rewind();        // seek(0)
 
 ```cpp
 class reader
-: public m_reader<reader> {
+: public mixin::reader<reader> {
     virtual result<size_t> read(slice<std::byte> buffer) = 0;
     virtual task<result<size_t>> async_read(slice<std::byte> buffer) = 0;
 };
 class writer
-: public m_writer<writer> {
+: public mixin::writer<writer> {
     virtual result<size_t> write(slice<const std::byte> data) = 0;
     virtual task<result<size_t>> async_write(slice<const std::byte> data) = 0;
 };
 class seeker
-: public m_seeker<seeker> {
+: public mixin::seeker<seeker> {
     virtual result<uint64_t> seek(int64_t offset, seek_from from = seek_from::begin) = 0;
 };
 class closer {

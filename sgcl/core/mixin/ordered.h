@@ -5,27 +5,27 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "concepts.h"
+#include "../req.h"
 
 #include <algorithm>
 #include <functional>
 #include <iterator>
 
-namespace sgcl {
-    // m_ordered<Derived>: the order of the whole range — whether it is
+namespace sgcl::mixin {
+    // ordered<Derived>: the order of the whole range — whether it is
     // sorted, the searches that assume it is, and the sorting that makes
     // it so — as members, and the declaration that the range has one:
-    // c_ordered<R> is "R carries m_ordered and its elements are
+    // req::ordered<R> is "R carries ordered and its elements are
     // comparable". Every method exists only for elements that are
-    // ordered (c_comparable), or takes a comparator or a key and asks
+    // ordered (req::comparable), or takes a comparator or a key and asks
     // nothing of them. A sorted vector with these is the flat map: the
     // lookups of a map with the memory of a vector. The sorts exist only
-    // where the elements can be written (c_sequence) and reached by
+    // where the elements can be written (req::sequence) and reached by
     // position: an immutable vector is ordered (is_sorted,
     // binary_search) but not sorted in place. The linked lists have a
     // sort of their own, on the nodes, which hides these.
     template<class Derived>
-    class m_ordered {
+    class ordered {
     public:
         constexpr bool is_sorted() const requires detail::ComparableElements<Derived> {
             return std::ranges::is_sorted(_begin(), _end(), detail::Less{});
@@ -96,36 +96,36 @@ namespace sgcl {
             return std::ranges::upper_bound(_begin(), _end(), value, cmp);
         }
 
-        // Sorting in place, where the elements can be written (c_sequence)
+        // Sorting in place, where the elements can be written (req::sequence)
         // and reached by position: by <, by a comparator, or by a key
         // taken from the element (v.sort_by(&item::name)). One mixin holds
         // every overload of a name: a name in two bases is ambiguous.
-        constexpr void sort() requires detail::ComparableElements<Derived> && c_sequence<Derived> && c_random_access<Derived> {
+        constexpr void sort() requires detail::ComparableElements<Derived> && req::sequence<Derived> && req::random_access<Derived> {
             std::ranges::sort(_begin(), _end(), detail::Less{});
         }
 
         template<class Compare>
-        constexpr void sort(Compare cmp) requires detail::ElementOrder<Compare, Derived> && c_sequence<Derived> && c_random_access<Derived> {
+        constexpr void sort(Compare cmp) requires detail::ElementOrder<Compare, Derived> && req::sequence<Derived> && req::random_access<Derived> {
             std::ranges::sort(_begin(), _end(), cmp);
         }
 
         template<class Proj>
-        constexpr void sort_by(Proj proj) requires detail::ElementVisitor<Proj, const Derived> && c_sequence<Derived> && c_random_access<Derived> {
+        constexpr void sort_by(Proj proj) requires detail::ElementVisitor<Proj, const Derived> && req::sequence<Derived> && req::random_access<Derived> {
             std::ranges::sort(_begin(), _end(), detail::Less{}, proj);
         }
 
-        void stable_sort() requires detail::ComparableElements<Derived> && c_sequence<Derived> && c_random_access<Derived> {
+        void stable_sort() requires detail::ComparableElements<Derived> && req::sequence<Derived> && req::random_access<Derived> {
             std::ranges::stable_sort(_begin(), _end(), detail::Less{});
         }
 
         template<class Compare>
-        void stable_sort(Compare cmp) requires detail::ElementOrder<Compare, Derived> && c_sequence<Derived> && c_random_access<Derived> {
+        void stable_sort(Compare cmp) requires detail::ElementOrder<Compare, Derived> && req::sequence<Derived> && req::random_access<Derived> {
             std::ranges::stable_sort(_begin(), _end(), cmp);
         }
 
     protected:
-        m_ordered() = default;
-        ~m_ordered() = default;
+        ordered() = default;
+        ~ordered() = default;
 
     private:
         constexpr auto _begin() noexcept { return static_cast<Derived&>(*this).begin(); }

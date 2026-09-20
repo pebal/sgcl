@@ -44,14 +44,14 @@ It end() const noexcept;
 
 `std::ranges::enable_borrowed_range<sgcl::range<It>>` is `true`.
 
-A `range` is a range of the library ([the mixins](mixin/README.md)): it carries `m_enumerable`, `m_equatable`, `m_comparable`, `m_ordered`, and, by what its iterator is, the category markers and `m_sequence` — so `range(v.begin(), v.end())` over a `std::vector` is how a standard container enters a function that asks for `c_enumerable` or `c_ordered`, and `range(n).contains(3)`, `range(n).max()` answer as a vector would.
+A `range` is a range of the library ([the mixins](mixin/README.md)): it carries `mixin::enumerable`, `mixin::equatable`, `mixin::comparable`, `mixin::ordered`, and, by what its iterator is, the category markers and `mixin::sequence` — so `range(v.begin(), v.end())` over a `std::vector` is how a standard container enters a function that asks for `req::enumerable` or `req::ordered`, and `range(n).contains(3)`, `range(n).max()` answer as a vector would.
 
 ```cpp
 std::vector<int> sv = {3, 1, 2};
 sgcl::range r(sv.begin(), sv.end());
 r.sort();                                         // sv is 1 2 3
 assert(r.is_sorted() && r.contains(2) && sgcl::range(5).max() == 4 && sgcl::range(5).count_of([](int x) { return x % 2; }) == 2);
-static_assert(sgcl::c_contiguous<decltype(r)> && sgcl::c_sequence<decltype(r)> && !sgcl::c_sequence<sgcl::range<sgcl::detail::counter<int>>>);
+static_assert(sgcl::req::contiguous<decltype(r)> && sgcl::req::sequence<decltype(r)> && !sgcl::req::sequence<sgcl::range<sgcl::detail::counter<int>>>);
 ```
 
 ## Example

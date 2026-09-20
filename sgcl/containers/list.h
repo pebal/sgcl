@@ -37,12 +37,12 @@ namespace sgcl {
     // node, and an iterator to an erased element is invalid, as in std.
     template<class T>
     class list
-    : public m_enumerable<list<T>>
-    , public m_bidirectional<list<T>>
-    , public m_equatable<list<T>>
-    , public m_comparable<list<T>>
-    , public m_ordered<list<T>>
-    , public m_sequence<list<T>> {
+    : public mixin::enumerable<list<T>>
+    , public mixin::bidirectional<list<T>>
+    , public mixin::equatable<list<T>>
+    , public mixin::comparable<list<T>>
+    , public mixin::ordered<list<T>>
+    , public mixin::sequence<list<T>> {
         struct NodeBase {
             tracked_ptr<NodeBase> prev;
             tracked_ptr<NodeBase> next;

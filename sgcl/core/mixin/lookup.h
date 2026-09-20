@@ -6,27 +6,27 @@
 #pragma once
 
 #include "../aliases.h"
-#include "concepts.h"
+#include "../req.h"
 
 #include <ranges>
 #include <type_traits>
 
-namespace sgcl {
-    // m_lookup<Derived>: a map read by its key, as members over
+namespace sgcl::mixin {
+    // lookup<Derived>: a map read by its key, as members over
     // Derived::find(key) — an iterator, end() when absent, on the mutable
     // maps; a pointer to the value, null when absent, on the immutable
     // ones (the two conventions told apart on the result of find, in the
     // method, where Derived is complete) — and the declaration that
-    // Derived is a map: c_lookup<R> is "R carries m_lookup". The value
+    // Derived is a map: req::lookup<R> is "R carries lookup". The value
     // comes back as a copy in an optional (get), as a pointer into the
     // map (try_get), or as a default (value_or), one search each and no
     // exception; keys() and values() are views over the map's own range
-    // of pairs (for_each is m_enumerable's, over the pairs). A key of
+    // of pairs (for_each is mixin::enumerable's, over the pairs). A key of
     // another type is accepted wherever the map's find is transparent. A
     // map with several values per key (multimap) gives the first by get
     // and all of them by values_of, which exists where equal_range does.
     template<class Derived>
-    class m_lookup {
+    class lookup {
     public:
         // The types of Derived are named in the bodies only (deduced
         // returns): a signature is instantiated with the class, when
@@ -87,8 +87,8 @@ namespace sgcl {
         }
 
     protected:
-        m_lookup() = default;
-        ~m_lookup() = default;
+        lookup() = default;
+        ~lookup() = default;
 
     private:
         Derived& _self() noexcept { return static_cast<Derived&>(*this); }

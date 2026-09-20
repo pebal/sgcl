@@ -5,19 +5,19 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "concepts.h"
+#include "../req.h"
 
-namespace sgcl {
-    // m_bidirectional<Derived>: a declaration without methods, that the
+namespace sgcl::mixin {
+    // bidirectional<Derived>: a declaration without methods, that the
     // elements can be walked from the back too: rbegin() and rend(), and
     // the questions that walk backwards (last_index_of) are cheap. What
     // iterator_category says of the iterator, said of the container
-    // where a concept can ask for it: c_bidirectional<R> is "R carries
-    // m_bidirectional".
+    // where a concept can ask for it: req::bidirectional<R> is "R carries
+    // bidirectional".
     template<class Derived>
-    class m_bidirectional {
+    class bidirectional {
     protected:
-        m_bidirectional() = default;
-        ~m_bidirectional() = default;
+        bidirectional() = default;
+        ~bidirectional() = default;
     };
 }

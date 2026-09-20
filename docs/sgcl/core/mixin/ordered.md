@@ -1,22 +1,22 @@
-# sgcl::m_ordered
+# sgcl::mixin::ordered
 
 ```cpp
-#include "sgcl/core/mixin/m_ordered.h"   // or "sgcl/core/mixin/mixin.h", "sgcl/sgcl.h"
+#include "sgcl/core/mixin/ordered.h"   // or "sgcl/core/mixin/mixin.h", "sgcl/sgcl.h"
 
-namespace sgcl {
+namespace sgcl::mixin {
     template<class Derived>
-    class m_ordered;
+    class ordered;
 }
 ```
 
-`m_ordered<Derived>` gives a class the order of the whole range as members — whether it is sorted, the searches that assume it is, and the sorting that makes it so — and declares that the range has one: `c_ordered<R>` is "R carries `m_ordered` and its elements are comparable" ([the mixins](README.md)). The sequences, `slice`, `range` and the immutable `im::vector` and `im::list` carry it; the sets and maps do not (their order is the container's, `lower_bound` their own).
+`mixin::ordered<Derived>` gives a class the order of the whole range as members — whether it is sorted, the searches that assume it is, and the sorting that makes it so — and declares that the range has one: `req::ordered<R>` is "R carries `mixin::ordered` and its elements are comparable" ([the mixins](README.md)). The sequences, `slice`, `range` and the immutable `im::vector` and `im::list` carry it; the sets and maps do not (their order is the container's, `lower_bound` their own).
 
 ## Rules
 
-- Every method exists only for elements that are ordered (`c_comparable`: `<=>` or `<`), or takes a comparator or a key and asks nothing of the element.
-- The sorts exist only where the elements can be written (`c_sequence`) and reached by position (`c_random_access`): an immutable vector is ordered — `is_sorted`, `binary_search` — but not sorted in place. `list` and `forward_list` have a `sort` of their own, on the nodes, which hides these.
+- Every method exists only for elements that are ordered (`req::comparable`: `<=>` or `<`), or takes a comparator or a key and asks nothing of the element.
+- The sorts exist only where the elements can be written (`req::sequence`) and reached by position (`req::random_access`): an immutable vector is ordered — `is_sorted`, `binary_search` — but not sorted in place. `list` and `forward_list` have a `sort` of their own, on the nodes, which hides these.
 - The searches assume a sorted range, by `<` or by the comparator given, and take O(log n) comparisons on a random-access range, O(n) steps on a list. A sorted `vector` with them is the flat map of this library: the lookups of a `sorted_map` with the memory of a `vector`.
-- One mixin holds every overload of a name: `sort()`, `sort(cmp)`, `sort_by(proj)` are all here, not split between this and `m_sequence`, because a name in two bases is ambiguous.
+- One mixin holds every overload of a name: `sort()`, `sort(cmp)`, `sort_by(proj)` are all here, not split between this and `mixin::sequence`, because a name in two bases is ambiguous.
 
 ## Members
 
@@ -53,7 +53,7 @@ assert(iv.is_sorted() && iv.binary_search(2));   // ordered; no sort(): nothing 
 
 // A flat map: a vector kept sorted, searched in O(log n). The function
 // asks for what it uses — an ordered, writable range
-void add_sorted(sgcl::c_ordered auto& r, int x) requires sgcl::c_sequence<decltype(r)> {
+void add_sorted(sgcl::req::ordered auto& r, int x) requires sgcl::req::sequence<decltype(r)> {
     r.insert(r.lower_bound(x), x);
 }
 
@@ -75,4 +75,4 @@ sorted, 30 at 2
 
 ## See also
 
-- [the mixins and the concepts](README.md); [m_enumerable](m_enumerable.md) (`min`, `max`, `contains`), [m_sequence](m_sequence.md) (`fill`, `reverse`)
+- [the mixins and the requirements](README.md); [mixin::enumerable](enumerable.md) (`min`, `max`, `contains`), [mixin::sequence](sequence.md) (`fill`, `reverse`)

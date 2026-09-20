@@ -312,7 +312,7 @@ for (auto it = from; it != to; ++it) {
 
 ### The mixins
 
-`sorted_multimap` carries [m_enumerable](../core/mixin/m_enumerable.md) (`exists`, `count_of`, `find_if`, `for_each` over the pairs; `contains`, `min`, `max` its own), [m_equatable](../core/mixin/m_equatable.md), [m_comparable](../core/mixin/m_comparable.md), the bidirectional category, and [m_lookup](../core/mixin/m_lookup.md): `get` the first value under a key, `values_of` all of them.
+`sorted_multimap` carries [mixin::enumerable](../core/mixin/enumerable.md) (`exists`, `count_of`, `find_if`, `for_each` over the pairs; `contains`, `min`, `max` its own), [mixin::equatable](../core/mixin/equatable.md), [mixin::comparable](../core/mixin/comparable.md), the bidirectional category, and [mixin::lookup](../core/mixin/lookup.md): `get` the first value under a key, `values_of` all of them.
 
 ```cpp
 sgcl::sorted_multimap<int, sgcl::string> names = {{1, "a"}, {1, "b"}, {2, "c"}};

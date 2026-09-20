@@ -3,7 +3,7 @@
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
-// The mixins' members on every sequence (m_enumerable, m_ordered, m_sequence); the deduction
+// The mixins' members on every sequence (mixin::enumerable, mixin::ordered, mixin::sequence); the deduction
 // guides of atomic, queue, stack, copy_on_write, task
 #include "sgcl/sgcl.h"
 #include "tests/types.h"
@@ -65,7 +65,7 @@ TEST(MSequence_Tests, TheAlgorithmsAreMembersOfEverySequence) {
     EXPECT_EQ(*sorted_deque.lower_bound(3), 4);
     EXPECT_FALSE(z.binary_search(1));
     // the mixins: no state, no size
-    static_assert(std::is_empty_v<sgcl::m_enumerable<sgcl::vector<int>>> && std::is_empty_v<sgcl::m_ordered<sgcl::vector<int>>> && std::is_empty_v<sgcl::m_sequence<sgcl::vector<int>>>);
+    static_assert(std::is_empty_v<sgcl::mixin::enumerable<sgcl::vector<int>>> && std::is_empty_v<sgcl::mixin::ordered<sgcl::vector<int>>> && std::is_empty_v<sgcl::mixin::sequence<sgcl::vector<int>>>);
     static_assert(sizeof(sgcl::array<int, 3>) == 3 * sizeof(int));
     static_assert(sizeof(sgcl::vector<int>) == sizeof(sgcl::vector<int>::size_type) * 2 + sizeof(void*));
 }

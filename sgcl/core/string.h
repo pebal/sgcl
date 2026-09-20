@@ -7,7 +7,7 @@
 
 #include "aliases.h"
 #include "detail/string_data.h"
-#include "mixin/m_text.h"
+#include "mixin/text.h"
 #include "slice.h"
 #include "tracked_ptr.h"
 
@@ -40,7 +40,7 @@ namespace sgcl {
     // std::string remains. No small-string optimization: the word is the
     // whole of it, and the empty string is null.
     // The interface is the read side of std::string (and all of
-    // std::string_view, as the mixin m_text, detail/text.h, shared with
+    // std::string_view, as mixin::text, core/mixin/text.h, shared with
     // slice<const CharT>): size, data, c_str, [], at, front, back, the
     // iterators, compare, starts_with, ends_with, contains, the finds,
     // substr (a new string), the comparisons and <=> with a string, a
@@ -74,7 +74,7 @@ namespace sgcl {
 
     template<class CharT, class Traits = std::char_traits<CharT>>
     class basic_string
-    : public m_text<basic_string<CharT, Traits>, CharT, Traits> {
+    : public mixin::text<basic_string<CharT, Traits>, CharT, Traits> {
         static_assert(sizeof(detail::StringHeader) % sizeof(CharT) == 0, "the header is a whole number of characters");
 
         using Maker = detail::StringMaker;

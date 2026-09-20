@@ -14,7 +14,7 @@ namespace sgcl {
 
 `sgcl::slice<T>` is the elements `[begin, end)` of some contiguous storage and the managed object they lie in, kept alive by the slice for as long as the slice exists: what a slice is in Go (a piece of the array that shares it and holds it), and what `std::span` and `std::string_view` are not (a range with no duty to keep its memory). Three words: the owner, a `tracked_ptr` to the object — a [string](string.md), the buffer of a [vector](../containers/vector.md), the block of a [buffered_reader](../io/buffered.md) — and two raw pointers into it. A slice of unmanaged memory (a stack array, a `std::vector`, a `std::span`) has no owner: its word is null, and the slice promises what a span does, the memory valid for the call. Which of the two a slice is follows from where the memory comes from, not from a choice: a string, a vector, a reader's block hand out slices with the owner set (`s.as_slice()`, `v.as_slice()`, a line of `read_line`); a raw pointer or a std container give one without. The owner is given by whoever knows it, never guessed from an address (a pointer into an object finds the object only within its first page).
 
-What it is for, with an owner: a piece of a string with no copy — a token, a field, a line, the pieces of [`split`](string.md#members) — kept in a container or a managed object as it is, the source alive for as long as any piece is; a line of a file handed out by a reader without an allocation, valid after the reader has moved on to the next block; a fragment of a buffer given to an asynchronous `read`, the buffer rooted by the argument while the task waits. Without an owner: what a `std::span` is for, one type for both. `slice<const char>` is text and has the read interface of a string (`m_text`: `find`, `starts_with`, `compare`, `trim`, `substr`…); `slice<std::byte>` is a buffer to read into, `slice<const std::byte>` data to write; `slice<T>` of anything else is a span with an owner.
+What it is for, with an owner: a piece of a string with no copy — a token, a field, a line, the pieces of [`split`](string.md#members) — kept in a container or a managed object as it is, the source alive for as long as any piece is; a line of a file handed out by a reader without an allocation, valid after the reader has moved on to the next block; a fragment of a buffer given to an asynchronous `read`, the buffer rooted by the argument while the task waits. Without an owner: what a `std::span` is for, one type for both. `slice<const char>` is text and has the read interface of a string (`mixin::text`: `find`, `starts_with`, `compare`, `trim`, `substr`…); `slice<std::byte>` is a buffer to read into, `slice<const std::byte>` data to write; `slice<T>` of anything else is a span with an owner.
 
 What it costs: a slice without an owner is three word stores — no barrier, no registration of the thread, the price of a span. A slice with an owner is a `tracked_ptr`'s copy: the write barrier, and the registration of the thread's stack the first time a managed word lands on it. The rule the two paths keep is that a non-null owner never lands on a stack the collector does not know: the constructor from an owner, and the copy and the assignment from an owned slice, register; the paths without an owner skip it.
 
@@ -55,12 +55,12 @@ operator std::span<T>() const noexcept;                               // for a s
 void swap(slice& o) noexcept;
 
 // the mixins (mixin/README.md): a slice answers what a vector answers, and is sorted in place when T is not const
-// m_enumerable: find_if, find_index, exists, all, count_of, for_each, contains, index_of, last_index_of, min, max
-// m_ordered: is_sorted, binary_search, sorted_index_of, lower_bound, upper_bound; sort, sort_by, stable_sort (slice<T> only)
-// m_sequence (slice<T> only): fill, reverse
-// m_equatable, m_comparable: == and <=> by the elements, for elements that compare
+// mixin::enumerable: find_if, find_index, exists, all, count_of, for_each, contains, index_of, last_index_of, min, max
+// mixin::ordered: is_sorted, binary_search, sorted_index_of, lower_bound, upper_bound; sort, sort_by, stable_sort (slice<T> only)
+// mixin::sequence (slice<T> only): fill, reverse
+// mixin::equatable, mixin::comparable: == and <=> by the elements, for elements that compare
 
-// slice<const CharT>, text (m_text over the characters): the read side of std::string_view
+// slice<const CharT>, text (mixin::text over the characters): the read side of std::string_view
 view_type view() const noexcept;  operator view_type() const noexcept;  std::string str() const;
 size_type length() const noexcept;  const CharT& at(size_type i) const;
 compare, starts_with, ends_with, contains, find, rfind, find_first_of, find_last_of, find_first_not_of, find_last_not_of, copy

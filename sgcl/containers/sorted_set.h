@@ -18,10 +18,10 @@ namespace sgcl {
     template<class Key, class Compare = std::less<Key>>
     class sorted_set
     : public detail::RbTree<detail::SetTraits<Key, Compare, false>>
-    , public m_enumerable<sorted_set<Key, Compare>>
-    , public m_bidirectional<sorted_set<Key, Compare>>
-    , public m_equatable<sorted_set<Key, Compare>>
-    , public m_comparable<sorted_set<Key, Compare>> {
+    , public mixin::enumerable<sorted_set<Key, Compare>>
+    , public mixin::bidirectional<sorted_set<Key, Compare>>
+    , public mixin::equatable<sorted_set<Key, Compare>>
+    , public mixin::comparable<sorted_set<Key, Compare>> {
         using Base = detail::RbTree<detail::SetTraits<Key, Compare, false>>;
 
     public:
@@ -33,11 +33,11 @@ namespace sgcl {
 
         using Base::Base;
 
-        // By the key, the container's own, in place of m_enumerable's walk
+        // By the key, the container's own, in place of mixin::enumerable's walk
         using Base::contains;
 
         // The smallest and the largest element are the ends of the order,
-        // O(1), in place of m_enumerable's walk (hidden, the overloads with
+        // O(1), in place of mixin::enumerable's walk (hidden, the overloads with
         // a comparator too: the container orders by its own comparator)
 
         const value_type& min() const noexcept {

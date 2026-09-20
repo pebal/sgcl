@@ -297,7 +297,7 @@ auto twos = std::distance(from, to);      // 2
 
 ### The mixins
 
-`sorted_multiset` carries [m_enumerable](../core/mixin/m_enumerable.md) (`contains`, `min`, `max` its own), [m_equatable](../core/mixin/m_equatable.md), [m_comparable](../core/mixin/m_comparable.md) and the bidirectional category ([the mixins](../core/mixin/README.md)).
+`sorted_multiset` carries [mixin::enumerable](../core/mixin/enumerable.md) (`contains`, `min`, `max` its own), [mixin::equatable](../core/mixin/equatable.md), [mixin::comparable](../core/mixin/comparable.md) and the bidirectional category ([the mixins](../core/mixin/README.md)).
 
 ```cpp
 sgcl::sorted_multiset<int> s = {3, 1, 1};

@@ -299,7 +299,7 @@ auto between = std::distance(from, to);   // 1
 
 ### The mixins
 
-`sorted_set` carries [m_enumerable](../core/mixin/m_enumerable.md) — `exists`, `all`, `count_of`, `find_if`, `for_each`, `index_of` (the position in the order); `contains` is the set's own, by the key, `min()` and `max()` the ends of the order, O(1) — [m_equatable](../core/mixin/m_equatable.md), [m_comparable](../core/mixin/m_comparable.md) and the bidirectional category ([the mixins](../core/mixin/README.md)); not `m_ordered` (the order is the set's, `lower_bound` its own), not `m_sequence`.
+`sorted_set` carries [mixin::enumerable](../core/mixin/enumerable.md) — `exists`, `all`, `count_of`, `find_if`, `for_each`, `index_of` (the position in the order); `contains` is the set's own, by the key, `min()` and `max()` the ends of the order, O(1) — [mixin::equatable](../core/mixin/equatable.md), [mixin::comparable](../core/mixin/comparable.md) and the bidirectional category ([the mixins](../core/mixin/README.md)); not `mixin::ordered` (the order is the set's, `lower_bound` its own), not `mixin::sequence`.
 
 ```cpp
 sgcl::sorted_set<int> s = {3, 1, 2};

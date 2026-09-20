@@ -29,20 +29,20 @@ namespace sgcl {
         struct NoText {};
 
         // Chosen by a specialization, not by conditional_t, so that
-        // m_text<Derived, byte> is never named: its default char_traits
+        // mixin::text<Derived, byte> is never named: its default char_traits
         // argument would instantiate the deprecated char_traits<byte>
         template<class T, class Derived, bool = IsCharacter<std::remove_const_t<T>>>
         struct SliceBaseOf { using type = NoText; };
         template<class T, class Derived>
-        struct SliceBaseOf<T, Derived, true> { using type = m_text<Derived, std::remove_const_t<T>>; };
+        struct SliceBaseOf<T, Derived, true> { using type = mixin::text<Derived, std::remove_const_t<T>>; };
 
         template<class T, class Derived>
         using SliceBase = typename SliceBaseOf<T, Derived>::type;
 
-        // m_sequence only where the elements can be written: slice<T>,
+        // mixin::sequence only where the elements can be written: slice<T>,
         // not slice<const T> (the constness of T is the slice's, known here)
         template<class T, class Derived>
-        using SliceWriteBase = MixinIf<!std::is_const_v<T>, m_sequence, Derived>;
+        using SliceWriteBase = MixinIf<!std::is_const_v<T>, mixin::sequence, Derived>;
 
         // The std view of the characters of a text slice; for a slice of
         // anything else a type that no argument converts to
@@ -93,21 +93,21 @@ namespace sgcl {
     // owner, the copy and the assignment from an owned slice register).
     // A slice lives where a tracked_ptr may: on a stack or in a managed
     // object. The elements are T: slice<const char> is text (with the
-    // operations of std::string_view, m_text), slice<std::byte> a buffer
+    // operations of std::string_view, mixin::text), slice<std::byte> a buffer
     // to read into, slice<const std::byte> data to write. A slice is a
-    // range of the library (m_enumerable and the rest, mixin/): what a
+    // range of the library (mixin::enumerable and the rest, mixin/): what a
     // vector can be asked, a slice of it can be asked too, and sorted in
     // place when its elements are not const.
     template<class T>
     class slice
     : public detail::SliceBase<T, slice<T>>
-    , public m_enumerable<slice<T>>
-    , public m_contiguous<slice<T>>
-    , public m_random_access<slice<T>>
-    , public m_bidirectional<slice<T>>
-    , public m_equatable<slice<T>>
-    , public m_comparable<slice<T>>
-    , public m_ordered<slice<T>>
+    , public mixin::enumerable<slice<T>>
+    , public mixin::contiguous<slice<T>>
+    , public mixin::random_access<slice<T>>
+    , public mixin::bidirectional<slice<T>>
+    , public mixin::equatable<slice<T>>
+    , public mixin::comparable<slice<T>>
+    , public mixin::ordered<slice<T>>
     , public detail::SliceWriteBase<T, slice<T>> {
     public:
         using element_type = T;
@@ -384,8 +384,8 @@ namespace sgcl {
             return subslice(pos, n);
         }
 
-        // contains: a name in two bases (m_text's, of a substring or a
-        // character; m_enumerable's, of an element) is ambiguous, so the
+        // contains: a name in two bases (mixin::text's, of a substring or a
+        // character; mixin::enumerable's, of an element) is ambiguous, so the
         // slice says which — the text's for text, the element's otherwise
         bool contains(detail::TextView<T> s) const noexcept requires detail::IsCharacter<value_type> {
             return detail::SliceBase<T, slice>::contains(s);
@@ -396,7 +396,7 @@ namespace sgcl {
         }
 
         bool contains(const auto& value) const requires (!detail::IsCharacter<value_type>) && detail::EquatableElements<slice> {
-            return m_enumerable<slice>::contains(value);
+            return mixin::enumerable<slice>::contains(value);
         }
 
     private:

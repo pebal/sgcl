@@ -30,13 +30,13 @@ namespace {
     // A class of the user's own: a range of the library by declaration
     template<class T>
     class Ring
-    : public m_enumerable<Ring<T>>
-    , public m_random_access<Ring<T>>
-    , public m_bidirectional<Ring<T>>
-    , public m_equatable<Ring<T>>
-    , public m_comparable<Ring<T>>
-    , public m_ordered<Ring<T>>
-    , public m_sequence<Ring<T>> {
+    : public mixin::enumerable<Ring<T>>
+    , public mixin::random_access<Ring<T>>
+    , public mixin::bidirectional<Ring<T>>
+    , public mixin::equatable<Ring<T>>
+    , public mixin::comparable<Ring<T>>
+    , public mixin::ordered<Ring<T>>
+    , public mixin::sequence<Ring<T>> {
     public:
         using value_type = T;
         Ring(std::initializer_list<T> l) : _v(l) {}
@@ -49,10 +49,10 @@ namespace {
     };
 
     // The concepts as parameters, in the abbreviated form
-    size_t odd(const c_enumerable auto& r) { return r.count_of([](int x) { return x % 2 != 0; }); }
-    decltype(auto) largest(const c_ordered auto& r) { return r.max(); }
-    void sort_in_place(c_sequence auto& r) requires c_ordered<decltype(r)> { r.sort(); }
-    bool has_key(const c_lookup auto& m, int k) { return m.contains_key(k); }
+    size_t odd(const req::enumerable auto& r) { return r.count_of([](int x) { return x % 2 != 0; }); }
+    decltype(auto) largest(const req::ordered auto& r) { return r.max(); }
+    void sort_in_place(req::sequence auto& r) requires req::ordered<decltype(r)> { r.sort(); }
+    bool has_key(const req::lookup auto& m, int k) { return m.contains_key(k); }
 
     template<class R, class... A>
     concept HasContains = requires(const R& r, A... a) { r.contains(a...); };
@@ -65,52 +65,52 @@ namespace {
 }
 
 TEST(Mixin_Tests, WhatTheContainersDeclare) {
-    static_assert(c_enumerable<vector<int>> && c_bidirectional<vector<int>> && c_random_access<vector<int>> && c_contiguous<vector<int>>);
-    static_assert(c_sequence<vector<int>> && c_ordered<vector<int>> && !c_lookup<vector<int>>);
-    static_assert(c_contiguous<array<int, 3>> && c_ordered<array<int, 3>> && c_sequence<array<int, 3>> && c_contiguous<dynamic_array<int>> && c_sequence<dynamic_array<int>>);
-    static_assert(c_random_access<deque<int>> && !c_contiguous<deque<int>>);
-    static_assert(c_bidirectional<list<int>> && !c_random_access<list<int>> && c_sequence<list<int>>);
-    static_assert(c_enumerable<forward_list<int>> && !c_bidirectional<forward_list<int>>);
-    static_assert(c_bidirectional<sorted_set<int>> && !c_ordered<sorted_set<int>> && !c_sequence<sorted_set<int>> && !c_lookup<sorted_set<int>>);
-    static_assert(c_lookup<sorted_map<int, int>> && c_lookup<sorted_multimap<int, int>> && c_lookup<map<int, int>> && c_lookup<ordered_map<int, int>> && c_lookup<im::map<int, int>>);
-    static_assert(c_enumerable<set<int>> && !c_bidirectional<set<int>>);
-    static_assert(c_random_access<im::vector<int>> && c_ordered<im::vector<int>> && !c_sequence<im::vector<int>>);
-    static_assert(c_enumerable<im::list<int>> && c_ordered<im::list<int>> && c_enumerable<im::map<int, int>> && c_enumerable<im::set<int>>);
-    static_assert(c_contiguous<slice<int>> && c_sequence<slice<int>> && c_contiguous<slice<const int>> && !c_sequence<slice<const int>>);
-    static_assert(c_contiguous<range<int*>> && c_sequence<range<int*>> && c_random_access<range<detail::counter<int>>> && !c_sequence<range<detail::counter<int>>>);
-    static_assert(!c_enumerable<string>);   // m_text, not a range of the library: as_slice() is
-    static_assert(c_enumerable<Ring<int>> && c_ordered<Ring<int>> && c_sequence<Ring<int>>);
+    static_assert(req::enumerable<vector<int>> && req::bidirectional<vector<int>> && req::random_access<vector<int>> && req::contiguous<vector<int>>);
+    static_assert(req::sequence<vector<int>> && req::ordered<vector<int>> && !req::lookup<vector<int>>);
+    static_assert(req::contiguous<array<int, 3>> && req::ordered<array<int, 3>> && req::sequence<array<int, 3>> && req::contiguous<dynamic_array<int>> && req::sequence<dynamic_array<int>>);
+    static_assert(req::random_access<deque<int>> && !req::contiguous<deque<int>>);
+    static_assert(req::bidirectional<list<int>> && !req::random_access<list<int>> && req::sequence<list<int>>);
+    static_assert(req::enumerable<forward_list<int>> && !req::bidirectional<forward_list<int>>);
+    static_assert(req::bidirectional<sorted_set<int>> && !req::ordered<sorted_set<int>> && !req::sequence<sorted_set<int>> && !req::lookup<sorted_set<int>>);
+    static_assert(req::lookup<sorted_map<int, int>> && req::lookup<sorted_multimap<int, int>> && req::lookup<map<int, int>> && req::lookup<ordered_map<int, int>> && req::lookup<im::map<int, int>>);
+    static_assert(req::enumerable<set<int>> && !req::bidirectional<set<int>>);
+    static_assert(req::random_access<im::vector<int>> && req::ordered<im::vector<int>> && !req::sequence<im::vector<int>>);
+    static_assert(req::enumerable<im::list<int>> && req::ordered<im::list<int>> && req::enumerable<im::map<int, int>> && req::enumerable<im::set<int>>);
+    static_assert(req::contiguous<slice<int>> && req::sequence<slice<int>> && req::contiguous<slice<const int>> && !req::sequence<slice<const int>>);
+    static_assert(req::contiguous<range<int*>> && req::sequence<range<int*>> && req::random_access<range<detail::counter<int>>> && !req::sequence<range<detail::counter<int>>>);
+    static_assert(!req::enumerable<string>);   // mixin::text, not a range of the library: as_slice() is
+    static_assert(req::enumerable<Ring<int>> && req::ordered<Ring<int>> && req::sequence<Ring<int>>);
 }
 
 TEST(Mixin_Tests, AConceptOfAContainerIsNominal) {
-    static_assert(!c_enumerable<std::vector<int>> && !c_enumerable<std::list<int>> && !c_enumerable<int[3]>);
+    static_assert(!req::enumerable<std::vector<int>> && !req::enumerable<std::list<int>> && !req::enumerable<int[3]>);
     // the adapter is how std enters
     std::vector<int> sv = {3, 1, 2};
     range r(sv.begin(), sv.end());
-    static_assert(c_contiguous<decltype(r)> && c_sequence<decltype(r)> && c_ordered<decltype(r)>);
+    static_assert(req::contiguous<decltype(r)> && req::sequence<decltype(r)> && req::ordered<decltype(r)>);
     EXPECT_EQ(odd(r), 2u);
     EXPECT_EQ(largest(r), 3);
     sort_in_place(r);
     EXPECT_TRUE(r.is_sorted() && sv[0] == 1);
     std::list<int> sl = {1, 2};
     range lr(sl.begin(), sl.end());
-    static_assert(c_bidirectional<decltype(lr)> && !c_random_access<decltype(lr)> && !HasSort<decltype(lr)>);
+    static_assert(req::bidirectional<decltype(lr)> && !req::random_access<decltype(lr)> && !HasSort<decltype(lr)>);
     EXPECT_EQ(lr.last_index_of(2), 1u);
 }
 
 TEST(Mixin_Tests, AConceptOfAValueIsStructuralToo) {
-    static_assert(c_equatable<int> && c_comparable<int> && c_comparable<double>);
-    static_assert(c_equatable<std::string> && c_comparable<std::string> && c_comparable<std::pair<int, int>>);
-    static_assert(c_equatable<string> && c_comparable<string> && c_comparable<vector<int>> && c_equatable<std::vector<int>>);
-    static_assert(!c_equatable<Plain> && !c_comparable<Plain>);
-    static_assert(!c_equatable<LessOnly> && c_comparable<LessOnly>);   // as the standard containers order: < alone
-    static_assert(c_comparable<Int>);   // the test type, by <=>
+    static_assert(req::equatable<int> && req::comparable<int> && req::comparable<double>);
+    static_assert(req::equatable<std::string> && req::comparable<std::string> && req::comparable<std::pair<int, int>>);
+    static_assert(req::equatable<string> && req::comparable<string> && req::comparable<vector<int>> && req::equatable<std::vector<int>>);
+    static_assert(!req::equatable<Plain> && !req::comparable<Plain>);
+    static_assert(!req::equatable<LessOnly> && req::comparable<LessOnly>);   // as the standard containers order: < alone
+    static_assert(req::comparable<Int>);   // the test type, by <=>
 }
 
 TEST(Mixin_Tests, AMethodExistsOnlyForElementsThatAllowIt) {
     static_assert(HasContains<vector<int>, int> && HasMin<vector<int>> && HasSort<vector<int>>);
     static_assert(!HasContains<vector<Plain>, Plain> && !HasMin<vector<Plain>> && !HasSort<vector<Plain>>);
-    static_assert(!c_ordered<vector<Plain>> && c_enumerable<vector<Plain>> && c_sequence<vector<Plain>>);
+    static_assert(!req::ordered<vector<Plain>> && req::enumerable<vector<Plain>> && req::sequence<vector<Plain>>);
     static_assert(HasMin<vector<LessOnly>> && HasSort<vector<LessOnly>> && !HasContains<vector<LessOnly>, LessOnly>);
     static_assert(!HasSort<im::vector<int>> && HasMin<im::vector<int>>);   // ordered, not written in place
     static_assert(!HasSort<slice<const int>> && HasSort<slice<int>>);
@@ -204,7 +204,7 @@ TEST(Mixin_Tests, LookupOnEveryMap) {
     EXPECT_EQ(om.value_or(6, -1), -1);
     // the immutable map: find gives a pointer, not an iterator; the mixin tells the two apart
     im::map<int, std::string> imm = im::map<int, std::string>().insert(1, "one").insert(2, "two");
-    static_assert(c_lookup<decltype(imm)> && !c_lookup<im::set<int>>);
+    static_assert(req::lookup<decltype(imm)> && !req::lookup<im::set<int>>);
     EXPECT_EQ(*imm.get(1), "one");
     EXPECT_FALSE(imm.get(3));
     EXPECT_EQ(*imm.try_get(2), "two");
@@ -247,8 +247,8 @@ TEST(Mixin_Tests, TheOrderOfARange) {
 }
 
 TEST(Mixin_Tests, TheMixinsHaveNoStateAndAreNotParameters) {
-    static_assert(std::is_empty_v<m_enumerable<Ring<int>>> && std::is_empty_v<m_lookup<sorted_map<int, int>>> && std::is_empty_v<m_contiguous<vector<int>>>);
+    static_assert(std::is_empty_v<mixin::enumerable<Ring<int>>> && std::is_empty_v<mixin::lookup<sorted_map<int, int>>> && std::is_empty_v<mixin::contiguous<vector<int>>>);
     static_assert(sizeof(Ring<int>) == sizeof(std::vector<int>));
     static_assert(sizeof(slice<int>) == 3 * sizeof(void*));
-    static_assert(!std::is_default_constructible_v<m_enumerable<Ring<int>>>);   // protected: a base only
+    static_assert(!std::is_default_constructible_v<mixin::enumerable<Ring<int>>>);   // protected: a base only
 }

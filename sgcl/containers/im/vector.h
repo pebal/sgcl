@@ -136,12 +136,12 @@ namespace sgcl::im {
     // a leaf. An element's copy constructor is what a change costs: the
     // 32 elements of a leaf at most, plus the branches.
     template<class T>
-    class vector   // read as any range; == its own (a version and its copy by the trie); no m_sequence: nothing written in place
-    : public m_enumerable<vector<T>>
-    , public m_random_access<vector<T>>
-    , public m_bidirectional<vector<T>>
-    , public m_comparable<vector<T>>
-    , public m_ordered<vector<T>> {
+    class vector   // read as any range; == its own (a version and its copy by the trie); no mixin::sequence: nothing written in place
+    : public mixin::enumerable<vector<T>>
+    , public mixin::random_access<vector<T>>
+    , public mixin::bidirectional<vector<T>>
+    , public mixin::comparable<vector<T>>
+    , public mixin::ordered<vector<T>> {
         using Branch = detail::VectorBranch;
         using Leaf = detail::VectorLeaf<T>;
 

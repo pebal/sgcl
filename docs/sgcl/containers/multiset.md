@@ -328,7 +328,7 @@ Copies of the hasher and the equality.
 
 ### The mixins
 
-`multiset` carries [m_enumerable](../core/mixin/m_enumerable.md) (`contains` its own) ([the mixins](../core/mixin/README.md)).
+`multiset` carries [mixin::enumerable](../core/mixin/enumerable.md) (`contains` its own) ([the mixins](../core/mixin/README.md)).
 
 ```cpp
 sgcl::multiset<int> s = {1, 1, 2};

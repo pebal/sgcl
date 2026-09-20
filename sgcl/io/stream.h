@@ -6,6 +6,10 @@
 #pragma once
 
 #include "error.h"
+#include "mixin/reader.h"
+#include "mixin/seeker.h"
+#include "mixin/writer.h"
+#include "detail/bytes.h"
 #include "../async/coroutine.h"
 #include "../containers/array.h"
 #include "../containers/vector.h"
@@ -23,8 +27,8 @@
 namespace sgcl::io {
     // The streams of io: an interface of one primitive each (reader::read,
     // writer::write, seeker::seek, closer::close), pure virtual, and a
-    // mixin over that primitive with everything else (m_reader,
-    // m_writer, m_seeker: as m_enumerable is a mixin over begin() and
+    // mixin over that primitive with everything else (mixin::reader,
+    // mixin::writer, mixin::seeker: as mixin::enumerable is a mixin over begin() and
     // end()). A stream is a managed object held by a tracked_ptr; a
     // tracked_ptr<reader> holds any of them, so a buffered_reader, a
     // gzip reader or a TLS stream takes whatever reads and no template
@@ -48,271 +52,12 @@ namespace sgcl::io {
     class reader;
     class writer;
 
-    namespace detail {
-        // The bytes of a string, as a slice that holds it; of a text
-        // slice, the same owner; of a literal, none
-        inline slice<const std::byte> bytes_of(const string& s) noexcept {
-            return as_bytes(s.as_slice());
-        }
-
-        inline slice<const std::byte> bytes_of(const slice<const char>& s) noexcept {
-            return as_bytes(s);
-        }
-
-        inline slice<const std::byte> bytes_of(const char* s) noexcept {
-            return slice<const std::byte>(reinterpret_cast<const std::byte*>(s), std::char_traits<char>::length(s));
-        }
-
-        inline slice<const std::byte> bytes_of(std::string_view s) noexcept {
-            return slice<const std::byte>(reinterpret_cast<const std::byte*>(s.data()), s.size());
-        }
-
-        // The bytes as characters: a std view (for the algorithms), a
-        // slice of the same owner, a new string
-        inline std::string_view chars_of(const slice<const std::byte>& b) noexcept {
-            return std::string_view(reinterpret_cast<const char*>(b.data()), b.size());
-        }
-
-        inline slice<const char> text_slice_of(const slice<const std::byte>& b) noexcept {
-            return slice<const char>(b.owner(), reinterpret_cast<const char*>(b.data()), b.size());
-        }
-
-        inline string text_of(const slice<const std::byte>& b) {
-            return string(chars_of(b));
-        }
-
-        // The block copy() moves data through: one managed array, no header,
-        // two to a page
-        using CopyBlock = array<std::byte, config::IoCopyBufferSize>;
-    }
-
-    // The mixin over Derived::read(span) -> result<size_t>: the bytes
-    // read, 0 at the end of the stream (a read of an empty span returns 0
-    // without touching the stream), or the error. A read may return
-    // fewer bytes than asked; read_full reads until the span is full or
-    // the stream ends.
-    template<class Derived>
-    class m_reader {
-    public:
-        // Fills the whole span: the size, or an error; the stream ending
-        // before the span is full is errc::unexpected_eof, unless it
-        // ended before the first byte, which is 0.
-        result<size_t> read_full(slice<std::byte> buffer) {
-            size_t n = 0;
-            while (n < buffer.size()) {
-                auto r = _self().read(buffer.subspan(n));
-                if (!r) {
-                    return detail::fail(r);
-                }
-                if (*r == 0) {
-                    return n ? detail::fail(error(errc::unexpected_eof, "read")) : result<size_t>(0);
-                }
-                n += *r;
-            }
-            return n;
-        }
-
-        // Everything to the end of the stream
-        result<vector<std::byte>> read_all() {
-            vector<std::byte> out;
-            size_t n = 0;
-            for (;;) {
-                if (n == out.size()) {
-                    out.resize(n ? n * 2 : config::IoBufferSize);
-                }
-                auto r = _self().read(out.as_slice(n));
-                if (!r) {
-                    return detail::fail(r);
-                }
-                if (*r == 0) {
-                    break;
-                }
-                n += *r;
-            }
-            out.resize(n);
-            return out;
-        }
-
-        result<string> read_all_text() {
-            auto r = read_all();
-            if (!r) {
-                return detail::fail(r);
-            }
-            return detail::text_of(as_bytes(r->as_slice()));
-        }
-
-        // Everything to the end of the stream, written to w: the bytes
-        // copied, config::IoCopyBufferSize (32 KB) at a time through a
-        // managed array
-        result<size_t> copy_to(writer& w);
-
-        // The same, the task giving its worker back while it waits
-        task<result<size_t>> async_read_full(slice<std::byte> buffer) {
-            size_t n = 0;
-            while (n < buffer.size()) {
-                auto r = co_await _self().async_read(buffer.subspan(n));
-                if (!r) {
-                    co_return detail::fail(r);
-                }
-                if (*r == 0) {
-                    co_return n ? result<size_t>(detail::fail(error(errc::unexpected_eof, "read"))) : result<size_t>(0);
-                }
-                n += *r;
-            }
-            co_return n;
-        }
-
-        task<result<vector<std::byte>>> async_read_all() {
-            vector<std::byte> out;
-            size_t n = 0;
-            for (;;) {
-                if (n == out.size()) {
-                    out.resize(n ? n * 2 : config::IoBufferSize);
-                }
-                auto r = co_await _self().async_read(out.as_slice(n));
-                if (!r) {
-                    co_return detail::fail(r);
-                }
-                if (*r == 0) {
-                    break;
-                }
-                n += *r;
-            }
-            out.resize(n);
-            co_return out;
-        }
-
-        task<result<string>> async_read_all_text() {
-            auto r = co_await async_read_all();
-            if (!r) {
-                co_return detail::fail(r);
-            }
-            co_return detail::text_of(as_bytes(r->as_slice()));
-        }
-
-        task<result<size_t>> async_copy_to(writer& w);
-
-    protected:
-        m_reader() = default;
-        ~m_reader() = default;
-
-    private:
-        Derived& _self() noexcept {
-            return static_cast<Derived&>(*this);
-        }
-    };
-
-    // The mixin over Derived::write(span<const byte>) -> result<size_t>:
-    // writes the whole span, as Go's Write, and returns its size; fewer
-    // only with an error, which says how far it got. write_text is the
-    // same bytes (a name of its own, so that a class overriding write
-    // does not hide it): a string, a text slice (a line of a
-    // buffered_reader, a piece of a string), a literal or a
-    // std::string_view (a std::string's), the last three written from
-    // where they lie, no string made; the literal's overload is also what
-    // keeps it from being ambiguous between the string and the slice.
-    template<class Derived>
-    class m_writer {
-    public:
-        result<size_t> write_text(const string& text) {
-            return _self().write(detail::bytes_of(text));
-        }
-
-        result<size_t> write_text(const slice<const char>& text) {
-            return _self().write(detail::bytes_of(text));
-        }
-
-        result<size_t> write_text(const char* text) {
-            return _self().write(detail::bytes_of(text));
-        }
-
-        result<size_t> write_text(std::string_view text) {
-            return _self().write(detail::bytes_of(text));
-        }
-
-        result<size_t> write_byte(std::byte b) {
-            return _self().write(slice<const std::byte>(&b, 1));
-        }
-
-        // Everything from r to its end, written here: the bytes copied
-        result<size_t> copy_from(reader& r);
-
-        task<result<size_t>> async_write_text(const string& text) {
-            co_return co_await _self().async_write(detail::bytes_of(text));
-        }
-
-        task<result<size_t>> async_write_text(const slice<const char>& text) {
-            co_return co_await _self().async_write(detail::bytes_of(text));
-        }
-
-        task<result<size_t>> async_write_text(const char* text) {
-            co_return co_await _self().async_write(detail::bytes_of(text));
-        }
-
-        task<result<size_t>> async_write_text(std::string_view text) {
-            co_return co_await _self().async_write(detail::bytes_of(text));
-        }
-
-        task<result<size_t>> async_copy_from(reader& r);
-
-    protected:
-        m_writer() = default;
-        ~m_writer() = default;
-
-    private:
-        Derived& _self() noexcept {
-            return static_cast<Derived&>(*this);
-        }
-    };
-
-    enum class seek_from { begin, current, end };
-
-    // The mixin over Derived::seek(offset, from) -> result<uint64_t>: the
-    // position after the seek
-    template<class Derived>
-    class m_seeker {
-    public:
-        result<uint64_t> tell() {
-            return _self().seek(0, seek_from::current);
-        }
-
-        // The size, the position kept
-        result<uint64_t> size() {
-            auto here = _self().seek(0, seek_from::current);
-            if (!here) {
-                return here;
-            }
-            auto end = _self().seek(0, seek_from::end);
-            if (!end) {
-                return end;
-            }
-            auto back = _self().seek(static_cast<int64_t>(*here), seek_from::begin);
-            if (!back) {
-                return back;
-            }
-            return end;
-        }
-
-        result<void> rewind() {
-            auto r = _self().seek(0, seek_from::begin);
-            if (!r) {
-                return detail::fail(r);
-            }
-            return {};
-        }
-
-    protected:
-        m_seeker() = default;
-        ~m_seeker() = default;
-
-    private:
-        Derived& _self() noexcept {
-            return static_cast<Derived&>(*this);
-        }
-    };
+    // The mixins over the primitives: mixin/reader.h, mixin/writer.h,
+    // mixin/seeker.h; the definitions that need reader and writer whole
+    // (copy_to, copy_from) are below the classes.
 
     class reader
-    : public m_reader<reader> {
+    : public mixin::reader<reader> {
     public:
         virtual ~reader() = default;
         virtual result<size_t> read(slice<std::byte> buffer) = 0;
@@ -320,7 +65,7 @@ namespace sgcl::io {
     };
 
     class writer
-    : public m_writer<writer> {
+    : public mixin::writer<writer> {
     public:
         virtual ~writer() = default;
         virtual result<size_t> write(slice<const std::byte> data) = 0;
@@ -328,7 +73,7 @@ namespace sgcl::io {
     };
 
     class seeker
-    : public m_seeker<seeker> {
+    : public mixin::seeker<seeker> {
     public:
         virtual ~seeker() = default;
         virtual result<uint64_t> seek(int64_t offset, seek_from from = seek_from::begin) = 0;
@@ -351,7 +96,7 @@ namespace sgcl::io {
     };
 
     template<class Derived>
-    result<size_t> m_reader<Derived>::copy_to(writer& w) {
+    result<size_t> mixin::reader<Derived>::copy_to(io::writer& w) {
         tracked_ptr<detail::CopyBlock> block = make_tracked<detail::CopyBlock>();
         size_t total = 0;
         for (;;) {
@@ -372,7 +117,7 @@ namespace sgcl::io {
     }
 
     template<class Derived>
-    task<result<size_t>> m_reader<Derived>::async_copy_to(writer& w) {
+    task<result<size_t>> mixin::reader<Derived>::async_copy_to(io::writer& w) {
         tracked_ptr<detail::CopyBlock> block = make_tracked<detail::CopyBlock>();
         size_t total = 0;
         for (;;) {
@@ -393,12 +138,12 @@ namespace sgcl::io {
     }
 
     template<class Derived>
-    result<size_t> m_writer<Derived>::copy_from(reader& r) {
+    result<size_t> mixin::writer<Derived>::copy_from(io::reader& r) {
         return r.copy_to(_self());
     }
 
     template<class Derived>
-    task<result<size_t>> m_writer<Derived>::async_copy_from(reader& r) {
+    task<result<size_t>> mixin::writer<Derived>::async_copy_from(io::reader& r) {
         co_return co_await r.async_copy_to(_self());
     }
 

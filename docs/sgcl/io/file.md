@@ -67,7 +67,7 @@ const string& path() const noexcept; // as opened, or the name given to from_fd
 bool is_nonblocking() const noexcept;   // served by the reactor rather than the pool
 ```
 
-Plus everything of [`m_reader`, `m_writer`, `m_seeker`](stream.md#members): `read_full`, `read_all`, `read_all_text`, `copy_to`, `write_text`, `copy_from`, `tell`, `size`, `rewind`, and their `async_` forms.
+Plus everything of [`mixin::reader`, `mixin::writer`, `mixin::seeker`](stream.md#members): `read_full`, `read_all`, `read_all_text`, `copy_to`, `write_text`, `copy_from`, `tell`, `size`, `rewind`, and their `async_` forms.
 
 ```cpp
 auto f = io::open("data.bin", io::open_flags::read | io::open_flags::write);

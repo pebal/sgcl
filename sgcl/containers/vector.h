@@ -40,14 +40,14 @@ namespace sgcl {
     // may: on a stack or inside a managed object.
     template<class T>
     class vector
-    : public m_enumerable<vector<T>>
-    , public m_contiguous<vector<T>>
-    , public m_random_access<vector<T>>
-    , public m_bidirectional<vector<T>>
-    , public m_equatable<vector<T>>
-    , public m_comparable<vector<T>>
-    , public m_ordered<vector<T>>
-    , public m_sequence<vector<T>> {
+    : public mixin::enumerable<vector<T>>
+    , public mixin::contiguous<vector<T>>
+    , public mixin::random_access<vector<T>>
+    , public mixin::bidirectional<vector<T>>
+    , public mixin::equatable<vector<T>>
+    , public mixin::comparable<vector<T>>
+    , public mixin::ordered<vector<T>>
+    , public mixin::sequence<vector<T>> {
     public:
         using value_type = T;
         using reference = T&;

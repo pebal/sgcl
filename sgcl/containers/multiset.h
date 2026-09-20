@@ -19,7 +19,7 @@ namespace sgcl {
     template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
     class multiset
     : public detail::HashTable<detail::HashSetTraits<Key, Hash, KeyEqual, false>>
-    , public m_enumerable<multiset<Key, Hash, KeyEqual>> {
+    , public mixin::enumerable<multiset<Key, Hash, KeyEqual>> {
         using Base = detail::HashTable<detail::HashSetTraits<Key, Hash, KeyEqual, false>>;
 
     public:
@@ -29,7 +29,7 @@ namespace sgcl {
 
         using Base::Base;
 
-        // By the key, the container's own, in place of m_enumerable's walk
+        // By the key, the container's own, in place of mixin::enumerable's walk
         using Base::contains;
 
         multiset& operator=(std::initializer_list<value_type> ilist) {

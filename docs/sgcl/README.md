@@ -66,7 +66,7 @@ The questions, the order and the writes of a range (`contains`, `index_of`, `fin
 
 | page | header | what it is |
 |---|---|---|
-| [mixin/](core/mixin/README.md) | `sgcl/core/mixin/mixin.h` | the mixins and the concepts: [m_enumerable](core/mixin/m_enumerable.md), [m_equatable](core/mixin/m_equatable.md), [m_comparable](core/mixin/m_comparable.md), [m_ordered](core/mixin/m_ordered.md), [m_sequence](core/mixin/m_sequence.md), [m_lookup](core/mixin/m_lookup.md), [m_text](core/mixin/m_text.md); [concepts](core/mixin/concepts.md): `c_enumerable`, `c_ordered`, `c_sequence`, `c_lookup`, `c_comparable`, ...; who carries what |
+| [mixin/](core/mixin/README.md) | `sgcl/core/mixin/mixin.h` | the mixins (`namespace mixin`) and the requirements (`namespace req`): [mixin::enumerable](core/mixin/enumerable.md), [mixin::equatable](core/mixin/equatable.md), [mixin::comparable](core/mixin/comparable.md), [mixin::ordered](core/mixin/ordered.md), [mixin::sequence](core/mixin/sequence.md), [mixin::lookup](core/mixin/lookup.md), [mixin::text](core/mixin/text.md); [req](core/req.md): `req::enumerable`, `req::ordered`, `req::sequence`, `req::lookup`, `req::comparable`, ...; who carries what |
 
 ## Immutable containers
 
