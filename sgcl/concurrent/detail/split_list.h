@@ -5,7 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "../../containers/array.h"
+#include "../../containers/dynamic_array.h"
 #include "../../containers/detail/transparent.h"
 #include "../../containers/vector.h"
 #include "../../core/aliases.h"
@@ -124,7 +124,7 @@ namespace sgcl::detail {
             : slots(n) {
             }
 
-            array<tracked_ptr<NodeBase>> slots;
+            dynamic_array<tracked_ptr<NodeBase>> slots;
         };
 
         // The count of the elements, striped over cache lines so that the

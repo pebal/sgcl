@@ -81,6 +81,17 @@ namespace sgcl::detail {
         FreeMask = Reserved | Unused
     };
 
+    // The tag of a store without the barrier (tracked_ptr::store): the
+    // copy of an immutable node, its source shaded once afterwards
+    struct unshaded_t {};
+    inline constexpr unshaded_t unshaded;
+
+    // The tag of a null tracked_ptr made without the thread's
+    // registration (slice without an owner): a null roots nothing, so
+    // the stack it lies on need not be known to the collector yet
+    struct unregistered_t {};
+    inline constexpr unregistered_t unregistered;
+
     void collector_init();
     Collector& collector_instance();
     void terminate_collector() noexcept;

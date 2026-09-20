@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [ConcurrentStack](../Sgcl/Concurrent/ConcurrentStack.md).
-
 `sgcl::concurrent_stack<T>` is a lock-free LIFO stack shared by any number of threads: the Treiber stack, a single atomic word for the head and a compare-exchange to push or pop, written the way it is written for a runtime with a collector. There is no ABA problem, no hazard pointer to publish, no epoch to enter and no reclamation scheme in the container, because a node is never reused while a thread holds it; the collector reclaims a node once nothing does ([README: Lock-free containers](README.md#lock-free-containers)). The interface is that of Java's `ConcurrentLinkedDeque` used at one end, with the names of `std::stack`: `push`, `emplace`, `try_pop`, `pop`, `empty`, `size`, `clear`. The element type is any movable `T`, a `tracked_ptr` included.
 
 ## Rules

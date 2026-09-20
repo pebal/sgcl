@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [WeakHashSet](../Sgcl/Containers/WeakHashSet.md).
-
 `weak_set<Key>` is a set of objects that does not keep them alive: the [`weak_map`](weak_map.md) of nothing but keys. An object is inserted, found and erased by a `tracked_ptr<Key>` to it and held by a [`weak_ptr`](../core/weak_ptr.md); an entry whose object the collector has found unreachable is dead: never found, passed over by the iteration, dropped by a sweep. Objects registered somewhere without being owned there: the listeners, the open windows, the instances of a class, a set that forgets. Hashing, equality, the sweeps and the rules are those of `weak_map`.
 
 ## Members

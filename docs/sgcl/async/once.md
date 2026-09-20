@@ -8,8 +8,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [Once](../Sgcl/Async/Once.md).
-
 A once: the first caller runs the function, the others wait for it to finish; `co_await o.async_call(t)` runs the task `t` once. A channel closed when the call is done, one of the family the [mutex](mutex.md)'s page describes (each of the five ([mutex](mutex.md), [semaphore](semaphore.md), [event](event.md), [wait_group](wait_group.md), [once](once.md)) a channel of signals under the name of what it does, with the three forms of a wait a [channel](channel.md) has: blocking, for a thread; awaitable, for a task, which holds no thread while it waits; and as a case of a [select](select.md)); the waits are blocking and awaitable.
 
 ## Rules

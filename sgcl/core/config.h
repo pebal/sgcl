@@ -136,6 +136,12 @@ namespace sgcl::config {
 #define SGCL_BLOCKING_IDLE_MS 10000
 #endif
     [[maybe_unused]] static constexpr unsigned BlockingIdleMilliseconds = SGCL_BLOCKING_IDLE_MS;
+    // The buffers of io: the block a buffered reader or writer holds in
+    // front of its stream, and the block copy() moves data through. Each
+    // is one managed array without a header, so a divisor of PageSize
+    // fills whole pages: 8 KB gives eight to a page, 32 KB two.
+    static constexpr size_t IoBufferSize = 0x2000;
+    static constexpr size_t IoCopyBufferSize = 0x8000;
     // Whether the helpers are used at all is decided by growth, not by
     // allocation: a collector that keeps up leaves the live memory flat
     // however much is allocated. When it grows by HelpersGrowthThreshold

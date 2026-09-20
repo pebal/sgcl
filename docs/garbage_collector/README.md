@@ -1,6 +1,6 @@
 # The garbage collector
 
-The pages about the engine under both interfaces: how the collector works, how it stands next to the alternatives and in the benchmarks, and what it gives a program to see what it is doing. The interface of the collector itself (a forced cycle, statistics, the memory limit) is a class of the `core` module, [`collector`](../sgcl/core/collector.md) in `sgcl` and [`Collector`](../sgcl/Sgcl/Core/Collector.md) in `Sgcl`; the constants that size and tune it are on [config](../sgcl/core/config.md), a header of the same module; the code of the engine is in `sgcl/core/detail/`.
+The pages about the engine: how the collector works, how it stands next to the alternatives and in the benchmarks, and what it gives a program to see what it is doing. The interface of the collector itself (a forced cycle, statistics, the memory limit) is a class of the `core` module, [`collector`](../sgcl/core/collector.md); the constants that size and tune it are on [config](../sgcl/core/config.md), a header of the same module; the code of the engine is in `sgcl/core/detail/`.
 
 | page | what it is |
 |---|---|

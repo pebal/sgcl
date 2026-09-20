@@ -6,9 +6,8 @@
 #pragma once
 
 #include "../core/make_tracked.h"
+#include "../core/mixin/mixin.h"
 #include "../core/tracked_ptr.h"
-#include "detail/synth_three_way.h"
-#include "m_sequence.h"
 
 #include <algorithm>
 #include <bit>
@@ -105,7 +104,14 @@ namespace sgcl {
     // or erasure invalidates both; an invalid iterator must not be used,
     // as in std.
     template<class T>
-    class deque : public m_sequence<deque<T>> {   // the algorithms as members
+    class deque
+    : public m_enumerable<deque<T>>
+    , public m_random_access<deque<T>>
+    , public m_bidirectional<deque<T>>
+    , public m_equatable<deque<T>>
+    , public m_comparable<deque<T>>
+    , public m_ordered<deque<T>>
+    , public m_sequence<deque<T>> {
         static constexpr size_t BlockSize = std::bit_floor(std::max<size_t>(1, 4096 / sizeof(T)));
 
         using Block = detail::DequeBlock<T, BlockSize>;
@@ -1009,13 +1015,6 @@ namespace sgcl {
             }
         }
 
-        friend bool operator==(const deque& lhs, const deque& rhs) {
-            return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin());
-        }
-
-        friend auto operator<=>(const deque& lhs, const deque& rhs) {
-            return std::lexicographical_compare_three_way(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), detail::synth_three_way);
-        }
     };
 
     template<class T>

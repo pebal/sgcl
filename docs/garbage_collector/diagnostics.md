@@ -1,23 +1,23 @@
 # Diagnostics
 
-What the library gives a program to find out what the collector is doing, what is alive and why, and where a rule was broken; and how to use it, case by case. Everything here is in [`collector`](../sgcl/core/collector.md) (in the `Sgcl` interface [`Collector`](../sgcl/Sgcl/Core/Collector.md)), [`config`](../sgcl/core/config.md) and the debug assertions of the pointers; this page is the map. The names are given in both interfaces, `sgcl` first, and every example twice.
+What the library gives a program to find out what the collector is doing, what is alive and why, and where a rule was broken; and how to use it, case by case. Everything here is in [`collector`](../sgcl/core/collector.md), [`config`](../sgcl/core/config.md) and the debug assertions of the pointers; this page is the map.
 
 ## The tools
 
 | tool | what it tells | cost |
 |---|---|---|
-| `collector::get_statistics()`, `Collector::GetStatistics()` | the cycles so far, the last cycle's wall time and its phases, the helper threads, the live objects the last cycle marked, the managed bytes in use and committed | a few atomic reads, never waits |
-| `collector::get_live_object_count()`, `Collector::LiveObjectCount()` | the objects alive after a full cycle, run for the call | a full cycle, the caller waits |
-| `collector::get_type_statistics()`, `Collector::GetTypeStatistics()` | the live objects and bytes by type, buffers by their element type, pages by type; sorted by bytes | a full cycle, the caller waits |
-| `collector::get_live_objects()`, `Collector::LiveObjects()` | the addresses of every live object, with the collector paused while the `pause_guard` lives | a full cycle, the collector paused |
-| `collector::get_referrers(p)`, `Collector::GetReferrers(p)` | every word that points at the object: members, buffer elements, cells, stack words, a `unique_ptr`, weak cells | a full cycle, the collector paused, a pass over the heap and the stacks |
+| `collector::get_statistics()` | the cycles so far, the last cycle's wall time and its phases, the helper threads, the live objects the last cycle marked, the managed bytes in use and committed | a few atomic reads, never waits |
+| `collector::get_live_object_count()` | the objects alive after a full cycle, run for the call | a full cycle, the caller waits |
+| `collector::get_type_statistics()` | the live objects and bytes by type, buffers by their element type, pages by type; sorted by bytes | a full cycle, the caller waits |
+| `collector::get_live_objects()` | the addresses of every live object, with the collector paused while the `pause_guard` lives | a full cycle, the collector paused |
+| `collector::get_referrers(p)` | every word that points at the object: members, buffer elements, cells, stack words, a `unique_ptr`, weak cells | a full cycle, the collector paused, a pass over the heap and the stacks |
 | `collector::get_path_to_root(p)`, `explain(p, out)`; `Collector::GetPathToRoot(p)`, `Explain(p, out)` | a chain from the object up to a root, or the reason there is none; `explain` adds what the object retains | a full cycle, the collector paused, a search from the roots |
-| `collector::get_retained(p)`, `Collector::GetRetained(p)` | what dies with the object: the objects reachable from it and from nowhere else, and their bytes | a full cycle, the collector paused, two passes over the heap |
-| `collector::clear_stack()`, `Collector::ClearStack()` | zeroes the dead frames below the caller: what a conservative scan would otherwise still find | a `memset` of the stack below |
+| `collector::get_retained(p)` | what dies with the object: the objects reachable from it and from nowhere else, and their bytes | a full cycle, the collector paused, two passes over the heap |
+| `collector::clear_stack()` | zeroes the dead frames below the caller: what a conservative scan would otherwise still find | a `memset` of the stack below |
 | `collector::stepper`, `Collector::Stepper` | the collector one gate at a time, for the tests of the engine | the cycle held by the test |
 | `tracked_ptr::type()`, `is<U>()`, `as<U>()`; `Ptr::Type()`, `Is<U>()`, `As<U>()` | the dynamic type of an object without virtual functions | a page lookup |
 | `lldb/sgcl.py` | the debugger's view: a pointer with its address, mode and slot state, its object as a child; a container with its size and elements | `command script import` once |
-| debug builds (no `-DNDEBUG`) | the rules asserted where they are broken: a `tracked_ptr` (`Ptr`) in unmanaged memory, an alias into a buffer, a `weak_ptr` (`WeakPtr`) to an object a `unique_ptr` (`UniquePtr`) owns | the assertions |
+| debug builds (no `-DNDEBUG`) | the rules asserted where they are broken: a `tracked_ptr` in unmanaged memory, an alias into a buffer, a `weak_ptr` to an object a `unique_ptr` owns | the assertions |
 | `-DSGCL_LOG_PRINT_LEVEL=n` | the collector's log on `std::cout`: threads, forced collections, one line per cycle, the pauses | a line per event |
 | `-DSGCL_TRACE_STACK` | every marking decision on `std::cerr`: which stack word retained what, which state was still reachable, which page was dirty | a line per object per cycle: for a small program |
 | `-DSGCL_SANITIZER=address|thread` (CMake) | the tests and examples under a sanitizer; the library's own reads of other threads' memory are annotated | a sanitizer build |
@@ -30,40 +30,24 @@ What the library gives a program to find out what the collector is doing, what i
 Start from the types, without stopping anything for long:
 
 ```cpp
-// sgcl
 for (auto& t : sgcl::collector::get_type_statistics()) {          // a full cycle first: what is alive, not what waits for one
     std::cout << t.type->name() << (t.buffers ? " buffers" : "") << ": "
               << t.live_objects << " objects, " << t.live_bytes << " bytes, " << t.pages << " pages\n";
 }
 ```
 
-```cpp
-// Sgcl
-for (auto& t : Collector::GetTypeStatistics()) {
-    std::cout << t.Type->name() << (t.Buffers ? " buffers" : "") << ": "
-              << t.LiveObjects << " objects, " << t.LiveBytes << " bytes, " << t.Pages << " pages\n";
-}
-```
 
 The list is sorted by bytes, so the first lines are the answer in most cases: a type that should be a few hundred objects and is a million, or the buffers of a container type that keeps its capacity. Buffers show under their element type (`typeid(T[])`) with the slot they occupy, since a container's buffer is sized by its capacity, not its size: a `vector` that grew to a million elements and was cleared holds its million-element buffer until it is destroyed or `shrink_to_fit()`.
 
-Then the numbers over time: `get_statistics()` (`GetStatistics()`) at intervals, from any thread, without waiting:
+Then the numbers over time: `get_statistics()` at intervals, from any thread, without waiting:
 
 ```cpp
-// sgcl
 auto s = sgcl::collector::get_statistics();
 std::cout << s.cycles << " cycles (" << s.full_cycles << " full), last " << s.last_cycle_ms << " ms, "
           << s.live_objects << " objects marked, " << s.live_bytes / 1048576 << " MB in use, "
           << s.committed_bytes / 1048576 << " MB committed\n";
 ```
 
-```cpp
-// Sgcl
-auto s = Collector::GetStatistics();
-std::cout << s.Cycles << " cycles (" << s.FullCycles << " full), last " << s.LastCycleMs << " ms, "
-          << s.LiveObjects << " objects marked, " << s.LiveBytes / 1048576 << " MB in use, "
-          << s.CommittedBytes / 1048576 << " MB committed\n";
-```
 
 `live_bytes` is what the allocators hold, garbage not yet swept included; `live_objects` is what the last cycle marked. `live_bytes` growing while `live_objects` does not is garbage waiting for a cycle: the collector runs one every quarter of growth, so a program that allocates fast holds up to a quarter more than it uses ([README: Memory](overview.md#memory)). `live_objects` growing is a leak in the program's sense: something reaches the objects.
 
@@ -71,10 +55,10 @@ std::cout << s.Cycles << " cycles (" << s.FullCycles << " full), last " << s.Las
 
 Four things keep an object alive that the program has let go of, in the order to check them:
 
-1. **A word on a stack.** The stacks are scanned conservatively: a dead local, a spilled register, a temporary the compiler left in a frame keep their target for as long as the frame is not overwritten. This is the first suspect for an object that dies "a little later" than expected, and the reason the tests count after `collector::clear_stack(SIZE_MAX)` (`Collector::ClearStack(SIZE_MAX)`). A program does not need to clear its stack; a test that asserts a count does, and asserts it from a frame the cleared region does not include ([collector: clear_stack](../sgcl/core/collector.md#clear_stack), [Collector: ClearStack](../sgcl/Sgcl/Core/Collector.md#clearstack)).
-2. **A young cycle.** The marks are sticky through the young cycles: an object marked once stays marked until a full cycle looks again ([README: Generations](overview.md#generations)). `force_collect(true)` (`Collect(true)`) is a full cycle; the destructor of an object dropped between full cycles runs at the next one.
-3. **A container's capacity.** A `vector` or `array<T>` (`List`, `Array<T>`) roots every element up to its `size()` (`Count()`), and an element removed by `pop_back()` or `erase()` (`RemoveLast()`, `RemoveAt()`) is destroyed at once; but a buffer abandoned by a reallocation is garbage of the next cycle, and the elements of a buffer that a dying `vector` leaves behind are collected with it, not destroyed on the spot ([vector: Rules](../sgcl/containers/vector.md#rules), [List: Rules](../sgcl/Sgcl/Containers/List.md#rules)).
-4. **A cell of a `root_ptr`.** A [`root_ptr`](../sgcl/core/root_ptr.md) ([`RootPtr`](../sgcl/Sgcl/Core/RootPtr.md)) in unmanaged memory (a `std` container, a global, a lambda on the heap) holds its object for exactly its own lifetime, through a cell in a block of a cache line; a block lives while one of its cells is in use. A `root_ptr` that outlives its owner's intent, a global or a cached closure, is the pointer to look for.
+1. **A word on a stack.** The stacks are scanned conservatively: a dead local, a spilled register, a temporary the compiler left in a frame keep their target for as long as the frame is not overwritten. This is the first suspect for an object that dies "a little later" than expected, and the reason the tests count after `collector::clear_stack(SIZE_MAX)` (`Collector::ClearStack(SIZE_MAX)`). A program does not need to clear its stack; a test that asserts a count does, and asserts it from a frame the cleared region does not include ([collector: clear_stack](../sgcl/core/collector.md#clear_stack)).
+2. **A young cycle.** The marks are sticky through the young cycles: an object marked once stays marked until a full cycle looks again ([README: Generations](overview.md#generations)). `force_collect(true)` is a full cycle; the destructor of an object dropped between full cycles runs at the next one.
+3. **A container's capacity.** A `vector` or `dynamic_array<T>` roots every element up to its `size()`, and an element removed by `pop_back()` or `erase()` is destroyed at once; but a buffer abandoned by a reallocation is garbage of the next cycle, and the elements of a buffer that a dying `vector` leaves behind are collected with it, not destroyed on the spot ([vector: Rules](../sgcl/containers/vector.md#rules)).
+4. **A cell of a `root_ptr`.** A [`root_ptr`](../sgcl/core/root_ptr.md) in unmanaged memory (a `std` container, a global, a lambda on the heap) holds its object for exactly its own lifetime, through a cell in a block of a cache line; a block lives while one of its cells is in use. A `root_ptr` that outlives its owner's intent, a global or a cached closure, is the pointer to look for.
 
 To see which it is, ask the collector:
 
@@ -87,22 +71,22 @@ sgcl::collector::explain(p, std::cerr);     // Collector::Explain(p, std::cerr)
 // and keeps alive 3 objects, 112 bytes, itself included
 ```
 
-`get_retained(p)` (`GetRetained(p)`) is the last line as data: what would go if the object went, the way a heap profiler reports a dominator. Asked of the top of a chain, of a global's object or a cache, it says whether that holder is the leak or only a link in it.
+`get_retained(p)` is the last line as data: what would go if the object went, the way a heap profiler reports a dominator. Asked of the top of a chain, of a global's object or a cache, it says whether that holder is the leak or only a link in it.
 
-`get_path_to_root(p)` (`GetPathToRoot(p)`) is the same chain as data, `get_referrers(p)` (`GetReferrers(p)`) every word that points at the object, the stack words included ([collector: get_referrers](../sgcl/core/collector.md#referrer-get_referrers-get_path_to_root-explain), [Collector: GetReferrers](../sgcl/Sgcl/Core/Collector.md#referrer-getreferrers-getpathtoroot-explain)). A chain that ends on a stack word names the thread; one that ends on a word of the calling thread, with nothing else in it, is case 1: nothing but that frame, or a stale word in it, holds the object. A chain through a buffer at a byte past the container's `size()` is case 3. A chain that ends at a `cell` is case 4: a `root_ptr` (`RootPtr`) somewhere in unmanaged memory. A `unique_ptr` (`UniquePtr`) at the top is an owner the program forgot, a global as a rule. Where the whole picture of a cycle is wanted rather than one object, `-DSGCL_TRACE_STACK` prints every marking decision: which stack word retained which object (`[stack]` and `[scan]` lines), which object was found reachable by its state (`[updated]`), by a card (`[dirty]`) or by a hazard pointer (`[hazard]`); a line per object per cycle, so for a program reduced to the case.
+`get_path_to_root(p)` is the same chain as data, `get_referrers(p)` every word that points at the object, the stack words included ([collector: get_referrers](../sgcl/core/collector.md#referrer-get_referrers-get_path_to_root-explain)). A chain that ends on a stack word names the thread; one that ends on a word of the calling thread, with nothing else in it, is case 1: nothing but that frame, or a stale word in it, holds the object. A chain through a buffer at a byte past the container's `size()` is case 3. A chain that ends at a `cell` is case 4: a `root_ptr` somewhere in unmanaged memory. A `unique_ptr` at the top is an owner the program forgot, a global as a rule. Where the whole picture of a cycle is wanted rather than one object, `-DSGCL_TRACE_STACK` prints every marking decision: which stack word retained which object (`[stack]` and `[scan]` lines), which object was found reachable by its state (`[updated]`), by a card (`[dirty]`) or by a hazard pointer (`[hazard]`); a line per object per cycle, so for a program reduced to the case.
 
 ### An object dies too early
 
 With the rules kept, it does not: an object is reachable or it is not. The rules broken are what a debug build asserts, at the point of the break rather than at the crash later:
 
-- `a tracked_ptr must live on the stack or inside a managed object`: a `tracked_ptr` (a `Ptr`, or a container, atomic or weak pointer of either interface) constructed in `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame. The collector cannot see it; its object dies at the next cycle. The fix is a [`root_ptr`](../sgcl/core/root_ptr.md) ([`RootPtr`](../sgcl/Sgcl/Core/RootPtr.md)) there, or a managed object holding the container ([README: Stack roots](overview.md#stack-roots)).
-- `a tracked_ptr may address a managed object or a part of it, not an element of a container's buffer`: a `tracked_ptr` (`Ptr`) made from the address of a `vector` (`List`) element. A buffer is rooted by the pointer to its first element only; an alias into it keeps nothing. Hold the container, or an index.
-- `a weak_ptr cannot address an object a unique_ptr owns`: a `weak_ptr` (`WeakPtr`) made before the object was handed to a `tracked_ptr` (`Ptr`).
-- `type T: the word at byte offset N was classified as data but holds a pointer to a managed object` (a message, once per type, from the collector thread): a `tracked_ptr` sharing its storage with data, in a `union`, a `std::variant`, a small-buffer `std::function` or `std::any` (the library's [variant](../sgcl/core/variant.md), [any](../sgcl/core/any.md), [function](../sgcl/core/function.md) and [expected](../sgcl/core/expected.md), [Variant](../sgcl/Sgcl/Core/Variant.md), [Any](../sgcl/Sgcl/Core/Any.md), [Function](../sgcl/Sgcl/Core/Function.md) and [Expected](../sgcl/Sgcl/Core/Expected.md), keep it apart), or a raw pointer to a managed object kept as data. The collector's pointer map is built by elimination and cannot follow a word that is a pointer in one object and data in another ([README: The rules](../sgcl/core/README.md#the-rules), 2).
+- `a tracked_ptr must live on the stack or inside a managed object`: a `tracked_ptr` (or a container, atomic or weak pointer) constructed in `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame. The collector cannot see it; its object dies at the next cycle. The fix is a [`root_ptr`](../sgcl/core/root_ptr.md) there, or a managed object holding the container ([README: Stack roots](overview.md#stack-roots)).
+- `a tracked_ptr may address a managed object or a part of it, not an element of a container's buffer`: a `tracked_ptr` made from the address of a `vector` element. A buffer is rooted by the pointer to its first element only; an alias into it keeps nothing. Hold the container, or an index.
+- `a weak_ptr cannot address an object a unique_ptr owns`: a `weak_ptr` made before the object was handed to a `tracked_ptr`.
+- `type T: the word at byte offset N was classified as data but holds a pointer to a managed object` (a message, once per type, from the collector thread): a `tracked_ptr` sharing its storage with data, in a `union`, a `std::variant`, a small-buffer `std::function` or `std::any` (the library's [variant](../sgcl/core/variant.md), [any](../sgcl/core/any.md), [function](../sgcl/core/function.md) and [expected](../sgcl/core/expected.md), keep it apart), or a raw pointer to a managed object kept as data. The collector's pointer map is built by elimination and cannot follow a word that is a pointer in one object and data in another ([README: The rules](../sgcl/core/README.md#the-rules), 2).
 
-A `tracked_ptr` read in a destructor is the other case: the destructor of a collected object runs on a collector thread, in no order with the destructors of the objects that die with it, so a member pointing at a peer that dies in the same sweep must be read through `if_alive()` (`IfAlive()`; [tracked_ptr: if_alive](../sgcl/core/tracked_ptr.md#if_alive), [Ptr: IfAlive](../sgcl/Sgcl/Core/Ptr.md#ifalive)). A crash in a destructor that dereferences a member is this.
+A `tracked_ptr` read in a destructor is the other case: the destructor of a collected object runs on a collector thread, in no order with the destructors of the objects that die with it, so a member pointing at a peer that dies in the same sweep must be read through `if_alive()` (`IfAlive()`; [tracked_ptr: if_alive](../sgcl/core/tracked_ptr.md#if_alive)). A crash in a destructor that dereferences a member is this.
 
-Sanitizers find the rest: a build with `-DSGCL_SANITIZER=address` (CMake) or `-fsanitize=address` catches a use after the sweep as a use of freed memory, since a page the collector returns is unmapped or poisoned; `thread` finds a `tracked_ptr` (`Ptr`) written by one thread and read by another without `atomic`, `atomic_ref` (`Atomic`, `AtomicRef`) or the program's own synchronization (rule 6). The library's own reads of other threads' stacks and words are annotated, so the reports are the program's.
+Sanitizers find the rest: a build with `-DSGCL_SANITIZER=address` (CMake) or `-fsanitize=address` catches a use after the sweep as a use of freed memory, since a page the collector returns is unmapped or poisoned; `thread` finds a `tracked_ptr` written by one thread and read by another without `atomic`, `atomic_ref` or the program's own synchronization (rule 6). The library's own reads of other threads' stacks and words are annotated, so the reports are the program's.
 
 ### What the collector costs
 
@@ -117,14 +101,13 @@ The mutators' side is not in the statistics: it is the write barrier on every po
 
 ### At the memory ceiling
 
-`get_memory_limit()` (`MemoryLimit()`) is the ceiling (90% of the cgroup or physical limit by default), `committed_bytes` the distance to it. Near the ceiling the collector runs more often and returns free chunks at once; at it, an allocation forces a full collection and throws `std::bad_alloc` if that was not enough. A program that catches `bad_alloc` from `make_tracked` (`Make`) or a container is at the ceiling with a live set that does not fit: the type statistics say what it is ([collector: get_memory_limit](../sgcl/core/collector.md#get_memory_limit-set_memory_limit), [Collector: MemoryLimit](../sgcl/Sgcl/Core/Collector.md#memorylimit-setmemorylimit)).
+`get_memory_limit()` is the ceiling (90% of the cgroup or physical limit by default), `committed_bytes` the distance to it. Near the ceiling the collector runs more often and returns free chunks at once; at it, an allocation forces a full collection and throws `std::bad_alloc` if that was not enough. A program that catches `bad_alloc` from `make_tracked` or a container is at the ceiling with a live set that does not fit: the type statistics say what it is ([collector: get_memory_limit](../sgcl/core/collector.md#get_memory_limit-set_memory_limit)).
 
 ### A race with the collector
 
 A store that lands in a particular window of a cycle, an object made after the flip of the epoch, a pointer read while the weak cells are cleared: the stress tests find these by luck, `collector::stepper` (`Collector::Stepper`) finds them on purpose. A test takes the collector and lets it through one gate at a time, doing the mutator's work in between:
 
 ```cpp
-// sgcl
 sgcl::collector::stepper s(false);                       // young cycles; the test's thread is the mutator
 sgcl::tracked_ptr holder = sgcl::make_tracked<Node>();
 s.finish_cycle();                                      // holder is old and marked
@@ -134,18 +117,8 @@ s.finish_cycle();                                      // not swept: made after 
 s.finish_cycle();                                      // registered now, found through the card
 ```
 
-```cpp
-// Sgcl
-Collector::Stepper s(false);                     // young cycles; the test's thread is the mutator
-Ptr holder = Make<Node>();
-s.FinishCycle();                                 // holder is old and marked
-s.AdvanceTo(Collector::Stepper::Phase::Roots);   // the stacks scanned, the dirty pages traced
-holder->next = Make<Node>();                     // stored into an old object after the trace: the card
-s.FinishCycle();                                 // not swept: made after the flip
-s.FinishCycle();                                 // registered now, found through the card
-```
 
-The gates and the scenarios the library's own tests assert with them are in [collector: stepper](../sgcl/core/collector.md#stepper) ([Collector: Stepper](../sgcl/Sgcl/Core/Collector.md#stepper)). What a program's tests would use it for: a data structure of its own that stores pointers across threads, checked at every gate rather than under a loop that hopes to hit the window.
+The gates and the scenarios the library's own tests assert with them are in [collector: stepper](../sgcl/core/collector.md#stepper). What a program's tests would use it for: a data structure of its own that stores pointers across threads, checked at every gate rather than under a loop that hopes to hit the window.
 
 ### In the debugger
 

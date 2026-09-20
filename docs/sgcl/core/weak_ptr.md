@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [WeakPtr](../Sgcl/Core/WeakPtr.md).
-
 `weak_ptr<T>` is a pointer that keeps nothing alive: the object lives as long as something else reaches it through [`tracked_ptr`](tracked_ptr.md)s or a [`unique_ptr`](unique_ptr.md), and `lock()` says whether it still does. `lock()` is the object as a `tracked_ptr` while it is reachable, and null once a cycle has found it unreachable; `expired()` is the same question without the pointer. It is what `std::weak_ptr` is to `std::shared_ptr`, without the counts: a back pointer, a cache entry, an observer that must not extend a lifetime.
 
 It is one word: a `tracked_ptr` to a small cell on the managed heap that holds the target as a word the collector clears instead of tracing. A `weak_ptr` made from a strong pointer allocates a cell of its own (16 bytes); copies share it, and the cell is collected with the last copy. That word is a `tracked_ptr`, so a `weak_ptr` lives where one may. The clearing is a phase of the cycle, after the marking and before the sweep: `lock()` never hands out an object the sweep will destroy or the slot it will be reused for, and a `lock()` that races with the clearing either sees the null or wins, holding the object for at least one more cycle ([Weak pointers](README.md#weak-pointers)). Between the object becoming unreachable and the cycle that notices, `lock()` still returns it: the lag of any garbage collector.

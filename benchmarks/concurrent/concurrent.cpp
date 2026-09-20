@@ -18,7 +18,6 @@
 //   concurrent cow <sgcl|shared|rwlock> [threads=16] [n=2000000]
 //   concurrent spsc sgcl [threads=2] [capacity=1024] [n=200000]   (one producer, one consumer: spsc_queue)
 //   concurrent cache <sgcl|mutex> [threads=4] [capacity=10000] [n=1000000]   (an LRU cache over twice its capacity of keys, 90% gets; mutex: unordered_map and list under a mutex)
-//   concurrent pmap sgcl [n=200000]   (the persistent map on one thread against std::map)
 //   concurrent bcast <sgcl|task> [subscribers=1] [capacity=1024] [n=1000000]   (one sender thread, the subscribers threads receiving every value; task: the subscribers as sgcl::tasks on the scheduler)
 //   concurrent chan <sgcl|task|mutex> [threads=4] [capacity=64] [n=200000]   (task: the producers and consumers as sgcl::tasks on the scheduler)
 // queue, stack: mixed, every thread pushes an item and pops one, n times
@@ -996,55 +995,7 @@ namespace {
         double wall = bench::seconds_since(t0);
         std::printf("bcast subscribers=%d capacity=%zu ns/op=%.1f received=%.0f%% ops/s=%.0f wall=%.2fs cpu=%.2fs\n", subscribers, cap, wall * 1e9 / n, 100.0 * received / ((double)n * subscribers), n / wall, wall, bench::cpu_seconds());
     }
-
-    // pmap: the persistent map on one thread, the cost of persistence
-    // itself: an insertion is a new version (the old one let go of here),
-    // a lookup a walk of the trie; against std::map, which changes in
-    // place, and the map built from a range at once
-    void run_pmap(long n) {
-        std::mt19937_64 rng(99);
-        std::vector<long> keys(n);
-        for (long i = 0; i < n; ++i) {
-            keys[i] = long(rng() >> 2);
-        }
-        auto t0 = bench::Clock::now();
-        sgcl::persistent_map<long, long> pm;
-        for (long i = 0; i < n; ++i) {
-            pm = pm.insert(keys[i], i);
-        }
-        double insert = bench::seconds_since(t0);
-        t0 = bench::Clock::now();
-        long sum = 0;
-        for (long i = 0; i < n; ++i) {
-            sum += *pm.find(keys[(i * 7919) % n]);
-        }
-        double find = bench::seconds_since(t0);
-        std::vector<std::pair<long, long>> range;
-        range.reserve(n);
-        for (long i = 0; i < n; ++i) {
-            range.emplace_back(keys[i], i);
-        }
-        t0 = bench::Clock::now();
-        sgcl::persistent_map<long, long> built(range.begin(), range.end());
-        double build = bench::seconds_since(t0);
-        t0 = bench::Clock::now();
-        std::map<long, long> sm;
-        for (long i = 0; i < n; ++i) {
-            sm.emplace(keys[i], i);
-        }
-        double std_insert = bench::seconds_since(t0);
-        t0 = bench::Clock::now();
-        for (long i = 0; i < n; ++i) {
-            sum += sm.find(keys[(i * 7919) % n])->second;
-        }
-        double std_find = bench::seconds_since(t0);
-        if (sum == -1 || built.size() != pm.size()) {
-            std::printf("?");
-        }
-        std::printf("pmap n=%ld insert=%.1f find=%.1f build=%.1f std_insert=%.1f std_find=%.1f wall=%.2fs cpu=%.2fs\n", n, insert * 1e9 / n, find * 1e9 / n, build * 1e9 / n, std_insert * 1e9 / n, std_find * 1e9 / n, insert + find + build + std_insert + std_find, bench::cpu_seconds());
-    }
 }
-
 
 int main(int argc, char** argv) {
     std::string what = argc > 1 ? argv[1] : "";
@@ -1181,15 +1132,6 @@ int main(int argc, char** argv) {
         } else {
             run_bcast_tasks(subscribers, cap, n);
         }
-        return 0;
-    }
-    if (what == "pmap") {
-        if (!bench::has_variant(v.c_str(), {"sgcl"})) {
-            std::fprintf(stderr, "usage: concurrent pmap sgcl [n]\n");
-            return 2;
-        }
-        long n = argc > 3 ? std::atol(argv[3]) : 200'000;
-        run_pmap(n);
         return 0;
     }
     if (what == "cow") {

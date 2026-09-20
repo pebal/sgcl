@@ -6,6 +6,7 @@
 #pragma once
 
 #include <optional>
+#include <system_error>
 #include <thread>
 #include <tuple>
 #include <utility>
@@ -33,6 +34,13 @@ namespace sgcl {
     using std::tuple_size_v;
     using std::tuple_element;
     using std::tuple_element_t;
+
+    // The error code of the standard library, under the library's name:
+    // what an io::error carries (a value of errno in the system category,
+    // or a code of a category of the library's own)
+    using std::error_code;
+    using std::error_category;
+    using std::error_condition;
 
     // The thread of the standard library, under the library's name: what
     // the examples start and join; its closure is unmanaged memory, so a

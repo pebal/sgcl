@@ -8,10 +8,10 @@
 
 #include "array.h"
 #include "deque.h"
+#include "dynamic_array.h"
 #include "expiry_queue.h"
 #include "forward_list.h"
 #include "list.h"
-#include "m_sequence.h"
 #include "map.h"
 #include "multimap.h"
 #include "multiset.h"
@@ -27,3 +27,6 @@
 #include "vector.h"
 #include "weak_map.h"
 #include "weak_set.h"
+
+// The immutable containers, a family of their own in sgcl::im (im/)
+#include "im/im.h"

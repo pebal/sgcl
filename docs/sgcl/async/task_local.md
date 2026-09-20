@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same in the `Sgcl` interface: [TaskLocal](../Sgcl/Async/TaskLocal.md).
-
 A value visible to a task and to the tasks it starts, read without passing it through every signature: a request id, a deadline, a stop token, a logger, the current user. Go's `context.WithValue`, Kotlin's `CoroutineContext`, tokio's `task_local!`. A `task_local<T>` is declared once, at namespace scope, and the variable is the key: `sgcl::task_local<int> request_id;`. `co_await request_id.set(7)` sets the value for the task from that line on, and for every task it starts from then on; `request_id.get()` reads it, from the coroutine's body or from any function it calls, however deep, `nullopt` when unset and outside a task; `request_id.with(7, t)` is a task that runs `t` with the value set.
 
 The values live in managed nodes, one per `set`, chained newest first, and the head of a task's chain is a word at the front of its frame (`detail::FrameHeader`, next to the executor of [executor](executor.md)); the variable itself holds nothing and lives anywhere. A task started by another (`spawn`, `go`, `co_await` of a task nobody started, an executor's `spawn`) takes the head of the starting task's chain as it is at that moment: inheritance is one word copied. A node is never changed once made, so a child that sets a value puts a node of its own in front of the shared tail and the parent and the siblings keep what they had, copy on write by construction; a task that sets the same key twice reads the newest. The chain lives while a frame points at it; a value is copied out by `get()`: a `tracked_ptr`, a string, a token, an int, whatever is cheap to copy and safe to share between the tasks that inherit it.

@@ -16,7 +16,12 @@ namespace sgcl {
     // (trivially copyable, storable anywhere) that stay valid for as long
     // as the element is in the container, exactly as in std.
     template<class Key, class Compare = std::less<Key>>
-    class set : public detail::RbTree<detail::SetTraits<Key, Compare, false>> {
+    class set
+    : public detail::RbTree<detail::SetTraits<Key, Compare, false>>
+    , public m_enumerable<set<Key, Compare>>
+    , public m_bidirectional<set<Key, Compare>>
+    , public m_equatable<set<Key, Compare>>
+    , public m_comparable<set<Key, Compare>> {
         using Base = detail::RbTree<detail::SetTraits<Key, Compare, false>>;
 
     public:
@@ -27,6 +32,21 @@ namespace sgcl {
         using typename Base::insert_return_type;
 
         using Base::Base;
+
+        // By the key, the container's own, in place of m_enumerable's walk
+        using Base::contains;
+
+        // The smallest and the largest element are the ends of the order,
+        // O(1), in place of m_enumerable's walk (hidden, the overloads with
+        // a comparator too: the container orders by its own comparator)
+
+        const value_type& min() const noexcept {
+            return *this->begin();
+        }
+
+        const value_type& max() const noexcept {
+            return *this->rbegin();
+        }
 
         set() = default;
         set(const set&) = default;

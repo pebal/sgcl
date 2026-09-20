@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [Ptr](../Sgcl/Core/Ptr.md).
-
 `tracked_ptr<T>` is the pointer the collector follows. It is one word, the address of the object; copying it is a store of that word and the write barrier, a byte of state on the target. There is no reference count and no control block: an object lives as long as some `tracked_ptr` in a live object or on a stack, some [`unique_ptr`](unique_ptr.md), or a word on a stack reaches it, cycles included, and the collector destroys it in a later cycle, on a collector thread, when nothing does. What `std::shared_ptr` does by counting, `tracked_ptr` leaves to the collector, and what `std::shared_ptr` cannot do, a cycle of objects, needs nothing special.
 
 The object comes from [`make_tracked`](make_tracked.md) as a `unique_ptr`; moving that into a `tracked_ptr` hands the object to the collector. A `tracked_ptr` converts to a base class, points into the middle of an object (a member, a base subobject: an alias that keeps the whole object), knows the dynamic type of its object without virtual functions (`type()`, `is<U>()`, `as<U>()`), and `tracked_ptr<void>` holds any of them. A move is a copy: the moved-from pointer keeps its value.
@@ -40,6 +38,7 @@ The type pointed to; `void` for `tracked_ptr<void>`.
 ```cpp
 tracked_ptr() noexcept;
 tracked_ptr(std::nullptr_t) noexcept;
+tracked_ptr(std::nullptr_t, detail::unregistered_t) noexcept;   // null, without registering the thread
 
 template<class U, std::enable_if_t<std::is_convertible_v<U*, element_type*>, int> = 0>
 explicit tracked_ptr(U* p) noexcept;
@@ -58,7 +57,7 @@ tracked_ptr(unique_ptr<U>&& u) noexcept;
 
 The default and the `nullptr` constructors make a null pointer. The raw-pointer constructor is explicit and takes the address of a managed object or of a part of it, a member or a base subobject: the alias keeps the whole object alive. Copies and moves from a `tracked_ptr<U>` with `U*` convertible to `T*` convert to the base class (or to `void`); a move is a copy, the source keeps its value. The constructor from a `unique_ptr<U>&&` releases the object from its owner: from then on the collector destroys it, when nothing reaches it any more.
 
-Every constructor registers the calling thread with the collector on first contact (one thread-local load), stores the word with the barrier and checks, in a debug build, that the pointer lives where the rules allow and addresses what they allow.
+Every constructor registers the calling thread with the collector on first contact (one thread-local load), stores the word with the barrier and checks, in a debug build, that the pointer lives where the rules allow and addresses what they allow. The one exception is `tracked_ptr(nullptr, detail::unregistered)`: a null pointer made without the thread-local load, for a type that holds a `tracked_ptr` it may never use — a [slice](slice.md) over unmanaged memory has no owner, and a thread that only makes such slices never touches the collector. A pointer so made is stored to and copied as any other; the store of a non-null value registers the thread then.
 
 ```cpp
 struct Base { virtual ~Base() = default; };
@@ -213,6 +212,30 @@ sgcl::tracked_ptr a = sgcl::make_tracked<int>(1);
 sgcl::tracked_ptr b = sgcl::make_tracked<int>(2);
 a.swap(b);
 assert(*a == 2 && *b == 1);
+```
+
+### shade, store(p, unshaded)
+
+```cpp
+void shade() const noexcept;                                     // the write barrier for the target, on demand
+void store(const tracked_ptr& p, detail::unshaded_t) noexcept;   // the word alone, relaxed, no barrier
+tracked_ptr(const tracked_ptr& p, detail::unshaded_t) noexcept;  // the same as a constructor
+```
+
+For an immutable structure copying one of its nodes ([im](../containers/im/README.md)). The write barrier's promise is that whatever a pointer is stored to is reachable in the current cycle; a node that never changes holds exactly the words its copy holds, so the copy may take the words without the barrier — `dst.store(src, detail::unshaded)`, a relaxed store of the word, one word at a time (the collector may read the copy meanwhile: a word, never a torn vector store) — and then, the copy complete, one `shade()` of a pointer to the source makes the source reachable in this cycle, and the marking, visiting it, marks every child the copy holds: one barrier for the node in place of one per word. Two rules: the source is held by the caller through the copy and the shade (the version being copied holds it), and the shade comes **after** the copy is complete, never before (the copies of `im` made with a shade of the root ahead of them lost nodes). `shade()` is `_update` of the pointer's target: the state and the card, as a store of the pointer would leave them; on a pointer just made from a raw address it is the barrier that construction ran, once more.
+
+```cpp
+struct branch {
+    sgcl::tracked_ptr<void> children[32];
+    static sgcl::unique_ptr<branch> make(const branch& from) {   // the copy, then the shade
+        sgcl::unique_ptr<branch> copy = sgcl::make_tracked<branch>(from);
+        ((sgcl::tracked_ptr<const branch>)&from).shade();
+        return copy;
+    }
+    branch(const branch& o) noexcept {
+        for (auto i : sgcl::range(32)) children[i].store(o.children[i], sgcl::detail::unshaded);
+    }
+};
 ```
 
 ### to_shared

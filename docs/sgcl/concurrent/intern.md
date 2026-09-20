@@ -10,8 +10,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [Intern, InternString](../Sgcl/Concurrent/Intern.md).
-
 `intern<T>` is a pool where equal values share one managed object: Go's `unique` package, Java's `String.intern`. `make(value)` is the canonical object of the value, the one the pool holds when it is alive, or a new one made from the value and entered; so a program holds one copy of each distinct value it interns and compares two by their identity, a pointer comparison, where a comparison of the contents would cost a walk. The values of a field that repeats across many records (a host, a tag, a symbol, a type name), the keys of a large map, the atoms of an interpreter.
 
 The pool does not keep its objects alive. An entry is a [`weak_ptr`](../core/weak_ptr.md) to the canonical object, placed in the lock-free hash set of [concurrent_unordered_set](concurrent_unordered_set.md) by the hash of the object's contents and compared through the live object: to find a value, the table hashes it, walks to the entries of that hash, locks each one's weak pointer and compares the contents. An object nobody holds any more is collected, and its entry is dead from then on: never found, since it equals nothing, and never in the way of the entry that replaces it, which the next `make` of that value adds beside it; the dead entries are swept out every so many insertions, by the inserting thread, the way the [weak containers](concurrent_weak_map.md) do it (as many insertions as the pool has entries, 16 at least, one sweep at a time, none waiting), and on `sweep()`. An entry keeps the hash it was placed with, because the object it would be computed from may be gone by the time the entry is erased, and the hash has its top bit set, so that the word is never taken for a heap address by a conservative scan.
@@ -101,7 +99,7 @@ string intern_string(std::string_view s);
 ```cpp
 sgcl::string a = sgcl::intern_string("alpha");
 sgcl::string line = "alpha 512";
-sgcl::string b = sgcl::intern_string(line.view(0, 5));   // a view of another string: no string made when the value is known
+sgcl::string b = sgcl::intern_string(line.as_slice(0, 5));   // a slice of another string: no string made when the value is known
 assert(a.object() == b.object());                // the same object: compared in one word
 ```
 
@@ -149,7 +147,7 @@ int main() {
         parsers.emplace_back([&, t] {
             for (int i : sgcl::range(1000)) {
                 sgcl::string line = (i + t) % 2 ? "alpha.example 512" : "beta.example 1024";   // a line read from a file
-                sgcl::string_view host = line.view(0, line.find(' '));
+                sgcl::string_slice host = line.as_slice(0, line.find(' '));
                 records.push(sgcl::make_tracked<Record>(sgcl::intern_string(host), 512));   // no string made once the host is known
             }
         });

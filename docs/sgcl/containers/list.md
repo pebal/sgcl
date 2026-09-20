@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [LinkedList](../Sgcl/Containers/LinkedList.md).
-
 `sgcl::list<T>` is `std::list` over managed nodes: a circular doubly linked list around a managed sentinel. The interface is the one of `std::list` (constructors, `assign`, `front`/`back`, bidirectional iterators, modifiers at both ends and in the middle, `merge`, `splice`, `remove`, `remove_if`, `reverse`, `unique`, `sort`, three-way comparison, `std::erase`/`std::erase_if`), and so is the behaviour: an element is constructed at insertion and destroyed at removal, references and iterators to the other elements stay valid through every insertion, erasure and relink.
 
 What differs is who frees the nodes. The links are `tracked_ptr`s, so a rooted sentinel keeps every node alive and the list walks them through raw pointers; an `erase` unlinks a node and destroys its element, and the collector reclaims the node later, once nothing refers to it. Nothing is ever freed by hand, so a cycle through a list is collected like any other cycle. The list object is two words (the sentinel and the count); the sentinel is created on first use, so a default-constructed list allocates nothing. A node is as big as its `std` counterpart and pays no malloc rounding ([Benchmarks: Containers](benchmarks.md#containers): 17.8 ns per `push_back` against 26.4 ns for `std::list`, 2.0 ns per step of iteration against 2.2 ns).
@@ -244,33 +242,34 @@ l.resize(2);          // 1 2
 l.resize(4, 7);       // 1 2 7 7
 ```
 
-### Algorithms
+### The mixins
 
 ```cpp
-bool contains(const auto& value) const;    // anything an element compares with
-size_t index_of(const auto& value) const;                 // npos when none
-size_t last_index_of(const auto& value) const;
-template<class Pred> size_t find_index(Pred pred) const;
-template<class Pred> T* find(Pred pred) noexcept;      // null when none; and const
-template<class Pred> bool exists(Pred pred) const;
-template<class Pred> bool all(Pred pred) const;
+// m_enumerable
+template<class Pred> size_t find_index(Pred pred) const;   // npos when none
+template<class Pred> T* find_if(Pred pred) noexcept;       // null when none; and const
+template<class Pred> bool exists(Pred pred) const;  template<class Pred> bool all(Pred pred) const;
 template<class Pred> size_t count_of(Pred pred) const;
-template<class F> void for_each(F f);                  // and const
-const T& min() const;  template<class Compare> const T& min(Compare cmp) const;   // undefined when empty, as front()
-const T& max() const;  template<class Compare> const T& max(Compare cmp) const;
-void fill(const auto& value);
-bool is_sorted() const;  template<class Compare> bool is_sorted(Compare cmp) const;
-bool binary_search(const auto& value) const;  size_t sorted_index_of(const auto& value) const;   // on a sorted sequence: whether the value is there, its position (npos when not); and with a comparator
-auto lower_bound(const auto& value);  auto upper_bound(const auto& value);   // the first position not less than the value, the first greater; and const, and with a comparator
+template<class F> void for_each(F f);                      // and const
+bool contains(const auto& value) const;                    // elements with ==: anything an element compares with
+size_t index_of(const auto& value) const;  size_t last_index_of(const auto& value) const;   // npos when none
+decltype(auto) min() const;  decltype(auto) max() const;   // elements with <; and with a comparator
+// m_ordered
+bool is_sorted() const;  bool binary_search(const auto& value) const;  size_t sorted_index_of(const auto& value) const;   // on a sorted list; and with a comparator
+auto lower_bound(const auto& value);  auto upper_bound(const auto& value);   // and const, and with a comparator
+void sort();  template<class Compare> void sort(Compare cmp);  template<class Proj> void sort_by(Proj proj);  void stable_sort();   // the list's own, on the nodes
+// m_sequence
+void fill(const auto& value);  void reverse() noexcept;
+// m_equatable, m_comparable: == and <=>, below
 ```
 
-The members of [`m_sequence`](m_sequence.md), the algorithms every sequence of the library has as members, so that `l.contains(x)` reads as `l.push_front(x)` does. A linear search from the front, a walk over the nodes; `index_of`, `last_index_of` and `find_index` give the position, or `npos` when nothing matches; `find` the element the predicate accepts first, or null. `reverse` and `sort` are the list's own, on the nodes (below).
+The members of the mixins every sequence of the library carries ([the mixins](../core/mixin/README.md)): the questions of [m_enumerable](../core/mixin/m_enumerable.md), the order of [m_ordered](../core/mixin/m_ordered.md), the writes of [m_sequence](../core/mixin/m_sequence.md), so that `x.sort()` reads as `x.push_back(x)` does. A question that compares elements exists only for elements that compare; `index_of`, `last_index_of` and `find_index` give the position, or `npos` when nothing matches, `find_if` the element the predicate accepts first, or null. `reverse` and `sort` are the list's own, on the nodes (below).
 
 ```cpp
 sgcl::list l = {5, 3, 9, 3};
 assert(l.contains(9) && l.index_of(3) == 1 && l.last_index_of(3) == 3 && l.index_of(7) == sgcl::npos);
 assert(l.find_index([](int x) { return x > 4; }) == 0 && l.exists([](int x) { return x == 9; }) && !l.all([](int x) { return x > 3; }));
-if (int* big = l.find([](int x) { return x > 8; })) {
+if (int* big = l.find_if([](int x) { return x > 8; })) {
     *big = 8;
 }
 assert(l.count_of([](int x) { return x == 3; }) == 2 && l.min() == 3 && l.max() == 8);
@@ -382,11 +381,11 @@ l.sort(std::greater<>());                      // 3 2 1
 ### Comparisons
 
 ```cpp
-template<class T> bool operator==(const list<T>& lhs, const list<T>& rhs);
-template<class T> detail::synth_three_way_result<const T> operator<=>(const list<T>& lhs, const list<T>& rhs);
+friend bool operator==(const list& l, const list& r);
+friend auto operator<=>(const list& l, const list& r);
 ```
 
-Element-wise, as for `std::list`: `==` compares sizes first, `<=>` is lexicographical with the synthesized three-way comparison (`<=>` of `T` when it has one, else a `std::weak_ordering` built from `<`), so `<`, `<=`, `>`, `>=` and `!=` follow.
+From [m_equatable](../core/mixin/m_equatable.md) and [m_comparable](../core/mixin/m_comparable.md), for elements that compare. Element-wise, as for `std::list`: `==` compares sizes first, `<=>` is lexicographical with the synthesized three-way comparison (`<=>` of `T` when it has one, else a `std::weak_ordering` built from `<`), so `<`, `<=`, `>`, `>=` and `!=` follow.
 
 ```cpp
 sgcl::list<int> a = {1, 2}, b = {1, 3};

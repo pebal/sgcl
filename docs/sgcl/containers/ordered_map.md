@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [OrderedDictionary](../Sgcl/Containers/OrderedDictionary.md).
-
 `sgcl::ordered_map<Key, T, Hash, KeyEqual>` is a hash map iterated in the order its elements were inserted: what Java's `LinkedHashMap`, the `dict` of Python and .NET's `OrderedDictionary` are, and `std` has not. It is [unordered_map](unordered_map.md) with one thing added: every node is on a second list, in insertion order, threaded through the sentinel. `begin()` to `end()` walks that list, both ways (the iterators are bidirectional, `rbegin` exists), `front()` is the oldest element and `back()` the newest, a copy comes out in the same order, an erase takes the element out of the order, an insert of a key that is present leaves it where it was (`operator[]`, `insert`, `emplace`, `try_emplace`, `insert_or_assign` alike), and `to_back` and `to_front` move an element to the end or the start of the order. Everything else is `unordered_map`: the same table, so a lookup costs the same and the bucket interface, the hash policy, node handles, `merge`, the transparent lookups (a `string_view` for a [string](../core/string.md) key) are all there; a rehash relinks the chain and never touches the order. The price is two words more per node.
 
 What it is for: what a hash map is for, where the order of the entries is part of the data or of the behaviour. An object read from JSON that is written back with its keys as they came; a configuration, a header list, a registry that reports in the order of registration; and a cache that evicts in an order: `to_back(it)` on a hit makes the element the newest, `erase(begin())` when full drops the oldest, which is an LRU cache in two lines (the example below). `unordered_map` is the right map when the order is nothing; [map](map.md) when it is the order of the keys.
@@ -100,6 +98,15 @@ As in [unordered_map](unordered_map.md#merge), from another `ordered_map` with t
 ### Copy, swap, comparison
 
 A copy (the constructor, `operator=`) reproduces the order. `swap` and a move carry it along. `operator==` compares the contents and ignores the order, as `LinkedHashMap.equals` does: two maps with the same pairs are equal whatever the order they came in.
+
+### The mixins
+
+`ordered_map` carries [m_enumerable](../core/mixin/m_enumerable.md) (over the pairs, in insertion order; `contains` its own) and [m_lookup](../core/mixin/m_lookup.md) ([the mixins](../core/mixin/README.md)).
+
+```cpp
+sgcl::ordered_map<sgcl::string, int> m = {{"b", 2}, {"a", 1}};
+assert(m.value_or("c", 0) == 0 && m.index_of(std::pair<const sgcl::string, int>{"a", 1}) == 1);   // the position in insertion order
+```
 
 ## Example
 

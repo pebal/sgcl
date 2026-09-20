@@ -9,7 +9,7 @@
 #include "../../core/make_tracked.h"
 #include "../../core/tracked_ptr.h"
 #include "anchor.h"
-#include "synth_three_way.h"
+#include "../../core/mixin/mixin.h"
 #include "transparent.h"
 
 #include <algorithm>
@@ -1636,14 +1636,6 @@ namespace sgcl::detail {
                 return false;
             }
             return _check_subtree(x->left.get(), black, expected, count) && _check_subtree(x->right.get(), black, expected, count);
-        }
-
-        friend bool operator==(const RbTree& lhs, const RbTree& rhs) {
-            return lhs._size == rhs._size && std::equal(lhs.begin(), lhs.end(), rhs.begin());
-        }
-
-        friend auto operator<=>(const RbTree& lhs, const RbTree& rhs) {
-            return std::lexicographical_compare_three_way(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), synth_three_way);
         }
 
         template<class> friend class RbTree;

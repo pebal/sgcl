@@ -208,6 +208,45 @@ namespace sgcl {
             p = t;
         }
 
+        // For an immutable structure copying a node: the words of the
+        // copy stored without the barrier, `dst.store(src, detail::
+        // unshaded)`, relaxed, one word at a time (the collector may read
+        // the copy meanwhile: a word, never a torn vector store), and
+        // then one shade() of the pointer to the source, which the copy
+        // took its words from. The barrier's promise is that whatever a
+        // pointer is stored to is reachable in the current cycle; the
+        // source node, never modified, holds exactly the words the copy
+        // holds, so making it reachable makes the marking visit it and
+        // mark them all — one barrier for the node instead of one per
+        // word. Sound only while the source is held through the copy and
+        // the shade (im: the caller's version), and only for a node whose
+        // words never change.
+        void store(const tracked_ptr& p, detail::unshaded_t) noexcept {
+            _ptr()->store_no_update(p.get(), std::memory_order_relaxed);
+        }
+
+        // The same as a constructor, for a word of a node built in place
+        tracked_ptr(const tracked_ptr& p, detail::unshaded_t) noexcept
+        : _raw_ptr(p.get(), detail::unshaded) {
+            detail::os::escape(this);
+            assert(detail::thread_registered());
+        }
+
+        // A null without the thread's registration (slice): a null roots
+        // nothing, so the stack it lies on need not be known to the
+        // collector; a value stored later into this word goes through
+        // an assignment, whose caller registers first (slice::operator=)
+        tracked_ptr(std::nullptr_t, detail::unregistered_t) noexcept
+        : _raw_ptr(nullptr) {
+            detail::os::escape(this);
+        }
+
+        // The write barrier for the target, on demand: reachable in the
+        // current cycle, as a store of this pointer would make it
+        void shade() const noexcept {
+            const_cast<detail::Pointer*>(_ptr())->shade();
+        }
+
         // The object held from unmanaged memory: a std::shared_ptr whose
         // control block owns a managed holder of this pointer (a root), so
         // the shared_ptr may live anywhere a tracked_ptr may not (new
@@ -303,7 +342,8 @@ namespace sgcl {
         template<class> friend class vector;
         template<class> friend class deque;
         template<class> friend class weak_ptr;
-        template<class, size_t> friend struct array;
+        template<class, size_t, class> friend class array;
+        template<class> friend class dynamic_array;
         template<class> friend class detail::Maker;
     };
 

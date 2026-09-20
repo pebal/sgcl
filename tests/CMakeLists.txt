@@ -1,13 +1,13 @@
 # One test program per module, each over the module's directory, so that a
 # module is built and run on its own: cmake --build <dir> --target
-# tests_async && ctest --test-dir <dir> -R async; tests_Sgcl covers the
-# second interface. main.cpp (the listener
+# tests_async && ctest --test-dir <dir> -R async. main.cpp (the listener
 # that clears the stack between tests) and types.h are shared. The target
 # `tests` builds them all.
 add_custom_target(tests)
 
 function(sgcl_test_module MODULE)
-    set(TARGET tests_${MODULE})
+    get_filename_component(NAME ${MODULE} NAME)   # containers/im -> tests_im
+    set(TARGET tests_${NAME})
     file(GLOB SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${MODULE}/*.cpp")
     list(REMOVE_ITEM SOURCES ${ARGN})
     add_executable(${TARGET} main.cpp types.h ${SOURCES})
@@ -26,9 +26,10 @@ sgcl_test_module(core
     "${CMAKE_CURRENT_SOURCE_DIR}/core/teardown.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/limit_deadlock.cpp")
 sgcl_test_module(containers)
+sgcl_test_module(containers/im)   # the immutable family, a program of its own
 sgcl_test_module(concurrent)
 sgcl_test_module(async)
-sgcl_test_module(Sgcl)
+sgcl_test_module(io)
 
 add_executable(static_init_test core/static_init.cpp core/static_init_factory.cpp core/static_init.h)
 target_link_libraries(static_init_test gtest sgcl)

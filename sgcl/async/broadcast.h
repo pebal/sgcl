@@ -7,7 +7,7 @@
 
 #include "../concurrent/atomic.h"
 #include "../concurrent/detail/backoff.h"
-#include "../containers/array.h"
+#include "../containers/dynamic_array.h"
 #include "../core/aliases.h"
 #include "../core/make_tracked.h"
 #include "../core/tracked_ptr.h"
@@ -134,7 +134,7 @@ namespace sgcl {
                 return word.load(std::memory_order_seq_cst) & PositionMask;
             }
 
-            array<Slot> ring;
+            dynamic_array<Slot> ring;
             atomic<uint64_t> word = {0};       // the positions reserved (the low bits) and the subscriptions alive (the high ones)
             atomic<size_t> committed = {0};    // the positions published, in order
             atomic<tracked_ptr<Round>> round;  // the select cases waiting for the next position, if any

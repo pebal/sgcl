@@ -8,8 +8,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [Collector](../Sgcl/Core/Collector.md).
-
 `collector` is the program's handle on the garbage collector: a class of static functions and two plain structs, with no instance. The collector itself starts with the first managed object, on a thread of its own, and runs its cycles by itself; nothing in a program has to call anything here. What the class offers is for analysis and control: forcing a cycle and waiting for it, counting and listing the live objects, reading the counters of the collector's work and the composition of the live heap by type, the ceiling on managed memory, and stopping the collector.
 
 Three of the functions (`get_live_object_count`, `get_live_objects`, `get_type_statistics`) and `force_collect` run a full collection first, so their answers are complete: a young cycle would leave garbage among the old objects ([Generations](../../garbage_collector/overview.md#generations)). They also zero the unused stack below the caller's frame first, because the stack is scanned conservatively and words left behind by dead frames would otherwise keep objects alive and distort a count taken right after a scope ([Stack roots](../../garbage_collector/overview.md#stack-roots)). What they cannot clear is the caller's own frame: a raw pointer or an iterator kept there does retain its target, so a test that needs an exact count keeps its pointer-juggling code in a helper function.

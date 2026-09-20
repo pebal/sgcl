@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [ConcurrentQueue](../Sgcl/Concurrent/ConcurrentQueue.md).
-
 `sgcl::concurrent_queue<T>` is an unbounded lock-free FIFO queue shared by any number of producers and consumers: the Michael–Scott queue in the form Java's `ConcurrentLinkedQueue` gives it, written as it is written for a runtime with a collector. The nodes form a singly linked list; the head addresses a node at or before the first element and the tail a node at or before the last one, both lagging on purpose. A push links the new node after the last one with a compare-exchange on that node's link and swings the tail only when it found the tail a node or more behind; a pop walks from the head to the first element not yet taken, claims it with a compare-exchange on its node's flag, and swings the head only when the element was a node or more past it. That halves the exchanges on the two words every thread contends for (Java's "hop two nodes at a time"), and a thread that finds a word behind walks the links to where it should be, so no thread ever waits for another. A node the head has passed is linked to itself: the sign, for a walk, that it left the list, and the reason an old head a thread still holds retains nothing behind it. No ABA, no counted pointers, no hazard pointers in the algorithm and no free list: a node is never reused while a thread holds it, and a node nobody holds is reclaimed by the collector ([README: Lock-free containers](README.md#lock-free-containers)). The interface has the names of `std::queue`: `push`, `emplace`, `try_pop`, `pop`, `empty`, `size`, `clear`. The element type is any movable `T`, a `tracked_ptr` included.
 
 ## Rules

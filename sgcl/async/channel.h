@@ -7,7 +7,7 @@
 
 #include "../concurrent/concurrent_queue.h"
 #include "../concurrent/detail/backoff.h"
-#include "../containers/array.h"
+#include "../containers/dynamic_array.h"
 #include "../core/aliases.h"
 #include "../core/make_tracked.h"
 #include "../core/tracked_ptr.h"
@@ -988,7 +988,7 @@ namespace sgcl {
 
         // The head and the tail a cache line apart (config::CacheLineSize):
         // the receivers' line and the senders' line
-        array<Slot> _ring;
+        dynamic_array<Slot> _ring;
         atomic<size_t> _head = {0};
         unsigned char _pad[config::CacheLineSize - sizeof(atomic<size_t>)] = {};
         atomic<size_t> _tail = {0};

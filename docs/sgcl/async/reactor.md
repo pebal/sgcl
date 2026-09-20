@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same in the `Sgcl` interface: [Readable, Writable](../Sgcl/Async/Reactor.md).
-
 The reactor: the readiness of file descriptors, as channels. `readable(fd)` is a channel that gets one signal when `fd` can be read without blocking (data, or the end of the stream), and is closed then; `writable(fd)` the same for a write. A task writes `co_await readable(fd)->async_receive()` and holds no thread until the data comes; a [select](select.md) bounds the wait (`readable(fd)->on_receive(f), timeout(1s, g)`) and a [stop_token](stop_token.md) cancels it, since the wait is a channel like any other. Under them one thread on the kernel's queue (kqueue on macOS and FreeBSD; epoll and IOCP on the other platforms, to come), asleep in the kernel until something is ready, which then signals the channel: a push on the scheduler for the task that waits. The thread starts with the first wait and stops with the scheduler.
 
 This is the foundation the `io` and `net` modules stand on: a socket or a file in them is a descriptor with a buffer, and a read that would block is `co_await readable(fd)` followed by a read that will not. It is deliberately the smallest thing that does that: one registration per wait (the kernel's one-shot event), a managed channel per wait, no buffers, no descriptors of the library's own.

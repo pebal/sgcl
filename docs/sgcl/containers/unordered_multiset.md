@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [HashMultiSet](../Sgcl/Containers/HashMultiSet.md).
-
 `sgcl::unordered_multiset<Key, Hash, KeyEqual>` is `std::unordered_multiset` over managed nodes: the same hash table as [unordered_set](unordered_set.md), with equivalent keys allowed. The interface is the one of `std::unordered_multiset` (constructors, `insert`, `emplace`, `erase`, `extract`, `merge`, node handles, the lookups with transparent hash and equality, forward iterators, the bucket interface, `load_factor`/`max_load_factor`/`rehash`/`reserve`, `hash_function`/`key_eq`, `swap`, `==`, deduction guides, `std::erase_if`), and so is the behaviour: equal elements are adjacent in the iteration order and in their bucket, `erase(key)` removes all of them, `count` counts them, an element is destroyed the moment it is erased. Within a run of equal elements a new one goes in front of those already there.
 
 What differs from `std` is where the memory lives. The container holds two `tracked_ptr`s (the bucket array and a sentinel node), the counts, the hasher and the equality, so it lives where a `tracked_ptr` may live; the elements are nodes on the managed heap, forming one chain linked by tracked pointers and traced from the sentinel, so elements that are or hold `tracked_ptr`s are traced and a cycle through the container is collected like any other. Nothing is freed by hand: an `erase` destroys the element and unlinks the node, the collector reclaims the node later. The hash of each key is cached in its node. The bucket count is 0 or a power of two, and the table grows when the size reaches `bucket_count() * max_load_factor()`, doubling at least, to eight buckets at the least. Iterators are one raw node pointer each, trivially copyable, storable anywhere, valid across rehashes and until their element is erased. As in `std`, `iterator` and `const_iterator` are one type, yielding `const Key&`: a key is never modified in place; `extract` it and insert it back. Lookups and iteration pay no write barrier; insertions, erasures and rehashes store tracked pointers and pay the barrier on each link they relink ([README: Containers](README.md#containers)).
@@ -271,7 +269,7 @@ template<class K> std::pair<iterator, iterator> equal_range(const K& key);  //  
 sgcl::unordered_multiset<sgcl::string> s = {"a", "a"};   // std::hash and std::equal_to of a string are transparent
 auto n = s.count("a");             // 2, no sgcl::string built for the literal
 sgcl::string text = "a b";
-auto m = s.count(text.view(0, 1)); // 2: a view of another string, nothing built either
+auto m = s.count(text.as_slice(0, 1)); // 2: a view of another string, nothing built either
 ```
 
 ### Bucket interface
@@ -327,6 +325,15 @@ key_equal key_eq() const;
 ```
 
 Copies of the hasher and the equality.
+
+### The mixins
+
+`unordered_multiset` carries [m_enumerable](../core/mixin/m_enumerable.md) (`contains` its own) ([the mixins](../core/mixin/README.md)).
+
+```cpp
+sgcl::unordered_multiset<int> s = {1, 1, 2};
+assert(s.count_of([](int x) { return x == 1; }) == 2);
+```
 
 ### Comparisons
 

@@ -10,8 +10,6 @@ namespace sgcl {
 }
 ```
 
-The same in the `Sgcl` interface: [Signals](../Sgcl/Async/Signal.md).
-
 The signals of the process as a channel, the way Go's `os/signal` has them: `signals({SIGINT, SIGTERM})` returns a channel that gets the number of every signal of those delivered to the process from then on, so that a signal is waited for as anything else in the module is: a task `co_await`s the channel and holds no thread meanwhile, a thread receives on it, a select takes it as a case. The shutdown of a server is one more case of the loop that serves it:
 
 ```cpp

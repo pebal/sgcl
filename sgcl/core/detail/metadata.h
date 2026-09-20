@@ -33,6 +33,7 @@ namespace sgcl::detail {
         , is_weak_cell(std::is_same_v<std::remove_cv_t<T>, WeakCell>)
         , is_cell_block(std::is_same_v<std::remove_cv_t<T>, CellBlock>)
         , is_root_holder(std::is_same_v<std::remove_cv_t<T>, SharedHolder> || std::is_same_v<std::remove_cv_t<T>, CellBlock>)
+        , is_string(TypeInfo<T>::IsString)
         , type_info(typeid(T)) {
         }
 
@@ -47,6 +48,7 @@ namespace sgcl::detail {
         const bool is_weak_cell;     // weak_cell.h: the pages the weak phase visits
         const bool is_cell_block;    // cell_block.h: the pages of the blocks of cells, traced by a map that stays full and released by state
         const bool is_root_holder;   // a SharedHolder (tracked_ptr.h: the object under a to_shared) or a CellBlock (cell_block.h: the cells of the root_ptrs): a root by state, never the target of a tracked_ptr, so a word naming one (the word of a shared_ptr's holder or of a root_ptr inside a managed object) is data (collector.h: _mark_childs)
+        const bool is_string;        // string_data.h: the object holds a string's characters; a slice of the whole of one becomes the string (string.h)
         const std::type_info& type_info;
         Page* empty_page = {nullptr};
         Metadata* next = {nullptr};

@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [ConcurrentWeakHashSet](../Sgcl/Concurrent/ConcurrentWeakHashSet.md).
-
 `concurrent_weak_set<Key>` is the [weak_set](../containers/weak_set.md) shared by any number of threads without a lock: a set of objects that does not keep them alive, the [`concurrent_weak_map`](concurrent_weak_map.md) of nothing but keys, over the lock-free hash table of [concurrent_unordered_set](concurrent_unordered_set.md). An object is inserted, found and erased by a `tracked_ptr<Key>` to it and held by a [`weak_ptr`](../core/weak_ptr.md); an entry whose object the collector has found unreachable is dead: never found, passed over by the iteration, dropped by a sweep, which the inserting threads run by themselves every so many insertions. Objects registered from several threads without being owned there: the open connections, the listeners, the instances of a class, a set that forgets. Hashing, equality, the sweeps and the rules are those of `concurrent_weak_map`.
 
 ## Members

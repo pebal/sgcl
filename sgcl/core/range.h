@@ -9,6 +9,8 @@
 // step better, and the reverse walk is a view's job).
 #pragma once
 
+#include "mixin/mixin.h"
+
 #include <concepts>
 #include <cstddef>
 #include <iterator>
@@ -103,8 +105,22 @@ namespace sgcl {
         };
     }
 
+    // A range of the library over any pair of iterators (mixin/): what
+    // the iterator can do, the range declares — bidirectional, random
+    // access, contiguous by the iterator's concept, writable when the
+    // iterator writes — so `range(v.begin(), v.end())` is how a std
+    // container enters a function that asks for c_enumerable, c_ordered
+    // or c_sequence.
     template<class It>
-    class range {
+    class range
+    : public m_enumerable<range<It>>
+    , public detail::MixinIf<std::bidirectional_iterator<It>, m_bidirectional, range<It>>
+    , public detail::MixinIf<std::random_access_iterator<It>, m_random_access, range<It>>
+    , public detail::MixinIf<std::contiguous_iterator<It>, m_contiguous, range<It>>
+    , public m_equatable<range<It>>
+    , public m_comparable<range<It>>
+    , public m_ordered<range<It>>
+    , public detail::MixinIf<std::indirectly_writable<It, std::iter_value_t<It>>, m_sequence, range<It>> {
     public:
         using iterator = It;
         using value_type = typename std::iterator_traits<It>::value_type;

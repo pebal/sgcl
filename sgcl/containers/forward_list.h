@@ -8,9 +8,8 @@
 #include "../core/detail/slot.h"
 #include "../core/make_tracked.h"
 #include "../core/tracked_ptr.h"
+#include "../core/mixin/mixin.h"
 #include "detail/anchor.h"
-#include "detail/synth_three_way.h"
-#include "m_sequence.h"
 
 #include <compare>
 #include <forward_list>
@@ -35,7 +34,12 @@ namespace sgcl {
     // at home in any container: the list roots every linked node, and an
     // iterator to an erased element is invalid, as in std.
     template<class T>
-    class forward_list : public m_sequence<forward_list<T>> {   // the algorithms as members
+    class forward_list
+    : public m_enumerable<forward_list<T>>
+    , public m_equatable<forward_list<T>>
+    , public m_comparable<forward_list<T>>
+    , public m_ordered<forward_list<T>>
+    , public m_sequence<forward_list<T>> {
         struct NodeBase {
             tracked_ptr<NodeBase> next;
         };
@@ -734,20 +738,6 @@ namespace sgcl {
             return a_last->next.get() == end ? a_last : b_last;
         }
 
-        friend bool operator==(const forward_list& lhs, const forward_list& rhs) {
-            auto l = lhs.begin();
-            auto r = rhs.begin();
-            for (; l != lhs.end() && r != rhs.end(); ++l, ++r) {
-                if (!(*l == *r)) {
-                    return false;
-                }
-            }
-            return l == lhs.end() && r == rhs.end();
-        }
-
-        friend auto operator<=>(const forward_list& lhs, const forward_list& rhs) {
-            return std::lexicographical_compare_three_way(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), detail::synth_three_way);
-        }
     };
 
     template<class T>

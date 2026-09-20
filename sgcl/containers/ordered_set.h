@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../core/mixin/mixin.h"
 #include "detail/hash_table.h"
 
 namespace sgcl {
@@ -21,7 +22,9 @@ namespace sgcl {
     // a managed object; an iterator is one raw node pointer and may live
     // anywhere, invalid once its element is erased, as in std.
     template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
-    class ordered_set : public detail::HashTable<detail::HashSetTraits<Key, Hash, KeyEqual, true, true>> {
+    class ordered_set
+    : public detail::HashTable<detail::HashSetTraits<Key, Hash, KeyEqual, true, true>>
+    , public m_enumerable<ordered_set<Key, Hash, KeyEqual>> {
         using Base = detail::HashTable<detail::HashSetTraits<Key, Hash, KeyEqual, true, true>>;
 
     public:
@@ -34,6 +37,9 @@ namespace sgcl {
         using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
         using Base::Base;
+
+        // By the key, the container's own, in place of m_enumerable's walk
+        using Base::contains;
 
         ordered_set& operator=(std::initializer_list<value_type> ilist) {
             Base::operator=(ilist);

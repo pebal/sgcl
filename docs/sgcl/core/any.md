@@ -8,8 +8,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [Any](../Sgcl/Core/Any.md).
-
 `sgcl::any` is `std::any` for values that hold tracked pointers. `std::any` keeps a small value in a buffer inside itself, where a `tracked_ptr` would share its word with the data of other values (the offset leaves the pointer map by elimination: [README: Pointer maps](../../garbage_collector/overview.md#pointer-maps)), and a large one on the unmanaged heap, where a `tracked_ptr` may not live. Here a value goes to one of three places by what it is: a pointer word (`tracked_ptr` of either kind, [`weak_ptr`](weak_ptr.md)) into a word of the `any` that holds null or an address and nothing else; a small value that cannot hold a pointer (16 bytes at most, trivially default constructible or smaller than a word) into a buffer inside the `any`; anything else (a struct with a `tracked_ptr` member, a container, a `std::string`: whatever the collector cannot rule out) into a managed node of its own, held by a pointer in the same word and traced through its own pointer map, so that a value pointing back at the `any`'s owner is a cycle collected like any other. The value is destroyed the moment the `any` drops it, on that thread, as a container destroys an erased element; the node is reclaimed by the collector later. An `any` is 32 bytes, as `std::any` in libc++.
 
 The interface is that of `std::any`: the constructors, `in_place_type`, `emplace`, `reset`, `swap`, `has_value`, `type`, `any_cast` in every form, `make_any`, `bad_any_cast` (the one of `std`). What differs: a copy of a value in a node is a node of its own; a moved-from `any` is empty; a value larger than a page is not supported.

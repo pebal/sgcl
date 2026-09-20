@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [ConcurrentCache](../Sgcl/Concurrent/ConcurrentCache.md).
-
 `sgcl::concurrent_cache<Key, T, Hash, KeyEqual>` is a key-value cache shared by any number of threads, bounded by a capacity (a number of entries) and, if asked, by a time to live, evicting the entries least recently used: what Guava's `Cache` and Caffeine are in Java (the standard libraries of Go and Java have none, and everybody writes one), and the concurrent counterpart of the LRU cache that [ordered_map](../containers/ordered_map.md) gives in two lines to one thread. It is built over [concurrent_unordered_map](concurrent_unordered_map.md), so that `get` is the map's wait-free search and nothing else that is shared: no lock, no list to relink, no counter every thread writes. An exact LRU keeps its entries on a list and moves one to the front on every access, which is a write to a shared structure on every hit, the one thing a cache read by many threads cannot afford (Caffeine's lesson, and the reason it buffers its reads), so the order here is approximated, the way Redis approximates it:
 
 - Every entry keeps a stamp of its last access: the value of a clock that the cache's insertions tick, a counter `put` advances and `get` reads. A hit stores the current tick into its entry, one relaxed store, and only when the tick differs from the one already there, so the line of an entry read over and over stays shared between the cores.
@@ -77,7 +75,7 @@ if (auto session = sessions.get(id)) {                     // a tracked_ptr<Sess
     (*session)->touch();
 }
 sgcl::string header = "bearer 7f3a";
-sgcl::optional<sgcl::string> t = tokens.get(header.view(7));   // a view of the header: no string made for the lookup
+sgcl::optional<sgcl::string> t = tokens.get(header.as_slice(7));   // a slice of the header: no string made for the lookup
 ```
 
 ### put
@@ -215,5 +213,5 @@ The map's own `find` over the same entries is 40 ns: a hit is the search, then t
 - [concurrent_unordered_map](concurrent_unordered_map.md), the map underneath and its rules
 - [ordered_map](../containers/ordered_map.md), the exact LRU cache in two lines for one thread, and its example, which the one above repeats
 - [copy_on_write](copy_on_write.md), for a value read by every thread and replaced whole rather than looked up by key
-- [Benchmarks](benchmarks.md#the-single-producer-queue-the-cache-and-the-persistent-map): against the exact LRU under a mutex, one to sixteen threads
+- [Benchmarks](benchmarks.md#the-single-producer-queue-and-the-cache): against the exact LRU under a mutex, one to sixteen threads
 - [README: Lock-free containers](README.md#lock-free-containers), [README: The rules](../core/README.md#the-rules)

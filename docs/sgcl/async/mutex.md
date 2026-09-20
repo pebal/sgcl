@@ -8,8 +8,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [Mutex](../Sgcl/Async/Mutex.md).
-
 One holder at a time: `lock()` is a receive on a channel holding one signal and `unlock()` a send, Go's idiom for a mutex. It is the first of the synchronization of tasks, and of threads with them: each of the five ([mutex](mutex.md), [semaphore](semaphore.md), [event](event.md), [wait_group](wait_group.md), [once](once.md)) a channel of signals under the name of what it does, with the three forms of a wait a [channel](channel.md) has: blocking, for a thread; awaitable, for a task, which holds no thread while it waits; and as a case of a [select](select.md). A `std::mutex` taken on a worker parks the worker, and with it every task that worker would run; these park nothing: a task that waits for one is a frame on the managed heap and a word on a list, as a task waiting on a channel is, and a worker runs it when its turn comes. What that costs: the channel's ring and its lists of waiters, a few hundred bytes each; what it buys: one implementation, lock-free, that threads and tasks share, and a waiter reclaimed by the collector. After the five, a [shared_mutex](shared_mutex.md) (readers and a writer over a word, the channels for its waits) and a [condition_variable](condition_variable.md) over this mutex, each blocking and awaitable.
 
 ## Rules

@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [SortedDictionary](../Sgcl/Containers/SortedDictionary.md).
-
 `sgcl::map<Key, T, Compare>` is `std::map` on a red-black tree whose nodes are managed objects. The interface is the one of `std::map`: constructors, `insert`, `emplace`, `try_emplace`, `insert_or_assign`, `operator[]`, `at`, `erase`, `extract`, `merge`, node handles, the lookups with transparent comparators, bidirectional iterators (`std::ranges` algorithms work), `key_comp`/`value_comp`, `swap`, `==` and `<=>`, `std::erase_if`. The behaviour is the one of `std::map` too: unique keys in `Compare` order, an element destroyed the moment it is erased, iterators that stay valid until their element is erased.
 
 What differs is where the memory lives. The map object holds one `tracked_ptr` (to a header node whose parent is the root, plus a count and the comparator), so it lives where a `tracked_ptr` may live. Every node is a managed object and the links between nodes are tracked pointers: the whole tree hangs off the header and is traced from there, so a `map<Key, tracked_ptr<T>>` or a map inside a managed object is traced like any other managed data, and a cycle through a map is collected like any other cycle. Nothing is freed by hand: an `erase` destroys the element and unlinks the node, and the collector reclaims the node's memory later. Iterators are one raw node pointer each, trivially copyable, and may live anywhere, a `std::vector` of them included: the map roots every node it holds, and a raw pointer in a stack frame is a root of its own under the conservative scan. A lookup, an iteration and an iterator copy read raw pointers only and pay no write barrier; an insertion, an erasure and a rebalancing store tracked pointers and pay the barrier on each link they relink ([README: Containers](README.md#containers)).
@@ -372,7 +370,7 @@ O(log n), reading raw pointers only. `count` is 0 or 1. The `K` overloads exist 
 sgcl::map<sgcl::string, int> m = {{"apple", 1}};
 bool has = m.contains("apple");    // no sgcl::string is built for the literal
 sgcl::string line = "apple pie";
-sgcl::string_view key = line.view(0, 5);   // a piece of another string, a view holding its object
+sgcl::string_slice key = line.as_slice(0, 5);   // a piece of another string, a slice holding its object
 auto it = m.find(key);             // it->second == 1, nothing built either
 ```
 
@@ -397,6 +395,19 @@ sgcl::map<int, char> m = {{10, 'a'}, {20, 'b'}, {30, 'c'}};
 auto from = m.lower_bound(15);    // 20
 auto to = m.upper_bound(25);      // 30
 for (auto it = from; it != to; ++it) { /* 20 only */ }
+```
+
+### The mixins
+
+`map` carries [m_enumerable](../core/mixin/m_enumerable.md) (`exists`, `all`, `count_of`, `find_if`, `for_each`, `index_of` over the pairs; `contains`, `min` and `max` are the map's own, by the key and as the ends of the order), [m_equatable](../core/mixin/m_equatable.md), [m_comparable](../core/mixin/m_comparable.md), the bidirectional category, and [m_lookup](../core/mixin/m_lookup.md): the reads by the key that `std::map` makes a program write by hand.
+
+```cpp
+sgcl::map<sgcl::string, int> ports = {{"http", 80}, {"https", 443}};
+assert(*ports.get("http") == 80 && !ports.get("ftp") && ports.value_or("ftp", 21) == 21 && ports.contains_key("https"));
+if (int* p = ports.try_get("http")) {
+    *p = 8080;
+}
+assert(ports.exists([](const auto& kv) { return kv.second > 1000; }) && ports.min().first == "http");
 ```
 
 ### Comparisons

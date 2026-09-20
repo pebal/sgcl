@@ -6,6 +6,7 @@
 #pragma once
 
 #include "../core/aliases.h"
+#include "../core/mixin/mixin.h"
 #include "detail/hash_table.h"
 
 namespace sgcl {
@@ -16,7 +17,10 @@ namespace sgcl {
     // iterators is fine): its node is rooted by the map while the element
     // is in it, and an iterator to an erased element is invalid as in std.
     template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
-    class unordered_map : public detail::HashTable<detail::HashMapTraits<Key, T, Hash, KeyEqual, true>> {
+    class unordered_map
+    : public detail::HashTable<detail::HashMapTraits<Key, T, Hash, KeyEqual, true>>
+    , public m_enumerable<unordered_map<Key, T, Hash, KeyEqual>>
+    , public m_lookup<unordered_map<Key, T, Hash, KeyEqual>> {
         using Base = detail::HashTable<detail::HashMapTraits<Key, T, Hash, KeyEqual, true>>;
 
     public:
@@ -28,6 +32,9 @@ namespace sgcl {
         using const_iterator = typename Base::const_iterator;
 
         using Base::Base;
+
+        // By the key, the container's own, in place of m_enumerable's walk
+        using Base::contains;
 
         unordered_map& operator=(std::initializer_list<value_type> ilist) {
             Base::operator=(ilist);

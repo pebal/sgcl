@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [Stack](../Sgcl/Containers/Stack.md).
-
 `sgcl::stack<T, Container>` is `std::stack` over a managed container: a LIFO adapter with `top`, `push`, `emplace`, `pop`, `empty`, `size`, `swap` and the comparisons of the container. The container is `sgcl::deque<T>` by default; `sgcl::vector<T>` and `sgcl::list<T>` work as well, as does any container with `back`, `push_back`, `emplace_back` and `pop_back`. The adapter adds nothing of its own: the container is the protected member `c`, as in `std`, and everything about where the elements live, when they are destroyed and what a push costs is the container's ([deque](deque.md), [vector](vector.md), [list](list.md)).
 
 ## Rules

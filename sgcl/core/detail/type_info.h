@@ -54,6 +54,12 @@ namespace sgcl::detail {
         static constexpr auto value = true;
     };
 
+    // The storage of a string (string_data.h: a StringSlot, a buffer of
+    // StringByte): what a slice's owner is tested for before a string
+    // takes the object as its own (string.h: basic_string(slice))
+    template<class T>
+    struct IsStringStorage : std::false_type {};
+
     template<class T>
     struct TypeInfo : PageInfo<std::remove_cv_t<T>> {
         using Type = std::remove_cv_t<T>;
@@ -62,5 +68,6 @@ namespace sgcl::detail {
         static constexpr bool IsTracked = IsTrackedPointer<BaseType>;
         static constexpr bool IsArray = std::is_base_of_v<ArrayBase, BaseType>;
         static constexpr bool MayContainTracked = detail::MayContainTracked<T>::value;
+        static constexpr bool IsString = detail::IsStringStorage<BaseType>::value;   // string_data.h: an object of a string's characters
     };
 }

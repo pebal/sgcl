@@ -41,6 +41,11 @@ namespace sgcl::detail {
         : Pointer(p.load()) {
         }
 
+        // The word alone, no barrier (tracked_ptr's unshaded copy)
+        Pointer(const void* p, unshaded_t) noexcept
+        : _ptr(const_cast<void*>(p)) {
+        }
+
         // The first store of an object released from its unique_ptr: the
         // barrier that takes it out of the unique state (page.h:
         // set_state_released), on this path only, and before the word: a
@@ -120,8 +125,18 @@ namespace sgcl::detail {
             }
         }
 
-        void store_no_update(const void* p) noexcept {
-            _ptr.store(const_cast<void*>(p), std::memory_order_release);
+        // The word alone, no barrier: release by default (store_released
+        // orders it after the Releasing state); relaxed for the copy of an
+        // immutable node (im), whose source is shaded once for all its words
+        void store_no_update(const void* p, const std::memory_order m = std::memory_order_release) noexcept {
+            _ptr.store(const_cast<void*>(p), m);
+        }
+
+        // The barrier for the target, now: as a store of this pointer
+        // would, the target reachable in the current cycle (and the card
+        // of this word's page stamped)
+        void shade() noexcept {
+            _update(load());
         }
 
         bool compare_exchange_strong(void*& o, std::nullptr_t, const std::memory_order m) noexcept {

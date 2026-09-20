@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [SortedSet](../Sgcl/Containers/SortedSet.md).
-
 `sgcl::set<Key, Compare>` is `std::set` on a red-black tree whose nodes are managed objects: the same tree as [map](map.md), holding keys alone. The interface is the one of `std::set` (constructors, `insert`, `emplace`, `erase`, `extract`, `merge`, node handles, the lookups with transparent comparators, bidirectional iterators, `key_comp`/`value_comp`, `swap`, `==` and `<=>`, `std::erase_if`), and so is the behaviour: unique keys in `Compare` order, elements that cannot be modified through an iterator (`iterator` is `const_iterator`), an element destroyed the moment it is erased.
 
 What differs from `std` is where the memory lives. The set object holds one `tracked_ptr` (to a header node), a count and the comparator, so it lives where a `tracked_ptr` may live; the nodes are managed objects linked by tracked pointers and traced from the header, so a `set<tracked_ptr<T>>` is a set of traced pointers (`tracked_ptr` compares with `<=>` and hashes, so it is a key as it is), and a cycle through a set is collected like any other. Nothing is freed by hand: an `erase` destroys the element and unlinks the node, the collector reclaims the node later. Iterators are one raw node pointer each, trivially copyable, storable anywhere, valid while their element is in the set. Lookups and iteration read raw pointers and pay no write barrier; insertions, erasures and rebalancing store tracked pointers and pay the barrier on each link they relink ([README: Containers](README.md#containers)). The header is allocated on the first insertion: an empty set costs nothing.
@@ -276,7 +274,7 @@ O(log n), reading raw pointers only. `count` is 0 or 1. The `K` overloads exist 
 sgcl::set<sgcl::string> s = {"apple"};
 bool has = s.contains("apple");    // no sgcl::string is built for the literal
 sgcl::string line = "apple pie";
-bool piece = s.contains(line.view(0, 5));   // a view of another string, nothing built either
+bool piece = s.contains(line.as_slice(0, 5));   // a slice of another string, nothing built either
 ```
 
 ### equal_range, lower_bound, upper_bound
@@ -297,6 +295,15 @@ sgcl::set s = {10, 20, 30};
 auto from = s.lower_bound(15);    // 20
 auto to = s.upper_bound(25);      // 30
 auto between = std::distance(from, to);   // 1
+```
+
+### The mixins
+
+`set` carries [m_enumerable](../core/mixin/m_enumerable.md) — `exists`, `all`, `count_of`, `find_if`, `for_each`, `index_of` (the position in the order); `contains` is the set's own, by the key, `min()` and `max()` the ends of the order, O(1) — [m_equatable](../core/mixin/m_equatable.md), [m_comparable](../core/mixin/m_comparable.md) and the bidirectional category ([the mixins](../core/mixin/README.md)); not `m_ordered` (the order is the set's, `lower_bound` its own), not `m_sequence`.
+
+```cpp
+sgcl::set<int> s = {3, 1, 2};
+assert(s.min() == 1 && s.max() == 3 && s.index_of(3) == 2 && s.count_of([](int x) { return x > 1; }) == 2);
 ```
 
 ### Comparisons

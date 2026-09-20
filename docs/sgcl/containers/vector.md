@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [List](../Sgcl/Containers/List.md).
-
 `sgcl::vector<T>` is `std::vector` over a buffer on the managed heap. The interface is the one of `std::vector` (constructors, `assign`, element access, contiguous iterators, capacity, modifiers, three-way comparison, `std::erase`/`std::erase_if`, a deduction guide from an iterator pair), and so is the behaviour: elements are constructed and destroyed one at a time, an explicit removal destroys them at once, a reallocation moves them and destroys the moved-from ones, `clear()` keeps the capacity.
 
 What differs is where the memory lives and what the object is. The vector object is three words: a `tracked_ptr` to the first element of the buffer, the count and the capacity. The buffer is a managed array with a header of its own; the collector never destroys a buffer, it only frees one nothing refers to any more (the buffer a reallocation abandoned, the buffer of a vector that is gone). A `sgcl::vector<tracked_ptr<T>>` is therefore the managed form of a vector of pointers: its elements are traced, and it may hold cycles like any other managed object. `vector<bool>` is a plain vector of `bool`; elements aligned beyond 16 bytes are not supported in buffers.
@@ -124,7 +122,7 @@ v[1] = 25;
 try { v.at(3); } catch (const std::out_of_range&) { /* 3 >= size() */ }
 ```
 
-### front, back, data
+### front, back, data, as_slice
 
 ```cpp
 reference front() noexcept;
@@ -133,15 +131,19 @@ reference back() noexcept;
 const_reference back() const noexcept;
 T* data() noexcept;
 const T* data() const noexcept;
+slice<T> as_slice() noexcept;  slice<const T> as_slice() const noexcept;                              // the elements, holding the buffer
+slice<T> as_slice(size_type pos, size_type n = size_type(-1));  slice<const T> as_slice(size_type pos, size_type n = size_type(-1)) const;   // [pos, pos + n): out_of_range past the size
 ```
 
-`front` and `back` require a non-empty vector. `data()` is the buffer as a plain pointer (null for a vector that has no buffer), valid under the same conditions as any pointer to an element.
+`front` and `back` require a non-empty vector. `data()` is the buffer as a plain pointer (null for a vector that has no buffer), valid under the same conditions as any pointer to an element. `as_slice()` is the elements as a [slice](../core/slice.md) that holds the buffer: valid whatever the vector does next — a reallocation leaves the slice on the old buffer, alive and unchanged, not on freed memory — and what a stream reads into (`r->read(v.as_slice())`) or a function takes as its range.
 
 ```cpp
 sgcl::vector v = {1, 2, 3};
 v.front() = 0;
 v.back() = 9;
-std::span<int> view(v.data(), v.size());   // a view: valid until v reallocates or dies
+sgcl::slice<int> all = v.as_slice();       // {0, 2, 9}, holding the buffer
+sgcl::slice<int> tail = v.as_slice(1);     // {2, 9}
+v.push_back(4); v.push_back(5);            // a reallocation, perhaps: all and tail still read the old elements
 ```
 
 ### Iterators
@@ -284,35 +286,34 @@ v.resize(2);          // 1 2
 v.resize(4, 7);       // 1 2 7 7
 ```
 
-### Algorithms
+### The mixins
 
 ```cpp
-bool contains(const auto& value) const;    // anything an element compares with
-size_t index_of(const auto& value) const;                 // npos when none
-size_t last_index_of(const auto& value) const;
-template<class Pred> size_t find_index(Pred pred) const;
-template<class Pred> T* find(Pred pred) noexcept;      // null when none; and const
-template<class Pred> bool exists(Pred pred) const;
-template<class Pred> bool all(Pred pred) const;
+// m_enumerable
+template<class Pred> size_t find_index(Pred pred) const;   // npos when none
+template<class Pred> T* find_if(Pred pred) noexcept;       // null when none; and const
+template<class Pred> bool exists(Pred pred) const;  template<class Pred> bool all(Pred pred) const;
 template<class Pred> size_t count_of(Pred pred) const;
-template<class F> void for_each(F f);                  // and const
-const T& min() const;  template<class Compare> const T& min(Compare cmp) const;   // undefined when empty, as front()
-const T& max() const;  template<class Compare> const T& max(Compare cmp) const;
-void fill(const auto& value);
-void reverse() noexcept;
-void sort();  template<class Compare> void sort(Compare cmp);
-bool is_sorted() const;  template<class Compare> bool is_sorted(Compare cmp) const;
-bool binary_search(const auto& value) const;  size_t sorted_index_of(const auto& value) const;   // on a sorted sequence: whether the value is there, its position (npos when not); and with a comparator
-auto lower_bound(const auto& value);  auto upper_bound(const auto& value);   // the first position not less than the value, the first greater; and const, and with a comparator
+template<class F> void for_each(F f);                      // and const
+bool contains(const auto& value) const;                    // elements with ==: anything an element compares with
+size_t index_of(const auto& value) const;  size_t last_index_of(const auto& value) const;   // npos when none
+decltype(auto) min() const;  decltype(auto) max() const;   // elements with <; and with a comparator
+// m_ordered
+bool is_sorted() const;  bool binary_search(const auto& value) const;  size_t sorted_index_of(const auto& value) const;   // on a sorted vector; and with a comparator
+auto lower_bound(const auto& value);  auto upper_bound(const auto& value);   // and const, and with a comparator
+void sort();  template<class Compare> void sort(Compare cmp);  template<class Proj> void sort_by(Proj proj);  void stable_sort();
+// m_sequence
+void fill(const auto& value);  void reverse() noexcept;
+// m_equatable, m_comparable: == and <=>, below
 ```
 
-The members of [`m_sequence`](m_sequence.md), the mixin every sequence of the library carries: the algorithms of `<algorithm>` as members, so that `v.sort()` reads as `v.push_back(x)` does. A linear search from the front (`last_index_of` walks the whole sequence); `index_of`, `last_index_of` and `find_index` give the position, or `npos` when nothing matches; `find` the element the predicate accepts first, or null. `reverse` and `sort` are `std::reverse` and `std::sort` over the buffer.
+The members of the mixins every sequence of the library carries ([the mixins](../core/mixin/README.md)): the questions of [m_enumerable](../core/mixin/m_enumerable.md), the order of [m_ordered](../core/mixin/m_ordered.md), the writes of [m_sequence](../core/mixin/m_sequence.md), so that `x.sort()` reads as `x.push_back(x)` does. A question that compares elements exists only for elements that compare; `index_of`, `last_index_of` and `find_index` give the position, or `npos` when nothing matches, `find_if` the element the predicate accepts first, or null.
 
 ```cpp
 sgcl::vector v = {5, 3, 9, 3};
 assert(v.contains(9) && v.index_of(3) == 1 && v.last_index_of(3) == 3 && v.index_of(7) == sgcl::npos);
 assert(v.find_index([](int x) { return x > 4; }) == 0 && v.exists([](int x) { return x == 9; }) && !v.all([](int x) { return x > 3; }));
-if (int* big = v.find([](int x) { return x > 8; })) {
+if (int* big = v.find_if([](int x) { return x > 8; })) {
     *big = 8;
 }
 assert(v.count_of([](int x) { return x == 3; }) == 2 && v.min() == 3 && v.max() == 8);
@@ -341,7 +342,7 @@ friend bool operator==(const vector& l, const vector& r);
 friend auto operator<=>(const vector& l, const vector& r);
 ```
 
-Element-wise, as for `std::vector`: `==` compares sizes first, `<=>` is lexicographical with the synthesized three-way comparison (`<=>` of `T` when it has one, else a `std::weak_ordering` built from `<`), so `<`, `<=`, `>`, `>=` and `!=` follow.
+From [m_equatable](../core/mixin/m_equatable.md) and [m_comparable](../core/mixin/m_comparable.md), for elements that compare. Element-wise, as for `std::vector`: `==` compares sizes first, `<=>` is lexicographical with the synthesized three-way comparison (`<=>` of `T` when it has one, else a `std::weak_ordering` built from `<`), so `<`, `<=`, `>`, `>=` and `!=` follow.
 
 ```cpp
 sgcl::vector<int> a = {1, 2}, b = {1, 3};

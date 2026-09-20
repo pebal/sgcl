@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [UniquePtr](../Sgcl/Core/UniquePtr.md).
-
 `unique_ptr<T>` is what [`make_tracked<T>(...)`](make_tracked.md) returns: a `std::unique_ptr` whose object lives on the managed heap and whose deleter destroys it there. It behaves like any `std::unique_ptr`: sole owner, move-only, the object destroyed at scope exit, deterministically, on the thread that drops it. What it adds is the collector's side of the deal: while a `unique_ptr` owns an object, that object is a root, and so is everything reachable from it; and the `unique_ptr` converts into a [`tracked_ptr`](tracked_ptr.md), after which the object belongs to the collector, destroyed when nothing reaches it any more.
 
 The class derives from `std::unique_ptr<T, detail::UniqueDeleter>`, so `get()`, `release()`, `reset()`, `swap()`, `operator*`, `operator->`, `operator bool`, the comparisons and `std::hash` are the standard ones. On top it has the dynamic type of its object (`type()`, `is<U>()`, `as<U>()`), a conversion to `unique_ptr<void>&`, and the three pointer casts as free functions.

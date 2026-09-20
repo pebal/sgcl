@@ -16,7 +16,12 @@ namespace sgcl {
     // (trivially copyable, storable anywhere) that stay valid for as long
     // as the element is in the container, exactly as in std.
     template<class Key, class Compare = std::less<Key>>
-    class multiset : public detail::RbTree<detail::SetTraits<Key, Compare, true>> {
+    class multiset
+    : public detail::RbTree<detail::SetTraits<Key, Compare, true>>
+    , public m_enumerable<multiset<Key, Compare>>
+    , public m_bidirectional<multiset<Key, Compare>>
+    , public m_equatable<multiset<Key, Compare>>
+    , public m_comparable<multiset<Key, Compare>> {
         using Base = detail::RbTree<detail::SetTraits<Key, Compare, true>>;
 
     public:
@@ -26,6 +31,21 @@ namespace sgcl {
         using typename Base::const_iterator;
 
         using Base::Base;
+
+        // By the key, the container's own, in place of m_enumerable's walk
+        using Base::contains;
+
+        // The smallest and the largest element are the ends of the order,
+        // O(1), in place of m_enumerable's walk (hidden, the overloads with
+        // a comparator too: the container orders by its own comparator)
+
+        const value_type& min() const noexcept {
+            return *this->begin();
+        }
+
+        const value_type& max() const noexcept {
+            return *this->rbegin();
+        }
 
         multiset() = default;
         multiset(const multiset&) = default;

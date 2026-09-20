@@ -8,8 +8,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [Semaphore](../Sgcl/Async/Semaphore.md).
-
 A semaphore of *n* permits: `acquire()` takes one, `release()` gives one back; a channel holding *n* signals, one of the family the [mutex](mutex.md)'s page describes (each of the five ([mutex](mutex.md), [semaphore](semaphore.md), [event](event.md), [wait_group](wait_group.md), [once](once.md)) a channel of signals under the name of what it does, with the three forms of a wait a [channel](channel.md) has: blocking, for a thread; awaitable, for a task, which holds no thread while it waits; and as a case of a [select](select.md)).
 
 ## Rules

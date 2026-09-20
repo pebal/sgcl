@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [Thread](../Sgcl/Async/Thread.md).
-
 `sgcl::thread` is `std::thread` under the library's name, and `sgcl::this_thread` is `std::this_thread` (`yield`, `sleep_for`, `sleep_until`, `get_id`), so that a program written against the library names one namespace for what it starts and what it shares: the containers, the atomics and the threads that use them. Nothing is added: the constructors, `join`, `detach`, `joinable`, `get_id`, `hardware_concurrency`, `swap` and the destructor (a thread still joinable when destroyed ends the program) are the standard's.
 
 ## Rules

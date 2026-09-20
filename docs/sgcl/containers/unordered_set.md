@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [HashSet](../Sgcl/Containers/HashSet.md).
-
 `sgcl::unordered_set<Key, Hash, KeyEqual>` is `std::unordered_set` over managed nodes: the same hash table as [unordered_map](unordered_map.md), holding keys alone. The interface is the one of `std::unordered_set` (constructors, `insert`, `emplace`, `erase`, `extract`, `merge`, node handles, the lookups with transparent hash and equality, forward iterators, the bucket interface, `load_factor`/`max_load_factor`/`rehash`/`reserve`, `hash_function`/`key_eq`, `swap`, `==`, deduction guides, `std::erase_if`), and so is the behaviour: unique keys, an element destroyed the moment it is erased, iterators valid across a rehash and until their element is erased.
 
 What differs from `std` is where the memory lives. The set holds two `tracked_ptr`s (the bucket array and a sentinel node), the counts, the hasher and the equality, so it lives where a `tracked_ptr` may live; the elements are nodes on the managed heap, forming one chain linked by tracked pointers and traced from the sentinel, so a `unordered_set<tracked_ptr<T>>` is a set of traced pointers (`std::hash<sgcl::tracked_ptr<T>>` hashes the address) and a cycle through a set is collected like any other. Nothing is freed by hand: an `erase` destroys the element and unlinks the node, the collector reclaims the node later. The hash of each key is cached in its node. The bucket count is 0 or a power of two, and the table grows when the size reaches `bucket_count() * max_load_factor()`, doubling at least, to eight buckets at the least. Iterators are one raw node pointer each, trivially copyable, storable anywhere. As in `std`, `iterator` and `const_iterator` are one type, yielding `const Key&`: a key is never modified in place (the cached hash and the bucket would no longer match); `extract` it and insert it back. Lookups and iteration pay no write barrier; insertions, erasures and rehashes store tracked pointers and pay the barrier on each link they relink ([README: Containers](README.md#containers)).
@@ -275,7 +273,7 @@ O(1) on average, reading raw pointers only; the cached hash is compared before t
 sgcl::unordered_set<sgcl::string> s = {"apple"};   // std::hash and std::equal_to of a string are transparent
 bool has = s.contains("apple");    // no sgcl::string is built for the literal
 sgcl::string line = "apple pie";
-bool piece = s.contains(line.view(0, 5));   // a view of another string, nothing built either
+bool piece = s.contains(line.as_slice(0, 5));   // a slice of another string, nothing built either
 ```
 
 ### Bucket interface
@@ -331,6 +329,15 @@ key_equal key_eq() const;
 ```
 
 Copies of the hasher and the equality.
+
+### The mixins
+
+`unordered_set` carries [m_enumerable](../core/mixin/m_enumerable.md): `exists`, `all`, `count_of`, `find_if`, `for_each`; `contains` is the set's own, by the key ([the mixins](../core/mixin/README.md)). Its `==` is its own, in any order; no `<=>`, the iteration order not being a value.
+
+```cpp
+sgcl::unordered_set<int> s = {1, 2, 3};
+assert(s.contains(2) && s.count_of([](int x) { return x % 2; }) == 2);
+```
 
 ### Comparisons
 

@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [ConcurrentWeakDictionary](../Sgcl/Concurrent/ConcurrentWeakDictionary.md).
-
 `concurrent_weak_map<Key, T>` is the [weak_map](../containers/weak_map.md) shared by any number of threads without a lock: a map from objects to values that does not keep the objects alive, over the lock-free hash table of [concurrent_unordered_map](concurrent_unordered_map.md) (Java's `WeakHashMap` with the concurrency of its `ConcurrentHashMap`). The key is the object itself, its identity and not its contents: an entry is looked up, made and erased by a `tracked_ptr<Key>` to the object and held by a [`weak_ptr`](../core/weak_ptr.md). An entry whose object the collector has found unreachable is dead: never found, passed over by the iteration, dropped by a sweep. Metadata attached to objects from several threads, a cache keyed by the object that the workers share, a registry that forgets. [`concurrent_weak_set`](concurrent_weak_set.md) holds the objects alone.
 
 The entries are hashed and compared by the object's address, as in `weak_map`, which the weak pointer's cell holds while the object lives and the collector clears before the address can be handed out again ([Weak pointers](../core/README.md#weak-pointers)); so a dead entry equals nothing, its own key included, and can neither be found nor block the entry of the object that takes the slot next. One thing differs from the sequential map: the split-ordered list keeps a node's place from the hash at the insertion and hashes the key again to erase by iterator, and the address, so the hash, is gone once the object dies; so an entry carries the hash it was placed with, and is erased from where it was put.

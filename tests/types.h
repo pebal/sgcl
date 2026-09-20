@@ -137,12 +137,23 @@ struct Int {
         return _value;
     }
 
+    // Against an Int and against an int: the pair of a type that converts
+    // to int needs the same-type overloads too, or C++20's reversed
+    // candidates make `a == b` ambiguous (and a concept sees it as no ==)
+    bool operator==(const Int& other) const noexcept {
+        return _value == other._value;
+    }
+
+    std::strong_ordering operator<=>(const Int& other) const noexcept {
+        return _value <=> other._value;
+    }
+
     bool operator==(int value) const noexcept {
-        return (_value <=> value) == 0;
+        return _value == value;
     }
 
     std::strong_ordering operator<=>(int value) const noexcept {
-        return (_value <=> value);
+        return _value <=> value;
     }
 
     inline static size_t counter = 0;

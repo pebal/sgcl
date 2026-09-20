@@ -15,8 +15,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [Expected](../Sgcl/Core/Expected.md).
-
 `sgcl::expected<T, E>` is `std::expected` (C++23) for a value or an error that holds a tracked pointer. `std::expected` keeps the two in a union, where a `tracked_ptr` value shares its word with the error's data (the offset leaves the collector's pointer map by elimination: [README: Pointer maps](../../garbage_collector/overview.md#pointer-maps)). Here they lie in a [`variant`](variant.md): a pointer word (`tracked_ptr` of either kind, [`weak_ptr`](weak_ptr.md)) in a word of its own, a value or an error that may hold pointers among its data in a place of its own, the pointer-free ones in the shared data storage. The library is C++20, so `unexpected`, `unexpect`, `unexpect_t` and `bad_expected_access` are the library's own, with the interfaces of the `std` ones.
 
 The interface is that of `std::expected`: the constructors (from a value, from an `unexpected`, from an `expected<U, G>`, `in_place`, `unexpect`), the assignments, `emplace`, `swap`, `operator->`, `operator*`, `operator bool`, `has_value`, `value` (`bad_expected_access<E>` carrying the error when there is none), `error`, `value_or`, `error_or`, the monadic `and_then`, `or_else`, `transform`, `transform_error`, the comparisons with an `expected`, a value and an `unexpected`; `expected<void, E>` for a success without a value. Not `constexpr`, and the `expected` of pointer-free types is what `std::expected` is for.

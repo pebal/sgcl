@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [ConcurrentHashSet](../Sgcl/Concurrent/ConcurrentHashSet.md).
-
 `sgcl::concurrent_unordered_set<Key, Hash, KeyEqual>` is a lock-free hash set shared by any number of threads: the split-ordered list of [concurrent_unordered_map](concurrent_unordered_map.md), which has the account of the algorithm and the rules, with the key as the element. The elements are const, as in `std::unordered_set`; everything else is the map's: `find`, `contains` and `count` wait-free; `insert`, `emplace` and `erase` lock-free and linearizable; `size`, `empty`, `bucket_count`, `reserve`, `clear`; weakly consistent iteration in the order of the list.
 
 ## Members

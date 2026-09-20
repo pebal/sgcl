@@ -20,8 +20,8 @@ namespace sgcl {
     class atomic_ref;
     class collector;
 
-    template<class, size_t>
-    struct array;
+    template<class, size_t, class>
+    class array;
     template<class, class, class>
     class concurrent_map;
     template<class>

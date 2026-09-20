@@ -11,8 +11,6 @@ namespace sgcl {
 }
 ```
 
-The same classes in the `Sgcl` interface: [WeakDictionary, WeakMultiDictionary](../Sgcl/Containers/WeakDictionary.md).
-
 `weak_map<Key, T>` maps objects to values without keeping the objects alive. The key is the object itself, its identity and not its contents: an entry is looked up, made and erased by a `tracked_ptr<Key>` to the object, and held by a [`weak_ptr`](../core/weak_ptr.md). An entry whose object the collector has found unreachable is dead: never found, passed over by the iteration, dropped by a sweep. Metadata attached to objects from outside, a cache keyed by the object, a registry that forgets. `weak_multimap` holds several values per object; [`weak_set`](weak_set.md) holds the objects alone.
 
 The entries are hashed and compared by the object's address, which the weak pointer's cell holds while the object lives and the collector clears before the address can be handed out again (the weak phase runs before the sweep that frees the slot: [Weak pointers](../core/README.md#weak-pointers)). So a dead entry equals nothing, its own key included, and can neither be found nor block the entry of the object that takes the slot next. Dead entries are swept out every so many insertions, as many as the map has entries, so that a pass costs less than the insertions that paid for it, and on `sweep()`; `size()` counts the entries a sweep has not yet dropped. The values are the map's own, destroyed with the entry. A value holding a strong pointer to its own key keeps the key alive, and the entry with it: the map has no ephemerons.

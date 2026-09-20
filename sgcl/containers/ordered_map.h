@@ -6,6 +6,7 @@
 #pragma once
 
 #include "../core/aliases.h"
+#include "../core/mixin/mixin.h"
 #include "detail/hash_table.h"
 
 namespace sgcl {
@@ -26,7 +27,10 @@ namespace sgcl {
     // one raw node pointer and may live anywhere, invalid once its
     // element is erased, as in std.
     template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
-    class ordered_map : public detail::HashTable<detail::HashMapTraits<Key, T, Hash, KeyEqual, true, true>> {
+    class ordered_map
+    : public detail::HashTable<detail::HashMapTraits<Key, T, Hash, KeyEqual, true, true>>
+    , public m_enumerable<ordered_map<Key, T, Hash, KeyEqual>>
+    , public m_lookup<ordered_map<Key, T, Hash, KeyEqual>> {
         using Base = detail::HashTable<detail::HashMapTraits<Key, T, Hash, KeyEqual, true, true>>;
 
     public:
@@ -40,6 +44,9 @@ namespace sgcl {
         using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
         using Base::Base;
+
+        // By the key, the container's own, in place of m_enumerable's walk
+        using Base::contains;
 
         ordered_map& operator=(std::initializer_list<value_type> ilist) {
             Base::operator=(ilist);

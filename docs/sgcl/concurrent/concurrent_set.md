@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [ConcurrentSortedSet](../Sgcl/Concurrent/ConcurrentSortedSet.md).
-
 `sgcl::concurrent_set<Key, Compare>` is a lock-free ordered set shared by any number of threads: the skip list of [concurrent_map](concurrent_map.md), which has the account of the algorithm and the rules, with the key as the element (Java's `ConcurrentSkipListSet`). The elements are const, as in `std::set`; everything else is the map's: `find`, `contains`, `count`, `lower_bound` and `upper_bound` wait-free; `insert`, `emplace` and `erase` lock-free and linearizable; `size`, `empty`, `clear`; weakly consistent iteration in key order.
 
 ## Members

@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [Dictionary](../Sgcl/Containers/Dictionary.md).
-
 `sgcl::unordered_map<Key, T, Hash, KeyEqual>` is `std::unordered_map` over managed nodes. The interface is the one of `std::unordered_map`: constructors, `insert`, `emplace`, `try_emplace`, `insert_or_assign`, `operator[]`, `at`, `erase`, `extract`, `merge`, node handles, the lookups with transparent hash and equality, forward iterators (`std::ranges` algorithms work), the bucket interface with local iterators, `load_factor`/`max_load_factor`/`rehash`/`reserve`, `hash_function`/`key_eq`, `swap`, `==`, deduction guides, `std::erase_if`. The behaviour is the one of `std::unordered_map` too: unique keys, an element destroyed the moment it is erased, iterators that stay valid across a rehash and until their element is erased.
 
 What differs is where the memory lives and a few details of the layout. The map object holds two `tracked_ptr`s (the bucket array, a managed array of node pointers, and a sentinel node that precedes the first element), the counts, the hasher and the equality, so it lives where a `tracked_ptr` may live. Every element is a node on the managed heap and the nodes form one chain linked by tracked pointers, as in libstdc++: a bucket points at the node before its first node, so the whole chain is traced from the sentinel, an iterator is one raw node pointer, and an iteration is a load per step. A `unordered_map<Key, tracked_ptr<T>>`, or one inside a managed object, is traced like any other managed data, and a cycle through it is collected like any other cycle. Nothing is freed by hand: an `erase` destroys the element and unlinks the node, the collector reclaims the node later. The hash of each key is cached in its node, so a rehash hashes nothing and a lookup compares hashes before keys. The bucket count is always a power of two (a lookup masks the hash; `rehash` and the constructors round up), the table starts with no bucket array at all, and it grows when the size reaches `bucket_count() * max_load_factor()`, doubling at least, to eight buckets at the least. A lookup, an iteration and an iterator copy read raw pointers only and pay no write barrier; an insertion, an erasure and a rehash store tracked pointers and pay the barrier on each link they relink ([README: Containers](README.md#containers)).
@@ -353,7 +351,7 @@ O(1) on average, reading raw pointers only; the cached hash is compared before t
 sgcl::unordered_map<sgcl::string, int> m = {{"apple", 1}};   // std::hash and std::equal_to of a string are transparent
 bool has = m.contains("apple");    // no sgcl::string is built for the literal
 sgcl::string line = "apple pie";
-sgcl::string_view key = line.view(0, 5);   // a piece of another string, a view holding its object
+sgcl::string_slice key = line.as_slice(0, 5);   // a piece of another string, a slice holding its object
 auto it = m.find(key);             // it->second == 1, nothing built either
 ```
 
@@ -417,6 +415,15 @@ Copies of the hasher and the equality.
 sgcl::unordered_map<int, int> m;
 bool eq = m.key_eq()(1, 1);                       // true
 size_t h = m.hash_function()(1);
+```
+
+### The mixins
+
+`unordered_map` carries [m_enumerable](../core/mixin/m_enumerable.md) (`exists`, `count_of`, `find_if`, `for_each` over the pairs; `contains` its own) and [m_lookup](../core/mixin/m_lookup.md) — `get`, `try_get`, `value_or`, `contains_key`, `keys`, `values` ([the mixins](../core/mixin/README.md)); its `==` is its own, in any order.
+
+```cpp
+sgcl::unordered_map<sgcl::string, int> ports = {{"http", 80}};
+assert(*ports.get("http") == 80 && ports.value_or("ftp", 21) == 21 && ports.all([](const auto& kv) { return kv.second > 0; }));
 ```
 
 ### Comparisons

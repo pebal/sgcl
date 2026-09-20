@@ -6,10 +6,10 @@
 #pragma once
 
 #include "../core/make_tracked.h"
+#include "../core/mixin/mixin.h"
+#include "../core/slice.h"
 #include "../core/tracked_ptr.h"
 #include "detail/contiguous_iterator.h"
-#include "detail/synth_three_way.h"
-#include "m_sequence.h"
 
 #include <algorithm>
 #include <cstring>
@@ -39,7 +39,15 @@ namespace sgcl {
     // The buffer is held by a tracked_ptr, so the vector lives where one
     // may: on a stack or inside a managed object.
     template<class T>
-    class vector : public m_sequence<vector<T>> {   // the algorithms as members
+    class vector
+    : public m_enumerable<vector<T>>
+    , public m_contiguous<vector<T>>
+    , public m_random_access<vector<T>>
+    , public m_bidirectional<vector<T>>
+    , public m_equatable<vector<T>>
+    , public m_comparable<vector<T>>
+    , public m_ordered<vector<T>>
+    , public m_sequence<vector<T>> {
     public:
         using value_type = T;
         using reference = T&;
@@ -231,6 +239,39 @@ namespace sgcl {
 
         const T* data() const noexcept {
             return _values();
+        }
+
+        // The elements as a slice that holds the buffer (slice.h): valid
+        // whatever the vector does next — a reallocation leaves the slice
+        // on the old buffer, alive and unchanged, not on freed memory
+        slice<T> as_slice() noexcept {
+            return slice<T>(tracked_ptr<const void>(_ptr), _values(), _values() + _size);
+        }
+
+        slice<const T> as_slice() const noexcept {
+            return slice<const T>(tracked_ptr<const void>(_ptr), _values(), _values() + _size);
+        }
+
+        slice<T> as_slice(size_type pos, size_type n = size_type(-1)) {
+            if (pos > _size) {
+                throw std::out_of_range("sgcl::vector::as_slice");
+            }
+            return slice<T>(tracked_ptr<const void>(_ptr), _values() + pos, _values() + pos + std::min(n, _size - pos));
+        }
+
+        slice<const T> as_slice(size_type pos, size_type n = size_type(-1)) const {
+            if (pos > _size) {
+                throw std::out_of_range("sgcl::vector::as_slice");
+            }
+            return slice<const T>(tracked_ptr<const void>(_ptr), _values() + pos, _values() + pos + std::min(n, _size - pos));
+        }
+
+        operator slice<T>() noexcept {
+            return as_slice();
+        }
+
+        operator slice<const T>() const noexcept {
+            return as_slice();
         }
 
         iterator begin() noexcept {
@@ -532,14 +573,6 @@ namespace sgcl {
 
         friend void swap(vector& l, vector& r) noexcept {
             l.swap(r);
-        }
-
-        friend bool operator==(const vector& l, const vector& r) {
-            return l.size() == r.size() && std::equal(l.begin(), l.end(), r.begin());
-        }
-
-        friend auto operator<=>(const vector& l, const vector& r) {
-            return std::lexicographical_compare_three_way(l.begin(), l.end(), r.begin(), r.end(), detail::synth_three_way);
         }
 
     private:

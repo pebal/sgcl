@@ -65,8 +65,7 @@ The managed heap is one virtual range reserved at first use and backed lazily; p
 
 ```cpp
 static_assert(sgcl::config::ChunkSize == 32 * sgcl::config::PageSize);
-size_t pages = sgcl::collector::get_committed_memory() / sgcl::config::PageSize;          // sgcl
-size_t samePages = Collector::CommittedMemory() / sgcl::config::PageSize;       // Sgcl: the constants are the same
+size_t pages = sgcl::collector::get_committed_memory() / sgcl::config::PageSize;
 ```
 
 ### HeapReserveFactor, HeapReserveMinimum, HeapReserveFloor
@@ -99,12 +98,11 @@ static constexpr size_t HeapLimitPercent = 90;
 static constexpr size_t HeapPressurePercent = 75;
 ```
 
-The default ceiling on committed managed memory is `HeapLimitPercent` of the effective memory limit (the cgroup limit on Linux, else the physical memory), leaving the rest to everything outside the managed heap; `collector::set_memory_limit()` (`Collector::SetMemoryLimit()`) overrides it at run time, `0` disables it. Above `HeapPressurePercent` of the ceiling the collector cycles every `PressureSleepTime` and returns every free chunk; at the ceiling an allocation forces a full collection and, failing that, throws `std::bad_alloc` ([collector](collector.md#get_memory_limit-set_memory_limit), [Collector](../Sgcl/Core/Collector.md#memorylimit-setmemorylimit)).
+The default ceiling on committed managed memory is `HeapLimitPercent` of the effective memory limit (the cgroup limit on Linux, else the physical memory), leaving the rest to everything outside the managed heap; `collector::set_memory_limit()` (`Collector::SetMemoryLimit()`) overrides it at run time, `0` disables it. Above `HeapPressurePercent` of the ceiling the collector cycles every `PressureSleepTime` and returns every free chunk; at the ceiling an allocation forces a full collection and, failing that, throws `std::bad_alloc` ([collector](collector.md#get_memory_limit-set_memory_limit)).
 
 ```cpp
 size_t ceiling = sgcl::collector::get_memory_limit();          // HeapLimitPercent of the machine's limit
 size_t pressure = ceiling / 100 * sgcl::config::HeapPressurePercent;
-size_t sameCeiling = Collector::MemoryLimit();        // the same, in the Sgcl interface
 ```
 
 ### StackClearSize, StackGuardMargin
@@ -119,8 +117,6 @@ Stack roots are found by scanning the used part of every thread's stack, so word
 ```cpp
 sgcl::collector::clear_stack();                                 // StackClearSize bytes
 sgcl::collector::clear_stack(4 * sgcl::config::StackClearSize); // 256 KB, for deep dead frames
-Collector::ClearStack();                               // the same, in the Sgcl interface
-Collector::ClearStack(4 * sgcl::config::StackClearSize);
 ```
 
 ### MaxTypesNumber
@@ -310,51 +306,8 @@ int main() {
 }
 ```
 
-The same in `Sgcl` (the constants are `sgcl::config`'s in both):
-
-```cpp
-#include "sgcl/Sgcl/Sgcl.h"
-#include <algorithm>
-#include <iostream>
-#include <thread>
-
-// Prints the configuration the program was built with, next to what the
-// collector does with it. Build with -DSGCL_GENERATIONAL=0 or
-// -DSGCL_SWEEP_THREADS_MAX=2 to see the values change.
-int main() {
-    namespace config = sgcl::config;
-    std::cout << "page " << config::PageSize / 1024 << " KB, chunk " << config::ChunkSize / 1048576
-              << " MB, " << config::HeapFreeChunkReserve << " free chunks kept committed\n";
-    std::cout << "generational: " << (config::Generational ? "yes" : "no") << ", a full cycle after "
-              << config::YoungCyclesMax << " young ones or " << config::FullCycleGrowthPercent << "% growth\n";
-    size_t helpers = config::SweepThreadsMax ? config::SweepThreadsMax
-                                             : std::min<size_t>(8, std::max<size_t>(1, std::thread::hardware_concurrency() / 2));
-    std::cout << "helpers: at most " << helpers << ", sweeping from " << config::SweepPageThreshold << " pages, marking from "
-              << config::MarkObjectThreshold << " objects, switched on by " << (config::HelpersGrowthThreshold >> 20)
-              << " MB of growth\n";
-    std::cout << "stack: " << config::StackClearSize / 1024 << " KB zeroed before a count, "
-              << config::StackGuardMargin / 1024 << " KB guard\n";
-
-    // the ceiling the defaults produced on this machine, and the pressure line under it
-    size_t ceiling = Collector::MemoryLimit();
-    std::cout << "ceiling " << (ceiling >> 20) << " MB (" << config::HeapLimitPercent << "% of the limit), pressure above "
-              << (ceiling / 100 * config::HeapPressurePercent >> 20) << " MB\n";
-
-    // some work, then the counters that the constants above shape
-    List<Ptr<int>> kept;
-    for (int i : Range(100000)) {
-        kept.Add(Make<int>(i));
-    }
-    Collector::Collect(true);      // optional, for the demonstration only: the collector runs its cycles by itself
-    auto s = Collector::GetStatistics();
-    std::cout << s.Cycles << " cycles, " << s.FullCycles << " full; helpers "
-              << (s.HelpersEnabled ? "on" : "off") << ", " << s.HelperThreads << " started\n";
-    return 0;
-}
-```
-
 ## See also
 
-- [collector](collector.md), [Collector](../Sgcl/Core/Collector.md): the functions that read and override what the constants set (`get_statistics`, `get_memory_limit`, `set_memory_limit`, `clear_stack`; `GetStatistics`, `MemoryLimit`, `SetMemoryLimit`, `ClearStack`).
+- [collector](collector.md): the functions that read and override what the constants set (`get_statistics`, `get_memory_limit`, `set_memory_limit`, `clear_stack`).
 - README: [Generations](../../garbage_collector/overview.md#generations), [Memory](../../garbage_collector/overview.md#memory), [Stack roots](../../garbage_collector/overview.md#stack-roots), [Threads](../async/README.md#threads), [Dependencies and usage](../../../README.md#dependencies-and-usage).
 - `tests/core/generational.cpp`, `tests/core/heap.cpp`, `tests/core/sweep.cpp`, `tests/core/marking.cpp`: the constants exercised.

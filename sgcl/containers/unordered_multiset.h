@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../core/mixin/mixin.h"
 #include "detail/hash_table.h"
 
 namespace sgcl {
@@ -16,7 +17,9 @@ namespace sgcl {
     // fine): its node is rooted by the set while the element is in it, and
     // an iterator to an erased element is invalid as in std.
     template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
-    class unordered_multiset : public detail::HashTable<detail::HashSetTraits<Key, Hash, KeyEqual, false>> {
+    class unordered_multiset
+    : public detail::HashTable<detail::HashSetTraits<Key, Hash, KeyEqual, false>>
+    , public m_enumerable<unordered_multiset<Key, Hash, KeyEqual>> {
         using Base = detail::HashTable<detail::HashSetTraits<Key, Hash, KeyEqual, false>>;
 
     public:
@@ -25,6 +28,9 @@ namespace sgcl {
         using size_type = typename Base::size_type;
 
         using Base::Base;
+
+        // By the key, the container's own, in place of m_enumerable's walk
+        using Base::contains;
 
         unordered_multiset& operator=(std::initializer_list<value_type> ilist) {
             Base::operator=(ilist);

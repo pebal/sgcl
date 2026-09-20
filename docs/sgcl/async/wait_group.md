@@ -8,8 +8,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [WaitGroup](../Sgcl/Async/WaitGroup.md).
-
 A wait group: `add(n)` counts the work, `done()` counts it off, `wait()` waits for the count to reach zero; a group whose count came back from zero (an `add` after the work was done) is waited for again, as Go's is. Under it a channel per round, closed when the count reaches zero and replaced by the `add` that starts the next round; the old ones are the collector's. One of the family the [mutex](mutex.md)'s page describes (each of the five ([mutex](mutex.md), [semaphore](semaphore.md), [event](event.md), [wait_group](wait_group.md), [once](once.md)) a channel of signals under the name of what it does, with the three forms of a wait a [channel](channel.md) has: blocking, for a thread; awaitable, for a task, which holds no thread while it waits; and as a case of a [select](select.md)). A [task_group](task_group.md) is a wait group over the children it spawns, with their exceptions and their cancellation.
 
 ## Rules

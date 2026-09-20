@@ -23,7 +23,7 @@ TEST(MSequence_Tests, TheAlgorithmsAreMembersOfEverySequence) {
     sgcl::list l = {3, 1, 2};
     sgcl::forward_list f = {3, 1, 2};
     sgcl::array<int, 3> a = {3, 1, 2};
-    sgcl::array<int> da = {3, 1, 2};
+    sgcl::dynamic_array<int> da = {3, 1, 2};
     sgcl::array<int, 0> z;
     v.sort(); d.sort(); l.sort(); f.sort(); a.sort(); da.sort();
     EXPECT_TRUE(v.is_sorted() && d.is_sorted() && l.is_sorted() && f.is_sorted() && a.is_sorted() && da.is_sorted());
@@ -32,7 +32,7 @@ TEST(MSequence_Tests, TheAlgorithmsAreMembersOfEverySequence) {
     EXPECT_EQ(d.last_index_of(1), 2u);
     EXPECT_TRUE(l.contains(2));
     EXPECT_EQ(f.find_index([](int x) { return x == 1; }), 2u);
-    EXPECT_EQ(*a.find([](int x) { return x < 3; }), 2);
+    EXPECT_EQ(*a.find_if([](int x) { return x < 3; }), 2);
     EXPECT_TRUE(da.exists([](int x) { return x == 3; }));
     EXPECT_TRUE(v.all([](int x) { return x > 0; }));
     EXPECT_EQ(v.count_of([](int x) { return x > 1; }), 2u);
@@ -64,10 +64,10 @@ TEST(MSequence_Tests, TheAlgorithmsAreMembersOfEverySequence) {
     const sgcl::deque sorted_deque = {2, 4};
     EXPECT_EQ(*sorted_deque.lower_bound(3), 4);
     EXPECT_FALSE(z.binary_search(1));
-    // a mixin: no state, no size
-    sgcl::m_sequence<sgcl::vector<int>>& m = v;
-    EXPECT_TRUE(m.contains(7));
+    // the mixins: no state, no size
+    static_assert(std::is_empty_v<sgcl::m_enumerable<sgcl::vector<int>>> && std::is_empty_v<sgcl::m_ordered<sgcl::vector<int>>> && std::is_empty_v<sgcl::m_sequence<sgcl::vector<int>>>);
     static_assert(sizeof(sgcl::array<int, 3>) == 3 * sizeof(int));
+    static_assert(sizeof(sgcl::vector<int>) == sizeof(sgcl::vector<int>::size_type) * 2 + sizeof(void*));
 }
 
 TEST(MSequence_Tests, TheDeductionGuides) {

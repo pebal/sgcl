@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [SortedMultiSet](../Sgcl/Containers/SortedMultiSet.md).
-
 `sgcl::multiset<Key, Compare>` is `std::multiset` on a red-black tree whose nodes are managed objects: the same tree as [set](set.md), with equivalent keys allowed. The interface is the one of `std::multiset` (constructors, `insert`, `emplace`, `erase`, `extract`, `merge`, node handles, the lookups with transparent comparators, bidirectional iterators, `key_comp`/`value_comp`, `swap`, `==` and `<=>`, `std::erase_if`), and so is the behaviour: equivalent keys are adjacent and a new one goes after those already there, `erase(key)` removes all of them, `iterator` is `const_iterator`, an element is destroyed the moment it is erased.
 
 What differs from `std` is where the memory lives. The multiset object holds one `tracked_ptr` (to a header node), a count and the comparator, so it lives where a `tracked_ptr` may live; the nodes are managed objects linked by tracked pointers and traced from the header, so elements that are or hold `tracked_ptr`s are traced and a cycle through a multiset is collected like any other. Nothing is freed by hand: an `erase` destroys the element and unlinks the node, the collector reclaims the node later. Iterators are one raw node pointer each, trivially copyable, storable anywhere, valid while their element is in the container. Lookups and iteration read raw pointers and pay no write barrier; insertions, erasures and rebalancing store tracked pointers and pay the barrier on each link they relink ([README: Containers](README.md#containers)). The header is allocated on the first insertion: an empty multiset costs nothing.
@@ -275,7 +273,7 @@ template<class K> bool contains(const K& key) const;          //   "
 sgcl::multiset<sgcl::string> s = {"a", "a"};
 auto n = s.count("a");             // 2, no sgcl::string built for the literal
 sgcl::string text = "a b";
-auto m = s.count(text.view(0, 1)); // 2: a view of another string, nothing built either
+auto m = s.count(text.as_slice(0, 1)); // 2: a view of another string, nothing built either
 ```
 
 ### equal_range, lower_bound, upper_bound
@@ -295,6 +293,15 @@ template<class K> iterator upper_bound(const K& key) const;                     
 sgcl::multiset s = {1, 2, 2, 3};
 auto [from, to] = s.equal_range(2);
 auto twos = std::distance(from, to);      // 2
+```
+
+### The mixins
+
+`multiset` carries [m_enumerable](../core/mixin/m_enumerable.md) (`contains`, `min`, `max` its own), [m_equatable](../core/mixin/m_equatable.md), [m_comparable](../core/mixin/m_comparable.md) and the bidirectional category ([the mixins](../core/mixin/README.md)).
+
+```cpp
+sgcl::multiset<int> s = {3, 1, 1};
+assert(s.min() == 1 && s.count_of([](int x) { return x == 1; }) == 2 && s.exists([](int x) { return x == 3; }));
 ```
 
 ### Comparisons

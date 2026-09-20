@@ -27,7 +27,7 @@ namespace {
     size_t live_string_objects() {
         size_t n = 0;
         for (auto& s : collector::get_type_statistics()) {
-            if (std::string(s.type->name()).find("StringSlot") != std::string::npos || (s.buffers && *s.type == typeid(unsigned char[]))) {
+            if (std::string(s.type->name()).find("StringSlot") != std::string::npos || (s.buffers && *s.type == typeid(detail::StringByte[]))) {   // a long string's buffer has a byte type of its own
                 n += s.live_objects;
             }
         }
@@ -150,7 +150,7 @@ TEST(String_Tests, AMapKeyedByStringsIsSearchedWithAViewAndNoStringIsMade) {
     set<string> names = {"alice", "bob"};
     unordered_set<string> hashed = {"alice", "bob"};
     std::string_view view = "alice";
-    EXPECT_EQ(ages.find(view)->second, 30);       // a string_view converts to no string: this is the transparent lookup
+    EXPECT_EQ(ages.find(view)->second, 30);       // a string_slice converts to no string: this is the transparent lookup
     EXPECT_EQ(ages.at(view), 30);
     EXPECT_EQ(ages.count(view), 1u);
     EXPECT_TRUE(ages.contains(view) && !ages.contains(std::string_view("carol")));
@@ -176,19 +176,19 @@ TEST(String_Tests, AMapKeyedByStringsIsSearchedWithAViewAndNoStringIsMade) {
     EXPECT_LE(collector::get_statistics().live_bytes, before);   // no string made for any lookup (a sweep meanwhile can only lower the count)
 }
 
-TEST(String_Tests, AStringViewHoldsTheObject) {
-    static_assert(sizeof(string_view) == 2 * sizeof(void*));
+TEST(String_Tests, ASliceOfAStringHoldsTheObject) {
+    static_assert(sizeof(string_slice) == 3 * sizeof(void*));   // the owner and two pointers
     string s = "hello, world";
-    string_view whole = s.view();
-    string_view world = s.view(7, 5);
+    string_slice whole = s.as_slice();
+    string_slice world = s.as_slice(7, 5);
     EXPECT_EQ(whole, "hello, world");
     EXPECT_EQ(world, "world");
     EXPECT_EQ(world.size(), 5u);
-    EXPECT_EQ(whole.object(), s.object());                     // the same object, held
-    EXPECT_EQ(world.object(), s.object());
+    EXPECT_EQ(whole.owner().get(), s.object());                // the same object, held
+    EXPECT_EQ(world.owner().get(), s.object());
     EXPECT_EQ(world.substr(1, 3), "orl");
-    EXPECT_EQ(world.substr(1, 3).object(), s.object());         // a view of a view: still that object
-    EXPECT_THROW(s.view(13), std::out_of_range);
+    EXPECT_EQ(world.substr(1, 3).owner().get(), s.object());    // a slice of a slice: still that object
+    EXPECT_THROW(s.as_slice(13), std::out_of_range);
     EXPECT_THROW(world.substr(6), std::out_of_range);
     EXPECT_TRUE(world.starts_with("wo") && world.ends_with('d') && world.contains("rl") && world.find('r') == 2 && world.rfind('l') == 3);
     EXPECT_EQ(world.compare("world"), 0);
@@ -200,79 +200,79 @@ TEST(String_Tests, AStringViewHoldsTheObject) {
     EXPECT_EQ(std::string(world.begin(), world.end()), "world");
     std::string_view std_view = world;                          // converts to the std view
     EXPECT_EQ(std_view, "world");
-    EXPECT_EQ(string(whole).object(), s.object());              // a string of the whole view: the same object
+    EXPECT_EQ(string(whole).object(), s.object());              // a string of the whole slice: the same object
     string copy(world);                                         // of a piece: a new string
     EXPECT_EQ(copy, "world");
     EXPECT_NE(copy.object(), s.object());
     EXPECT_EQ(world.str(), "world");
-    string_view padded = string("  x  ").view();
+    string_slice padded = string("  x  ").as_slice();
     EXPECT_EQ(padded.trim(), "x");
     EXPECT_EQ(padded.trim_left(), "x  ");
     EXPECT_EQ(padded.trim_right(), "  x");
-    EXPECT_EQ(padded.trim().object(), padded.object());         // trimming makes views, not strings
+    EXPECT_EQ(padded.trim().owner(), padded.owner());           // trimming makes slices, not strings
     EXPECT_EQ(whole.trim_prefix("hello"), ", world");
     EXPECT_EQ(whole.trim_suffix("world"), "hello, ");
     EXPECT_EQ(whole.trim_prefix("x"), whole);
-    string_view narrowed = world;
+    string_slice narrowed = world;
     narrowed.remove_prefix(1);
     narrowed.remove_suffix(1);
     EXPECT_EQ(narrowed, "orl");
-    string_view empty;
-    EXPECT_TRUE(empty.empty() && empty == "" && empty.object() == nullptr && string(empty).empty());
+    string_slice empty;
+    EXPECT_TRUE(empty.empty() && empty == "" && !empty.owned() && string(empty).empty());
     EXPECT_TRUE(whole == s && s == whole && whole != world && whole < string("z") && (whole <=> "hello, world") == 0 && "hello, world" == whole);
-    EXPECT_EQ(std::hash<string_view>()(world), string("world").hash());   // the hash a string of the characters has
-    EXPECT_EQ(std::hash<string_view>()(whole), s.hash());
+    EXPECT_EQ(std::hash<string_slice>()(world), string("world").hash());   // the hash a string of the characters has
+    EXPECT_EQ(std::hash<string_slice>()(whole), s.hash());
     std::ostringstream out;
     out << whole << '|' << world;
     EXPECT_EQ(out.str(), "hello, world|world");
     unordered_map<string, int> ages = {{"world", 1}};           // a view finds a string key, transparently
     EXPECT_EQ(ages.find(world)->second, 1);
-    unordered_set<string_view> views;                           // and keys a container of views
+    unordered_set<string_slice> views;                          // and keys a container of slices
     views.insert(world);
     EXPECT_TRUE(views.contains(world) && views.contains(std::string_view("world")) && views.contains("world"));
     settle();
     auto base = live_string_objects();
-    string_view kept;
+    string_slice kept;
     off_frame([&] {
         string temporary = "a,b";
         kept = *temporary.split(',').begin();                   // the piece holds the object
     });
     settle();
-    EXPECT_EQ(kept, "a");                                       // alive: the view is a root
+    EXPECT_EQ(kept, "a");                                       // alive: the slice is a root
     EXPECT_EQ(live_string_objects(), base + 1);
     off_frame([&] {
-        kept = string_view();
+        kept = string_slice();
     });
     settle();
-    EXPECT_EQ(live_string_objects(), base);                     // and gone once no view holds it
+    EXPECT_EQ(live_string_objects(), base);                     // and gone once no slice holds it
 }
 
-TEST(String_Tests, AViewIsTheOnlyHolderOfAStringOfAnySize) {
+TEST(String_Tests, ASliceIsTheOnlyHolderOfAStringOfAnySize) {
     // A string of every size class and past them (a slot, a buffer of a
-    // page, a buffer of many pages) held by nothing but a view of a piece
-    // in its middle, across full collections: the view's word is the
+    // page, a buffer of many pages) held by nothing but a slice of a piece
+    // in its middle, across full collections: the slice's owner is the
     // object's own address, so the collector sees the object whole
     settle();
     auto base = live_string_objects();
-    sgcl::vector<string_view> views;
+    sgcl::vector<string_slice> views;
     sgcl::vector<size_t> sizes = {5, 40, 300, 5000, 70000, 300000};
     off_frame([&] {
         for (size_t n : sizes) {
             std::string text(n, 'x');
             text[n / 2] = 'M';
             string s(text);
-            views.push_back(s.view(n / 2 - 1, 3));              // "xMx", the string held by the view alone
+            views.push_back(s.as_slice(n / 2 - 1, 3));          // "xMx", the string held by the slice alone
         }
     });
     settle();
     EXPECT_EQ(live_string_objects(), base + sizes.size());
-    for (auto& v : views) {
-        EXPECT_EQ(v, "xMx");
-        EXPECT_EQ(v.size(), 3u);
-    }
-    string whole(views.back().substr(0, 0));                    // nothing of it: empty, no allocation
-    EXPECT_TRUE(whole.empty());
-    off_frame([&] {
+    off_frame([&] {                                             // the reads in a frame of their own: a slice copied here would root its string
+        for (auto& v : views) {
+            EXPECT_EQ(v, "xMx");
+            EXPECT_EQ(v.size(), 3u);
+        }
+        string whole(views.back().substr(0, 0));                // nothing of it: empty, no allocation
+        EXPECT_TRUE(whole.empty());
         views.clear();
     });
     settle();
@@ -282,7 +282,7 @@ TEST(String_Tests, AViewIsTheOnlyHolderOfAStringOfAnySize) {
 TEST(String_Tests, SplitAndFieldsAreARangeOfViewsJoinTakesAnyRange) {
     string csv = "a,b,,c";
     static_assert(std::ranges::forward_range<string::pieces>);
-    static_assert(std::is_same_v<std::ranges::range_value_t<string::pieces>, string_view>);   // views that hold the string
+    static_assert(std::is_same_v<std::ranges::range_value_t<string::pieces>, string_slice>);   // slices that hold the string
     auto collect = [](auto&& pieces) {             // the pieces as they come, marked
         std::string s;
         for (std::string_view piece : pieces) {
@@ -309,7 +309,7 @@ TEST(String_Tests, SplitAndFieldsAreARangeOfViewsJoinTakesAnyRange) {
     EXPECT_TRUE(string("   ").fields().empty());
     auto pieces = csv.split(',');                                // a value: the string held, the pieces views into it
     EXPECT_EQ(pieces.text().object(), csv.object());
-    EXPECT_EQ(pieces.begin()->object(), csv.object());           // each piece holds the string's object
+    EXPECT_EQ(pieces.begin()->owner().get(), csv.object());      // each piece holds the string's object
     EXPECT_EQ(std::ranges::distance(pieces), 4);
     auto it = pieces.begin();
     EXPECT_EQ(*it, "a");
@@ -324,7 +324,7 @@ TEST(String_Tests, SplitAndFieldsAreARangeOfViewsJoinTakesAnyRange) {
     }
     EXPECT_EQ(total, 3000u);
     EXPECT_LE(collector::get_statistics().live_bytes, before);   // nothing allocated (a sweep meanwhile can only lower the count)
-    for (string_view piece : csv.split(',')) {                   // a string of a piece: explicit, as std's from a view
+    for (string_slice piece : csv.split(',')) {                  // a string of a piece: explicit, as std's from a view
         EXPECT_LE(string(piece).size(), 1u);
     }
     vector<string> strings(csv.split(','));                      // or a container of them: each constructed from its view

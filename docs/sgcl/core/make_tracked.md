@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same function in the `Sgcl` interface: [Make](../Sgcl/Core/Make.md).
-
 `make_tracked<T>(args...)` creates an object of type `T` on the managed heap, constructed from `args...`, and returns it as a [`unique_ptr<T>`](unique_ptr.md). It is the one way an object enters the managed heap (the containers make their nodes and buffers the same way, internally), and the counterpart of `std::make_unique`: deterministic ownership until the `unique_ptr` is moved into a [`tracked_ptr`](tracked_ptr.md), after which the collector owns the object and destroys it when nothing reaches it, or until the `unique_ptr` is dropped, which destroys the object at once.
 
 The allocation is a slot from a thread-local pool of the object's size class: no lock, no wait for the collector, and no header on the object (the metadata, the type included, is the page's). The collector may read the words of the slot while the constructor runs; the words at the type's pointer offsets are null then (a page is zero when it is issued to a type, and every object of the type that died in the slot since left its pointers null: the destructors of `tracked_ptr` and `unique_ptr` store a null) and the constructor's stores land one by one, which is why a `tracked_ptr` member initialized in the constructor is a root from its store on. A constructor that throws gives the slot back and lets the exception through.

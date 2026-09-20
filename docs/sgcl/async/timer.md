@@ -18,8 +18,6 @@ namespace sgcl {
 }
 ```
 
-The same in the `Sgcl` interface: [Sleep, SleepUntil, After, At, Tick, Timeout](../Sgcl/Async/Time.md).
-
 Time, the way Go has it. `co_await sleep(d)` suspends a task for `d` and holds no thread meanwhile: the task is a frame on the managed heap and a timer, and a worker runs it when the time comes; `co_await sleep_until(t)` the same until a point. `after(d)` is a channel that gets one signal after `d` and is closed then, for whoever wants to wait for a moment as for anything else: `after(1s)->receive()`, or a case of a select; `at(t)` the same at a point, at once for one that has passed. `tick(d)` is a channel that gets a signal every `d`: a loop that does something at a fixed rate receives on it; a tick nobody has taken yet is dropped rather than queued (the channel holds one), so a slow loop sees fewer ticks, not a backlog; closing the channel ends the ticks; `tick(d, first)` puts the first tick at a point (the next whole second, say) and the rest every `d` after it. `timeout(d, f)` is `after(d)` as a case of a [select](select.md), with `f` as the body: the way a wait is bounded; `timeout(t, f)` is `at(t)` as one, a deadline shared by several selects. A thread sleeps with `sleep(d).wait()` or `sleep_until(t).wait()`, which block on the timer's channel.
 
 A point is a `time_point` of the module's [clock](clock.md), `sgcl::clock::now()`: the steady clock's time, unless a test has installed a manual clock, whose time moves only when the test advances it, and then every timer here, and every thread's `wait()`, goes by the test's time: a sleep of thirty seconds completes on `advance(30s)`, in microseconds.

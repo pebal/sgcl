@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [Deque](../Sgcl/Containers/Deque.md).
-
 `sgcl::deque<T>` is `std::deque` over managed memory. The interface is the one of `std::deque` (constructors, `assign`, element access, random-access iterators, `shrink_to_fit`, modifiers at both ends and in the middle, three-way comparison, `std::erase`/`std::erase_if`), and so is the behaviour: elements are constructed at insertion and destroyed at removal, references stay valid across a push or pop at either end, iterators do not.
 
 What differs is where the memory lives. The elements live in blocks on the managed heap (a block holds as many elements as fit in 4 KB, rounded down to a power of two, at least one), addressed through a managed array of block pointers, the map; the deque object is four words (the map, its size, the index of the first element, the count). A map that is outgrown is replaced by a fresh one, never shifted in place. A block emptied by pops stays in the map as the spare block of its end, so a window of elements travelling through the deque allocates no blocks; every block goes when the deque becomes empty. Nothing is ever freed by hand: the blocks and the maps the deque lets go of are reclaimed by the collector once nothing refers to them. A `sgcl::deque<tracked_ptr<T>>` is the managed form of a deque of pointers: its elements are traced, and it may hold cycles like any other managed object.
@@ -270,35 +268,34 @@ d.resize(2);          // 1 2
 d.resize(4, 7);       // 1 2 7 7
 ```
 
-### Algorithms
+### The mixins
 
 ```cpp
-bool contains(const auto& value) const;    // anything an element compares with
-size_t index_of(const auto& value) const;                 // npos when none
-size_t last_index_of(const auto& value) const;
-template<class Pred> size_t find_index(Pred pred) const;
-template<class Pred> T* find(Pred pred) noexcept;      // null when none; and const
-template<class Pred> bool exists(Pred pred) const;
-template<class Pred> bool all(Pred pred) const;
+// m_enumerable
+template<class Pred> size_t find_index(Pred pred) const;   // npos when none
+template<class Pred> T* find_if(Pred pred) noexcept;       // null when none; and const
+template<class Pred> bool exists(Pred pred) const;  template<class Pred> bool all(Pred pred) const;
 template<class Pred> size_t count_of(Pred pred) const;
-template<class F> void for_each(F f);                  // and const
-const T& min() const;  template<class Compare> const T& min(Compare cmp) const;   // undefined when empty, as front()
-const T& max() const;  template<class Compare> const T& max(Compare cmp) const;
-void fill(const auto& value);
-void reverse() noexcept;
-void sort();  template<class Compare> void sort(Compare cmp);
-bool is_sorted() const;  template<class Compare> bool is_sorted(Compare cmp) const;
-bool binary_search(const auto& value) const;  size_t sorted_index_of(const auto& value) const;   // on a sorted sequence: whether the value is there, its position (npos when not); and with a comparator
-auto lower_bound(const auto& value);  auto upper_bound(const auto& value);   // the first position not less than the value, the first greater; and const, and with a comparator
+template<class F> void for_each(F f);                      // and const
+bool contains(const auto& value) const;                    // elements with ==: anything an element compares with
+size_t index_of(const auto& value) const;  size_t last_index_of(const auto& value) const;   // npos when none
+decltype(auto) min() const;  decltype(auto) max() const;   // elements with <; and with a comparator
+// m_ordered
+bool is_sorted() const;  bool binary_search(const auto& value) const;  size_t sorted_index_of(const auto& value) const;   // on a sorted deque; and with a comparator
+auto lower_bound(const auto& value);  auto upper_bound(const auto& value);   // and const, and with a comparator
+void sort();  template<class Compare> void sort(Compare cmp);  template<class Proj> void sort_by(Proj proj);  void stable_sort();
+// m_sequence
+void fill(const auto& value);  void reverse() noexcept;
+// m_equatable, m_comparable: == and <=>, below
 ```
 
-The members of [`m_sequence`](m_sequence.md), the mixin every sequence of the library carries: the algorithms of `<algorithm>` as members, so that `d.sort()` reads as `d.push_back(x)` does. A linear search from the front (`last_index_of` walks the whole sequence); `index_of`, `last_index_of` and `find_index` give the position, or `npos` when nothing matches; `find` the element the predicate accepts first, or null. `reverse` and `sort` are `std::reverse` and `std::sort` over the buffer.
+The members of the mixins every sequence of the library carries ([the mixins](../core/mixin/README.md)): the questions of [m_enumerable](../core/mixin/m_enumerable.md), the order of [m_ordered](../core/mixin/m_ordered.md), the writes of [m_sequence](../core/mixin/m_sequence.md), so that `x.sort()` reads as `x.push_back(x)` does. A question that compares elements exists only for elements that compare; `index_of`, `last_index_of` and `find_index` give the position, or `npos` when nothing matches, `find_if` the element the predicate accepts first, or null.
 
 ```cpp
 sgcl::deque d = {5, 3, 9, 3};
 assert(d.contains(9) && d.index_of(3) == 1 && d.last_index_of(3) == 3 && d.index_of(7) == sgcl::npos);
 assert(d.find_index([](int x) { return x > 4; }) == 0 && d.exists([](int x) { return x == 9; }) && !d.all([](int x) { return x > 3; }));
-if (int* big = d.find([](int x) { return x > 8; })) {
+if (int* big = d.find_if([](int x) { return x > 8; })) {
     *big = 8;
 }
 assert(d.count_of([](int x) { return x == 3; }) == 2 && d.min() == 3 && d.max() == 8);
@@ -327,7 +324,7 @@ friend bool operator==(const deque& lhs, const deque& rhs);
 friend auto operator<=>(const deque& lhs, const deque& rhs);
 ```
 
-Element-wise, as for `std::deque`: `==` compares sizes first, `<=>` is lexicographical with the synthesized three-way comparison (`<=>` of `T` when it has one, else a `std::weak_ordering` built from `<`), so `<`, `<=`, `>`, `>=` and `!=` follow.
+From [m_equatable](../core/mixin/m_equatable.md) and [m_comparable](../core/mixin/m_comparable.md), for elements that compare. Element-wise, as for `std::deque`: `==` compares sizes first, `<=>` is lexicographical with the synthesized three-way comparison (`<=>` of `T` when it has one, else a `std::weak_ordering` built from `<`), so `<`, `<=`, `>`, `>=` and `!=` follow.
 
 ```cpp
 sgcl::deque<int> a = {1, 2}, b = {1, 3};

@@ -8,9 +8,8 @@
 #include "../core/detail/slot.h"
 #include "../core/make_tracked.h"
 #include "../core/tracked_ptr.h"
+#include "../core/mixin/mixin.h"
 #include "detail/anchor.h"
-#include "detail/synth_three_way.h"
-#include "m_sequence.h"
 
 #include <algorithm>
 #include <cassert>
@@ -37,7 +36,13 @@ namespace sgcl {
     // copyable and at home in any container: the list roots every linked
     // node, and an iterator to an erased element is invalid, as in std.
     template<class T>
-    class list : public m_sequence<list<T>> {   // the algorithms as members
+    class list
+    : public m_enumerable<list<T>>
+    , public m_bidirectional<list<T>>
+    , public m_equatable<list<T>>
+    , public m_comparable<list<T>>
+    , public m_ordered<list<T>>
+    , public m_sequence<list<T>> {
         struct NodeBase {
             tracked_ptr<NodeBase> prev;
             tracked_ptr<NodeBase> next;
@@ -949,16 +954,6 @@ namespace sgcl {
             return first;
         }
     };
-
-    template<class T>
-    bool operator==(const list<T>& lhs, const list<T>& rhs) {
-        return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin());
-    }
-
-    template<class T>
-    detail::synth_three_way_result<const T> operator<=>(const list<T>& lhs, const list<T>& rhs) {
-        return std::lexicographical_compare_three_way(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), detail::synth_three_way);
-    }
 
     template<class T>
     void swap(list<T>& lhs, list<T>& rhs) noexcept {

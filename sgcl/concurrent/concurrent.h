@@ -3,12 +3,8 @@
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
-// The concurrent module: the lock-free containers, concurrent_cache,
-// copy_on_write, atomic.
-// The concurrent module: the lock-free containers, the concurrent weak
-// containers, intern, copy_on_write, atomic.
-// The concurrent module: the lock-free containers, copy_on_write, atomic,
-// the persistent structures.
+// The concurrent module: the lock-free containers, concurrent_cache, the
+// concurrent weak containers, intern, copy_on_write, atomic.
 #pragma once
 
 #include "atomic.h"
@@ -26,7 +22,4 @@
 #include "concurrent_weak_set.h"
 #include "copy_on_write.h"
 #include "intern.h"
-#include "persistent_map.h"
-#include "persistent_set.h"
-#include "persistent_vector.h"
 #include "spsc_queue.h"

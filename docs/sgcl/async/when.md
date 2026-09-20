@@ -13,8 +13,6 @@ namespace sgcl {
 }
 ```
 
-The same in the `Sgcl` interface: [WhenAll, WhenAny](../Sgcl/Async/When.md).
-
 The composition of tasks. `co_await when_all(a, b, c)` waits for every task and gives their results as a tuple (a `vector` for a range of tasks of one type, nothing for tasks of nothing), in the order the tasks were given, not the order they finished; what any of them threw is rethrown. `co_await when_any(a, b, c)` gives the index of the first task to finish and lets go of the rest: they run on to their ends, and their frames are the collector's then. A thread writes the same with `join()`: `when_all(a, b).join()`.
 
 Both are tasks themselves, coroutines with a managed frame that hold the tasks given: a `when_all` is a frame with the tasks in it and one `co_await` at a time, a `when_any` spawns a small task per task given that finishes into a channel, and receives once. The tasks are taken over (moved in): a task is awaited by one awaiter, and the result of `when_all` is where theirs are. They are spawned ones, or ones nobody started: a task starts with the first wait for it ([coroutine](coroutine.md#join)), so `when_all(f(), g())` starts both.

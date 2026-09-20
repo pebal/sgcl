@@ -1,6 +1,6 @@
 # sgcl::containers
 
-The containers of the standard library with their nodes and buffers on the managed heap, and the observers built on them (`weak_map`, `weak_set`, `expiry_queue`): a container lives where a `tracked_ptr` may live, its elements are destroyed exactly when `std` destroys them, and the collector reclaims the memory. `#include "sgcl/containers/containers.h"` brings the module in; it depends on [`core`](../core/README.md) only. Its counterpart in the `Sgcl` interface is [`Sgcl/Containers/`](../Sgcl/Containers/README.md); the index of the whole interface is [`docs/sgcl/`](../README.md); the containers against `std`, in numbers, are on [benchmarks](benchmarks.md).
+The containers of the standard library with their nodes and buffers on the managed heap, the observers built on them (`weak_map`, `weak_set`, `expiry_queue`), and the immutable containers of `sgcl::im` ([im/](im/README.md)): a container lives where a `tracked_ptr` may live, its elements are destroyed exactly when `std` destroys them, and the collector reclaims the memory. `#include "sgcl/containers/containers.h"` brings the module in; it depends on [`core`](../core/README.md) only.; the index of the whole interface is [`docs/sgcl/`](../README.md); the containers against `std`, in numbers, are on [benchmarks](benchmarks.md).
 
 ## Containers
 `vector`, `array`, `deque`, `list`, `forward_list`, `map`, `set`, `multimap`, `multiset`, `unordered_map`, `unordered_set`, `unordered_multimap`, `unordered_multiset` and the adapters `stack`, `queue`, `priority_queue`, in `sgcl::` and in `sgcl::`, follow the interfaces of their `std` namesakes, including iterator categories (`std::ranges` algorithms work on them), transparent lookup, node handles, `std::erase`/`std::erase_if`, and three-way comparison. They differ from the standard containers in where their memory lives and when elements die:
@@ -41,7 +41,8 @@ The entries are hashed and compared by the object's address, read from the weak 
 | page | header | `std` counterpart |
 |---|---|---|
 | [vector](vector.md) | `vector.h` | `std::vector` |
-| [array](array.md) | `array.h` | `std::array`, plus a dynamic `array<T>` |
+| [array](array.md) | `array.h` | `std::array`, with the braces of an aggregate and the mixins of a range |
+| [dynamic_array](dynamic_array.md) | `dynamic_array.h` | a count fixed at creation in a managed buffer that never moves: Java's `new T[n]`; the rings of the channels |
 | [deque](deque.md) | `deque.h` | `std::deque` |
 | [list](list.md) | `list.h` | `std::list` |
 | [forward_list](forward_list.md) | `forward_list.h` | `std::forward_list` |
@@ -58,11 +59,7 @@ The entries are hashed and compared by the object's address, read from the weak 
 | [ordered_map](ordered_map.md) | `ordered_map.h` | `unordered_map` iterated in insertion order: Java's `LinkedHashMap`; `front`, `back`, `to_back`, `to_front` |
 | [ordered_set](ordered_set.md) | `ordered_set.h` | `unordered_set` iterated in insertion order: Java's `LinkedHashSet` |
 
-The algorithms of a sequence (`contains`, `index_of`, `find`, `sort`, `reverse`, `min`, `for_each`...) are members of every sequence, from one mixin:
-
-| page | header | what it is |
-|---|---|---|
-| [m_sequence](m_sequence.md) | `m_sequence.h` | the mixin (`m_`): the algorithms as members of `vector`, `array`, `deque`, `list`, `forward_list`; static, no virtual method, no converting to it |
+The questions, the order and the writes of a range (`contains`, `index_of`, `find_if`, `sort`, `reverse`, `min`, `for_each`...) are members of every container that iterates, from the mixins of `core` ([the mixins and the concepts](../core/mixin/README.md)); the maps read by their key through [m_lookup](../core/mixin/m_lookup.md).
 
 ### Weak containers
 
@@ -71,3 +68,7 @@ The algorithms of a sequence (`contains`, `index_of`, `find`, `sort`, `reverse`,
 | [weak_map, weak_multimap](weak_map.md) | `weak_map.h` | values attached to objects the map does not keep alive: keyed by the object, an entry dies with it |
 | [weak_set](weak_set.md) | `weak_set.h` | a set of objects it does not keep alive |
 | [expiry_queue](expiry_queue.md) | `expiry_queue.h` | a callback for an object the collector found unreachable, with the object alive again for the call |
+
+### Immutable containers
+
+A family of their own in the namespace `sgcl::im` and the directory `im/`, with a [README](im/README.md) that is their guide (the model: every operation a new version sharing all but the path it changed; the state of a program as a value): [im::vector](im/vector.md), [im::list](im/list.md), [im::map](im/map.md), [im::set](im/set.md), and their [benchmarks](im/benchmarks.md) against immer and `std`.

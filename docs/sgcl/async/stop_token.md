@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same in the `Sgcl` interface: [StopSource, StopToken](../Sgcl/Async/StopToken.md).
-
 Cancellation, the way Go's `context` has it, under the names of `std::stop_source` and `std::stop_token`: a source requests the stop, the tokens handed down see it. What makes it fit the rest: a token is a [channel](channel.md) of signals closed when the stop is requested, so that a wait is cancelled the way anything else is waited for — a case of a [select](select.md) (`token.on_stop(f)`) beside the receive it bounds, or `co_await token.stopped()` on its own. A deadline is a timer that requests the stop (`source.stop_after(d)`, [timer](timer.md)). A source made from a token is a child: it stops when its parent stops and on its own, never the other way round, so that a request handler's source stops with the connection's, which stops with the server's. The parent knows its children through weak pointers: a child that is gone costs nothing, and a thousand children made and dropped leave nothing to walk.
 
 The state is a managed object; a source or a token is one word, copied freely, alive while any copy is, or a timer holds it. Nothing is freed, nothing counted: a token kept in a task's frame, in a managed object or on a stack keeps the state, and a state nobody holds is garbage.

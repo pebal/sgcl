@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [ConcurrentDictionary](../Sgcl/Concurrent/ConcurrentDictionary.md).
-
 `sgcl::concurrent_unordered_map<Key, T, Hash, KeyEqual>` is a lock-free hash map shared by any number of threads: the split-ordered list of Shalev and Shavit (*Split-Ordered Lists: Lock-Free Extensible Hash Tables*, 2006), the structure that makes a resizable lock-free hash table possible, what Java's `ConcurrentHashMap` is for. Every element sits in one sorted singly linked list (Harris and Michael's, with marker nodes for the deletions as in [concurrent_map](concurrent_map.md)), ordered by the bit reversal of its hash; an array of buckets points into that list at dummy nodes, one per bucket, made on the bucket's first use and inserted after the parent bucket's dummy (the bucket's number with its highest bit cleared). In split order the elements of bucket *i* of an array of *n* follow its dummy and precede the dummy of the bucket that *i* splits into at *2n*, so doubling the array moves no node: the new array gets the old slots copied and the rest made on use, the list stays what it was, and the old array is garbage once nothing walks it. In C++ without a collector that old array, and every node a walk may be standing on, is exactly what a reclamation scheme has to guard; here it is nothing ([README: Lock-free containers](README.md#lock-free-containers)). The interface has the names of `std::unordered_map`, restricted to what a lock-free map can offer: `find`, `contains`, `count`, `insert`, `emplace`, `try_emplace`, `erase`, `clear`, `size`, `empty`, `bucket_count`, `reserve`, iteration. There is no `operator[]`, no `at`, no `insert_or_assign`, no node handles and no iteration of one bucket.
 
 ## Rules

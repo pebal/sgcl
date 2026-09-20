@@ -22,8 +22,9 @@ T=$(mktemp -d)
 JAVA=("$JBIN/java" -XX:+UseZGC -XX:+UnlockDiagnosticVMOptions -XX:OnSpinWaitInst=isb -Duser.language=en -Duser.country=US -cp "$T/jout")
 CORES=$(getconf _NPROCESSORS_ONLN)
 VARIANTS=${VARIANTS:-sgcl unique shared std go java-zgc}
-CASES=${CASES:-alloc copy weak stack queue cstack cmap umap set cow chan bqueue pqueue intern wmap spsc cache pmap bcast async bt graph lt string}
+CASES=${CASES:-alloc copy weak stack queue cstack cmap umap set cow chan bqueue pqueue intern wmap spsc cache im bcast async bt graph lt string}
 want() { [[ " $VARIANTS " == *" $1 "* ]]; }
+want_im() { case "$1" in sgcl|std) want "$1";; *) "$BIN/bench_im" vector "$1" 1 > /dev/null 2>&1;; esac; }   # an immer variant when the binary has it (-DSGCL_IMMER_INCLUDE)
 case_() { [[ " $CASES " == *" $1 "* ]]; }
 
 RUNS=${RUNS:-3}
@@ -214,11 +215,15 @@ for k in 1 4 16 64; do
 done
 fi
 
-if case_ pmap; then
-KEY=wall
-echo "# persistent map, one thread, 200 k random keys: conc|pmap|variant|ns per insert (a version each)|ns per find|ns per element built from a range|std::map ns per insert|std::map ns per find"
-want sgcl && { run "$BIN/bench_concurrent" pmap sgcl 200000; echo "conc|pmap|sgcl|$(field insert)|$(field find)|$(field build)|$(field std_insert)|$(field std_find)"; }
+if case_ im; then
+echo "# immutable containers against immer, one thread (bench_im; the immer variants need -DSGCL_IMMER_INCLUDE): im|vector|variant|ns push_back (a version each)|ns get at random|ns set (a version each)|ns per element built at once"
+for v in sgcl immer immer-unsafe; do want_im "$v" && { run "$BIN/bench_im" vector "$v" 1000000; echo "im|vector|$v|$(field push_back)|$(field get)|$(field set)|$(field build)"; }; done
+echo "# im|list|variant|ns push_front (a version each, 1 M)|ns per element walked|ns pop_front (a version each)"
+for v in sgcl std; do want "$v" && { run "$BIN/bench_im" list "$v" 1000000; echo "im|list|$v|$(field push_front)|$(field walk)|$(field pop_front)"; }; done
+echo "# im|map|variant|ns insert (a version each, 200 k random long keys)|ns find|ns per element built at once (std: std::map in place)"
+for v in sgcl immer immer-unsafe std; do want_im "$v" && { run "$BIN/bench_im" map "$v" 200000; echo "im|map|$v|$(field insert)|$(field find)|$(field build)"; }; done
 fi
+
 
 if case_ async; then
 KEY=ns/op

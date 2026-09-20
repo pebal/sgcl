@@ -11,8 +11,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [AtomicRef](../Sgcl/Concurrent/AtomicRef.md).
-
 `atomic_ref<tracked_ptr<T>>` is `std::atomic_ref` for a [`tracked_ptr`](../core/tracked_ptr.md): the operations of [`atomic<tracked_ptr<T>>`](atomic.md) (`load`, `store`, `exchange`, `compare_exchange_weak`, `compare_exchange_strong`, `wait`, `notify`, with a `std::memory_order`) applied to a plain `tracked_ptr` that lives somewhere already: a member of a node, an element of an `sgcl::vector<tracked_ptr<T>>`, a local. The word of a `tracked_ptr` is a `std::atomic` of a pointer in any case, so nothing changes in the pointer's layout; the `atomic_ref` is a reference to it and the operations are the atomic ones, with the hazard pointer of `atomic::load` and the same freedom from ABA. A [`root_ptr`](../core/root_ptr.md) converts to the `tracked_ptr` it holds its object by (the word of its cell, in a managed block), so `atomic_ref a(root)` (deduced, as from a `tracked_ptr`) is the atomic of a root that lives anywhere: a global holding an object that other threads share and that is replaced at run time is a `root_ptr` under an `atomic_ref`. The `tracked_ptr` (or the `root_ptr`) must not be moved or destroyed while a view of it exists, as with any `atomic_ref`. Only this specialization exists.
 
 ## Rules

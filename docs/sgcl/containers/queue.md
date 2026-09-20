@@ -12,8 +12,6 @@ namespace sgcl {
 }
 ```
 
-The same classes in the `Sgcl` interface: [Queue, PriorityQueue](../Sgcl/Containers/Queue.md).
-
 `sgcl::queue<T, Container>` is `std::queue` over a managed container: a FIFO adapter with `front`, `back`, `push`, `emplace`, `pop`, `empty`, `size`, `swap` and the comparisons of the container. The container is `sgcl::deque<T>` by default; `sgcl::list<T>` works as well, as does any container with `front`, `back`, `push_back`, `emplace_back` and `pop_front`.
 
 `sgcl::priority_queue<T, Container, Compare>` is `std::priority_queue` over a managed container: a heap kept with `std::push_heap`/`std::pop_heap`, `top()` the largest element under `Compare`. The container is `sgcl::vector<T>` by default; `sgcl::deque<T>` works as well, as does any container with random-access iterators, `front`, `push_back`, `emplace_back` and `pop_back`.

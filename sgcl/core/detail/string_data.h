@@ -56,6 +56,19 @@ namespace sgcl::detail {
         static constexpr auto value = false;
     };
 
+    template<size_t Bytes>
+    struct IsStringStorage<StringSlot<Bytes>> : std::true_type {};
+
+    // The element of the buffer a long string lives in: a byte of its own
+    // type, so that the buffer's metadata says "a string" (IsStringStorage)
+    // where a buffer of unsigned char would not
+    struct StringByte {
+        unsigned char value;
+    };
+
+    template<>
+    struct IsStringStorage<StringByte> : std::true_type {};
+
     // The size classes: every four bytes up to 256, then by half again
     // up to a page; a longer string goes to a managed buffer of bytes
     // (maker.h: a range of pages).
@@ -90,8 +103,8 @@ namespace sgcl::detail {
 
         template<class CharT>
         static Word make_buffer(std::basic_string_view<CharT> s, size_t bytes) {
-            unique_ptr<unsigned char> buffer(Maker<unsigned char[]>::make_tracked_data(bytes));
-            string_fill(buffer.get(), s);
+            unique_ptr<StringByte> buffer(Maker<StringByte[]>::make_tracked_data(bytes));
+            string_fill(reinterpret_cast<unsigned char*>(buffer.get()), s);
             return Word(std::move(buffer));
         }
 

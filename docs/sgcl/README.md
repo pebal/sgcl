@@ -4,14 +4,15 @@ One page per public class or function of the library, each with every public mem
 
 ## Modules
 
-The library is four modules, one directory each in `sgcl/` and here, each depending only on those before it and each with a README of its own that is its guide (what the classes are, the rules, what to reach for) before it lists them:
+The library is five modules, one directory each in `sgcl/` and here, each depending only on those before it and each with a README of its own that is its guide (what the classes are, the rules, what to reach for) before it lists them:
 
 | module | header | what it holds |
 |---|---|---|
 | [core](core/README.md) | `sgcl/core/core.h` | the collector, `tracked_ptr`, `unique_ptr`, `root_ptr`, `weak_ptr`, `make_tracked`, `variant`, `any`, `function`, `expected`, `range`, the configuration |
-| [containers](containers/README.md) | `sgcl/containers/containers.h` | the sequences, maps and sets, `string`, `weak_map`, `weak_set`, `expiry_queue` |
-| [concurrent](concurrent/README.md) | `sgcl/concurrent/concurrent.h` | the lock-free containers, `concurrent_bounded_queue`, `concurrent_priority_queue`, `concurrent_cache`, the concurrent weak containers, `intern`, the persistent structures, `atomic`, `copy_on_write` |
+| [containers](containers/README.md) | `sgcl/containers/containers.h` | the sequences, maps and sets, `string`, `weak_map`, `weak_set`, `expiry_queue`; the [immutable containers](containers/im/README.md) in `sgcl::im` (`im::vector`, `im::list`, `im::map`, `im::set`: every operation a new version sharing all but the path it changed; the state of a program as a value) |
+| [concurrent](concurrent/README.md) | `sgcl/concurrent/concurrent.h` | the lock-free containers, `concurrent_bounded_queue`, `concurrent_priority_queue`, `concurrent_cache`, the concurrent weak containers, `intern`, `atomic`, `copy_on_write` |
 | [async](async/README.md) | `sgcl/async/async.h` | coroutines, the scheduler, executors and strands, task-local values, `channel`, `select`, `broadcast`, timers and the clock, the signals of the process, `stop_token`, `when_all`/`when_any`, `task_group`, `timeout`, `sync`, `promise`, `spawn_blocking`, the reactor |
+| [io](io/README.md) | `sgcl/io/io.h` | streams (`reader`, `writer`, `stream` and the mixins over one primitive), `buffered_reader` and `buffered_writer`, `file` over any descriptor with the pool and the reactor behind its async forms, the file system (`stat`, `mkdir_all`, `read_dir`, `walk_dir`), `path`, the process (`args`, `getenv`, the standard streams); errors as `result<T>`; the first module in a namespace of its own, `sgcl::io` |
 
 The sections below list the same pages by what they are.
 
@@ -19,7 +20,7 @@ The sections below list the same pages by what they are.
 
 | page | header | what it is |
 |---|---|---|
-| [tracked_ptr](core/tracked_ptr.md) | `sgcl/core/tracked_ptr.h` | the pointer the collector follows: one word, a write barrier, no count; aliases, `type()`, `is<U>()`, `as<U>()`, `if_alive()` |
+| [tracked_ptr](core/tracked_ptr.md) | `sgcl/core/tracked_ptr.h` | the pointer the collector follows: one word, a write barrier, no count; aliases, `type()`, `is<U>()`, `as<U>()`, `if_alive()`; `shade()` and the unshaded store for the copies of immutable nodes |
 | [unique_ptr](core/unique_ptr.md) | `sgcl/core/unique_ptr.h` | what `make_tracked` returns: a `std::unique_ptr` to a managed object, deterministic until moved into a `tracked_ptr` |
 | [make_tracked](core/make_tracked.md) | `sgcl/core/make_tracked.h` | creates an object on the managed heap |
 | [root_ptr](core/root_ptr.md) | `sgcl/core/root_ptr.h` | a root that lives anywhere (a global, a `std` container, a lambda on the heap): a cell of a managed block under it, the `tracked_ptr` it holds its object by one step away; the pointer of an interpreter's handle table or a program's globals |
@@ -31,9 +32,9 @@ The sections below list the same pages by what they are.
 | [function](core/function.md) | `sgcl/core/function.h` | `std::function` and `std::move_only_function` whose closure may capture tracked pointers: the closure in a managed node of its own |
 | [range](core/range.md) | `sgcl/core/range.h` | a pair of iterators as a range (what `equal_range` hands back, made iterable) and the integers of `range(n)`, `range(first, last)`; for a range-for and `std::ranges` |
 | [string](core/string.md) | `sgcl/core/string.h` | an immutable string on the managed heap: one word, shared by copying, compared and hashed by its contents, no destructor |
-| [string_view](core/string_view.md) | `sgcl/core/string.h` | a view of a string that holds the string's object: two words, a substring with no copy and no lifetime to watch; what the pieces of `split` are |
+| [slice](core/slice.md) | `sgcl/core/slice.h` | the elements of a contiguous range and the managed object they lie in, held: Go's slice; a `std::span` when the memory is unmanaged (no owner); `slice<const char>` is text, what `as_slice` and the pieces of `split` are, `slice<std::byte>` the buffers of io |
 | [expected](core/expected.md) | `sgcl/core/expected.h` | `std::expected`'s interface (C++23) over a variant: the value and the error laid out apart |
-| [optional, pair, tuple](core/aliases.md) | `sgcl/core/aliases.h` | the `std` types under the library's names: they hold a tracked pointer correctly as they are, one value per place |
+| [optional, pair, tuple, error_code](core/aliases.md) | `sgcl/core/aliases.h` | the `std` types under the library's names: they hold a tracked pointer correctly as they are, one value per place |
 | [atomic, atomic_ref](concurrent/atomic.md) | `sgcl/concurrent/atomic.h`, `sgcl/concurrent/atomic_ref.h` | lock-free atomic `tracked_ptr`: `load`, `store`, compare-exchange, `wait`/`notify`, no ABA ([atomic_ref](concurrent/atomic_ref.md) on its own page) |
 
 ## Containers
@@ -43,7 +44,8 @@ The interfaces of `std`, the nodes and buffers on the managed heap: a container 
 | page | `std` counterpart |
 |---|---|
 | [vector](containers/vector.md) | `std::vector` |
-| [array](containers/array.md) | `std::array`, plus a dynamic `array<T>` |
+| [array](containers/array.md) | `std::array`, with the braces of an aggregate and the mixins of a range |
+| [dynamic_array](containers/dynamic_array.md) | a count fixed at creation in a managed buffer that never moves: Java's `new T[n]` |
 | [deque](containers/deque.md) | `std::deque` |
 | [list](containers/list.md) | `std::list` |
 | [forward_list](containers/forward_list.md) | `std::forward_list` |
@@ -60,11 +62,20 @@ The interfaces of `std`, the nodes and buffers on the managed heap: a container 
 | [ordered_map](containers/ordered_map.md) | a hash map in insertion order (Java `LinkedHashMap`) |
 | [ordered_set](containers/ordered_set.md) | a hash set in insertion order (Java `LinkedHashSet`) |
 
-The algorithms of a sequence (`contains`, `index_of`, `find`, `sort`, `reverse`, `min`, `for_each`...) are members of every sequence, from one mixin (`m_`: a static interface, brought in by a template; an `i_` will name a polymorphic one, when a module needs it):
+The questions, the order and the writes of a range (`contains`, `index_of`, `find_if`, `sort`, `reverse`, `min`, `for_each`...) are members of every container that iterates, from the mixins (`m_`: a static interface, brought in by a template, and a declaration a concept (`c_`) can ask for; an `i_` will name a polymorphic one, when a module needs it):
 
 | page | header | what it is |
 |---|---|---|
-| [m_sequence](containers/m_sequence.md) | `sgcl/containers/m_sequence.h` | the mixin (`m_`): the algorithms as members of `vector`, `array`, `deque`, `list`, `forward_list`; static, no virtual method, no converting to it |
+| [mixin/](core/mixin/README.md) | `sgcl/core/mixin/mixin.h` | the mixins and the concepts: [m_enumerable](core/mixin/m_enumerable.md), [m_equatable](core/mixin/m_equatable.md), [m_comparable](core/mixin/m_comparable.md), [m_ordered](core/mixin/m_ordered.md), [m_sequence](core/mixin/m_sequence.md), [m_lookup](core/mixin/m_lookup.md), [m_text](core/mixin/m_text.md); [concepts](core/mixin/concepts.md): `c_enumerable`, `c_ordered`, `c_sequence`, `c_lookup`, `c_comparable`, ...; who carries what |
+
+## Immutable containers
+
+| page | header | what it is |
+|---|---|---|
+| [im::vector](containers/im/vector.md) | `sgcl/containers/im/vector.h` | Clojure's bit-partitioned trie with a tail: every `push_back`, `pop_back` and `set` a new version sharing all but a path |
+| [im::list](containers/im/list.md) | `sgcl/containers/im/list.h` | the list of Lisp and ML: `push_front` one cell in front of the shared chain, `pop_front` the rest of it |
+| [im::map](containers/im/map.md) | `sgcl/containers/im/map.h` | Bagwell's hash array mapped trie: every `insert` and `erase` a new version sharing all but a path; transparent lookup |
+| [im::set](containers/im/set.md) | `sgcl/containers/im/set.h` | the same trie with the key as the element |
 
 ## Lock-free containers
 
@@ -86,9 +97,6 @@ Structures shared by any number of threads without a lock, the textbook algorith
 | [concurrent_weak_set](concurrent/concurrent_weak_set.md) | `sgcl/concurrent/concurrent_weak_set.h` | the same table with the objects alone: a set of objects it does not keep alive, shared by the threads |
 | [copy_on_write](concurrent/copy_on_write.md) | `sgcl/concurrent/copy_on_write.h` | a value read by many threads and replaced whole: one load for an immutable snapshot, a copy and a compare-exchange for a change |
 | [intern](concurrent/intern.md) | `sgcl/concurrent/intern.h` | a pool where equal values share one managed object (Go's `unique`, Java's `String.intern`): `make(value)` the canonical object, held weakly, compared by identity; `intern_string` for strings |
-| [persistent_vector](concurrent/persistent_vector.md) | `sgcl/concurrent/persistent_vector.h` | the persistent vector of Clojure and Scala: a 32-way trie with a tail, every `push_back`, `pop_back` and `set` a new version sharing all but a path |
-| [persistent_map](concurrent/persistent_map.md) | `sgcl/concurrent/persistent_map.h` | the persistent hash map: Bagwell's hash array mapped trie, every `insert` and `erase` a new version sharing all but a path; transparent lookup |
-| [persistent_set](concurrent/persistent_set.md) | `sgcl/concurrent/persistent_set.h` | the same trie with the key as the element |
 | [channel](async/channel.md) | `sgcl/async/channel.h` | the channel of Go: a buffered or rendezvous queue that threads and coroutines send to and receive from, waiting on either side, closed to end the stream |
 | [select](async/select.md) | `sgcl/async/select.h` | the select of Go: a wait on several channels at once, a receive or a send per case with a body, `otherwise` for a poll; for a thread or a coroutine |
 | [broadcast](async/broadcast.md) | `sgcl/async/broadcast.h` | a channel every subscriber receives every value from (tokio's broadcast, Kotlin's SharedFlow): one ring, a cursor per subscription, a send that never waits, a subscriber that falls behind lapped and told how many it lost |
@@ -109,6 +117,18 @@ Structures shared by any number of threads without a lock, the textbook algorith
 | [task_group](async/task_group.md) | `sgcl/async/task_group.h` | structured concurrency: a scope that owns the tasks it spawns, waited for as one (a thread, a task, a select case), stopped as one by the first exception, which the wait rethrows; Go's `errgroup`, Kotlin's `coroutineScope` |
 | [timeout](async/timeout.md) | `sgcl/async/timeout.h` | a timeout on a task: `timeout(t, d)` the result or nullopt, `with_deadline(t, d)` the result or `timed_out` thrown, a token as the deadline; the loser stopped through its source or left to finish |
 | [reactor](async/reactor.md) | `sgcl/async/reactor.h` | `readable`, `writable`: the readiness of a file descriptor as a channel, one thread on the kernel's queue (kqueue; epoll and IOCP to come); the foundation of io and net |
+
+## Files and streams
+
+| page | header | what it is |
+|---|---|---|
+| [error, result](io/error.md) | `sgcl/io/error.h` | `errc`, `error` (code, operation, path; `is_not_found()`…), `result<T>`: every operation of io returns one, nothing throws |
+| [stream](io/stream.md) | `sgcl/io/stream.h` | `reader`, `writer`, `seeker`, `closer`, `stream`: one pure virtual primitive each and a mixin with the rest (`read_full`, `read_all`, `copy_to`, `write_text`…), blocking and `co_await` forms; `copy`, `limit_reader`, `tee_reader`, `multi_reader`, `multi_writer`, `discard`, `buffer` |
+| [buffered](io/buffered.md) | `sgcl/io/buffered.h` | `buffered_reader`: lines and prefixes as views into a managed block, `lines()`, a bound for untrusted streams; `buffered_writer`: `flush` |
+| [file](io/file.md) | `sgcl/io/file.h` | `file` over any descriptor: `open`, `create`, `from_fd`, `pipe`, `read_at`/`write_at`, `stat`, `sync`; async through the blocking pool or the reactor; `read_file`, `write_file`, `append_file`, `temp_file`, `temp_dir` |
+| [fs](io/fs.md) | `sgcl/io/fs.h` | `stat`, `lstat`, `file_info`, `permissions`, `mkdir_all`, `remove_all`, `rename`, `copy_file`, `symlink`, `chmod`, `read_dir`, `walk_dir` |
+| [path](io/path.md) | `sgcl/io/path.h` | `clean`, `join`, `base`, `dir`, `ext`, `stem`, `split`, `abs`, `rel`, `match`, `glob`: paths as strings, a view in and a string out |
+| [os](io/os.md) | `sgcl/io/os.h` | `args`, `getenv`, `environ`, `expand_env`, `working_dir`, `home_dir`, `cache_dir`, `executable`, `hostname`, `stdin`/`stdout`/`stderr` as files, `exit` |
 
 ## Coroutines, observers, the collector
 

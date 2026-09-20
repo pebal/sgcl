@@ -8,8 +8,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [ConditionVariable](../Sgcl/Async/ConditionVariable.md).
-
 Go's `sync.Cond` and `std::condition_variable_any` over the module's [mutex](mutex.md), for tasks and threads alike: a wait lets go of the mutex, waits for a notify and takes the mutex back; a task waiting holds no thread, and takes the mutex back with a `co_await` too. Under it a queue of waiters, each a channel of one signal: `notify_one` takes the first and sends it the signal, `notify_all` every one. A waiter is on the queue before the mutex is let go of, so a notify made under the mutex after the wait began reaches it, and a signal sent before the waiter reaches its receive is kept for it: no wakeup is lost between the unlock and the wait. The one that is lost is the one a condition variable loses by contract: a notify before the wait began finds no waiter, so the waiter checks its condition under the mutex before it waits (`wait(guard, predicate)` does, and so must every use of the plain `wait`), as Go's and the standard's must.
 
 ## Rules

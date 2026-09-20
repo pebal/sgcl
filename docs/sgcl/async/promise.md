@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [Promise](../Sgcl/Async/Promise.md).
-
 The adapter between the callback APIs of a platform and `co_await`: an I/O completion port, a dispatch queue, JNI, a driver's completion routine, a C library that takes a callback and a `void*` context, all report on a thread of their own, and a task cannot wait for a callback. It waits for a promise: the callback calls `set_value(v)` (or `set_exception(e)`) and returns, and the task that wrote `co_await p` is made ready with the value, having held no thread meanwhile. A thread waits with `get()` and blocks; a select takes `p.on_ready(f)` as a case, so that the completion is bounded by a [timeout](timer.md) or cancelled by a [stop token](stop_token.md) like any other wait. What Java has as `CompletableFuture`, Kotlin as `CompletableDeferred`, Rust as a `oneshot` channel.
 
 Under it an [event](event.md) with a value: a channel of signals closed by the set, so that the three forms of the wait are the channel's, lock-free, the waiters reclaimed by the collector; the value lives in the promise's object next to the channel. The shape is one object and no shared state, not `std::promise` and `std::future` apart: a completion has one home, and whoever has a pointer to it may set it or wait for it, any number of times for the waiting. Exactly one setter wins, by a compare-exchange: a second `set_value` or `set_exception` is an error, asserted in debug builds and ignored in release, where the first value stands.

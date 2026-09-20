@@ -11,8 +11,6 @@ namespace sgcl {
 }
 ```
 
-The same classes in the `Sgcl` interface: [ManagedFrame, FramePtr, Task, Generator](../Sgcl/Async/Coroutine.md).
-
 The frame of a C++20 coroutine, where its parameters, locals, temporaries and promise live between suspensions, is allocated with `operator new`: heap memory the collector does not see. A `tracked_ptr` in such a frame breaks rule 1 of [The rules](../core/README.md#the-rules) and its object may be collected under it; debug builds assert it. `sgcl/async/coroutine.h` is the way out. A promise type that derives from `managed_frame` gets its frames from the managed heap instead, as buffers of words the collector traces conservatively, so everything the coroutine holds is a root for as long as the frame is held. The frame is held through a `frame_ptr<Promise>`: a [`root_ptr`](../core/root_ptr.md) to the frame and the coroutine handle, move-only, that destroys the coroutine when destroyed. `task<T>` and `generator<T>` are two coroutine types built this way; `task` runs on the [scheduler](scheduler.md) or by hand.
 
 `generator<T>` is used like `std::generator<T>` of C++23 (a range-for over the values a coroutine `co_yield`s), but it is a C++20 type with its frame on the managed heap, an input iterator, and nothing else. `task<T>` is a coroutine that produces one value: `spawn()` puts it on the scheduler's queue and a worker runs it, `resume()` runs it by hand on the calling thread; a thread waits for it with `join()`, a coroutine with `co_await task`, which suspends the awaiting coroutine until the task is done, no thread held meanwhile. The value type is always spelled, `task<int>`, `generator<tracked_ptr<Node>>`.

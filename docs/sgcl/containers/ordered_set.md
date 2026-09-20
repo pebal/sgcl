@@ -9,8 +9,6 @@ namespace sgcl {
 }
 ```
 
-The same class in the `Sgcl` interface: [OrderedSet](../Sgcl/Containers/OrderedSet.md).
-
 `sgcl::ordered_set<Key, Hash, KeyEqual>` is a hash set iterated in the order its elements were inserted: Java's `LinkedHashSet`. It is [unordered_set](unordered_set.md) with every node on a second list in insertion order, as [ordered_map](ordered_map.md) is to `unordered_map`: `begin()` to `end()` walks that list both ways, `front()` is the oldest element and `back()` the newest, a copy keeps the order, an erase takes the element out of it, an insert of a present element leaves it where it is, `to_back` and `to_front` move an element to the end or the start. The table, the lookups, the bucket interface, node handles, `merge` and the transparent lookups are those of `unordered_set`; a rehash never touches the order. Two words more per node.
 
 What it is for: a set that is also a sequence without duplicates, kept in the order things arrived: the distinct values of a stream in first-seen order, a list of names with no repeats, a set of visited nodes reported in the order of the visit; and a set with an eviction order, as the map has.
@@ -43,6 +41,15 @@ for (int v : {3, 1, 3, 2, 1}) {
 }
 seen.to_front(seen.find(2));                  // 2 3 1
 assert(seen.front() == 2 && seen.back() == 1);
+```
+
+### The mixins
+
+`ordered_set` carries [m_enumerable](../core/mixin/m_enumerable.md): `index_of` is the position in insertion order; `contains` is the set's own ([the mixins](../core/mixin/README.md)).
+
+```cpp
+sgcl::ordered_set<int> s = {5, 3};
+assert(s.index_of(3) == 1 && s.exists([](int x) { return x == 5; }));
 ```
 
 ## Example
