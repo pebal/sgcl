@@ -35,9 +35,9 @@ namespace sgcl {
     // iterator to an erased element is invalid, as in std.
     template<class T>
     class forward_list
-    : public mixin::enumerable<forward_list<T>>
+    : public mixin::comparable<forward_list<T>>
+    , public mixin::enumerable<forward_list<T>>
     , public mixin::equatable<forward_list<T>>
-    , public mixin::comparable<forward_list<T>>
     , public mixin::ordered<forward_list<T>>
     , public mixin::sequence<forward_list<T>> {
         struct NodeBase {

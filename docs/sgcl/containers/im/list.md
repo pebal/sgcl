@@ -67,7 +67,7 @@ auto r = m.reverse();              // 3 2 1 0: a new chain
 
 ### The mixins
 
-`im::list` carries [mixin::enumerable](../../core/mixin/enumerable.md), [mixin::comparable](../../core/mixin/comparable.md) and [mixin::ordered](../../core/mixin/ordered.md) ([the mixins](../../core/mixin/README.md)): `contains`, `index_of`, `min`, `is_sorted`; no `sort()`.
+`im::list` carries [mixin::immutable](../../core/mixin/immutable.md), [mixin::enumerable](../../core/mixin/enumerable.md), [mixin::comparable](../../core/mixin/comparable.md) and [mixin::ordered](../../core/mixin/ordered.md) ([the mixins](../../core/mixin/README.md)): `contains`, `index_of`, `min`, `is_sorted`; no `sort()`.
 
 ```cpp
 im::list<int> l = {1, 2, 3};

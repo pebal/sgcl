@@ -95,8 +95,6 @@ error last_error(const string& op, const string& path = {}) noexcept;
 
 using namespace sgcl;
 
-namespace io = io;
-
 int main() {
     auto r = io::read_text("/etc/hosts");
     if (!r) {

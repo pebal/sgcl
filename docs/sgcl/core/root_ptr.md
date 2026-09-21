@@ -110,6 +110,6 @@ The output:
 
 ## See also
 
-- [tracked_ptr](tracked_ptr.md), [unique_ptr](unique_ptr.md), [make_tracked](make_tracked.md), [atomic_ref](../concurrent/atomic_ref.md)
+- [tracked_ptr](tracked_ptr.md), [unique_ptr](unique_ptr.md), [make_tracked](make_tracked.md), [atomic_ref](../concurrent/atomic_ref.md); [rooted](rooted.md): a value under a root of its own, never null, made by its constructor
 - README: [Stack roots](../../garbage_collector/overview.md#stack-roots), [The rules](README.md#the-rules)
 - `tests/core/root_ptr.cpp`: every behaviour above, checked.

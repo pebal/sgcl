@@ -5,8 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "make_tracked.h"
-#include "root_ptr.h"
+#include "rooted.h"
 #include "variant.h"
 
 #include <exception>
@@ -121,18 +120,18 @@ namespace sgcl {
         ~bad_expected_access() = default;
     };
 
-    // The error the exception carries lives in a managed object held by a
-    // root_ptr: an exception object is unmanaged memory (the runtime
-    // allocates it), so an error holding a tracked pointer (a string, a
-    // tracked_ptr) could not lie in it directly; a root_ptr may, and keeps
-    // the error alive for as long as the exception exists, through the
-    // copies the runtime makes of it. One managed allocation per throw.
+    // The error the exception carries is a rooted value (rooted.h): an
+    // exception object is unmanaged memory (the runtime allocates it), so
+    // an error holding a tracked pointer (a string, a tracked_ptr) could
+    // not lie in it directly; rooted keeps it in a managed object of its
+    // own, alive for as long as the exception exists, through the copies
+    // the runtime makes of it. One managed allocation per throw.
     template<class E>
     class bad_expected_access
     : public bad_expected_access<void> {
     public:
         explicit bad_expected_access(E e)
-        : _error(make_tracked<E>(std::move(e))) {
+        : _error(std::move(e)) {
         }
 
         const E& error() const& noexcept { return *_error; }
@@ -141,7 +140,7 @@ namespace sgcl {
         E&& error() && noexcept { return std::move(*_error); }
 
     private:
-        root_ptr<E> _error;
+        rooted<E> _error;
     };
 
     // An expected with the interface of std::expected, safe to hold a

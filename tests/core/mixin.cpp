@@ -30,12 +30,12 @@ namespace {
     // A class of the user's own: a range of the library by declaration
     template<class T>
     class Ring
-    : public mixin::enumerable<Ring<T>>
-    , public mixin::random_access<Ring<T>>
-    , public mixin::bidirectional<Ring<T>>
-    , public mixin::equatable<Ring<T>>
+    : public mixin::bidirectional<Ring<T>>
     , public mixin::comparable<Ring<T>>
+    , public mixin::enumerable<Ring<T>>
+    , public mixin::equatable<Ring<T>>
     , public mixin::ordered<Ring<T>>
+    , public mixin::random_access<Ring<T>>
     , public mixin::sequence<Ring<T>> {
     public:
         using value_type = T;
@@ -76,6 +76,8 @@ TEST(Mixin_Tests, WhatTheContainersDeclare) {
     static_assert(req::enumerable<set<int>> && !req::bidirectional<set<int>>);
     static_assert(req::random_access<im::vector<int>> && req::ordered<im::vector<int>> && !req::sequence<im::vector<int>>);
     static_assert(req::enumerable<im::list<int>> && req::ordered<im::list<int>> && req::enumerable<im::map<int, int>> && req::enumerable<im::set<int>>);
+    static_assert(req::immutable<im::vector<int>> && req::immutable<im::list<int>> && req::immutable<im::map<int, int>> && req::immutable<im::set<int>>);
+    static_assert(!req::immutable<vector<int>> && !req::immutable<slice<const int>> && !req::immutable<sorted_set<int>>);   // not written is not immutable
     static_assert(req::contiguous<slice<int>> && req::sequence<slice<int>> && req::contiguous<slice<const int>> && !req::sequence<slice<const int>>);
     static_assert(req::contiguous<range<int*>> && req::sequence<range<int*>> && req::random_access<range<detail::counter<int>>> && !req::sequence<range<detail::counter<int>>>);
     static_assert(!req::enumerable<string>);   // mixin::text, not a range of the library: as_slice() is
@@ -247,7 +249,7 @@ TEST(Mixin_Tests, TheOrderOfARange) {
 }
 
 TEST(Mixin_Tests, TheMixinsHaveNoStateAndAreNotParameters) {
-    static_assert(std::is_empty_v<mixin::enumerable<Ring<int>>> && std::is_empty_v<mixin::lookup<sorted_map<int, int>>> && std::is_empty_v<mixin::contiguous<vector<int>>>);
+    static_assert(std::is_empty_v<mixin::enumerable<Ring<int>>> && std::is_empty_v<mixin::lookup<sorted_map<int, int>>> && std::is_empty_v<mixin::contiguous<vector<int>>> && std::is_empty_v<mixin::immutable<im::vector<int>>>);
     static_assert(sizeof(Ring<int>) == sizeof(std::vector<int>));
     static_assert(sizeof(slice<int>) == 3 * sizeof(void*));
     static_assert(!std::is_default_constructible_v<mixin::enumerable<Ring<int>>>);   // protected: a base only

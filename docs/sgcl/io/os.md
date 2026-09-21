@@ -62,8 +62,6 @@ out->write_text(io::is_terminal(1) ? "\033[1mready\033[0m\n" : "ready\n");
 
 using namespace sgcl;
 
-namespace io = io;
-
 // cat: the files named, or the standard input, to the standard output
 int main() {
     auto args = io::args();

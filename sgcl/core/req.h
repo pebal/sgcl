@@ -30,16 +30,12 @@ namespace sgcl {
         template<class Derived> class ordered;
         template<class Derived> class sequence;
         template<class Derived> class lookup;
+        template<class Derived> class immutable;
     }
-
-    // A class that cannot carry a base (an aggregate: array<T, N>, whose
-    // braces must stay the elements') declares a mixin here instead
-    template<class R, template<class> class Mixin>
-    inline constexpr bool declares_mixin = false;
 
     namespace detail {
         template<class R, template<class> class Mixin>
-        concept Declares = std::derived_from<std::remove_cvref_t<R>, Mixin<std::remove_cvref_t<R>>> || declares_mixin<std::remove_cvref_t<R>, Mixin>;
+        concept Declares = std::derived_from<std::remove_cvref_t<R>, Mixin<std::remove_cvref_t<R>>>;
 
         // What the standard containers ask of an element for their own
         // == and <=>: an == (not the whole of std::equality_comparable,
@@ -97,6 +93,10 @@ namespace sgcl {
 
         template<class R>
         concept lookup = enumerable<R> && detail::Declares<R, mixin::lookup>;
+
+        // Containers: a value that never changes; a change is a new one
+        template<class R>
+        concept immutable = enumerable<R> && detail::Declares<R, mixin::immutable>;
     }
 
     namespace detail {

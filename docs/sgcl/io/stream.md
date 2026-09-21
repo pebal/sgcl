@@ -169,8 +169,6 @@ auto n = io::copy(*socket, *out);   // the whole request in one write
 
 using namespace sgcl;
 
-namespace io = io;
-
 // A reader that upper-cases ASCII on the way through
 class upper_reader final : public io::reader {
 public:

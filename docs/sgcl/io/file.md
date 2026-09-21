@@ -142,8 +142,6 @@ io::remove_all(*dir);
 
 using namespace sgcl;
 
-namespace io = io;
-
 // Copies a file through the pool without holding a worker, then reads it back through a pipe
 task<io::result<size_t>> roundtrip(string src, string dst) {   // by value: a task copies its parameters into its frame
     auto in = io::open(src);

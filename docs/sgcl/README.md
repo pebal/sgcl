@@ -24,12 +24,14 @@ The sections below list the same pages by what they are.
 | [unique_ptr](core/unique_ptr.md) | `sgcl/core/unique_ptr.h` | what `make_tracked` returns: a `std::unique_ptr` to a managed object, deterministic until moved into a `tracked_ptr` |
 | [make_tracked](core/make_tracked.md) | `sgcl/core/make_tracked.h` | creates an object on the managed heap |
 | [root_ptr](core/root_ptr.md) | `sgcl/core/root_ptr.h` | a root that lives anywhere (a global, a `std` container, a lambda on the heap): a cell of a managed block under it, the `tracked_ptr` it holds its object by one step away; the pointer of an interpreter's handle table or a program's globals |
+| [rooted](core/rooted.md) | `sgcl/core/rooted.h` | a value with tracked pointers inside kept in a managed object of its own under a root: what an exception object, a `std` container, a global or a platform's closure holds instead of the value |
 | [weak_ptr](core/weak_ptr.md) | `sgcl/core/weak_ptr.h` | a pointer that does not keep its object alive, cleared by the cycle that finds the object unreachable |
 | [weak_map, weak_multimap](containers/weak_map.md) | `sgcl/containers/weak_map.h` | values attached to objects the map does not keep alive: keyed by the object, an entry dies with it |
 | [weak_set](containers/weak_set.md) | `sgcl/containers/weak_set.h` | a set of objects it does not keep alive |
 | [variant](core/variant.md) | `sgcl/core/variant.h` | `std::variant`'s interface with the tracked pointers in a word of their own, apart from the data of the other alternatives |
 | [any](core/any.md) | `sgcl/core/any.h` | `std::any`'s interface with a tracked pointer in a word of its own and an object with pointers in a managed node of its own |
 | [function](core/function.md) | `sgcl/core/function.h` | `std::function` and `std::move_only_function` whose closure may capture tracked pointers: the closure in a managed node of its own |
+| [thread](core/thread.md) | `sgcl/core/thread.h` | `std::thread` with the callable and the arguments in a managed node of their own: a `tracked_ptr` captured by value as in a `function`; `sgcl::this_thread` is `std::this_thread` |
 | [range](core/range.md) | `sgcl/core/range.h` | a pair of iterators as a range (what `equal_range` hands back, made iterable) and the integers of `range(n)`, `range(first, last)`; for a range-for and `std::ranges` |
 | [string](core/string.md) | `sgcl/core/string.h` | an immutable string on the managed heap: one word, shared by copying, compared and hashed by its contents, no destructor |
 | [slice](core/slice.md) | `sgcl/core/slice.h` | the elements of a contiguous range and the managed object they lie in, held: Go's slice; a `std::span` when the memory is unmanaged (no owner); `slice<const char>` is text, what `as_slice` and the pieces of `split` are, `slice<std::byte>` the buffers of io |
@@ -62,11 +64,11 @@ The interfaces of `std`, the nodes and buffers on the managed heap: a container 
 | [ordered_map](containers/ordered_map.md) | a hash map in insertion order (Java `LinkedHashMap`) |
 | [ordered_set](containers/ordered_set.md) | a hash set in insertion order (Java `LinkedHashSet`) |
 
-The questions, the order and the writes of a range (`contains`, `index_of`, `find_if`, `sort`, `reverse`, `min`, `for_each`...) are members of every container that iterates, from the mixins (`m_`: a static interface, brought in by a template, and a declaration a concept (`c_`) can ask for; an `i_` will name a polymorphic one, when a module needs it):
+The questions, the order and the writes of a range (`contains`, `index_of`, `find_if`, `sort`, `reverse`, `min`, `for_each`...) are members of every container that iterates, from the mixins (`namespace mixin`: a static interface, brought in by a template, and a declaration a requirement (`namespace req`) can ask for):
 
 | page | header | what it is |
 |---|---|---|
-| [mixin/](core/mixin/README.md) | `sgcl/core/mixin/mixin.h` | the mixins (`namespace mixin`) and the requirements (`namespace req`): [mixin::enumerable](core/mixin/enumerable.md), [mixin::equatable](core/mixin/equatable.md), [mixin::comparable](core/mixin/comparable.md), [mixin::ordered](core/mixin/ordered.md), [mixin::sequence](core/mixin/sequence.md), [mixin::lookup](core/mixin/lookup.md), [mixin::text](core/mixin/text.md); [req](core/req.md): `req::enumerable`, `req::ordered`, `req::sequence`, `req::lookup`, `req::comparable`, ...; who carries what |
+| [mixin/](core/mixin/README.md) | `sgcl/core/mixin/mixin.h` | the mixins (`namespace mixin`) and the requirements (`namespace req`): [mixin::enumerable](core/mixin/enumerable.md), [mixin::equatable](core/mixin/equatable.md), [mixin::comparable](core/mixin/comparable.md), [mixin::ordered](core/mixin/ordered.md), [mixin::sequence](core/mixin/sequence.md), [mixin::lookup](core/mixin/lookup.md), [mixin::immutable](core/mixin/immutable.md), [mixin::text](core/mixin/text.md); [req](core/req.md): `req::enumerable`, `req::ordered`, `req::sequence`, `req::lookup`, `req::immutable`, `req::comparable`, ...; who carries what |
 
 ## Immutable containers
 
@@ -138,7 +140,6 @@ Structures shared by any number of threads without a lock, the textbook algorith
 | [scheduler](async/scheduler.md) | `sgcl/async/scheduler.h` | the pool of workers that runs the tasks: `spawn`, `yield`, `scheduler::stop`; a task that waits holds no thread |
 | [executor](async/executor.md) | `sgcl/async/executor.h` | `executor`: a task on a thread of the program's choosing (the main thread, a foreign loop through `poll`), resumed there after every wait; `strand`: tasks on the workers one at a time, in order; `co_await on(ex)`, `co_await on_workers()` |
 | [task_local](async/task_local.md) | `sgcl/async/task_local.h` | a value visible to a task and to the tasks it starts, read from any function under it: `co_await x.set(v)`, `x.get()`, `x.with(v, t)`; inherited, copy on write |
-| [thread](async/thread.md) | `sgcl/core/aliases.h` | `std::thread` and `std::this_thread` under the library's names; the threads kept in a `sgcl::vector<sgcl::thread>` |
 | [expiry_queue](containers/expiry_queue.md) | `sgcl/containers/expiry_queue.h` | a callback for an object the collector found unreachable, with the object alive again for the call |
 | [collector](core/collector.md) | `sgcl/core/collector.h` | `force_collect`, `terminate`, statistics and phase times, live objects and bytes by type, the memory limit |
 | [config](core/config.md) | `sgcl/core/config.h` | the compile-time constants and the `-D` macros that set them |

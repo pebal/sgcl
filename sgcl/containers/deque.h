@@ -105,12 +105,12 @@ namespace sgcl {
     // as in std.
     template<class T>
     class deque
-    : public mixin::enumerable<deque<T>>
-    , public mixin::random_access<deque<T>>
-    , public mixin::bidirectional<deque<T>>
-    , public mixin::equatable<deque<T>>
+    : public mixin::bidirectional<deque<T>>
     , public mixin::comparable<deque<T>>
+    , public mixin::enumerable<deque<T>>
+    , public mixin::equatable<deque<T>>
     , public mixin::ordered<deque<T>>
+    , public mixin::random_access<deque<T>>
     , public mixin::sequence<deque<T>> {
         static constexpr size_t BlockSize = std::bit_floor(std::max<size_t>(1, 4096 / sizeof(T)));
 

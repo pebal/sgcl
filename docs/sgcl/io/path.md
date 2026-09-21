@@ -67,8 +67,6 @@ for (auto& p : *io::path::glob("tests/*/*.cpp")) ...
 
 using namespace sgcl;
 
-namespace io = io;
-
 // Renames every *.jpeg under a directory to *.jpg
 int main(int argc, char** argv) {
     auto root = argc > 1 ? argv[1] : ".";

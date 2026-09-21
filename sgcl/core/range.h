@@ -113,13 +113,13 @@ namespace sgcl {
     // or req::sequence.
     template<class It>
     class range
-    : public mixin::enumerable<range<It>>
-    , public detail::MixinIf<std::bidirectional_iterator<It>, mixin::bidirectional, range<It>>
-    , public detail::MixinIf<std::random_access_iterator<It>, mixin::random_access, range<It>>
-    , public detail::MixinIf<std::contiguous_iterator<It>, mixin::contiguous, range<It>>
-    , public mixin::equatable<range<It>>
+    : public detail::MixinIf<std::bidirectional_iterator<It>, mixin::bidirectional, range<It>>
     , public mixin::comparable<range<It>>
+    , public detail::MixinIf<std::contiguous_iterator<It>, mixin::contiguous, range<It>>
+    , public mixin::enumerable<range<It>>
+    , public mixin::equatable<range<It>>
     , public mixin::ordered<range<It>>
+    , public detail::MixinIf<std::random_access_iterator<It>, mixin::random_access, range<It>>
     , public detail::MixinIf<std::indirectly_writable<It, std::iter_value_t<It>>, mixin::sequence, range<It>> {
     public:
         using iterator = It;

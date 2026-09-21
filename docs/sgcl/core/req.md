@@ -13,12 +13,14 @@ namespace sgcl::req {
     template<class R> concept sequence;         // and mixin::sequence: the elements are written
     template<class R> concept ordered;          // and mixin::ordered, with req::comparable elements
     template<class R> concept lookup;           // and mixin::lookup: a map
+    template<class R> concept immutable;        // and mixin::immutable: a value that never changes
 }
 
 namespace sgcl::mixin {
     template<class Derived> class bidirectional;    // the categories: declarations without methods
     template<class Derived> class random_access;
     template<class Derived> class contiguous;
+    template<class Derived> class immutable;        // a value that never changes: every change a new container
 }
 ```
 
@@ -44,11 +46,13 @@ The requirements (`namespace sgcl::req`) are the concepts of the library: what a
 | `req::sequence<R>` | the mutable sequences, `slice<T>`; not `im::vector`, not `slice<const T>`, not `sorted_set` | `fill`, `sort` |
 | `req::ordered<R>` | a sequence, `slice`, `im::vector`, `im::list` of comparable elements; not `sorted_set`, not `vector<point>` | `max`, `is_sorted`, `lower_bound` |
 | `req::lookup<R>` | `sorted_map`, `sorted_multimap`, `map`, `multimap`, `ordered_map`, `im::map` | `get`, `contains_key` |
+| `req::immutable<R>` | `im::vector`, `im::list`, `im::map`, `im::set`; not `slice<const T>`, not `sorted_set` | a snapshot kept, shared or compared without a copy |
 
 ```cpp
 static_assert(req::ordered<vector<int>> && !req::ordered<sorted_set<int>> && !req::enumerable<std::vector<int>>);
 struct point { int x, y; };
 static_assert(req::enumerable<vector<point>> && !req::ordered<vector<point>>);   // iterates; has no order
+static_assert(req::immutable<im::vector<int>> && !req::immutable<slice<const int>>);   // a value that never changes; not merely not written
 ```
 
 ## Example

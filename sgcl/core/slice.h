@@ -101,13 +101,13 @@ namespace sgcl {
     template<class T>
     class slice
     : public detail::SliceBase<T, slice<T>>
-    , public mixin::enumerable<slice<T>>
-    , public mixin::contiguous<slice<T>>
-    , public mixin::random_access<slice<T>>
     , public mixin::bidirectional<slice<T>>
-    , public mixin::equatable<slice<T>>
     , public mixin::comparable<slice<T>>
+    , public mixin::contiguous<slice<T>>
+    , public mixin::enumerable<slice<T>>
+    , public mixin::equatable<slice<T>>
     , public mixin::ordered<slice<T>>
+    , public mixin::random_access<slice<T>>
     , public detail::SliceWriteBase<T, slice<T>> {
     public:
         using element_type = T;

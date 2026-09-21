@@ -20,10 +20,10 @@ namespace sgcl {
     template<class Key, class T, class Compare = std::less<Key>>
     class sorted_map
     : public detail::RbTree<detail::MapTraits<Key, T, Compare, false>>
-    , public mixin::enumerable<sorted_map<Key, T, Compare>>
     , public mixin::bidirectional<sorted_map<Key, T, Compare>>
-    , public mixin::equatable<sorted_map<Key, T, Compare>>
     , public mixin::comparable<sorted_map<Key, T, Compare>>
+    , public mixin::enumerable<sorted_map<Key, T, Compare>>
+    , public mixin::equatable<sorted_map<Key, T, Compare>>
     , public mixin::lookup<sorted_map<Key, T, Compare>> {
         using Base = detail::RbTree<detail::MapTraits<Key, T, Compare, false>>;
 

@@ -18,10 +18,10 @@ namespace sgcl {
     template<class Key, class Compare = std::less<Key>>
     class sorted_set
     : public detail::RbTree<detail::SetTraits<Key, Compare, false>>
-    , public mixin::enumerable<sorted_set<Key, Compare>>
     , public mixin::bidirectional<sorted_set<Key, Compare>>
-    , public mixin::equatable<sorted_set<Key, Compare>>
-    , public mixin::comparable<sorted_set<Key, Compare>> {
+    , public mixin::comparable<sorted_set<Key, Compare>>
+    , public mixin::enumerable<sorted_set<Key, Compare>>
+    , public mixin::equatable<sorted_set<Key, Compare>> {
         using Base = detail::RbTree<detail::SetTraits<Key, Compare, false>>;
 
     public:

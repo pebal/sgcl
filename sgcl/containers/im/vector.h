@@ -137,11 +137,12 @@ namespace sgcl::im {
     // 32 elements of a leaf at most, plus the branches.
     template<class T>
     class vector   // read as any range; == its own (a version and its copy by the trie); no mixin::sequence: nothing written in place
-    : public mixin::enumerable<vector<T>>
-    , public mixin::random_access<vector<T>>
-    , public mixin::bidirectional<vector<T>>
+    : public mixin::bidirectional<vector<T>>
     , public mixin::comparable<vector<T>>
-    , public mixin::ordered<vector<T>> {
+    , public mixin::enumerable<vector<T>>
+    , public mixin::immutable<vector<T>>
+    , public mixin::ordered<vector<T>>
+    , public mixin::random_access<vector<T>> {
         using Branch = detail::VectorBranch;
         using Leaf = detail::VectorLeaf<T>;
 

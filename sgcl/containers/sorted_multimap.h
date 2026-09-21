@@ -18,10 +18,10 @@ namespace sgcl {
     template<class Key, class T, class Compare = std::less<Key>>
     class sorted_multimap
     : public detail::RbTree<detail::MapTraits<Key, T, Compare, true>>
-    , public mixin::enumerable<sorted_multimap<Key, T, Compare>>
     , public mixin::bidirectional<sorted_multimap<Key, T, Compare>>
-    , public mixin::equatable<sorted_multimap<Key, T, Compare>>
     , public mixin::comparable<sorted_multimap<Key, T, Compare>>
+    , public mixin::enumerable<sorted_multimap<Key, T, Compare>>
+    , public mixin::equatable<sorted_multimap<Key, T, Compare>>
     , public mixin::lookup<sorted_multimap<Key, T, Compare>> {
         using Base = detail::RbTree<detail::MapTraits<Key, T, Compare, true>>;
 

@@ -37,7 +37,8 @@ namespace sgcl::im {
     // words, the size and the root, living where a tracked_ptr may.
     template<class Key, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
     class set   // read as any range; contains and find by the key, its own
-    : public mixin::enumerable<set<Key, Hash, KeyEqual>> {
+    : public mixin::enumerable<set<Key, Hash, KeyEqual>>
+    , public mixin::immutable<set<Key, Hash, KeyEqual>> {
         using Trie = detail::Hamt<detail::SetTraits<Key, Hash, KeyEqual>>;
 
     public:

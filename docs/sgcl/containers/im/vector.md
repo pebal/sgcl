@@ -141,7 +141,7 @@ The same elements in the same order, whatever the two share.
 
 ### The mixins
 
-`im::vector` carries [mixin::enumerable](../../core/mixin/enumerable.md), [mixin::comparable](../../core/mixin/comparable.md), [mixin::ordered](../../core/mixin/ordered.md) and the random-access category ([the mixins](../../core/mixin/README.md)): it answers what a `vector` answers — `contains`, `index_of`, `min`, `is_sorted`, `binary_search`, `lower_bound` — and has no `sort()`, nothing being written in place; its `==` is its own, a version and its copy equal by the trie.
+`im::vector` carries [mixin::immutable](../../core/mixin/immutable.md), [mixin::enumerable](../../core/mixin/enumerable.md), [mixin::comparable](../../core/mixin/comparable.md), [mixin::ordered](../../core/mixin/ordered.md) and the random-access category ([the mixins](../../core/mixin/README.md)): it answers what a `vector` answers — `contains`, `index_of`, `min`, `is_sorted`, `binary_search`, `lower_bound` — and has no `sort()`, nothing being written in place; its `==` is its own, a version and its copy equal by the trie.
 
 ```cpp
 im::vector<int> v = im::vector<int>().push_back(1).push_back(3);

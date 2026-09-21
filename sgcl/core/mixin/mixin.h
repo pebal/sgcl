@@ -14,6 +14,7 @@
 #include "contiguous.h"
 #include "enumerable.h"
 #include "equatable.h"
+#include "immutable.h"
 #include "lookup.h"
 #include "ordered.h"
 #include "random_access.h"

@@ -58,6 +58,7 @@ namespace sgcl::im {
     template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
     class map   // read as any range; contains and find by the key, its own; the reads of a map by its key
     : public mixin::enumerable<map<Key, T, Hash, KeyEqual>>
+    , public mixin::immutable<map<Key, T, Hash, KeyEqual>>
     , public mixin::lookup<map<Key, T, Hash, KeyEqual>> {
         using Trie = detail::Hamt<detail::MapTraits<Key, T, Hash, KeyEqual>>;
 

@@ -44,10 +44,10 @@ using namespace sgcl;
 // from the mixins, begin and end are all they ask for.
 template<class T, size_t N>
 class ring
-: public mixin::enumerable<ring<T, N>>
-, public mixin::random_access<ring<T, N>>
-, public mixin::bidirectional<ring<T, N>>
+: public mixin::bidirectional<ring<T, N>>
+, public mixin::enumerable<ring<T, N>>
 , public mixin::ordered<ring<T, N>>
+, public mixin::random_access<ring<T, N>>
 , public mixin::sequence<ring<T, N>> {
 public:
     void push(const T& value) {
@@ -92,4 +92,4 @@ The output:
 ## See also
 
 - [the mixins and the requirements](README.md); [vector](../../containers/vector.md), [array](../../containers/array.md), [deque](../../containers/deque.md), [list](../../containers/list.md), [forward_list](../../containers/forward_list.md): the sequences that carry it
-- `tests/containers/mixin::sequence.cpp`: the members of the sequences' mixins, checked on every sequence; `tests/core/mixin.cpp`
+- `tests/containers/mixins.cpp`: the members of the sequences' mixins, checked on every sequence; `tests/core/mixin.cpp`

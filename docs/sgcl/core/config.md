@@ -277,7 +277,6 @@ using namespace sgcl;
 // collector does with it. Build with -DSGCL_GENERATIONAL=0 or
 // -DSGCL_SWEEP_THREADS_MAX=2 to see the values change.
 int main() {
-    namespace config = config;
     std::cout << "page " << config::PageSize / 1024 << " KB, chunk " << config::ChunkSize / 1048576
               << " MB, " << config::HeapFreeChunkReserve << " free chunks kept committed\n";
     std::cout << "generational: " << (config::Generational ? "yes" : "no") << ", a full cycle after "

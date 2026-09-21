@@ -38,13 +38,13 @@ namespace sgcl {
     // the inline one, N in the type.
     template<class T>
     class dynamic_array
-    : public mixin::enumerable<dynamic_array<T>>
-    , public mixin::contiguous<dynamic_array<T>>
-    , public mixin::random_access<dynamic_array<T>>
-    , public mixin::bidirectional<dynamic_array<T>>
-    , public mixin::equatable<dynamic_array<T>>
+    : public mixin::bidirectional<dynamic_array<T>>
     , public mixin::comparable<dynamic_array<T>>
+    , public mixin::contiguous<dynamic_array<T>>
+    , public mixin::enumerable<dynamic_array<T>>
+    , public mixin::equatable<dynamic_array<T>>
     , public mixin::ordered<dynamic_array<T>>
+    , public mixin::random_access<dynamic_array<T>>
     , public mixin::sequence<dynamic_array<T>> {
     public:
         using value_type = T;

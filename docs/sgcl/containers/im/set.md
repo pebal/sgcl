@@ -57,7 +57,7 @@ auto without_bob = with_carol.erase("bob");      // a literal again
 
 ### The mixins
 
-`im::set` carries [mixin::enumerable](../../core/mixin/enumerable.md) (`contains` and `find` its own) ([the mixins](../../core/mixin/README.md)).
+`im::set` carries [mixin::immutable](../../core/mixin/immutable.md) and [mixin::enumerable](../../core/mixin/enumerable.md) (`contains` and `find` its own) ([the mixins](../../core/mixin/README.md)).
 
 ```cpp
 im::set<int> s = im::set<int>().insert(2);

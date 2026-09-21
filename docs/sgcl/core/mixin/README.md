@@ -30,6 +30,7 @@ void sort_in_place(req::sequence auto& r) requires req::ordered<decltype(r)> { r
 | [mixin::sequence](sequence.md) | `fill`, `reverse` | the elements are written through the iterator |
 | [mixin::lookup](lookup.md) | a map by its key: `get`, `try_get`, `value_or`, `contains_key`, `keys`, `values`, `values_of`; over `find` as an iterator or as a pointer | a map |
 | `mixin::bidirectional`, `mixin::random_access`, `mixin::contiguous` ([req](../req.md#the-requirements)) | nothing: a declaration of the iterator's category, where a concept can ask for it | walked backwards; reached by position; one block, `data()` |
+| [mixin::immutable](immutable.md) | nothing: a declaration | a value that never changes: every change a new container, a copy one word |
 | [mixin::text](text.md) | the read side of `std::string_view` over `data()` and `size()`: `find`, `starts_with`, `contains`, `compare`, `substr`… | text: `string`, `slice<const CharT>` |
 
 Every condition is on a method, never on the class: `Derived` is not yet complete when the base is instantiated, so a method exists (`requires`) only for the elements and the categories that allow it, and a class that carries `mixin::ordered` over elements without `<` simply has no `sort()`, with one line of diagnostic when it is called. The mixins are independent — none inherits another; a container lists in its class head every one it carries — and a name lives in one mixin only, because a name found in two bases is ambiguous: every `sort` is `mixin::ordered`'s, `contains` of a value is `mixin::enumerable`'s.
@@ -49,47 +50,49 @@ A container whose own answer is better hides the mixin's with a method of the sa
 | `req::sequence<R>` | elements written | `req::enumerable` and `mixin::sequence` |
 | `req::ordered<R>` | a range with an order | `req::enumerable`, `mixin::ordered` and `req::comparable` of the element |
 | `req::lookup<R>` | a map | `req::enumerable` and `mixin::lookup` |
+| `req::immutable<R>` | a value that never changes | `req::enumerable` and `mixin::immutable` |
 
 The page: [req](../req.md).
 
 ## Who carries what
 
-| | enumerable | category | equatable | comparable | ordered | sequence | lookup |
-|---|---|---|---|---|---|---|---|
-| [vector](../../containers/vector.md), [array](../../containers/array.md), [dynamic_array](../../containers/dynamic_array.md), [slice\<T\>](../slice.md) | ✓ | contiguous | ✓ | ✓ | ✓ | ✓ | |
-| [slice\<const T\>](../slice.md) | ✓ | contiguous | ✓ | ✓ | ✓ | | |
-| [deque](../../containers/deque.md) | ✓ | random access | ✓ | ✓ | ✓ | ✓ | |
-| [list](../../containers/list.md) | ✓ | bidirectional | ✓ | ✓ | ✓ (`sort` its own) | ✓ (`reverse` its own) | |
-| [forward_list](../../containers/forward_list.md) | ✓ | — | ✓ | ✓ | ✓ (`sort` its own) | ✓ (`reverse` its own) | |
-| [range](../range.md) | ✓ | the iterator's | ✓ | ✓ | ✓ | when the iterator writes | |
-| [im::vector](../../containers/im/vector.md) | ✓ | random access | (its own `==`) | ✓ | ✓ (no `sort`) | | |
-| [im::list](../../containers/im/list.md) | ✓ | — | (its own `==`) | ✓ | ✓ (no `sort`) | | |
-| [sorted_set](../../containers/sorted_set.md), [sorted_multiset](../../containers/sorted_multiset.md) | ✓ (`contains`, `min`, `max` their own) | bidirectional | ✓ | ✓ | | | |
-| [sorted_map](../../containers/sorted_map.md), [sorted_multimap](../../containers/sorted_multimap.md) | ✓ (the same) | bidirectional | ✓ | ✓ | | | ✓ |
-| [set](../../containers/set.md), [multiset](../../containers/multiset.md), [ordered_set](../../containers/ordered_set.md), [im::set](../../containers/im/set.md) | ✓ (`contains` its own) | — | (its own `==`) | | | | |
-| [map](../../containers/map.md), [multimap](../../containers/multimap.md), [ordered_map](../../containers/ordered_map.md) | ✓ (the same) | — | (its own `==`) | | | | ✓ |
-| [im::map](../../containers/im/map.md) | ✓ (the same) | — | (its own `==`) | | | | ✓ |
-| [string](../string.md) | mixin::text only: a string enters as `as_slice()` | | | | | | |
+| | enumerable | category | equatable | comparable | ordered | sequence | lookup | immutable |
+|---|---|---|---|---|---|---|---|---|
+| [vector](../../containers/vector.md), [array](../../containers/array.md), [dynamic_array](../../containers/dynamic_array.md), [slice\<T\>](../slice.md) | ✓ | contiguous | ✓ | ✓ | ✓ | ✓ | | |
+| [slice\<const T\>](../slice.md) | ✓ | contiguous | ✓ | ✓ | ✓ | | | |
+| [deque](../../containers/deque.md) | ✓ | random access | ✓ | ✓ | ✓ | ✓ | | |
+| [list](../../containers/list.md) | ✓ | bidirectional | ✓ | ✓ | ✓ (`sort` its own) | ✓ (`reverse` its own) | | |
+| [forward_list](../../containers/forward_list.md) | ✓ | — | ✓ | ✓ | ✓ (`sort` its own) | ✓ (`reverse` its own) | | |
+| [range](../range.md) | ✓ | the iterator's | ✓ | ✓ | ✓ | when the iterator writes | | |
+| [im::vector](../../containers/im/vector.md) | ✓ | random access | (its own `==`) | ✓ | ✓ (no `sort`) | | | ✓ |
+| [im::list](../../containers/im/list.md) | ✓ | — | (its own `==`) | ✓ | ✓ (no `sort`) | | | ✓ |
+| [sorted_set](../../containers/sorted_set.md), [sorted_multiset](../../containers/sorted_multiset.md) | ✓ (`contains`, `min`, `max` their own) | bidirectional | ✓ | ✓ | | | | |
+| [sorted_map](../../containers/sorted_map.md), [sorted_multimap](../../containers/sorted_multimap.md) | ✓ (the same) | bidirectional | ✓ | ✓ | | | ✓ | |
+| [set](../../containers/set.md), [multiset](../../containers/multiset.md), [ordered_set](../../containers/ordered_set.md) | ✓ (`contains` its own) | — | (its own `==`) | | | | | |
+| [im::set](../../containers/im/set.md) | ✓ (the same) | — | (its own `==`) | | | | | ✓ |
+| [map](../../containers/map.md), [multimap](../../containers/multimap.md), [ordered_map](../../containers/ordered_map.md) | ✓ (the same) | — | (its own `==`) | | | | ✓ | |
+| [im::map](../../containers/im/map.md) | ✓ (the same) | — | (its own `==`) | | | | ✓ | ✓ |
+| [string](../string.md) | mixin::text only: a string enters as `as_slice()` | | | | | | | |
 
 Not carried: the adaptors (`stack`, `queue`, `priority_queue`), `expiry_queue`, the weak containers and the concurrent ones — none iterates as a range of values.
 
 ## A class of your own
 
-Derive from the mixins it can honour and give `begin()` and `end()`; the requirements see it as they see `vector`:
+Derive from the mixins it can honour and give `begin()` and `end()`; the requirements see it as they see `vector`. The library writes the bases one per line, in alphabetical order of the mixin's name, so that a reader finds one in a fixed place and a list never has to say why it is ordered as it is:
 
 ```cpp
 template<class T>
 class ring
-: public mixin::enumerable<ring<T>>
-, public mixin::random_access<ring<T>>
-, public mixin::bidirectional<ring<T>>
-, public mixin::equatable<ring<T>>
+: public mixin::bidirectional<ring<T>>
 , public mixin::comparable<ring<T>>
+, public mixin::enumerable<ring<T>>
+, public mixin::equatable<ring<T>>
 , public mixin::ordered<ring<T>>
+, public mixin::random_access<ring<T>>
 , public mixin::sequence<ring<T>> {
     ...
 };
 static_assert(req::ordered<ring<int>>);
 ```
 
-The pages: [mixin::enumerable](enumerable.md), [mixin::equatable](equatable.md), [mixin::comparable](comparable.md), [mixin::ordered](ordered.md), [mixin::sequence](sequence.md), [mixin::lookup](lookup.md), [mixin::text](text.md), [req](../req.md); the tests in `tests/core/mixin.cpp`.
+The pages: [mixin::enumerable](enumerable.md), [mixin::equatable](equatable.md), [mixin::comparable](comparable.md), [mixin::ordered](ordered.md), [mixin::sequence](sequence.md), [mixin::lookup](lookup.md), [mixin::immutable](immutable.md), [mixin::text](text.md), [req](../req.md); the tests in `tests/core/mixin.cpp`.

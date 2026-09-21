@@ -42,10 +42,8 @@ namespace sgcl {
     using std::error_category;
     using std::error_condition;
 
-    // The thread of the standard library, under the library's name: what
-    // the examples start and join; its closure is unmanaged memory, so a
-    // tracked_ptr it needs is captured by reference (to a frame that
-    // outlives it) or held through a root_ptr (README: The rules, 1).
-    using std::thread;
+    // The current thread of the standard library, under the library's
+    // name; the thread itself is the library's own (thread.h), its closure
+    // in a managed node
     namespace this_thread = std::this_thread;   // yield, sleep_for, sleep_until, get_id
 }

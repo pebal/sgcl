@@ -128,8 +128,6 @@ io::walk_dir(".", [&](const io::dir_entry& e, const optional<io::error>& err) {
 
 using namespace sgcl;
 
-namespace io = io;
-
 // Removes the files of a directory older than a week
 int main(int argc, char** argv) {
     if (argc < 2) return 2;

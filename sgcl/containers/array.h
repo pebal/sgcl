@@ -46,13 +46,13 @@ namespace sgcl {
 
     template<class T, size_t N, size_t... I>
     class array<T, N, std::index_sequence<I...>>
-    : public mixin::enumerable<array<T, N>>
-    , public mixin::contiguous<array<T, N>>
-    , public mixin::random_access<array<T, N>>
-    , public mixin::bidirectional<array<T, N>>
-    , public mixin::equatable<array<T, N>>
+    : public mixin::bidirectional<array<T, N>>
     , public mixin::comparable<array<T, N>>
+    , public mixin::contiguous<array<T, N>>
+    , public mixin::enumerable<array<T, N>>
+    , public mixin::equatable<array<T, N>>
     , public mixin::ordered<array<T, N>>
+    , public mixin::random_access<array<T, N>>
     , public mixin::sequence<array<T, N>> {
     public:
         using value_type = T;
@@ -199,13 +199,13 @@ namespace sgcl {
     // No elements: the same interface over nothing
     template<class T>
     class array<T, 0, std::index_sequence<>>
-    : public mixin::enumerable<array<T, 0>>
-    , public mixin::contiguous<array<T, 0>>
-    , public mixin::random_access<array<T, 0>>
-    , public mixin::bidirectional<array<T, 0>>
-    , public mixin::equatable<array<T, 0>>
+    : public mixin::bidirectional<array<T, 0>>
     , public mixin::comparable<array<T, 0>>
+    , public mixin::contiguous<array<T, 0>>
+    , public mixin::enumerable<array<T, 0>>
+    , public mixin::equatable<array<T, 0>>
     , public mixin::ordered<array<T, 0>>
+    , public mixin::random_access<array<T, 0>>
     , public mixin::sequence<array<T, 0>> {
     public:
         using value_type = T;

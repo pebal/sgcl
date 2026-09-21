@@ -100,8 +100,6 @@ if (auto r = w->close(); !r) std::cerr << r.error().message() << '\n';   // the 
 
 using namespace sgcl;
 
-namespace io = io;
-
 int main(int argc, char** argv) {
     auto in = argc > 1 ? io::open(argv[1]) : io::result<tracked_ptr<io::file>>(io::stdin());
     if (!in) { std::cerr << in.error().message() << '\n'; return 1; }
