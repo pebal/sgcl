@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
+#include "../core/detail/bytes.h"
 
 #include "error.h"
 #include "mixin/reader.h"
@@ -333,7 +334,7 @@ namespace sgcl::io {
             }
             size_t n = std::min(out.size(), size());
             if (n) {
-                std::memcpy(out.data(), _data.data() + _read, n);
+                sgcl::detail::copy_bytes(out.data(), _data.data() + _read, n);
                 _read += n;
                 if (_read == _data.size()) {
                     clear();

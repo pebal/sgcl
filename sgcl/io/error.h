@@ -25,7 +25,11 @@ namespace sgcl::io {
         closed,
         invalid_path,
         invalid_pattern,
-        line_too_long
+        line_too_long,
+        not_found,        // look_path: no executable of the name in PATH
+        exit_status,      // a process ended with a failure status: the code in the command's state
+        process_done,     // the process was waited for or released already
+        wait_delay        // the wait ended by wait_delay with the child's pipes still open
     };
 
     namespace detail {
@@ -43,6 +47,10 @@ namespace sgcl::io {
                     case errc::invalid_path: return "invalid path";
                     case errc::invalid_pattern: return "invalid pattern";
                     case errc::line_too_long: return "line too long";
+                    case errc::not_found: return "executable file not found in PATH";
+                    case errc::exit_status: return "the process ended with a failure status";
+                    case errc::process_done: return "process already finished";
+                    case errc::wait_delay: return "wait delay expired";
                 }
                 return "unknown io error";
             }
@@ -136,6 +144,10 @@ namespace sgcl::io {
 
         bool is_timeout() const noexcept {
             return _is(std::errc::timed_out) || _is(std::errc::resource_unavailable_try_again) || _is(std::errc::operation_would_block);
+        }
+
+        bool is_exit_status() const noexcept {
+            return _code == errc::exit_status;
         }
 
         friend bool operator==(const error& a, const error& b) noexcept {

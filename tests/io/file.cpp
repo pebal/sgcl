@@ -38,7 +38,7 @@ namespace {
         }
     };
 
-    std::string_view text(std::span<const std::byte> b) {
+    std::string_view as_text(std::span<const std::byte> b) {
         return std::string_view(reinterpret_cast<const char*>(b.data()), b.size());
     }
 }
@@ -101,12 +101,12 @@ TEST_F(IoFile_Tests, SeekReadAtWriteAtTruncateStat) {
     ASSERT_TRUE((*f)->rewind());
     std::byte b[4];
     EXPECT_EQ(*(*f)->read_full(b), 4u);
-    EXPECT_EQ(text(b), "0123");
+    EXPECT_EQ(as_text(b), "0123");
     EXPECT_EQ(*(*f)->seek(-2, seek_from::end), 8u);
     EXPECT_EQ(*(*f)->read(b), 2u);
-    EXPECT_EQ(text(std::span<const std::byte>(b, 2)), "89");
+    EXPECT_EQ(as_text(std::span<const std::byte>(b, 2)), "89");
     EXPECT_EQ(*(*f)->read_at(b, 3), 4u);   // the position untouched
-    EXPECT_EQ(text(b), "3456");
+    EXPECT_EQ(as_text(b), "3456");
     EXPECT_EQ(*(*f)->tell(), 10u);
     std::string_view rep = "AB";
     EXPECT_EQ(*(*f)->write_at(std::as_bytes(std::span(rep)), 1), 2u);

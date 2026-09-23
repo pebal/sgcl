@@ -63,9 +63,11 @@ void swap(slice& o) noexcept;
 // slice<const CharT>, text (mixin::text over the characters): the read side of std::string_view
 view_type view() const noexcept;  operator view_type() const noexcept;  std::string str() const;
 size_type length() const noexcept;  const CharT& at(size_type i) const;
-compare, starts_with, ends_with, contains, find, rfind, find_first_of, find_last_of, find_first_not_of, find_last_not_of, copy
+compare, starts_with, ends_with, contains, find, rfind, find_first_of, find_last_of, find_first_not_of, find_last_not_of, copy, equal_fold
+runes runes() const noexcept;  size_type rune_count() const noexcept;  pair<char32_t, size_type> decode(size_type pos) const noexcept;  bool is_valid_utf8() const noexcept;   // the code points of a slice<const char> (utf8.md)
+find(char32_t), rfind, contains, starts_with, ends_with;  find_first_of(std::u32string_view), find_last_of, find_first_not_of, find_last_not_of   // a character as a code point, a set of them; the int overloads deleted ('ż' is an int: write U'ż')
 slice substr(size_type pos = 0, size_type n = npos) const;           // subslice, under its text name
-slice trim() const;  slice trim(view_type chars) const;  trim_left, trim_right;  slice trim_prefix(view_type) const;  slice trim_suffix(view_type) const;   // slices of the same owner
+slice trim() const;  slice trim(view_type chars) const;  slice trim(std::u32string_view set) const;  trim_left, trim_right;  slice trim_prefix(view_type) const;  slice trim_suffix(view_type) const;   // without Unicode white space, the characters, the code points: slices of the same owner
 friend bool operator==(const slice& a, view_type s);  friend bool operator==(const slice& a, const CharT* s);  <=> likewise
 std::hash<slice<const CharT>>, std::equal_to, std::less;             // transparent: a string of the characters hashes the same
 operator<<(std::ostream&, const slice<const CharT>&);

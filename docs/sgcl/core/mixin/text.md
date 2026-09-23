@@ -9,7 +9,7 @@ namespace sgcl::mixin {
 }
 ```
 
-`mixin::text<Derived, CharT>` gives whatever holds characters through `data()` and `size()` the read side of `std::string_view` as members: `view()` and the conversion to a `std::basic_string_view`, `length`, `at`, `copy`, `compare`, `starts_with`, `ends_with`, `contains`, `find`, `rfind`, `find_first_of` and the rest, `str()` as a `std::basic_string`, `npos`. [string](../string.md) and [slice\<const CharT\>](../slice.md) carry it, so a piece of a string answers what the string does; the operations that make a new object (`substr`, `trim`, `split`) stay with the class, whose type they return. Every operation runs on a `std::basic_string_view` over the characters.
+`mixin::text<Derived, CharT>` gives whatever holds characters through `data()` and `size()` the read side of `std::string_view` as members: `view()` and the conversion to a `std::basic_string_view`, `length`, `at`, `copy`, `compare`, `starts_with`, `ends_with`, `contains`, `find`, `rfind`, `find_first_of` and the rest, `str()` as a `std::basic_string`, `npos`. [string](../string.md) and [slice\<const CharT\>](../slice.md) carry it, so a piece of a string answers what the string does; the operations that make a new object (`substr`, `trim`, `split`) stay with the class, whose type they return. Every operation runs on a `std::basic_string_view` over the characters. The text is Unicode ([utf8](../utf8.md)): the mixin adds `runes()`, `rune_count()`, `decode(pos)`, `is_valid_utf8()`, a `char32_t` as a character wherever a `CharT` is (`find(U'ż')`, `contains`, `rfind`, `starts_with`, `ends_with`), a `std::u32string_view` as a set of characters where a view is (`find_first_of(U"«»")` and the other three), `equal_fold`; and it deletes the `int` overloads, because `'ż'` in a UTF-8 source is an `int`. The white space `trim()` and `fields()` skip and the case `to_lower()` maps are Unicode's (`unicode::is_space`, `unicode::to_lower`), a code point at a time in UTF-8, a unit at a time in a wide string.
 
 ```cpp
 string s = "key = value";
@@ -22,4 +22,4 @@ On a text slice, `contains` is `mixin::text`'s (a substring or a character), not
 
 ## See also
 
-- [the mixins and the requirements](README.md), [string](../string.md), [slice](../slice.md)
+- [the mixins and the requirements](README.md), [string](../string.md), [slice](../slice.md), [utf8, unicode, runes](../utf8.md)

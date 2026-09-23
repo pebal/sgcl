@@ -18,7 +18,7 @@ namespace {
         co_return n;
     }
 
-    sgcl::task<std::string> text() {
+    sgcl::task<std::string> text_task() {
         co_return "text";
     }
 
@@ -38,7 +38,7 @@ namespace {
 }
 
 TEST(When_Test, WhenAllGivesATupleOfTheResults) {
-    auto [n, s] = sgcl::when_all(sgcl::spawn(number(1, 5)), sgcl::spawn(text())).join();   // join starts the when_all
+    auto [n, s] = sgcl::when_all(sgcl::spawn(number(1, 5)), sgcl::spawn(text_task())).join();   // join starts the when_all
     EXPECT_EQ(n, 1);
     EXPECT_EQ(s, "text");
     sgcl::when_all(sgcl::spawn(nothing()), sgcl::spawn(nothing())).join();

@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
+#include "../core/detail/bytes.h"
 
 #include "../core/make_tracked.h"
 #include "../core/mixin/mixin.h"
@@ -94,8 +95,8 @@ namespace sgcl {
         }
 
         vector(vector&& other) noexcept
-        : _ptr(other._ptr)
-        , _size(other._size)
+        : _size(other._size)
+        , _ptr(other._ptr)
         , _capacity(other._capacity) {
             other._ptr = nullptr;
             other._size = 0;
@@ -491,7 +492,7 @@ namespace sgcl {
                 auto data = _data();
                 auto s = size();
                 if constexpr(std::is_trivially_copyable_v<T> && !detail::TypeInfo<T>::MayContainTracked) {
-                    std::memmove((void*)(data + index), data + index + count, (s - index - count) * sizeof(T));
+                    detail::move_bytes((void*)(data + index), data + index + count, (s - index - count) * sizeof(T));
                 } else {
                     for (auto i = index + count; i < s; ++i) {
                         data[i - count] = std::move(data[i]);
@@ -736,10 +737,10 @@ namespace sgcl {
             auto old = lock.get_plain();
             if constexpr(std::is_trivially_copyable_v<T> && !detail::TypeInfo<T>::MayContainTracked) {
                 if (index) {
-                    std::memcpy((void*)data, old, index * sizeof(T));
+                    detail::copy_bytes((void*)data, old, index * sizeof(T));
                 }
                 if (s > index) {
-                    std::memcpy((void*)(data + index + count), old + index, (s - index) * sizeof(T));
+                    detail::copy_bytes((void*)(data + index + count), old + index, (s - index) * sizeof(T));
                 }
                 _size = s + count;
             } else if constexpr(detail::TypeInfo<T>::IsTracked) {
@@ -767,10 +768,10 @@ namespace sgcl {
                     detail::Page::set_state<detail::State::Reachable>(old);
                 }
                 if (index) {
-                    std::memcpy((void*)data, old, index * sizeof(T));
+                    detail::copy_bytes((void*)data, old, index * sizeof(T));
                 }
                 if (s > index) {
-                    std::memcpy((void*)(data + index + count), old + index, (s - index) * sizeof(T));
+                    detail::copy_bytes((void*)(data + index + count), old + index, (s - index) * sizeof(T));
                 }
                 _size = s + count;
             } else {

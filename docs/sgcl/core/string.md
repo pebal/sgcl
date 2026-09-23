@@ -20,7 +20,7 @@ What it is for: text that is kept, shared and compared. Copying one between mana
 
 The interface is the read side of `std::string` and all of `std::string_view`: `size`, `data`, `c_str`, `[]`, `at`, `front`, `back`, the iterators, `compare`, `starts_with`, `ends_with`, `contains`, the six `find`s, `substr` (a new string, or the same object for the whole), the comparisons and `<=>` with a string, a `string_view` or a literal, `operator+` (a new string), `std::hash`, `operator<<`, the conversions to `string_view` and to `std::string` (`str()`); the constructors from a literal, `(s, n)`, a `string_view`, a `std::string` or anything a `string_view` is made of, `(n, ch)`, a range, an initializer list. No mutation, no `capacity`: a string is built as a `std::string` or a `string_view` and made once. The length is kept in 32 bits.
 
-Past `std::string`, what the strings of Go (`strings`) and Java have, each a new string or the same object when there is nothing to change: `split` (the pieces between the separators, a range of slices walked as it goes: `pieces`), `fields` (the words between runs of white space, the same range), `join` (static: the parts with a separator between each two, built once), `trim`, `trim_left`, `trim_right` (white space, or the characters given), `trim_prefix`, `trim_suffix`, `replace` (every occurrence, or the first `count`), `repeat`, `to_lower`, `to_upper` (the ASCII letters; Unicode is for `text`).
+Past `std::string`, what the strings of Go (`strings`) and Java have, each a new string or the same object when there is nothing to change: `split` (the pieces between the separators, a range of slices walked as it goes: `pieces`), `fields` (the words between runs of white space, the same range), `join` (static: the parts with a separator between each two, built once), `trim`, `trim_left`, `trim_right` (Unicode white space, or the characters given), `trim_prefix`, `trim_suffix`, `replace` (every occurrence, or the first `count`), `repeat`, `to_lower`, `to_upper` (by Unicode's simple case mapping: `"ŁÓDŹ"` to `"łódź"`), `equal_fold` (the same letters in either case). The text is UTF-8: `size()` counts bytes, `runes()` walks the code points, a `char32_t` is a character wherever a `char` is (`find(U'ż')`, `split(U'·')`) and an `int` — `'ż'`, a multi-character literal — is refused ([utf8](utf8.md)).
 
 The word is a `tracked_ptr`, so a string lives where one may, as the containers do: on a stack or inside a managed object. A piece of a string is a [`slice`](slice.md) (`string_slice`, a `slice<const char>`): the string's object as the owner and a range in it, so `s.as_slice(pos, n)` is a substring with no copy and no lifetime to watch, and the pieces of `split` are such slices. The read interface below is the mixin `mixin::text`, which a text slice shares.
 
@@ -67,16 +67,20 @@ int compare(...) const;  bool starts_with(...) const;  bool ends_with(...) const
 size_type find(...) const;  rfind, find_first_of, find_last_of, find_first_not_of, find_last_not_of         // the overloads of std::string_view
 basic_string substr(size_type pos = 0, size_type n = npos) const;   // a new string; the same object for the whole
 class pieces;                                             // a forward range of string_slices (slices that hold the object) into the string: what split and fields return
-pieces split(view_type sep, size_type max_parts = 0) const;   // and (CharT sep), (const CharT* sep), (const basic_string& sep): the pieces between the separators, in order
-pieces fields() const;                                    // the words between runs of white space, none empty
-template<std::ranges::input_range R> static basic_string join(R&& parts, view_type sep);   // and (R&&, CharT), (R&&, const CharT*): parts convertible to view_type
-basic_string trim() const;  basic_string trim(view_type chars) const;             // without white space (the characters of `chars`) at both ends
-basic_string trim_left() const;  basic_string trim_left(view_type chars) const;   // at the start
-basic_string trim_right() const;  basic_string trim_right(view_type chars) const; // at the end
+pieces split(view_type sep, size_type max_parts = 0) const;   // and (CharT sep), (char32_t sep), (const CharT* sep), (const basic_string& sep): the pieces between the separators, in order
+pieces fields() const;                                    // the words between runs of Unicode white space, none empty
+template<std::ranges::input_range R> static basic_string join(R&& parts, view_type sep);   // and (R&&, CharT), (R&&, char32_t), (R&&, const CharT*): parts convertible to view_type
+basic_string trim() const;  basic_string trim(view_type chars) const;  basic_string trim(std::u32string_view set) const;   // without Unicode white space (the characters of `chars`; the code points of `set`) at both ends
+basic_string trim_left() const;  basic_string trim_left(view_type chars) const;  basic_string trim_left(std::u32string_view set) const;   // at the start
+basic_string trim_right() const;  basic_string trim_right(view_type chars) const;  basic_string trim_right(std::u32string_view set) const;   // at the end
 basic_string trim_prefix(view_type prefix) const;  basic_string trim_suffix(view_type suffix) const;   // without it when it is there
-basic_string replace(view_type from, view_type to, size_type count = 0) const;   // and (CharT, CharT, count): every occurrence, or the first `count`
+basic_string replace(view_type from, view_type to, size_type count = 0) const;   // and (CharT, CharT, count), (char32_t, char32_t, count): every occurrence, or the first `count`
 basic_string repeat(size_type count) const;               // the string `count` times over
-basic_string to_lower() const;  basic_string to_upper() const;   // the ASCII letters
+basic_string to_lower() const;  basic_string to_upper() const;   // by Unicode's simple case mapping (unicode::to_lower), the length free to change
+bool equal_fold(view_type s) const noexcept;              // the same letters in either case, code point by code point
+runes runes() const noexcept;  size_type rune_count() const noexcept;  pair<char32_t, size_type> decode(size_type pos) const noexcept;  bool is_valid_utf8() const noexcept;   // the code points (utf8.md)
+size_type find(char32_t c, size_type pos = 0) const noexcept;   // and rfind, contains, starts_with, ends_with: a character as a code point; find(int) and the rest are deleted ('ż' is an int: write U'ż')
+size_type find_first_of(std::u32string_view set, size_type pos = 0) const noexcept;   // and find_last_of, find_first_not_of, find_last_not_of: a set of code points
 void swap(basic_string&) noexcept;
 size_t hash() const noexcept;                             // std::hash of the characters, computed once, kept in the object
 static size_t hash_of(view_type s) noexcept;              // the hash a string of these characters has: for a lookup by a view
@@ -117,7 +121,7 @@ assert(ages.find(std::string_view("alice")) != ages.end() && !ages.contains("bob
 
 `to_string` makes a string of a number, `parse<T>` a number of a text: `parse<int>("42")`, `parse<double>("2.5")`, `parse<bool>("true")`, `parse<int>("ff", 16)`, an `optional` that is `nullopt` unless the text is exactly one number of the type (no white space, no `+`, no sign for an unsigned type, nothing after the digits, in range), `std::from_chars` under it, so no locale and no allocation: C#'s `TryParse`, Go's `strconv`, Java's `parseInt` without the exception. A `string` converts to the view, so `parse<int>(s)` reads a string.
 
-The operations past `std::string` return a new string, or the same object when there is nothing to change (`trim` of a string without white space at its ends, `replace` of what does not occur, `to_lower` of a string with no upper-case letter), so a result may be compared by `object()` as by `==`. `split` and `fields` return `pieces`: a value of a few words (the string, the separator as a copy, the limit) that is a forward range of [`string_slice`](slice.md)s into the string, each piece found as the walk reaches it, one `find` per step and no allocation, as `std::views::split` and Go's `strings.SplitSeq`. Each piece holds the string's object, so it is valid on its own, wherever it is kept: `for (sgcl::string_slice piece : s.split(','))` walks them, `sgcl::vector<sgcl::string_slice> parts(s.split(','))` keeps them (every sequence has a constructor from a range), `sgcl::vector<sgcl::string> strings(s.split(','))` makes a string of each, and `join` takes the range as it is. `split` keeps an empty piece where two separators meet or one ends the string, as Go's `strings.Split` does and Java's `split` does not; with `max_parts` the last piece holds the rest of the string; an empty separator splits into characters; an empty string splits into nothing. `fields` drops the empty pieces: the words. `replace` goes left to right without overlapping and never looks into what it has put in; an empty `from` changes nothing. `join` takes any range whose elements a `std::string_view` is made of: strings, slices, literals, `std::string`.
+The operations past `std::string` return a new string, or the same object when there is nothing to change (`trim` of a string without white space at its ends, `replace` of what does not occur, `to_lower` of a string with no upper-case letter — by Unicode's case, `"łódź"` has none), so a result may be compared by `object()` as by `==`. `split` and `fields` return `pieces`: a value of a few words (the string, the separator as a copy, the limit) that is a forward range of [`string_slice`](slice.md)s into the string, each piece found as the walk reaches it, one `find` per step and no allocation, as `std::views::split` and Go's `strings.SplitSeq`. Each piece holds the string's object, so it is valid on its own, wherever it is kept: `for (sgcl::string_slice piece : s.split(','))` walks them, `sgcl::vector<sgcl::string_slice> parts(s.split(','))` keeps them (every sequence has a constructor from a range), `sgcl::vector<sgcl::string> strings(s.split(','))` makes a string of each, and `join` takes the range as it is. `split` keeps an empty piece where two separators meet or one ends the string, as Go's `strings.Split` does and Java's `split` does not; with `max_parts` the last piece holds the rest of the string; an empty separator splits into characters; an empty string splits into nothing. `fields` drops the empty pieces: the words. `replace` goes left to right without overlapping and never looks into what it has put in; an empty `from` changes nothing. `join` takes any range whose elements a `std::string_view` is made of: strings, slices, literals, `std::string`.
 
 ```cpp
 string line = "  name = alice, bob ,carol  ";
@@ -139,6 +143,20 @@ assert(title.replace(" ", "_").to_upper() == "THE_QUICK_BROWN_FOX");
 assert(title.replace("quick", "slow", 1).trim_suffix(" fox") == "the slow brown");
 assert(string("ab").repeat(3) == "ababab");
 assert(title.to_lower().object() == title.object());           // nothing to change: the same object
+```
+
+The text is Unicode, UTF-8 in the bytes ([utf8](utf8.md)): the case, the white space and a character given as a `char32_t` are code points, the positions are bytes.
+
+```cpp
+string city = "\u00A0ŁÓDŹ\u3000";                       // a no-break space, an ideographic space
+assert(city.trim() == "ŁÓDŹ" && city.trim().to_lower() == "łódź" && city.size() == 12 && city.rune_count() == 6);
+assert(city.find(U'Ó') == 4 && city.contains(U'Ź') && city.trim().replace(U'Ó', U'o') == "ŁoDŹ");
+assert(vector<string>(string("a·b·c").split(U'·')).size() == 3 && string("«x»").trim(U"«»") == "x");
+assert(string("Łódź").equal_fold("ŁÓDŹ"));
+for (char32_t c : city.runes()) {                           // the code points, decoded as they are walked
+    assert(c == U'\u00A0' || unicode::is_upper(c) || c == U'\u3000');
+}
+// city.find('Ó') does not compile: 'Ó' is an int (two bytes in one literal), write U'Ó'
 ```
 
 ## Example

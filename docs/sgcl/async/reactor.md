@@ -6,10 +6,12 @@
 namespace sgcl {
     tracked_ptr<channel<void>> readable(int fd);   // one signal when fd can be read without blocking, then closed
     tracked_ptr<channel<void>> writable(int fd);   // the same for a write
+    tracked_ptr<channel<void>> exited(int pid);    // one signal when the process has ended (its status still to collect)
+    void cancel_waits(int fd);                     // the waits on fd ended with nothing: what a close of the descriptor calls
 }
 ```
 
-The reactor: the readiness of file descriptors, as channels. `readable(fd)` is a channel that gets one signal when `fd` can be read without blocking (data, or the end of the stream), and is closed then; `writable(fd)` the same for a write. A task writes `co_await readable(fd)->async_receive()` and holds no thread until the data comes; a [select](select.md) bounds the wait (`readable(fd)->on_receive(f), timeout(1s, g)`) and a [stop_token](stop_token.md) cancels it, since the wait is a channel like any other. Under them one thread on the kernel's queue (kqueue on macOS and FreeBSD; epoll and IOCP on the other platforms, to come), asleep in the kernel until something is ready, which then signals the channel: a push on the scheduler for the task that waits. The thread starts with the first wait and stops with the scheduler.
+The reactor: the readiness of file descriptors, and the end of a child process, as channels. `readable(fd)` is a channel that gets one signal when `fd` can be read without blocking (data, or the end of the stream), and is closed then; `writable(fd)` the same for a write; `exited(pid)` gets its signal when the process has ended (kqueue's `EVFILT_PROC`, a pidfd on Linux: what [io::command](../io/exec.md) waits on, no thread per child, as Go 1.23), its status then collected without blocking. A task writes `co_await readable(fd)->async_receive()` and holds no thread until the data comes; a [select](select.md) bounds the wait (`readable(fd)->on_receive(f), timeout(1s, g)`) and a [stop_token](stop_token.md) cancels it, since the wait is a channel like any other. Under them one thread on the kernel's queue (kqueue on macOS and FreeBSD; epoll and IOCP on the other platforms, to come), asleep in the kernel until something is ready, which then signals the channel: a push on the scheduler for the task that waits. The thread starts with the first wait and stops with the scheduler.
 
 This is the foundation the `io` and `net` modules stand on: a socket or a file in them is a descriptor with a buffer, and a read that would block is `co_await readable(fd)` followed by a read that will not. It is deliberately the smallest thing that does that: one registration per wait (the kernel's one-shot event), a managed channel per wait, no buffers, no descriptors of the library's own.
 
@@ -19,7 +21,7 @@ This is the foundation the `io` and `net` modules stand on: a socket or a file i
 - The signal is readiness, not data: what a read then gives is the read's business (bytes, zero for the end of the stream, an error). A descriptor the kernel cannot watch (a regular file, on kqueue) is signalled at once, and the read says what is what.
 - The channel is a managed object: it lives where a `tracked_ptr` may, and as long as something holds it, the reactor's registration included ([The rules](../core/README.md#the-rules), 1).
 - `scheduler::stop()` stops the reactor too: the waits still registered are ended with nothing (their channels closed); the next wait starts it again. A wait registered while the reactor is stopping ends the same way.
-- Close a descriptor only when no wait is registered on it: the kernel drops the registration with the descriptor and nothing signals the wait, which stays registered until `scheduler::stop()`; a wait on a descriptor the other side may close is bounded by a timeout or a token.
+- A descriptor closed with a wait registered: the kernel drops the registration with the descriptor and nothing would signal the wait, and the reactor's own record of it would take the waits of the next descriptor with the same number; so a close calls `cancel_waits(fd)` first, which ends the waits on the descriptor with nothing (their channels closed) — `file::close` does. A descriptor the program closes by hand while a task waits on it calls `cancel_waits(fd)` itself.
 - The reactor thread is a thread of the program to the collector, like any other.
 
 ## Members
@@ -27,6 +29,8 @@ This is the foundation the `io` and `net` modules stand on: a socket or a file i
 ```cpp
 tracked_ptr<channel<void>> readable(int fd);
 tracked_ptr<channel<void>> writable(int fd);
+tracked_ptr<channel<void>> exited(int pid);
+void cancel_waits(int fd);
 ```
 
 ```cpp
@@ -35,6 +39,10 @@ task<int> read_one(int fd) {
     co_await readable(fd)->async_receive();          // no thread held
     char c;
     co_return ::read(fd, &c, 1) == 1 ? c : -1;
+}
+task<io::result<io::process_state>> ended(tracked_ptr<io::process> p) {   // what io::process::async_wait does
+    co_await exited(p->pid())->async_receive();        // no thread held while the child runs
+    co_return p->wait();                                // the status, without blocking: the child has ended
 }
 task<bool> read_one_within(int fd, duration d) {
     co_return co_await async_select(

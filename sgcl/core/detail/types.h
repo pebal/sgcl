@@ -43,7 +43,6 @@ namespace sgcl::detail {
     template <class>
     class  RootContainerAllocator;
     class  Thread;
-    class  Timer;
     class  Tracked;
     template<class>
     struct TypeInfo;

@@ -6,6 +6,7 @@
 #pragma once
 
 #include "../make_tracked.h"
+#include "bytes.h"
 #include "../tracked_ptr.h"
 #include "../unique_ptr.h"
 #include "maker.h"
@@ -34,7 +35,7 @@ namespace sgcl::detail {
     template<class CharT>
     inline void string_fill(unsigned char* bytes, std::basic_string_view<CharT> s) noexcept {
         ::new(bytes) StringHeader{(uint32_t)s.size(), {0}};
-        std::memcpy(bytes + sizeof(StringHeader), s.data(), s.size() * sizeof(CharT));
+        copy_bytes(bytes + sizeof(StringHeader), s.data(), s.size() * sizeof(CharT));
         std::memset(bytes + sizeof(StringHeader) + s.size() * sizeof(CharT), 0, sizeof(CharT));
     }
 
@@ -96,35 +97,47 @@ namespace sgcl::detail {
     struct StringMaker {
         using Word = tracked_ptr<const void>;
 
+        // What the size classes hand back is a unique_ptr and not the
+        // string's word. The object is kept alive by the state of its slot
+        // (UniqueLock, set by the allocator before it was handed out), not
+        // by any pointer to it, so carrying it out as a raw word is as safe
+        // as make_tracked's own return — and it is free, where a tracked_ptr
+        // returned across a call the compiler cannot inline costs three
+        // touches: the released transition in the callee, a barrier store
+        // when the caller takes the result, and the temporary's destructor.
+        // Built here instead, in make, the transition happens once and
+        // writes straight into the string's word.
+        using Slot = unique_ptr<void>;
+
         template<class CharT, size_t Bytes>
-        static Word make_slot(std::basic_string_view<CharT> s) {
-            return Word(make_tracked<StringSlot<Bytes>>(s));
+        static Slot make_slot(std::basic_string_view<CharT> s) {
+            return Slot(make_tracked<StringSlot<Bytes>>(s));
         }
 
         template<class CharT>
-        static Word make_buffer(std::basic_string_view<CharT> s, size_t bytes) {
+        static Slot make_buffer(std::basic_string_view<CharT> s, size_t bytes) {
             unique_ptr<StringByte> buffer(Maker<StringByte[]>::make_tracked_data(bytes));
             string_fill(reinterpret_cast<unsigned char*>(buffer.get()), s);
-            return Word(std::move(buffer));
+            return Slot(std::move(buffer));
         }
 
         template<class CharT>
         static Word make(std::basic_string_view<CharT> s) {
             const size_t bytes = sizeof(StringHeader) + (s.size() + 1) * sizeof(CharT);
             if (bytes <= 256) {
-                return small_table<CharT>[(bytes - 1) / 4](s);
+                return Word(small_table<CharT>[(bytes - 1) / 4](s));
             }
             for (size_t i = 0; i < StringLargeClasses; ++i) {
                 if (bytes <= string_large_class(i)) {
-                    return large_table<CharT>[i](s);
+                    return Word(large_table<CharT>[i](s));
                 }
             }
-            return make_buffer(s, bytes);
+            return Word(make_buffer(s, bytes));
         }
 
     private:
         template<class CharT>
-        using MakeFn = Word (*)(std::basic_string_view<CharT>);
+        using MakeFn = Slot (*)(std::basic_string_view<CharT>);
 
         template<class CharT, size_t... Is>
         static constexpr std::array<MakeFn<CharT>, sizeof...(Is)> small_entries(std::index_sequence<Is...>) {

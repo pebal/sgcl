@@ -31,8 +31,9 @@
 *.out
 *.app
 
-# Local design notes
-DESIGN.md
-
 # Build directories
 build*/
+
+# The UCD files tools/unicode_tables.py downloads; the generated headers
+# are committed, the data is not
+.ucd/

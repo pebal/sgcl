@@ -28,7 +28,7 @@ A file is one class for every descriptor — a regular file, a pipe, a terminal,
 ## Rules
 
 - Made by `open`, `create`, `from_fd`, `pipe` (the constructor is private): a `tracked_ptr<file>`, which is a `tracked_ptr<reader>`, `<writer>`, `<stream>`, `<seeker>` as needed.
-- The descriptor is released by `close()` or, failing that, by the destructor on the collector's thread after the sweep that finds the file dead — later than the last use. A file that is done is closed; `close()` reports what the deferred one could not.
+- `close()` ends the waits of the tasks on the reactor for a non-blocking descriptor (`cancel_waits`): a task in `async_read` wakes to a closed file, and the descriptor's number can be another's. The descriptor is released by `close()` or, failing that, by the destructor on the collector's thread after the sweep that finds the file dead — later than the last use. A file that is done is closed; `close()` reports what the deferred one could not.
 - `from_fd` leaves the descriptor's flags as they are: one that is non-blocking already is served by the reactor, any other by the pool. `open` makes a FIFO or a device non-blocking; `pipe` makes both ends so.
 - The data of an async write stays alive while the task awaits, as a task's local does; a `tracked_ptr` to a buffer captured in the awaiting frame is enough.
 - One task or thread at a time on the position; `read_at`/`write_at` from any number.

@@ -4,7 +4,7 @@ One page per public class or function of the library, each with every public mem
 
 ## Modules
 
-The library is five modules, one directory each in `sgcl/` and here, each depending only on those before it and each with a README of its own that is its guide (what the classes are, the rules, what to reach for) before it lists them:
+The library is six modules, one directory each in `sgcl/` and here, each depending only on those before it and each with a README of its own that is its guide (what the classes are, the rules, what to reach for) before it lists them:
 
 | module | header | what it holds |
 |---|---|---|
@@ -12,7 +12,8 @@ The library is five modules, one directory each in `sgcl/` and here, each depend
 | [containers](containers/README.md) | `sgcl/containers/containers.h` | the sequences, maps and sets, `string`, `weak_map`, `weak_set`, `expiry_queue`; the [immutable containers](containers/im/README.md) in `sgcl::im` (`im::vector`, `im::list`, `im::map`, `im::set`: every operation a new version sharing all but the path it changed; the state of a program as a value) |
 | [concurrent](concurrent/README.md) | `sgcl/concurrent/concurrent.h` | the lock-free containers, `concurrent_bounded_queue`, `concurrent_priority_queue`, `concurrent_cache`, the concurrent weak containers, `intern`, `atomic`, `copy_on_write` |
 | [async](async/README.md) | `sgcl/async/async.h` | coroutines, the scheduler, executors and strands, task-local values, `channel`, `select`, `broadcast`, timers and the clock, the signals of the process, `stop_token`, `when_all`/`when_any`, `task_group`, `timeout`, `sync`, `promise`, `spawn_blocking`, the reactor |
-| [io](io/README.md) | `sgcl/io/io.h` | streams (`reader`, `writer`, `stream` and the mixins over one primitive), `buffered_reader` and `buffered_writer`, `file` over any descriptor with the pool and the reactor behind its async forms, the file system (`stat`, `mkdir_all`, `read_dir`, `walk_dir`), `path`, the process (`args`, `getenv`, the standard streams); errors as `result<T>`; the first module in a namespace of its own, `sgcl::io` |
+| [io](io/README.md) | `sgcl/io/io.h` | streams (`reader`, `writer`, `stream` and the mixins over one primitive), `buffered_reader` and `buffered_writer`, `file` over any descriptor with the pool and the reactor behind its async forms, the file system (`stat`, `mkdir_all`, `read_dir`, `walk_dir`), `path`, the process (`args`, `getenv`, the standard streams), a child process (`command`: the fields of `exec.Cmd`, its exit waited for on the reactor); errors as `result<T>`; the first module in a namespace of its own, `sgcl::io` |
+| [txt](txt/README.md) | `sgcl/txt/txt.h` | the properties of a code point (the general category, the script, `is_alpha`, `is_emoji`, `columns`) the boundaries of UAX #29 and #14 (`graphemes`, `words`, `sentences`, `line_breaks`, `wrap`) the four normalization forms of UAX #15, the full case mappings with `locale`, searching blind to case or to the way a text was written, the encodings (UTF-16 and UTF-32, the single byte pages, what a header's charset says) and the bidirectional algorithm; collation to come; its own namespace, `sgcl::txt` |
 
 The sections below list the same pages by what they are.
 
@@ -32,8 +33,17 @@ The sections below list the same pages by what they are.
 | [any](core/any.md) | `sgcl/core/any.h` | `std::any`'s interface with a tracked pointer in a word of its own and an object with pointers in a managed node of its own |
 | [function](core/function.md) | `sgcl/core/function.h` | `std::function` and `std::move_only_function` whose closure may capture tracked pointers: the closure in a managed node of its own |
 | [thread](core/thread.md) | `sgcl/core/thread.h` | `std::thread` with the callable and the arguments in a managed node of their own: a `tracked_ptr` captured by value as in a `function`; `sgcl::this_thread` is `std::this_thread` |
+| [utf8, unicode, runes](core/utf8.md) | `sgcl/core/utf8.h`, `sgcl/core/unicode.h` | the encoding (`decode`, `encode`, `count`, `valid`), the code point's case and white space (`to_lower`, `is_space`, `equal_fold`), the code points of a text as a range |
+| [txt::properties](txt/properties.md) | `sgcl/txt/properties.h` | the general category and the predicates over it, the value of a digit, the script, and `columns`: the cells a code point and a text take on a terminal |
+| [txt::segment](txt/segment.md) | `sgcl/txt/segment.h` | the boundaries of UAX #29 and #14: `graphemes`, `words`, `sentences`, `line_breaks`, the cursor moves over graphemes, `wrap` and `truncate` |
+| [txt::normalize](txt/normalize.md) | `sgcl/txt/normalize.h` | the four forms of UAX #15 as tags (`nfc`, `nfd`, `nfkc`, `nfkd`), `is_normalized`, `equal_normalized`, `compare_normalized`, `hash_normalized`, `combining_class`, `compose`, `decompose` |
+| [txt::case](txt/case.md) | `sgcl/txt/case.h` | the full case mappings and `locale`: `to_lower_full`, `to_upper_full`, `to_title`, `fold_case`, `equal_fold_full` — a letter that becomes two, the sigma that ends a word, the three languages that spell an i differently |
+| [txt::search](txt/search.md) | `sgcl/txt/search.h` | `searcher` (a prepared pattern, Boyer–Moore–Horspool), `find_fold`, `find_normalized`, both reporting the position in the original text |
+| [txt::bidi](txt/bidi.md) | `sgcl/txt/bidi.h` | text that runs both ways at once (UAX #9): `direction_of`, `paragraph_direction`, `levels`, `visual_order`, `bidi_runs` — the pieces in the order they are drawn |
+| [txt::encoding](txt/encoding.md) | `sgcl/txt/encoding.h` | `decode`/`encode` between UTF-8 and UTF-16, UTF-32, and the 27 single byte encodings of the WHATWG's list (ISO-8859-2 to -16, KOI8-R and -U, windows-874 and -1250 to -1258, IBM866, Mac OS Roman and Cyrillic); `to_utf16`, `from_utf16`, `to_utf32`, `from_utf32`, `detect_bom`, `encoding_from_name` |
+| [txt::collate](txt/collate.md) | `sgcl/txt/collate.h` | the order a reader expects (UTS #10): `collator` — a comparator and a key, three strengths, the root order of the DUCET and the own order of 88 languages from CLDR |
 | [range](core/range.md) | `sgcl/core/range.h` | a pair of iterators as a range (what `equal_range` hands back, made iterable) and the integers of `range(n)`, `range(first, last)`; for a range-for and `std::ranges` |
-| [string](core/string.md) | `sgcl/core/string.h` | an immutable string on the managed heap: one word, shared by copying, compared and hashed by its contents, no destructor |
+| [string](core/string.md) | `sgcl/core/string.h` | an immutable string on the managed heap: one word, shared by copying, compared and hashed by its contents, no destructor; UTF-8, with `runes()`, a `char32_t` as a character and Unicode's case and white space |
 | [slice](core/slice.md) | `sgcl/core/slice.h` | the elements of a contiguous range and the managed object they lie in, held: Go's slice; a `std::span` when the memory is unmanaged (no owner); `slice<const char>` is text, what `as_slice` and the pieces of `split` are, `slice<std::byte>` the buffers of io |
 | [expected](core/expected.md) | `sgcl/core/expected.h` | `std::expected`'s interface (C++23) over a variant: the value and the error laid out apart |
 | [optional, pair, tuple, error_code](core/aliases.md) | `sgcl/core/aliases.h` | the `std` types under the library's names: they hold a tracked pointer correctly as they are, one value per place |
@@ -130,6 +140,7 @@ Structures shared by any number of threads without a lock, the textbook algorith
 | [file](io/file.md) | `sgcl/io/file.h` | `file` over any descriptor: `open`, `create`, `from_fd`, `pipe`, `read_at`/`write_at`, `stat`, `sync`; async through the blocking pool or the reactor; `read_file`, `write_file`, `append_file`, `temp_file`, `temp_dir` |
 | [fs](io/fs.md) | `sgcl/io/fs.h` | `stat`, `lstat`, `file_info`, `permissions`, `mkdir_all`, `remove_all`, `rename`, `copy_file`, `symlink`, `chmod`, `read_dir`, `walk_dir` |
 | [path](io/path.md) | `sgcl/io/path.h` | `clean`, `join`, `base`, `dir`, `ext`, `stem`, `split`, `abs`, `rel`, `match`, `glob`: paths as strings, a view in and a string out |
+| [exec](io/exec.md) | `sgcl/io/exec.h` | `command`: a program run with the fields of `exec.Cmd`, its streams the library's, `run`, `output`, the pipes, a stop token; `process`, `process_state`, `look_path`; the exit waited for on the reactor |
 | [os](io/os.md) | `sgcl/io/os.h` | `args`, `getenv`, `environ`, `expand_env`, `working_dir`, `home_dir`, `cache_dir`, `executable`, `hostname`, `stdin`/`stdout`/`stderr` as files, `exit` |
 
 ## Coroutines, observers, the collector

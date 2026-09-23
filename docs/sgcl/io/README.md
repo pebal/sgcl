@@ -1,6 +1,6 @@
 # sgcl::io
 
-What Go has in `os`, `io`, `bufio` and `path/filepath`: files and the file system, streams over them and over anything else that reads or writes, buffering, paths as strings, the process and its environment. `#include "sgcl/io/io.h"` brings the module in; it depends on [`core`](../core/README.md), [`containers`](../containers/README.md) and [`async`](../async/README.md) (the blocking pool and the reactor carry its asynchronous side), and `net`, `compress` and `codec` are built on its streams.; the index of the whole interface is [`docs/sgcl/`](../README.md).
+What Go has in `os`, `io`, `bufio`, `path/filepath` and `os/exec`: files and the file system, streams over them and over anything else that reads or writes, buffering, paths as strings, the process and its environment, and a child process with its streams. `#include "sgcl/io/io.h"` brings the module in; it depends on [`core`](../core/README.md), [`containers`](../containers/README.md) and [`async`](../async/README.md) (the blocking pool and the reactor carry its asynchronous side), and `net`, `compress` and `codec` are built on its streams.; the index of the whole interface is [`docs/sgcl/`](../README.md).
 
 ## The namespace
 
@@ -40,6 +40,7 @@ Text is UTF-8 in `char`: a `string` is bytes, `size()` counts them, and `path::m
 | [file](file.md) | `sgcl/io/file.h` | `file`, `open_flags`, `open`, `create`, `from_fd`, `pipe`, `read_file`, `read_text`, `write_file`, `append_file`, `temp_file`, `temp_dir` |
 | [fs](fs.md) | `sgcl/io/fs.h` | `permissions`, `file_type`, `file_info`, `dir_entry`, `stat`, `lstat`, `exists`, `mkdir`, `mkdir_all`, `remove`, `remove_all`, `rename`, `copy_file`, `symlink`, `read_link`, `chmod`, `set_modified`, `read_dir`, `walk_dir` |
 | [path](path.md) | `sgcl/io/path.h` | `clean`, `join`, `base`, `dir`, `ext`, `stem`, `split`, `split_list`, `is_abs`, `abs`, `rel`, `match`, `glob`, `from_slash`, `to_slash` |
+| [exec](exec.md) | `sgcl/io/exec.h` | `command` (the fields of `exec.Cmd`: `path`, `args`, `dir`, `env`, `in`, `out`, `err`, `stop`; `start`, `wait`, `run`, `output`, `combined_output`, `stdin_pipe`…, the `async_` forms), `process` (`pid`, `signal`, `kill`, `wait`, `release`), `process_state`, `look_path` |
 | [os](os.md) | `sgcl/io/os.h` | `args`, `getenv`, `setenv`, `unsetenv`, `environ`, `expand_env`, `working_dir`, `chdir`, `home_dir`, `cache_dir`, `config_dir`, `temp_path`, `executable`, `hostname`, `pid`, `stdin`, `stdout`, `stderr`, `is_terminal`, `exit` |
 
 ## SGCL and Go
@@ -67,5 +68,6 @@ Text is UTF-8 in `char`: a `string` is bytes, `size()` counts them, and `path::m
 | `os.Args`, `os.Getenv`, `LookupEnv`, `Setenv`, `Unsetenv`, `Environ`, `ExpandEnv` | `args()`, `getenv()` (an `optional`: set or not), `setenv`, `unsetenv`, `environ()`, `expand_env` | |
 | `os.Getwd`, `Chdir`, `UserHomeDir`, `UserCacheDir`, `UserConfigDir`, `Executable`, `Hostname`, `Getpid`, `Exit` | `working_dir`, `chdir`, `home_dir`, `cache_dir`, `config_dir`, `executable`, `hostname`, `pid`, `exit` | |
 | `os.Stdin`, `os.Stdout`, `os.Stderr` | `stdin()`, `stdout()`, `stderr()` | a `tracked_ptr<file>` per call, the descriptor never closed by it |
-| `os/exec` | — | phase 2 of the module |
+| `exec.Command`, `Cmd.Run`, `Start`, `Wait`, `Output`, `CombinedOutput`, `StdinPipe`, `StdoutPipe`, `StderrPipe`, `CommandContext`, `WaitDelay` | `command(name, args...)`, `run`, `start`, `wait`, `output`, `combined_output`, `stdin_pipe`, `stdout_pipe`, `stderr_pipe`, the `stop` token, `wait_delay` | `posix_spawn`; the wait on the reactor (`exited(pid)`), no thread per child |
+| `os.Process`, `os.ProcessState`, `exec.LookPath`, `exec.ExitError` | `process`, `process_state`, `look_path`, `errc::exit_status` with `cmd.state` | |
 | the goroutine that blocks in `Read` | `co_await f->async_read(b)` | the pool for a regular file, the reactor for a pipe or a socket |

@@ -76,31 +76,53 @@ namespace sgcl {
             // A one-shot registration: the channel signalled and closed when fd is ready
             void watch(int fd, bool write, tracked_ptr<void> keep, channel<void>* ch) {
 #if SGCL_REACTOR_KQUEUE
-                _start();
-                root_ptr<IoWait> wait = make_tracked<IoWait>();
-                wait->keep = std::move(keep);
-                wait->ch = ch;
-                short filter = write ? EVFILT_WRITE : EVFILT_READ;
-                IoNode* node;
-                {
-                    std::lock_guard lock(_m);
-                    auto& slot = _pending[Key(fd, filter)];
-                    if (slot) {   // registered already: this wait rides on it
-                        slot->waits.push_back(std::move(wait));
-                        return;
-                    }
-                    node = new IoNode{fd, filter, {}};
-                    node->waits.push_back(std::move(wait));
-                    slot = node;
-                }
-                struct kevent ev;
-                EV_SET(&ev, fd, filter, EV_ADD | EV_ONESHOT, 0, 0, node);
-                if (_kq < 0 || ::kevent(_kq, &ev, 1, nullptr, 0, nullptr) < 0) {   // a descriptor the kernel cannot watch (or a reactor stopping): ready at once, the read will say what is wrong
-                    _fire(node);
-                }
+                _watch(fd, write ? EVFILT_WRITE : EVFILT_READ, 0, std::move(keep), ch);
 #else
                 (void)fd; (void)write; (void)keep; (void)ch;
                 static_assert(SGCL_REACTOR_KQUEUE, "the reactor is kqueue only for now (macOS, FreeBSD); epoll and IOCP are to come");
+#endif
+            }
+
+            // The same for the exit of a process: the channel signalled
+            // when the process with this id has ended (its status still
+            // to be collected with waitpid); at once when it has ended
+            // already, or never existed (the registration fails with
+            // ESRCH). What Go 1.23 does with a pidfd on Linux, done here
+            // with kqueue's EVFILT_PROC.
+            void watch_exit(int pid, tracked_ptr<void> keep, channel<void>* ch) {
+#if SGCL_REACTOR_KQUEUE
+                _watch(pid, EVFILT_PROC, NOTE_EXIT, std::move(keep), ch);
+#else
+                (void)pid; (void)keep; (void)ch;
+                static_assert(SGCL_REACTOR_KQUEUE, "the reactor is kqueue only for now (macOS, FreeBSD); epoll with a pidfd is to come");
+#endif
+            }
+
+            // The waits on a descriptor ended with nothing, before it is
+            // closed: the kernel drops the registration of a closed
+            // descriptor silently, and a node left here would take the
+            // waits of the next descriptor with the same number (a pipe
+            // closed by a wait_delay, its number reused by the next pipe)
+            void cancel(int fd) {
+#if SGCL_REACTOR_KQUEUE
+                for (short filter : {EVFILT_READ, EVFILT_WRITE}) {
+                    IoNode* node;
+                    {
+                        std::lock_guard lock(_m);
+                        auto it = _pending.find(Key(fd, filter));
+                        if (it == _pending.end()) {
+                            continue;
+                        }
+                        node = it->second;
+                        _pending.erase(it);
+                    }
+                    for (auto& w : node->waits) {
+                        w->ch->close();
+                    }
+                    delete node;
+                }
+#else
+                (void)fd;
 #endif
             }
 
@@ -138,6 +160,32 @@ namespace sgcl {
         private:
 #if SGCL_REACTOR_KQUEUE
             using Key = std::pair<int, short>;
+
+            // One registration for an identifier (a descriptor, a process
+            // id) and a filter: a second wait on the pair rides on the first
+            void _watch(int ident, short filter, unsigned fflags, tracked_ptr<void> keep, channel<void>* ch) {
+                _start();
+                root_ptr<IoWait> wait = make_tracked<IoWait>();
+                wait->keep = std::move(keep);
+                wait->ch = ch;
+                IoNode* node;
+                {
+                    std::lock_guard lock(_m);
+                    auto& slot = _pending[Key(ident, filter)];
+                    if (slot) {   // registered already: this wait rides on it
+                        slot->waits.push_back(std::move(wait));
+                        return;
+                    }
+                    node = new IoNode{ident, filter, {}};
+                    node->waits.push_back(std::move(wait));
+                    slot = node;
+                }
+                struct kevent ev;
+                EV_SET(&ev, ident, filter, EV_ADD | EV_ONESHOT, fflags, 0, node);
+                if (_kq < 0 || ::kevent(_kq, &ev, 1, nullptr, 0, nullptr) < 0) {   // a descriptor the kernel cannot watch, a process that is gone (or a reactor stopping): ready at once, the call after will say what is
+                    _fire(node);
+                }
+            }
 
             struct KeyHash {
                 size_t operator()(const Key& k) const noexcept {
@@ -241,6 +289,23 @@ namespace sgcl {
     inline tracked_ptr<channel<void>> writable(int fd) {
         tracked_ptr<channel<void>> ch = make_tracked<channel<void>>(1);
         detail::reactor_instance().watch(fd, true, ch, ch.get());
+        return ch;
+    }
+
+    // The waits on fd ended with nothing: what a close of the descriptor
+    // calls, before the number can be another descriptor's
+    inline void cancel_waits(int fd) {
+        detail::reactor_instance().cancel(fd);
+    }
+
+    // A channel signalled once when the process with this id has ended,
+    // then closed: `co_await exited(pid)->async_receive()` holds no
+    // thread while a child runs, and waitpid after it does not block. A
+    // process that has ended already, or that does not exist, signals at
+    // once.
+    inline tracked_ptr<channel<void>> exited(int pid) {
+        tracked_ptr<channel<void>> ch = make_tracked<channel<void>>(1);
+        detail::reactor_instance().watch_exit(pid, ch, ch.get());
         return ch;
     }
 }

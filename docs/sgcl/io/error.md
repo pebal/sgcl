@@ -26,10 +26,10 @@ What an operation of io reports when it fails, and the shape every operation ret
 ### errc
 
 ```cpp
-enum class errc { unexpected_eof = 1, closed, invalid_path, invalid_pattern, line_too_long };
+enum class errc { unexpected_eof = 1, closed, invalid_path, invalid_pattern, line_too_long, not_found, exit_status, process_done, wait_delay };
 ```
 
-The failures no `errno` names: the end of a stream where more was required (`read_full`), a stream closed by the program (a read after `close()`), a path `rel` cannot express or a pattern `match` cannot parse, a line past the bound a `buffered_reader` was given. `make_error_code(errc)` puts one in a `error_code`; `std::is_error_code_enum` is specialized, so `code == errc::closed` compares directly.
+The failures no `errno` names: the end of a stream where more was required (`read_full`), a stream closed by the program (a read after `close()`), a path `rel` cannot express or a pattern `match` cannot parse, a line past the bound a `buffered_reader` was given; and, of a child process ([exec](exec.md)), no executable of the name in PATH (`not_found`), a failure status (`exit_status`), a second wait or a signal after the wait (`process_done`), the copying tasks outlasting `wait_delay` (`wait_delay`). `make_error_code(errc)` puts one in a `error_code`; `std::is_error_code_enum` is specialized, so `code == errc::closed` compares directly.
 
 ### error
 
@@ -48,6 +48,7 @@ bool is_closed() const noexcept;              // errc::closed, EBADF
 bool is_eof() const noexcept;                 // errc::unexpected_eof
 bool is_interrupted() const noexcept;         // EINTR
 bool is_timeout() const noexcept;             // ETIMEDOUT, EAGAIN, EWOULDBLOCK
+bool is_exit_status() const noexcept;         // errc::exit_status: a child ended with a failure status (exec.md)
 friend bool operator==(const error&, const error&) noexcept;   // by code
 ```
 

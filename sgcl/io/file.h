@@ -198,6 +198,9 @@ namespace sgcl::io {
             }
             int fd = _fd;
             _fd = -1;
+            if (_reactor) {
+                cancel_waits(fd);   // a task waiting for this descriptor's readiness wakes to a closed file; the number may be another's next
+            }
             if (_owns && ::close(fd) != 0) {
                 return detail::fail(last_error("close", _name()));
             }

@@ -273,8 +273,16 @@ namespace sgcl {
             return pieces(*this, sep, max_parts, sep.empty() ? pieces::Characters : pieces::Separator);
         }
 
-        // The words: the pieces between runs of white space (space, tab,
-        // newline, vertical tab, form feed, carriage return), none empty
+        pieces split(char32_t sep, size_type max_parts = 0) const requires (sizeof(CharT) == 1) {
+            return split(view_type(_encoded_of(sep)), max_parts);
+        }
+
+        pieces split(int, size_type = 0) const = delete;   // 'ż' is an int: write U'ż'
+
+        // The words: the pieces between runs of white space (Unicode's:
+        // space, tab, newline and the rest of the C locale's six, and the
+        // no-break, ideographic and other spaces, unicode::is_space), none
+        // empty
         pieces fields() const {
             return pieces(*this, basic_string(), 0, pieces::Fields);
         }
@@ -308,11 +316,22 @@ namespace sgcl {
             return join(std::forward<R>(parts), view_type(sep));
         }
 
-        // Without the characters of `chars` (white space by default) at
-        // both ends, at the start, at the end: the same object when there
-        // are none
+        template<std::ranges::input_range R>
+        requires std::is_convertible_v<std::ranges::range_reference_t<R>, view_type> && (sizeof(CharT) == 1)
+        static basic_string join(R&& parts, char32_t sep) {
+            return join(std::forward<R>(parts), view_type(_encoded_of(sep)));
+        }
+
+        template<std::ranges::input_range R>
+        static basic_string join(R&&, int) = delete;   // 'ż' is an int: write U'ż'
+
+        // Without the characters of `chars` (Unicode white space by
+        // default, unicode::is_space; a set of code points as a
+        // std::u32string_view, trim(U"«»")) at both ends, at the start, at
+        // the end: the same object when there are none
         basic_string trim() const {
-            return trim(this->spaces());
+            auto from = this->_find_space(0, false);
+            return from == npos ? basic_string() : _part(from, this->_end_without_spaces());
         }
 
         basic_string trim(view_type chars) const {
@@ -325,8 +344,23 @@ namespace sgcl {
             return _part(from, to);
         }
 
+        basic_string trim(std::u32string_view set) const requires (sizeof(CharT) == 1) {
+            auto from = this->find_first_not_of(set);
+            if (from == npos) {
+                return basic_string();
+            }
+            auto last = this->find_last_not_of(set);
+            return _part(from, last + this->decode(last).second);
+        }
+
         basic_string trim_left() const {
-            return trim_left(this->spaces());
+            auto from = this->_find_space(0, false);
+            return from == npos ? basic_string() : _part(from, size());
+        }
+
+        basic_string trim_left(std::u32string_view set) const requires (sizeof(CharT) == 1) {
+            auto from = this->find_first_not_of(set);
+            return from == npos ? basic_string() : _part(from, size());
         }
 
         basic_string trim_left(view_type chars) const {
@@ -335,7 +369,12 @@ namespace sgcl {
         }
 
         basic_string trim_right() const {
-            return trim_right(this->spaces());
+            return _part(0, this->_end_without_spaces());
+        }
+
+        basic_string trim_right(std::u32string_view set) const requires (sizeof(CharT) == 1) {
+            auto last = this->find_last_not_of(set);
+            return last == npos ? basic_string() : _part(0, last + this->decode(last).second);
         }
 
         basic_string trim_right(view_type chars) const {
@@ -379,6 +418,12 @@ namespace sgcl {
             return replace(view_type(&from, 1), view_type(&to, 1), count);
         }
 
+        basic_string replace(char32_t from, char32_t to, size_type count = 0) const requires (sizeof(CharT) == 1) {
+            return replace(view_type(_encoded_of(from)), view_type(_encoded_of(to)), count);
+        }
+
+        basic_string replace(int, int, size_type = 0) const = delete;   // 'ż' is an int: write U'ż'
+
         // The string `count` times over: empty for 0, the same object for 1
         basic_string repeat(size_type count) const {
             if (count == 0 || empty()) {
@@ -399,14 +444,26 @@ namespace sgcl {
             return basic_string(view_type(s));
         }
 
-        // With the ASCII letters in lower (upper) case, the other
-        // characters as they are; the same object when no letter changes
+        // With every letter in lower (upper) case by Unicode's simple
+        // case mapping (unicode::to_lower: one code point to one, "ŁÓDŹ"
+        // to "łódź"; ß stays ß, no language's rules), the other characters
+        // as they are; the same object when no letter changes
         basic_string to_lower() const {
-            return _mapped(CharT('A'), CharT('Z'), CharT('a') - CharT('A'));
+            if constexpr (sizeof(CharT) == 1) {
+                if (utf8::all_ascii(this->_bytes())) {
+                    return _ascii_cased('A', 'Z', 32);
+                }
+            }
+            return _cased([](char32_t c) { return unicode::to_lower(c); });
         }
 
         basic_string to_upper() const {
-            return _mapped(CharT('a'), CharT('z'), CharT('A') - CharT('a'));
+            if constexpr (sizeof(CharT) == 1) {
+                if (utf8::all_ascii(this->_bytes())) {
+                    return _ascii_cased('a', 'z', -32);
+                }
+            }
+            return _cased([](char32_t c) { return unicode::to_upper(c); });
         }
 
         void swap(basic_string& o) noexcept {
@@ -485,21 +542,77 @@ namespace sgcl {
             return (from == 0 && to == size()) ? *this : basic_string(this->view().substr(from, to - from));
         }
 
-        // The characters in [lo, hi] shifted by `by`: the same object when
-        // there is none
-        basic_string _mapped(CharT lo, CharT hi, int by) const {
+        // A Latin letter changes case by one bit, and no letter of ASCII
+        // maps to anything but its own pair, so a text that is all ASCII
+        // needs no decoding and no table: one pass over the bytes, where
+        // the general path below decodes a code point at a time and asks
+        // a table about each
+        basic_string _ascii_cased(char lo, char hi, int by) const {
             auto v = this->view();
-            auto changes = [&](CharT c) { return c >= lo && c <= hi; };
-            if (std::find_if(v.begin(), v.end(), changes) == v.end()) {
-                return *this;
-            }
             std::basic_string<CharT, Traits> s(v);
+            bool changed = false;
+            // Without a branch, because one here costs twelve times what
+            // the work does: the letters of a text do not alternate in
+            // any way a processor can predict, and a branch is also what
+            // stops the loop being done a word at a time
             for (auto& c : s) {
-                if (changes(c)) {
-                    c = CharT(int(c) + by);
-                }
+                bool letter = uint8_t(uint8_t(c) - uint8_t(lo)) <= uint8_t(hi - lo);
+                c = CharT(int(c) + (letter ? by : 0));
+                changed |= letter;
             }
-            return basic_string(view_type(s));
+            return changed ? basic_string(s.data(), s.size()) : *this;
+        }
+
+        // The characters mapped one by one (a code point at a time in
+        // UTF-8, a unit in a wide string): the same object when none
+        // changes, else a new string, whose bytes may be more or fewer
+        template<class Map>
+        basic_string _cased(Map map) const {
+            auto v = this->view();
+            if constexpr (sizeof(CharT) == 1) {
+                auto bytes = this->_bytes();
+                size_type first = 0;
+                for (; first < bytes.size();) {
+                    auto [c, n] = utf8::decode(bytes, first);
+                    if (map(c) != c) {
+                        break;
+                    }
+                    first += n;
+                }
+                if (first == bytes.size()) {
+                    return *this;
+                }
+                std::basic_string<CharT, Traits> s(v.substr(0, first));
+                s.reserve(v.size());
+                for (size_type i = first; i < bytes.size();) {
+                    auto [c, n] = utf8::decode(bytes, i);
+                    auto m = map(c);
+                    if (m == c) {
+                        s.append(v, i, n);
+                    } else {
+                        char out[utf8::max_width];
+                        auto w = utf8::encode(m, out);
+                        s.append(reinterpret_cast<const CharT*>(out), w);
+                    }
+                    i += n;
+                }
+                return basic_string(view_type(s));
+            } else {
+                auto changes = [&](CharT c) { return map(char32_t(c)) != char32_t(c); };
+                if (std::find_if(v.begin(), v.end(), changes) == v.end()) {
+                    return *this;
+                }
+                std::basic_string<CharT, Traits> s(v);
+                for (auto& c : s) {
+                    c = CharT(map(char32_t(c)));
+                }
+                return basic_string(view_type(s));
+            }
+        }
+
+        // A code point as the text it is split on or replaced: its bytes
+        static auto _encoded_of(char32_t c) noexcept requires (sizeof(CharT) == 1) {
+            return typename basic_string::_encoded(c);
         }
 
         // Whether the slice is the whole of a string: its owner a string
@@ -605,13 +718,12 @@ namespace sgcl {
                 auto text = _owner->_text.view();
                 switch (_owner->_mode) {
                 case Fields: {
-                    auto spaces = basic_string::spaces();
-                    auto from = text.find_first_not_of(spaces, _next);
+                    auto from = _owner->_text._find_space(_next, false);
                     if (from == npos) {
                         _done = true;
                         return;
                     }
-                    auto to = text.find_first_of(spaces, from);
+                    auto to = _owner->_text._find_space(from, true);
                     _piece = _owner->_text.as_slice(from, to == npos ? npos : to - from);
                     _next = to;
                     return;

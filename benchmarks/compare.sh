@@ -22,7 +22,7 @@ T=$(mktemp -d)
 JAVA=("$JBIN/java" -XX:+UseZGC -XX:+UnlockDiagnosticVMOptions -XX:OnSpinWaitInst=isb -Duser.language=en -Duser.country=US -cp "$T/jout")
 CORES=$(getconf _NPROCESSORS_ONLN)
 VARIANTS=${VARIANTS:-sgcl unique shared std go java-zgc}
-CASES=${CASES:-alloc copy weak stack queue cstack cmap umap set cow chan bqueue pqueue intern wmap spsc cache im bcast async bt graph lt string}
+CASES=${CASES:-alloc copy weak stack queue cstack cmap umap set cow chan bqueue pqueue intern wmap spsc cache im bcast async io bt graph lt string}
 want() { [[ " $VARIANTS " == *" $1 "* ]]; }
 want_im() { case "$1" in sgcl|std) want "$1";; *) "$BIN/bench_im" vector "$1" 1 > /dev/null 2>&1;; esac; }   # an immer variant when the binary has it (-DSGCL_IMMER_INCLUDE)
 case_() { [[ " $CASES " == *" $1 "* ]]; }
@@ -234,6 +234,15 @@ for c in yield exyield strand await spawn whenall timeout select cv pingpong gen
     want go && { run "$T/async" $c; echo "async|$c|go|$(field ns/op)"; }
     case $c in select|generator) continue;; esac
     want java-zgc && { run "${JAVA[@]}" -Xmx256m Async $c; echo "async|$c|java-zgc|$(field ns/op)"; }
+done
+fi
+
+if case_ io; then
+KEY=ns/op
+echo "# the io module, a child process: io|case|variant|ns per operation (run: command(\"true\").run() from a thread, posix_spawn and a wait; output: command(\"echo\", \"hello\").output(), a pipe and a copying task; asyncrun: async_run() from a task, the exit on the reactor; parallel: 32 async_run() of true in flight; Go: os/exec, Run, Output, 32 goroutines)"
+for c in run output asyncrun parallel; do
+    want sgcl && { run "$BIN/bench_io" $c sgcl; echo "io|$c|sgcl|$(field ns/op)"; }
+    want go && { run "$T/exec" $c; echo "io|$c|go|$(field ns/op)"; }
 done
 fi
 

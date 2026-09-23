@@ -22,6 +22,8 @@
 #include "thread.h"
 #include "tracked_ptr.h"
 #include "types.h"
+#include "unicode.h"
 #include "unique_ptr.h"
+#include "utf8.h"
 #include "variant.h"
 #include "weak_ptr.h"

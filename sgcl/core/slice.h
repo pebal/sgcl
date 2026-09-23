@@ -262,6 +262,12 @@ namespace sgcl {
             return size() * sizeof(T);
         }
 
+        // Itself: what every container with a buffer answers, so that
+        // generic code asks one question
+        slice as_slice() const noexcept {
+            return *this;
+        }
+
         bool empty() const noexcept {
             return _begin == _end;
         }
@@ -340,7 +346,11 @@ namespace sgcl {
         // the end; without a prefix or a suffix when it is there — each
         // a slice of the same owner, nothing copied
         slice trim() const noexcept requires detail::IsCharacter<value_type> {
-            return trim(this->spaces());
+            auto from = this->_find_space(0, false);
+            if (from == npos) {
+                return slice(_object, _begin, _begin, Unchecked{});
+            }
+            return slice(_object, _begin + from, _begin + this->_end_without_spaces(), Unchecked{});
         }
 
         slice trim(detail::TextView<T> chars) const noexcept requires detail::IsCharacter<value_type> {
@@ -354,7 +364,8 @@ namespace sgcl {
         }
 
         slice trim_left() const noexcept requires detail::IsCharacter<value_type> {
-            return trim_left(this->spaces());
+            auto from = this->_find_space(0, false);
+            return from == npos ? slice(_object, _begin, _begin, Unchecked{}) : slice(_object, _begin + from, _end, Unchecked{});
         }
 
         slice trim_left(detail::TextView<T> chars) const noexcept requires detail::IsCharacter<value_type> {
@@ -363,12 +374,32 @@ namespace sgcl {
         }
 
         slice trim_right() const noexcept requires detail::IsCharacter<value_type> {
-            return trim_right(this->spaces());
+            return slice(_object, _begin, _begin + this->_end_without_spaces(), Unchecked{});
         }
 
         slice trim_right(detail::TextView<T> chars) const noexcept requires detail::IsCharacter<value_type> {
             auto to = this->view().find_last_not_of(chars);
             return to == npos ? slice(_object, _begin, _begin, Unchecked{}) : slice(_object, _begin, _begin + to + 1, Unchecked{});
+        }
+
+        // The characters to trim as code points: trim(U"«»")
+        slice trim(std::u32string_view set) const noexcept requires (detail::IsCharacter<value_type> && sizeof(value_type) == 1) {
+            auto from = this->find_first_not_of(set);
+            if (from == npos) {
+                return slice(_object, _begin, _begin, Unchecked{});
+            }
+            auto last = this->find_last_not_of(set);
+            return slice(_object, _begin + from, _begin + last + this->decode(last).second, Unchecked{});
+        }
+
+        slice trim_left(std::u32string_view set) const noexcept requires (detail::IsCharacter<value_type> && sizeof(value_type) == 1) {
+            auto from = this->find_first_not_of(set);
+            return from == npos ? slice(_object, _begin, _begin, Unchecked{}) : slice(_object, _begin + from, _end, Unchecked{});
+        }
+
+        slice trim_right(std::u32string_view set) const noexcept requires (detail::IsCharacter<value_type> && sizeof(value_type) == 1) {
+            auto last = this->find_last_not_of(set);
+            return last == npos ? slice(_object, _begin, _begin, Unchecked{}) : slice(_object, _begin, _begin + last + this->decode(last).second, Unchecked{});
         }
 
         slice trim_prefix(detail::TextView<T> prefix) const noexcept requires detail::IsCharacter<value_type> {
@@ -394,6 +425,12 @@ namespace sgcl {
         bool contains(value_type c) const noexcept requires detail::IsCharacter<value_type> {
             return detail::SliceBase<T, slice>::contains(c);
         }
+
+        bool contains(char32_t c) const noexcept requires (detail::IsCharacter<value_type> && sizeof(value_type) == 1) {
+            return detail::SliceBase<T, slice>::contains(c);
+        }
+
+        bool contains(std::same_as<int> auto) const requires detail::IsCharacter<value_type> = delete;   // 'ż' is an int: write U'ż' (a template: slice<int> has contains(int) already)
 
         bool contains(const auto& value) const requires (!detail::IsCharacter<value_type>) && detail::EquatableElements<slice> {
             return mixin::enumerable<slice>::contains(value);
@@ -462,6 +499,125 @@ namespace sgcl {
     slice<std::byte> as_writable_bytes(const slice<T>& s) noexcept {
         return slice<std::byte>(s.owner(), reinterpret_cast<std::byte*>(s.data()), s.size_bytes());
     }
+
+    // runes: the code points of a UTF-8 text, decoded as they are walked —
+    // what runes() of a string or a text slice returns, Go's
+    // `for i, r := range s`. A forward range of char32_t over a slice of
+    // the text, which holds its object for as long as the range lives
+    // (`for (char32_t c : string("żółw").runes())` is safe); an invalid
+    // byte is one code point, utf8::replacement. The iterator knows the
+    // byte position of its code point (pos()) and its width (width()),
+    // for the code that goes back to the bytes. A range of the library:
+    // mixin::enumerable, so `s.runes().contains(U'ż')`,
+    // `s.runes().count_of(unicode::is_upper)`, `s.runes().find_if(...)`.
+    class runes
+    : public mixin::enumerable<runes> {
+    public:
+        using value_type = char32_t;
+        using size_type = size_t;
+
+        class iterator {
+        public:
+            using iterator_category = std::forward_iterator_tag;
+            using value_type = char32_t;
+            using difference_type = ptrdiff_t;
+            using reference = char32_t;
+            using pointer = void;
+
+            iterator() noexcept = default;
+
+            char32_t operator*() const noexcept {
+                return _c;
+            }
+
+            iterator& operator++() noexcept {
+                _pos += _n;
+                _decode();
+                return *this;
+            }
+
+            iterator operator++(int) noexcept {
+                iterator t = *this;
+                ++*this;
+                return t;
+            }
+
+            friend bool operator==(const iterator& a, const iterator& b) noexcept {
+                return a._pos == b._pos;
+            }
+
+            // The byte position of the code point in the text, and its width in bytes
+            size_t pos() const noexcept {
+                return _pos;
+            }
+
+            size_t width() const noexcept {
+                return _n;
+            }
+
+        private:
+            friend class runes;
+
+            iterator(std::string_view text, size_t pos) noexcept
+            : _text(text)
+            , _pos(pos) {
+                _decode();
+            }
+
+            void _decode() noexcept {
+                auto [c, n] = utf8::decode(_text, _pos);
+                _c = c;
+                _n = n;
+            }
+
+            std::string_view _text;
+            size_t _pos = 0;
+            size_t _n = 0;
+            char32_t _c = 0;
+        };
+
+        using const_iterator = iterator;
+
+        runes() noexcept = default;
+
+        explicit runes(slice<const char> text) noexcept
+        : _text(text) {
+        }
+
+        iterator begin() const noexcept {
+            return iterator(_text.view(), 0);
+        }
+
+        iterator end() const noexcept {
+            return iterator(_text.view(), _text.size());
+        }
+
+        bool empty() const noexcept {
+            return _text.empty();
+        }
+
+        // The code points: walked and counted, not stored
+        size_type count() const noexcept {
+            return utf8::count(_text.view());
+        }
+
+        // The text the range walks
+        const slice<const char>& text() const noexcept {
+            return _text;
+        }
+
+    private:
+        slice<const char> _text;
+    };
+}
+
+// runes(): declared in the text mixin, defined here where runes and slice
+// are complete; a string's as_slice() and a slice's as_slice() hand the
+// text over with its object
+template<class Derived, class CharT, class Traits>
+sgcl::runes sgcl::mixin::text<Derived, CharT, Traits>::runes() const noexcept requires (sizeof(CharT) == 1) {
+    auto s = _self().as_slice();
+    return sgcl::runes(sgcl::slice<const char>(s.owner(), reinterpret_cast<const char*>(s.data()), s.size()));
 }
 
 // The hash of a text slice: the hash a string of the same characters

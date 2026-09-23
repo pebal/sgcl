@@ -20,7 +20,7 @@ namespace {
         co_return n;
     }
 
-    task<std::string> text(int ms) {
+    task<std::string> text_task(int ms) {
         co_await sgcl::sleep(std::chrono::milliseconds(ms));
         co_return "text";
     }
@@ -62,7 +62,7 @@ TEST(Timeout_Tests, ATaskThatFinishesInTime) {
     auto r = sgcl::timeout(number(7, 5), 200ms).join();    // join starts the timeout, which starts the task
     ASSERT_TRUE(r.has_value());
     EXPECT_EQ(*r, 7);
-    auto s = sgcl::timeout(sgcl::spawn(text(5)), 200ms).join();   // a task spawned already
+    auto s = sgcl::timeout(sgcl::spawn(text_task(5)), 200ms).join();   // a task spawned already
     ASSERT_TRUE(s.has_value());
     EXPECT_EQ(*s, "text");
     sgcl::atomic<int> finished = {0};
@@ -123,7 +123,7 @@ TEST(Timeout_Tests, WithDeadlineThrowsTimedOut) {
     EXPECT_EQ(sgcl::with_deadline(number(3, 5), 200ms).join(), 3);
     EXPECT_THROW(sgcl::with_deadline(number(3, 500), 20ms).join(), sgcl::timed_out);
     try {
-        sgcl::with_deadline(text(500), 20ms).join();
+        sgcl::with_deadline(text_task(500), 20ms).join();
         FAIL() << "no timed_out";
     } catch (const std::runtime_error& e) {                // a runtime_error
         EXPECT_STREQ(e.what(), "timed out");

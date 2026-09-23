@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
+#include "../core/detail/bytes.h"
 
 #include "stream.h"
 #include "../containers/array.h"
@@ -248,7 +249,7 @@ namespace sgcl::io {
                     _long.insert(_long.end(), _block->data(), _block->data() + _end);
                     _begin = _end = 0;
                 } else {
-                    std::memmove(_block->data(), _block->data() + _begin, _end - _begin);
+                    sgcl::detail::move_bytes(_block->data(), _block->data() + _begin, _end - _begin);
                     _end -= _begin;
                     _begin = 0;
                 }
@@ -275,7 +276,7 @@ namespace sgcl::io {
 
         size_t _take(const slice<std::byte>& out) noexcept {
             size_t n = std::min(out.size(), buffered());
-            std::memcpy(out.data(), _block->data() + _begin, n);
+            sgcl::detail::copy_bytes(out.data(), _block->data() + _begin, n);
             _begin += n;
             return n;
         }
@@ -386,7 +387,7 @@ namespace sgcl::io {
                     return data.size();
                 }
                 size_t n = std::min(rest, available());
-                std::memcpy(_block->data() + _size, data.data() + written, n);
+                sgcl::detail::copy_bytes(_block->data() + _size, data.data() + written, n);
                 _size += n;
                 written += n;
                 if (available() == 0) {
@@ -414,7 +415,7 @@ namespace sgcl::io {
                     co_return data.size();
                 }
                 size_t n = std::min(rest, available());
-                std::memcpy(_block->data() + _size, data.data() + written, n);
+                sgcl::detail::copy_bytes(_block->data() + _size, data.data() + written, n);
                 _size += n;
                 written += n;
                 if (available() == 0) {

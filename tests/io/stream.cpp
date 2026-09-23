@@ -11,7 +11,7 @@ namespace {
     using namespace sgcl::io;
     namespace io = sgcl::io;
 
-    std::string_view text(std::span<const std::byte> b) {
+    std::string_view as_text(std::span<const std::byte> b) {
         return std::string_view(reinterpret_cast<const char*>(b.data()), b.size());
     }
 
@@ -86,7 +86,7 @@ TEST(IoStream_Tests, BufferReadsWhatWasWritten) {
     auto r = b->read(out);
     ASSERT_TRUE(r);
     EXPECT_EQ(*r, 5u);
-    EXPECT_EQ(text(std::span<const std::byte>(out, 5)), "hello");
+    EXPECT_EQ(as_text(std::span<const std::byte>(out, 5)), "hello");
     EXPECT_EQ(b->text(), " world");
     auto all = b->read_all_text();
     ASSERT_TRUE(all);
@@ -97,7 +97,7 @@ TEST(IoStream_Tests, BufferReadsWhatWasWritten) {
     EXPECT_EQ(*r, 0u);   // the end
     b->write_text("again");
     auto taken = b->release();
-    EXPECT_EQ(text(std::span<const std::byte>(taken.data(), taken.size())), "again");
+    EXPECT_EQ(as_text(std::span<const std::byte>(taken.data(), taken.size())), "again");
     EXPECT_TRUE(b->empty());
 }
 
@@ -132,7 +132,7 @@ TEST(IoStream_Tests, ReadFullAndUnexpectedEof) {
     auto r = d->read_full(out);
     ASSERT_TRUE(r);
     EXPECT_EQ(*r, 6u);
-    EXPECT_EQ(text(std::span<const std::byte>(out, 6)), "abcdef");
+    EXPECT_EQ(as_text(std::span<const std::byte>(out, 6)), "abcdef");
     r = d->read_full(out);   // two bytes left, six asked
     ASSERT_FALSE(r);
     EXPECT_TRUE(r.error().is_eof());

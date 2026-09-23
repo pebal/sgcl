@@ -2224,7 +2224,7 @@ namespace sgcl::detail {
             const void* holder;           // the object, buffer or block that holds the word; the word itself on a stack
             const std::type_info* type;   // the holder's type; a buffer's element type; null for a stack
             size_t offset;                // the word's byte offset in the holder
-            std::thread::id thread;       // a stack word: whose stack
+            std::thread::id thread = {};  // a stack word: whose stack; no thread for the rest
         };
 
         // The object `p` points at or into: its first byte and the one past

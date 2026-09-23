@@ -185,10 +185,15 @@ namespace sgcl {
                 }
             }
 
+            // A switch over the cases: _try<I> needs I as a template
+            // argument (std::get<I> on the tuple of cases), and i is a
+            // value, so the fold spells out `if (i == 0) _try<0>(); else if
+            // (i == 1) ...`, the `|| ...` stopping at the first match. The
+            // value of the whole expression is nothing; served is the result.
             template<size_t... Is>
             bool _try_at(size_t i, std::index_sequence<Is...>) {
                 bool served = false;
-                ((i == Is && (served = _try<Is>(), true)) || ...);
+                (void)((i == Is && (served = _try<Is>(), true)) || ...);
                 return served;
             }
 
@@ -369,7 +374,7 @@ namespace sgcl {
             // The case served while the select waited: its body, its index
             size_t _finish(size_t winner) {
                 [&]<size_t... Is>(std::index_sequence<Is...>) {
-                    ((winner == Is && (_finish_one<Is>(), true)) || ...);
+                    (void)((winner == Is && (_finish_one<Is>(), true)) || ...);   // the switch of _try_at
                 }(std::make_index_sequence<N>());
                 return winner;
             }

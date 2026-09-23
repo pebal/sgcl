@@ -7,6 +7,7 @@
 
 #include "buffered.h"
 #include "error.h"
+#include "exec.h"
 #include "file.h"
 #include "fs.h"
 #include "os.h"

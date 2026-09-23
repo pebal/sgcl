@@ -9,6 +9,7 @@
 #include "../containers/vector.h"
 #include "../core/aliases.h"
 #include "../core/string.h"
+#include "../core/utf8.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -272,25 +273,6 @@ namespace sgcl::io::path {
     }
 
     namespace detail {
-        // The code point at s[i] and its length in bytes: a byte that
-        // does not begin a valid sequence is one code point of its own
-        inline pair<uint32_t, size_t> decode(std::string_view s, size_t i) noexcept {
-            unsigned char c = static_cast<unsigned char>(s[i]);
-            size_t n = c < 0x80 ? 1 : (c >> 5) == 6 ? 2 : (c >> 4) == 14 ? 3 : (c >> 3) == 30 ? 4 : 1;
-            if (n == 1 || i + n > s.size()) {
-                return {c, 1};
-            }
-            uint32_t cp = c & (0xFF >> (n + 1));
-            for (size_t k = 1; k < n; ++k) {
-                unsigned char b = static_cast<unsigned char>(s[i + k]);
-                if ((b & 0xC0) != 0x80) {
-                    return {c, 1};
-                }
-                cp = (cp << 6) | (b & 0x3F);
-            }
-            return {cp, n};
-        }
-
         // One element of a pattern against one of a name: the shell's
         // rules ('*' any run without a separator, '?' one character,
         // '[...]' a class with ranges and a leading '^' or '!' negation,
@@ -308,7 +290,7 @@ namespace sgcl::io::path {
                         continue;
                     }
                     if (n < name.size()) {
-                        auto [nc, nl] = decode(name, n);
+                        auto [nc, nl] = utf8::decode(name, n);
                         if (c == '?') {
                             ++p;
                             n += nl;
@@ -330,13 +312,13 @@ namespace sgcl::io::path {
                                 if (pat[q] == ']' && any) {
                                     break;
                                 }
-                                auto range_end = [&](size_t& at) -> optional<uint32_t> {
+                                auto range_end = [&](size_t& at) -> optional<char32_t> {
                                     if (pat[at] == '\\') {
                                         if (++at >= pat.size()) {
                                             return nullopt;
                                         }
                                     }
-                                    auto [cp, len] = decode(pat, at);
+                                    auto [cp, len] = utf8::decode(pat, at);
                                     at += len;
                                     return cp;
                                 };
@@ -344,7 +326,7 @@ namespace sgcl::io::path {
                                 if (!lo) {
                                     return nullopt;
                                 }
-                                uint32_t hi = *lo;
+                                char32_t hi = *lo;
                                 if (q + 1 < pat.size() && pat[q] == '-' && pat[q + 1] != ']') {
                                     ++q;
                                     auto h = range_end(q);
@@ -372,8 +354,10 @@ namespace sgcl::io::path {
                                     return nullopt;
                                 }
                             }
-                            auto [pc, pl] = decode(pat, p);
-                            if (pc == nc) {
+                            auto [pc, pl] = utf8::decode(pat, p);
+                            // An invalid byte decodes as U+FFFD on both sides:
+                            // it matches only the same byte, not another one
+                            if (pc == nc && pl == nl && (pc != utf8::replacement || pl != 1 || pat[p] == name[n])) {
                                 p += pl;
                                 n += nl;
                                 continue;
@@ -383,7 +367,7 @@ namespace sgcl::io::path {
                 }
                 if (star_p != std::string_view::npos && star_n < name.size()) {
                     p = star_p;
-                    star_n += decode(name, star_n).second;
+                    star_n += utf8::decode(name, star_n).second;
                     n = star_n;
                     continue;
                 }
@@ -414,11 +398,11 @@ namespace sgcl::io::path {
                         if (pat[q] == ']' && any) {
                             break;
                         }
-                        auto one = [&](size_t& at) -> optional<uint32_t> {
+                        auto one = [&](size_t& at) -> optional<char32_t> {
                             if (pat[at] == '\\' && ++at >= pat.size()) {
                                 return nullopt;
                             }
-                            auto [cp, len] = decode(pat, at);
+                            auto [cp, len] = utf8::decode(pat, at);
                             at += len;
                             return cp;
                         };
