@@ -9,6 +9,8 @@
 // strand: tasks one at a time, in order, a wait leaving the strand.
 #include "tests/types.h"
 
+using namespace sgcl::async;
+
 #include <chrono>
 #include <coroutine>
 #include <stdexcept>
@@ -48,39 +50,39 @@ namespace {
     // The thread after every kind of wait: a sleep (the timer thread wakes
     // it), a channel receive (a thread serves it), a task on the workers
     // (a worker finishes it), an event (a thread sets it), a yield
-    task<int> waits(sgcl::channel<int>& ch, sgcl::event& ev, std::vector<std::thread::id>& ids) {
+    task<int> waits(sgcl::async::channel<int>& ch, sgcl::async::event& ev, std::vector<std::thread::id>& ids) {
         ids.push_back(std::this_thread::get_id());
-        co_await sgcl::sleep(1ms);
+        co_await sgcl::async::sleep(1ms);
         ids.push_back(std::this_thread::get_id());
-        auto v = co_await ch.async_receive();
+        auto v = co_await ch.receive();
         ids.push_back(std::this_thread::get_id());
-        auto sq = co_await sgcl::spawn(square(*v));
+        auto sq = co_await sgcl::async::spawn(square(*v));
         ids.push_back(std::this_thread::get_id());
-        co_await ev.async_wait();
+        co_await ev;
         ids.push_back(std::this_thread::get_id());
-        co_await sgcl::yield();
+        co_await sgcl::async::yield();
         ids.push_back(std::this_thread::get_id());
         auto sub = co_await where();   // an awaited task runs where its awaiter does
         ids.push_back(sub);
         co_return sq;
     }
 
-    task<> round_trips(sgcl::executor& ex, std::vector<std::thread::id>& ids, std::vector<bool>& on_worker) {
+    task<> round_trips(sgcl::async::executor& ex, std::vector<std::thread::id>& ids, std::vector<bool>& on_worker) {
         ids.push_back(std::this_thread::get_id());
-        on_worker.push_back(sgcl::scheduler::on_worker());
-        co_await sgcl::on(ex);
+        on_worker.push_back(sgcl::async::scheduler::on_worker());
+        co_await sgcl::async::on(ex);
         ids.push_back(std::this_thread::get_id());
-        on_worker.push_back(sgcl::scheduler::on_worker());
-        co_await sgcl::on(ex);            // there already: no hop
+        on_worker.push_back(sgcl::async::scheduler::on_worker());
+        co_await sgcl::async::on(ex);            // there already: no hop
         ids.push_back(std::this_thread::get_id());
-        co_await sgcl::on_workers();
+        co_await sgcl::async::on_workers();
         ids.push_back(std::this_thread::get_id());
-        on_worker.push_back(sgcl::scheduler::on_worker());
-        co_await sgcl::on_workers();      // there already
-        on_worker.push_back(sgcl::scheduler::on_worker());
-        co_await sgcl::on(ex);
+        on_worker.push_back(sgcl::async::scheduler::on_worker());
+        co_await sgcl::async::on_workers();      // there already
+        on_worker.push_back(sgcl::async::scheduler::on_worker());
+        co_await sgcl::async::on(ex);
         ids.push_back(std::this_thread::get_id());
-        on_worker.push_back(sgcl::scheduler::on_worker());
+        on_worker.push_back(sgcl::async::scheduler::on_worker());
     }
 
     task<> yields(int n, sgcl::atomic<int>& steps, std::thread::id expected, sgcl::atomic<int>& wrong) {
@@ -88,20 +90,20 @@ namespace {
             if (std::this_thread::get_id() != expected) {
                 ++wrong;
             }
-            co_await sgcl::yield();
+            co_await sgcl::async::yield();
             ++steps;
         }
     }
 
-    task<> stopper(sgcl::executor& ex, sgcl::atomic<int>& steps) {
+    task<> stopper(sgcl::async::executor& ex, sgcl::atomic<int>& steps) {
         ++steps;
         ex.stop();
-        co_await sgcl::yield();   // queued again: run when the executor runs again
+        co_await sgcl::async::yield();   // queued again: run when the executor runs again
         ++steps;
     }
 
-    task<> holds(tracked_ptr<Node> node, sgcl::channel<void>& go, sgcl::atomic<int>& seen) {
-        co_await go.async_receive();
+    task<> holds(tracked_ptr<Node> node, sgcl::async::channel<void>& go, sgcl::atomic<int>& seen) {
+        co_await go.receive();
         seen = node->value;
     }
 
@@ -114,20 +116,20 @@ namespace {
             ++counter;
             inside.fetch_sub(1);
             if (i % 1000 == 999) {
-                co_await sgcl::yield();
+                co_await sgcl::async::yield();
             }
         }
     }
 
     task<> ordered(int index, std::vector<int>& order) {
         order.push_back(index);
-        co_await sgcl::yield();
+        co_await sgcl::async::yield();
         order.push_back(index);
     }
 
-    task<> waits_on_strand(sgcl::channel<void>& go, sgcl::atomic<int>& phase) {
+    task<> waits_on_strand(sgcl::async::channel<void>& go, sgcl::atomic<int>& phase) {
         phase = 1;
-        co_await go.async_receive();   // leaves the strand to the next task
+        co_await go.receive();   // leaves the strand to the next task
         phase = 3;
     }
 
@@ -136,30 +138,30 @@ namespace {
         co_return;
     }
 
-    task<> to_strand(sgcl::strand& s, sgcl::atomic<int>& state) {
-        co_await sgcl::on(s);
-        state = (sgcl::scheduler::on_worker() ? 1 : 0) + (s.busy() ? 2 : 0);
-        co_await sgcl::on_workers();
+    task<> to_strand(sgcl::async::strand& s, sgcl::atomic<int>& state) {
+        co_await sgcl::async::on(s);
+        state = (sgcl::async::scheduler::on_worker() ? 1 : 0) + (s.busy() ? 2 : 0);
+        co_await sgcl::async::on_workers();
     }
 }
 
 TEST(Executor_Tests, RunReturnsTheResult) {
-    sgcl::executor ex;
+    sgcl::async::executor ex;
     EXPECT_EQ(ex.run(square(7)), 49);
     EXPECT_THROW(ex.run(throwing()), std::runtime_error);
     auto id = ex.run(where());
     EXPECT_EQ(id, std::this_thread::get_id());
     EXPECT_FALSE(ex.running());
-    sgcl::scheduler::stop();
+    sgcl::async::scheduler::stop();
 }
 
 TEST(Executor_Tests, ResumedOnTheExecutorsThreadAfterEveryWait) {
-    sgcl::executor ex;
-    sgcl::channel<int> ch;
-    sgcl::event ev;
+    sgcl::async::executor ex;
+    sgcl::async::channel<int> ch;
+    sgcl::async::event ev;
     std::vector<std::thread::id> ids;
     std::thread other([&] {
-        ch.send(6);
+        ch.send(6).wait();
         std::this_thread::sleep_for(2ms);
         ev.set();
     });
@@ -169,14 +171,14 @@ TEST(Executor_Tests, ResumedOnTheExecutorsThreadAfterEveryWait) {
     for (auto id : ids) {
         EXPECT_EQ(id, std::this_thread::get_id());
     }
-    sgcl::scheduler::stop();
+    sgcl::async::scheduler::stop();
 }
 
 TEST(Executor_Tests, OnAndOnWorkersRoundTrips) {
-    sgcl::executor ex;
+    sgcl::async::executor ex;
     std::vector<std::thread::id> ids;
     std::vector<bool> on_worker;
-    auto t = sgcl::spawn(round_trips(ex, ids, on_worker));   // starts on the workers
+    auto t = sgcl::async::spawn(round_trips(ex, ids, on_worker));   // starts on the workers
     ex.run_until(t);
     EXPECT_TRUE(t.done());
     ASSERT_EQ(ids.size(), 5u);
@@ -192,11 +194,11 @@ TEST(Executor_Tests, OnAndOnWorkersRoundTrips) {
     EXPECT_TRUE(on_worker[2]);
     EXPECT_TRUE(on_worker[3]);
     EXPECT_FALSE(on_worker[4]);
-    sgcl::scheduler::stop();
+    sgcl::async::scheduler::stop();
 }
 
 TEST(Executor_Tests, PollFromALoopOfOnesOwn) {
-    sgcl::executor ex;
+    sgcl::async::executor ex;
     sgcl::atomic<int> steps = {0};
     sgcl::atomic<int> wrong = {0};
     EXPECT_EQ(ex.poll(), 0u);
@@ -220,7 +222,7 @@ TEST(Executor_Tests, PollFromALoopOfOnesOwn) {
 }
 
 TEST(Executor_Tests, StopReturnsFromRunAndTheTasksStay) {
-    sgcl::executor ex;
+    sgcl::async::executor ex;
     sgcl::atomic<int> steps = {0};
     auto t = ex.spawn(stopper(ex, steps));
     ex.run();                            // returns at the stop, the task queued again by its yield
@@ -235,41 +237,41 @@ TEST(Executor_Tests, StopReturnsFromRunAndTheTasksStay) {
 }
 
 TEST(Executor_Tests, AnExecutorGoneLeavesItsTasksSuspended) {
-    sgcl::channel<void> go;
+    sgcl::async::channel<void> go;
     sgcl::atomic<int> seen = {0};
     off_frame([&] {
-        sgcl::executor ex;
+        sgcl::async::executor ex;
         ex.go(holds(make_tracked<Node>(5), go, seen));
         ex.poll();                       // to the receive
         EXPECT_EQ(Node::alive.load(), 1);
     });
-    go.send();                           // the wake lands on the queue nobody runs
+    go.send().wait();                           // the wake lands on the queue nobody runs
     std::this_thread::sleep_for(5ms);
     EXPECT_EQ(seen.load(), 0);
     settle();                            // the frame, the queue and the node: a cycle nothing holds
     EXPECT_EQ(Node::alive.load(), 0);
-    sgcl::scheduler::stop();
+    sgcl::async::scheduler::stop();
 }
 
 TEST(Executor_Tests, SpawnedFromAWorkerAndAwaitedThere) {
-    sgcl::executor ex;
+    sgcl::async::executor ex;
     std::vector<std::thread::id> ids;
-    auto outer = [](sgcl::executor& ex, std::vector<std::thread::id>& ids) -> task<> {
-        ids.push_back(co_await sgcl::spawn(where(), ex));   // started on the executor from a worker
-        ids.push_back(co_await sgcl::spawn(where()));       // on the workers
+    auto outer = [](sgcl::async::executor& ex, std::vector<std::thread::id>& ids) -> task<> {
+        ids.push_back(co_await sgcl::async::spawn(where(), ex));   // started on the executor from a worker
+        ids.push_back(co_await sgcl::async::spawn(where()));       // on the workers
         ids.push_back(co_await where());                    // where the awaiter is: a worker
     };
-    auto t = sgcl::spawn(outer(ex, ids));
+    auto t = sgcl::async::spawn(outer(ex, ids));
     ex.run_until(t);
     ASSERT_EQ(ids.size(), 3u);
     EXPECT_EQ(ids[0], std::this_thread::get_id());
     EXPECT_NE(ids[1], std::this_thread::get_id());
     EXPECT_NE(ids[2], std::this_thread::get_id());
-    sgcl::scheduler::stop();
+    sgcl::async::scheduler::stop();
 }
 
 TEST(Executor_Tests, StrandRunsOneTaskAtATime) {
-    sgcl::strand s;
+    sgcl::async::strand s;
     int counter = 0;
     sgcl::atomic<int> inside = {0};
     sgcl::atomic<int> overlaps = {0};
@@ -278,7 +280,7 @@ TEST(Executor_Tests, StrandRunsOneTaskAtATime) {
         tasks.push_back(s.spawn(incrementer(counter, inside, overlaps, 100000)));
     }
     for (auto& t : tasks) {
-        t.join();
+        t.wait();
     }
     EXPECT_EQ(counter, 800000);
     EXPECT_EQ(overlaps.load(), 0);
@@ -286,18 +288,18 @@ TEST(Executor_Tests, StrandRunsOneTaskAtATime) {
         std::this_thread::sleep_for(1ms);
     }
     EXPECT_FALSE(s.busy());
-    sgcl::scheduler::stop();
+    sgcl::async::scheduler::stop();
 }
 
 TEST(Executor_Tests, StrandKeepsTheOrder) {
-    sgcl::strand s;
+    sgcl::async::strand s;
     std::vector<int> order;
     // Spawned from a task on the strand, so that they queue behind it in
     // the order of the spawns (spawned from this thread, the first would
     // run and yield while the others are still being spawned, and its
     // yield would be an arrival among theirs)
-    auto spawner = [](sgcl::strand& s, std::vector<int>& order) -> task<> {
-        co_await sgcl::on(s);
+    auto spawner = [](sgcl::async::strand& s, std::vector<int>& order) -> task<> {
+        co_await sgcl::async::on(s);
         std::vector<task<>> tasks;
         for (int i = 0; i < 8; ++i) {
             tasks.push_back(s.spawn(ordered(i, order)));
@@ -306,49 +308,49 @@ TEST(Executor_Tests, StrandKeepsTheOrder) {
             co_await t;
         }
     };
-    sgcl::spawn(spawner(s, order)).join();
+    sgcl::async::spawn(spawner(s, order)).wait();
     ASSERT_EQ(order.size(), 16u);
     for (int i = 0; i < 8; ++i) {
         EXPECT_EQ(order[i], i);          // the first runs, in the order of the spawns
         EXPECT_EQ(order[8 + i], i);      // the second, in the order of the yields
     }
-    sgcl::scheduler::stop();
+    sgcl::async::scheduler::stop();
 }
 
 TEST(Executor_Tests, AWaitLeavesTheStrandToTheNext) {
-    sgcl::strand s;
-    sgcl::channel<void> go;
+    sgcl::async::strand s;
+    sgcl::async::channel<void> go;
     sgcl::atomic<int> phase = {0};
     sgcl::atomic<int> seen = {0};
     auto a = s.spawn(waits_on_strand(go, phase));
     auto b = s.spawn(runs_meanwhile(phase, seen));
-    b.join();
+    b.wait();
     EXPECT_EQ(seen.load(), 1);           // b ran while a waited: a waits off the strand (b's own run may still be counted here: busy() not asserted)
-    go.send();
-    a.join();
+    go.send().wait();
+    a.wait();
     EXPECT_EQ(phase.load(), 3);
-    sgcl::scheduler::stop();
+    sgcl::async::scheduler::stop();
 }
 
 TEST(Executor_Tests, OnStrandFromAWorker) {
-    sgcl::strand s;
+    sgcl::async::strand s;
     sgcl::atomic<int> state = {0};
-    sgcl::spawn(to_strand(s, state)).join();
+    sgcl::async::spawn(to_strand(s, state)).wait();
     EXPECT_EQ(state.load(), 3);          // on a worker, and the strand busy with it
-    sgcl::scheduler::stop();
+    sgcl::async::scheduler::stop();
 }
 
 TEST(Executor_Tests, StrandFromAnExecutorAndBack) {
-    sgcl::executor ex;
-    sgcl::strand s;
+    sgcl::async::executor ex;
+    sgcl::async::strand s;
     std::vector<std::thread::id> ids;
-    auto t = [](sgcl::strand& s, sgcl::executor& ex, std::vector<std::thread::id>& ids) -> task<> {
+    auto t = [](sgcl::async::strand& s, sgcl::async::executor& ex, std::vector<std::thread::id>& ids) -> task<> {
         ids.push_back(std::this_thread::get_id());
-        co_await sgcl::on(s);
+        co_await sgcl::async::on(s);
         ids.push_back(std::this_thread::get_id());
-        co_await sgcl::sleep(1ms);       // woken back onto the strand, on a worker
+        co_await sgcl::async::sleep(1ms);       // woken back onto the strand, on a worker
         ids.push_back(std::this_thread::get_id());
-        co_await sgcl::on(ex);
+        co_await sgcl::async::on(ex);
         ids.push_back(std::this_thread::get_id());
     };
     ex.run(t(s, ex, ids));
@@ -357,5 +359,5 @@ TEST(Executor_Tests, StrandFromAnExecutorAndBack) {
     EXPECT_NE(ids[1], std::this_thread::get_id());
     EXPECT_NE(ids[2], std::this_thread::get_id());
     EXPECT_EQ(ids[3], std::this_thread::get_id());
-    sgcl::scheduler::stop();
+    sgcl::async::scheduler::stop();
 }

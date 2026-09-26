@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "aliases.h"
 #include "mixin/mixin.h"
 #include "tracked_ptr.h"
 
@@ -93,8 +94,8 @@ namespace sgcl {
     // owner, the copy and the assignment from an owned slice register).
     // A slice lives where a tracked_ptr may: on a stack or in a managed
     // object. The elements are T: slice<const char> is text (with the
-    // operations of std::string_view, mixin::text), slice<std::byte> a buffer
-    // to read into, slice<const std::byte> data to write. A slice is a
+    // operations of std::string_view, mixin::text), slice<byte> a buffer
+    // to read into, slice<const byte> data to write. A slice is a
     // range of the library (mixin::enumerable and the rest, mixin/): what a
     // vector can be asked, a slice of it can be asked too, and sorted in
     // place when its elements are not const.
@@ -300,7 +301,7 @@ namespace sgcl {
         // std::span's names for the same
         slice subslice(size_type pos, size_type n = npos) const {
             if (pos > size()) {
-                throw std::out_of_range("sgcl::slice::subslice");
+                throw out_of_range("sgcl::slice::subslice");
             }
             return slice(_object, _begin + pos, _begin + pos + std::min(n, size() - pos), Unchecked{});
         }
@@ -490,14 +491,14 @@ namespace sgcl {
 
     // The bytes of a slice, as std::as_bytes
     template<class T>
-    slice<const std::byte> as_bytes(const slice<T>& s) noexcept {
-        return slice<const std::byte>(s.owner(), reinterpret_cast<const std::byte*>(s.data()), s.size_bytes());
+    slice<const byte> as_bytes(const slice<T>& s) noexcept {
+        return slice<const byte>(s.owner(), reinterpret_cast<const byte*>(s.data()), s.size_bytes());
     }
 
     template<class T>
     requires (!std::is_const_v<T>)
-    slice<std::byte> as_writable_bytes(const slice<T>& s) noexcept {
-        return slice<std::byte>(s.owner(), reinterpret_cast<std::byte*>(s.data()), s.size_bytes());
+    slice<byte> as_writable_bytes(const slice<T>& s) noexcept {
+        return slice<byte>(s.owner(), reinterpret_cast<byte*>(s.data()), s.size_bytes());
     }
 
     // runes: the code points of a UTF-8 text, decoded as they are walked —
@@ -580,7 +581,7 @@ namespace sgcl {
 
         runes() noexcept = default;
 
-        explicit runes(slice<const char> text) noexcept
+        explicit runes(const slice<const char>& text) noexcept
         : _text(text) {
         }
 

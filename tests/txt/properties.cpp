@@ -21,7 +21,7 @@ namespace {
     template<class T> concept Digits = requires(T c) { txt::is_digit(c); };
     template<class T> concept Categorizes = requires(T c) { txt::category_of(c); };
     template<class T> concept Scripts = requires(T c) { txt::script_of(c); };
-    template<class T> concept Values = requires(T c) { txt::numeric_value(c); };
+    template<class T> concept Values = requires(T c) { txt::numeric_value_of(c); };
     template<class T> concept Columns = requires(T c) { txt::columns(c); };
 }
 
@@ -61,22 +61,22 @@ TEST(Properties_Tests, TheCategoryOfACodePoint) {
 }
 
 TEST(Properties_Tests, TheDigitsAndTheEmoji) {
-    static_assert(txt::is_digit(U'7') && txt::numeric_value(U'7') == 7);
-    static_assert(txt::numeric_value(U'٣') == 3);          // Arabic-Indic three
-    static_assert(txt::numeric_value(U'१') == 1);          // Devanagari one
-    static_assert(txt::numeric_value(U'９') == 9);          // fullwidth nine
-    static_assert(txt::numeric_value(U'x') == -1 && txt::numeric_value(U'Ⅻ') == -1);   // a Roman numeral is no decimal digit
-    static_assert(txt::numeric_value(U'½') == -1);
+    static_assert(txt::is_digit(U'7') && txt::numeric_value_of(U'7') == 7);
+    static_assert(txt::numeric_value_of(U'٣') == 3);          // Arabic-Indic three
+    static_assert(txt::numeric_value_of(U'१') == 1);          // Devanagari one
+    static_assert(txt::numeric_value_of(U'９') == 9);          // fullwidth nine
+    static_assert(txt::numeric_value_of(U'x') == -1 && txt::numeric_value_of(U'Ⅻ') == -1);   // a Roman numeral is no decimal digit
+    static_assert(txt::numeric_value_of(U'½') == -1);
 
     // Every decimal digit has a value in [0, 9] and every value belongs to
     // a run of ten; nothing else has one
     size_t digits = 0;
     for (char32_t c = 0; c < 0x110000; ++c) {
-        int v = txt::numeric_value(c);
+        int v = txt::numeric_value_of(c);
         ASSERT_EQ(v >= 0, txt::is_digit(c)) << std::hex << uint32_t(c);
         if (v >= 0) {
             ASSERT_LE(v, 9);
-            ASSERT_EQ(txt::numeric_value(char32_t(c - v)), 0) << std::hex << uint32_t(c);   // the zero of its block
+            ASSERT_EQ(txt::numeric_value_of(char32_t(c - v)), 0) << std::hex << uint32_t(c);   // the zero of its block
             ++digits;
         }
     }
@@ -160,4 +160,14 @@ TEST(Properties_Tests, ACodePointAndNothingElse) {
     EXPECT_EQ(s.runes().count_of(unicode::is_space), 3u);        // core's, over the same range: two spaces and the ideographic one
 
     EXPECT_STREQ(txt::version, unicode::version);
+}
+
+// The core answers under the module's names, beside is_alpha
+TEST(Properties_Tests, TheCoreAnswersUnderTheModulesNames) {
+    EXPECT_TRUE(txt::is_space(U'　'));
+    EXPECT_FALSE(txt::is_space(U'a'));
+    EXPECT_TRUE(txt::is_upper(U'Ł'));
+    EXPECT_TRUE(txt::is_lower(U'ł'));
+    EXPECT_EQ(txt::is_space(U'\u0085'), unicode::is_space(U'\u0085'));
+    EXPECT_EQ(sgcl::string("Ab c").runes().count_of(txt::is_upper), 1u);
 }

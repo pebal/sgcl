@@ -1,9 +1,9 @@
-# sgcl::condition_variable
+# sgcl::async::condition_variable
 
 ```cpp
 #include "sgcl/async/condition_variable.h"   // or "sgcl/sgcl.h"
 
-namespace sgcl {
+namespace sgcl::async {
     class condition_variable;   // a wait under the mutex for a notify
 }
 ```
@@ -13,27 +13,26 @@ Go's `sync.Cond` and `std::condition_variable_any` over the module's [mutex](mut
 ## Rules
 
 - It lives where a `tracked_ptr` may: on a stack or inside a managed object ([The rules](../core/README.md#the-rules), 1); not copyable, not movable.
-- It waits with the module's `mutex` only: a `mutex::guard` (a task's, from `async_scoped_lock`) or any lock with `unlock()` and `lock()` over it (`std::unique_lock<sgcl::mutex>`, a thread's).
+- It waits with the module's `mutex` only: a `async::mutex::guard` (a task's, from `scoped_lock`) or any lock with `unlock()` and `lock()` over it (`std::unique_lock<sgcl::async::mutex>`, a thread's).
 - The condition is checked under the mutex before every wait. There is no spurious wakeup (a notify wakes the waiter it took from the queue, and a waiter never leaves the queue on its own), but the condition may change between the notify and the mutex taken back, so a loop over the predicate is the form, as everywhere.
 
 ## Members
 
 ```cpp
 void notify_one();  void notify_all();
-void wait(mutex::guard& g);                              // a thread: the mutex let go of, the wait, the mutex taken back
-template<class Lock> void wait(Lock& lock);              // the same with a lock that has unlock() and lock(): std::unique_lock<mutex>
+auto wait(async::mutex::guard& g);                       // an operation: co_await cv.wait(g) in a task, cv.wait(g).wait() on a thread; the mutex let go of, the wait, the mutex taken back
+template<class Pred> auto wait(async::mutex::guard& g, Pred pred);   // the same until pred(), checked under the mutex before every wait
+template<class Lock> void wait(Lock& lock);              // a thread, with a lock that has unlock() and lock(): std::unique_lock<mutex>
 template<class Lock, class Pred> void wait(Lock& lock, Pred pred);   // until pred(), checked under the mutex before every wait
-task<> async_wait(mutex::guard& g);                      // a task: co_await; the mutex taken back with a co_await too
-template<class Pred> task<> async_wait(mutex::guard& g, Pred pred);
 ```
 
 ```cpp
-mutex m;
-condition_variable changed;
+async::mutex m;
+async::condition_variable changed;
 bool flag = false;                              // guarded by m
-auto wait_for_flag = [](mutex& m, condition_variable& changed, bool& flag) -> task<> {
-    auto guard = co_await m.async_scoped_lock();
-    co_await changed.async_wait(guard, [&] { return flag; });   // the mutex held again here
+auto wait_for_flag = [](async::mutex& m, async::condition_variable& changed, bool& flag) -> async::task<> {
+    auto guard = co_await m.scoped_lock();
+    co_await changed.wait(guard, [&] { return flag; });   // the mutex held again here
 };
 ```
 

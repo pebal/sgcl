@@ -5,12 +5,11 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "../core/detail/collector.h"
+#include "../core/aliases.h"
+#include "operation.h"
+#include "../core/coroutine.h"
 #include "../core/detail/frame_word.h"
-#include "../core/detail/maker.h"
-#include "../core/root_ptr.h"
 #include "../core/tracked_ptr.h"
-#include "../core/unique_ptr.h"
 
 #include <atomic>
 #include <coroutine>
@@ -18,7 +17,8 @@
 #include <optional>
 #include <utility>
 
-namespace sgcl::detail {
+namespace sgcl::async::detail {
+    using namespace sgcl::detail;
     void enqueue(tracked_ptr<FrameWord> frame, bool next);   // scheduler.h: the coroutine made ready, to run next on this worker or later
     bool on_worker() noexcept;                                                // scheduler.h: whether this thread is a worker
 
@@ -26,9 +26,36 @@ namespace sgcl::detail {
     template<class> struct TimeoutRace;   // timeout.h: a task raced against a deadline
     struct TaskLocals;      // task_local.h: the values of a task's task_locals, a chain of nodes
 
-    // The first two words of every managed frame's buffer (managed_frame:
-    // operator new; the coroutine's own frame starts past them): where
-    // the coroutine runs and what its task-locals are. The executor
+    // The link of a frame on an executor's queue (scheduler.h:
+    // ExecutorQueue): a tracked word, stored through the barrier as every
+    // other, with the two operations the queue needs and tracked_ptr does
+    // not give — a load with an order of the caller's, for the consumer,
+    // which reads a link a producer stored and must see the frame as the
+    // producer left it, and a store with one. The load takes no hazard
+    // pointer, as the atomics' load does: the frame it reads is held by
+    // the queue while it is linked, and only the queue's consumer reads
+    // it, so it cannot be collected between the load and the copy. It
+    // lives in a frame's header only, which is zeroed memory and never
+    // constructed: never made, copied or destroyed as an object.
+    struct FrameLink
+    : tracked_ptr<FrameWord> {
+        using tracked_ptr<FrameWord>::operator=;
+
+        FrameWord* load(std::memory_order m) const noexcept {
+            return (FrameWord*)_ptr()->load(m);
+        }
+
+        void store(FrameWord* frame, std::memory_order m) noexcept {
+            _ptr()->store(frame, m);
+        }
+    };
+
+    // The header of a managed frame as the async module lays it out, in
+    // the words the core keeps in front of every managed frame's buffer
+    // (core/coroutine.h: FrameHeaderWords, managed_frame's operator new;
+    // the coroutine's own frame starts past them): where the coroutine
+    // runs, what its task-locals are, and the link of the queue of an
+    // executor it may be on. The executor
     // (executor.h) is the queue that enqueue (scheduler.h)
     // routes the frame to when it is made ready, null for the pool of
     // workers; a coroutine that moves to an executor sets it, and every
@@ -41,31 +68,37 @@ namespace sgcl::detail {
     // buffer, traced as every word of it is: the queue and the chain live
     // while the frame does. Written only by the coroutine that owns the
     // frame, while it runs, and read by whoever makes it ready after
-    // that, through the same order the wait itself needs.
+    // that, through the same order the wait itself needs. The link is
+    // the executor's queue's own (scheduler.h: ExecutorQueue, an
+    // intrusive list, so that a push allocates nothing): the frame queued
+    // after this one while this one is queued there, null at every other
+    // moment, since a frame is made ready once per suspension and so sits
+    // on one queue at a time. The fourth word is unused: the header is
+    // kept at a multiple of sixteen bytes, so that the coroutine's frame
+    // past it stays as aligned as the buffer (array_base.h: sixteen), which
+    // is what operator new promises a frame. A header copied (a task that
+    // takes its resumer's) takes the executor and the locals, never the
+    // link, which is the queue's.
     struct FrameHeader {
         tracked_ptr<ExecutorQueue> executor;
         tracked_ptr<TaskLocals> locals;
+        FrameLink next;
+        FrameWord unused;
+
+        FrameHeader& operator=(const FrameHeader& h) noexcept {
+            executor = h.executor;
+            locals = h.locals;
+            return *this;
+        }
     };
 
-    static_assert(sizeof(FrameHeader) == 2 * sizeof(FrameWord));
-    inline constexpr size_t FrameHeaderWords = sizeof(FrameHeader) / sizeof(FrameWord);
+    static_assert(sizeof(FrameHeader) == FrameHeaderWords * sizeof(FrameWord));   // exactly the words the core keeps in front of the frame
+    static_assert(sizeof(FrameHeader) % 16 == 0);
 
-    // A frame is named by its buffer's address (the promise's `self`,
-    // every queue's and waiter's word): the header is there, the
-    // coroutine's frame, what the handle addresses, two words past it.
-    // A pointer into the middle of a buffer keeps nothing (README, rule
-    // 4), which is why the frame's pointers are the buffer's and the
-    // handle is computed, not the other way round
+    // The header of a frame named by its buffer's address (the promise's
+    // `self`, every queue's and waiter's word; core/coroutine.h: handle_of)
     inline FrameHeader& frame_header(void* frame) noexcept {
         return *(FrameHeader*)frame;
-    }
-
-    inline std::coroutine_handle<> handle_of(void* frame) noexcept {
-        return std::coroutine_handle<>::from_address((FrameWord*)frame + FrameHeaderWords);
-    }
-
-    inline FrameWord* frame_of_handle(void* address) noexcept {
-        return (FrameWord*)address - FrameHeaderWords;
     }
 
     // The frame the calling thread is running (a worker, an executor's
@@ -76,155 +109,8 @@ namespace sgcl::detail {
     inline thread_local FrameWord* current_frame = nullptr;
 }
 
-namespace sgcl {
-    // The frame of a coroutine is allocated with operator new and is no
-    // place for a tracked_ptr (README, "The rules"): a promise type that
-    // derives from managed_frame gets its frames from the managed heap
-    // instead, as buffers of words traced conservatively (detail/frame_word.h),
-    // so the tracked_ptr parameters, locals and promise members of the
-    // coroutine are roots for as long as the frame is held. A frame is
-    // held through a frame_ptr (below), made from the coroutine handle in
-    // get_return_object; it leaves operator new in the state of an object
-    // a unique_ptr owns (a root), which the frame_ptr takes over. operator
-    // delete does nothing for a frame taken over: destroying the coroutine
-    // (frame_ptr::destroy, the handle's destroy) runs the destructors of
-    // its locals and promise, and the memory is the collector's once
-    // nothing holds it; a frame nothing took over (an exception before
-    // get_return_object) is freed at once. The promise keeps the frame's
-    // own tracked_ptr (`self`, set by the frame_ptr that takes it over):
-    // a cycle of one, which holds nothing alive, and the word an awaiter
-    // copies to hold the frame while the coroutine waits on a channel or
-    // sits on the scheduler's queue (a raw handle would not do: the frame
-    // is a managed array, which the checks of the raw constructor of
-    // tracked_ptr do not accept).
-    // The buffer is two words longer than the frame, and the frame starts
-    // past them: the first two words are the header (detail::FrameHeader:
-    // the executor the frame runs on, its task-locals), zero at the
-    // allocation like the rest of the buffer, which is what two null
-    // tracked words are. `self`, the entries of the queues and the words
-    // of the waiters address the buffer, as a container's pointer does;
-    // the handle's address is two words further (detail::handle_of).
-    struct managed_frame {
-        static void* operator new(size_t size) {
-            auto words = (size + sizeof(detail::FrameWord) - 1) / sizeof(detail::FrameWord);
-            return detail::Maker<detail::FrameWord[]>::make_tracked_data(words + detail::FrameHeaderWords).release() + detail::FrameHeaderWords;
-        }
-
-        static void operator delete(void* p, size_t) noexcept {
-            auto frame = detail::frame_of_handle(p);
-            if (detail::Page::is_unique(frame)) {
-                detail::Collector::delete_unique(frame);
-            }
-        }
-
-        tracked_ptr<detail::FrameWord> self;
-    };
-
-    namespace detail {
-        // The frame of a coroutine from its typed handle: the promise
-        // must derive from managed_frame (the rule of every wait: the
-        // tracked pointers of the frame are roots only there)
-        template<class P>
-        tracked_ptr<FrameWord> frame_of(std::coroutine_handle<P> h) noexcept {
-            static_assert(std::is_base_of_v<managed_frame, P>, "a coroutine that waits (on a channel, on a task, on the scheduler) must have a managed frame: derive its promise from sgcl::managed_frame, or use sgcl::task");
-            return h.promise().self;
-        }
-    }
-
-    // The owner of a coroutine whose promise derives from managed_frame:
-    // a root_ptr to the frame and the coroutine handle. Move-only;
-    // destroys the coroutine when destroyed, which runs the destructors of
-    // its locals and promise. A root_ptr, so that the handle lives
-    // anywhere: a task in a std::vector of tasks, in an object on the
-    // unmanaged heap, in a managed object or in another frame; a cell
-    // per handle (root_ptr.h), which a handle, one per coroutine, can
-    // afford.
-    template<class Promise>
-    class frame_ptr {
-    public:
-        using promise_type = Promise;
-        using handle_type = std::coroutine_handle<Promise>;
-
-        frame_ptr() noexcept = default;
-
-        explicit frame_ptr(handle_type h)
-        : _frame(_take(detail::frame_of_handle(h.address())))
-        , _handle(h) {
-            h.promise().self = _frame.ptr();
-        }
-
-        frame_ptr(frame_ptr&& o) noexcept
-        : _frame(std::move(o._frame))
-        , _handle(std::exchange(o._handle, {})) {
-        }
-
-        frame_ptr& operator=(frame_ptr&& o) noexcept {
-            if (this != &o) {
-                destroy();
-                _frame = std::move(o._frame);
-                _handle = std::exchange(o._handle, {});
-            }
-            return *this;
-        }
-
-        frame_ptr(const frame_ptr&) = delete;
-        frame_ptr& operator=(const frame_ptr&) = delete;
-
-        ~frame_ptr() {
-            destroy();
-        }
-
-        // The handle's interface: whether there is a coroutine, its handle
-        // and promise, resume() and done()
-        explicit operator bool() const noexcept {
-            return (bool)_handle;
-        }
-
-        handle_type handle() const noexcept {
-            return _handle;
-        }
-
-        Promise& promise() const {
-            return _handle.promise();
-        }
-
-        void resume() {
-            _handle.resume();
-        }
-
-        bool done() const noexcept {
-            return !_handle || _handle.done();
-        }
-
-        // Runs the destructors of the coroutine's locals and promise and
-        // lets go of the frame
-        void destroy() noexcept {
-            if (_handle) {
-                _handle.destroy();
-                _handle = {};
-            }
-            _frame = nullptr;
-        }
-
-        // Lets go of the frame without destroying the coroutine: it goes
-        // on wherever it is (a task detached)
-        void release() noexcept {
-            _handle = {};
-            _frame = nullptr;
-        }
-
-    private:
-        // The frame, from the state operator new left it in (owned by a
-        // unique_ptr) to a tracked one: the same path a container's buffer
-        // takes (vector.h: _allocate)
-        static tracked_ptr<detail::FrameWord> _take(detail::FrameWord* frame) {
-            return unique_ptr<detail::FrameWord>(detail::UniquePtr<detail::FrameWord>(frame));
-        }
-
-        root_ptr<detail::FrameWord> _frame;
-        handle_type _handle;
-    };
-
+namespace sgcl::async {
+    namespace detail { using namespace sgcl::detail; }
     namespace detail {
         // What every task's promise has besides its value: the state of
         // the task (running until its final suspension; done after) for
@@ -375,7 +261,7 @@ namespace sgcl {
         // the start (spawn or resume runs it) and at the end, the value or
         // the exception kept for result()
         struct promise_type : detail::TaskPromiseBase {
-            std::optional<T> value;
+            optional<T> value;
 
             task get_return_object() {
                 return task(std::coroutine_handle<promise_type>::from_promise(*this));
@@ -436,7 +322,7 @@ namespace sgcl {
         // By hand, on this thread: to its next suspension
         void resume() {
             auto& p = _frame.promise();
-            if (!p.started.load(std::memory_order_relaxed)) {   // its first run, by hand: the frame takes the resumer's header (its executor, its task-locals), as a task started on the scheduler does (_start), so that what it starts inherits them and its own waits bring it back where the resumer runs (task_group::spawn: the runner resumed by hand, the child started from it)
+            if (!p.started.load(std::memory_order_relaxed)) {   // its first run, by hand: the frame takes the resumer's header (its executor, its task-locals), as a task started on the scheduler does (_start), so that what it starts inherits them and its own waits bring it back where the resumer runs (task_group::go: the runner resumed by hand, the child started from it)
                 if (auto parent = detail::current_frame) {
                     detail::frame_header(p.self.get()) = detail::frame_header(parent);
                 }
@@ -451,17 +337,20 @@ namespace sgcl {
             return !_frame || _frame.promise().done();   // an empty task is done, as the page says: nothing is left to run
         }
 
-        // Waits for the task, on this thread: its result, or what it
-        // threw. Not from a task on a worker (co_await it there)
-        T& join() {
-            assert(!detail::on_worker() && "join() blocks the worker: co_await the task from a task");
-            _start();   // a task nobody started yet: on the scheduler now
-            _frame.promise().wait();
+        // Waits for the task, on this thread, and gives its result, or
+        // rethrows what it threw (as std::this_thread::sync_wait gives a
+        // sender's). Not from a task on a worker (co_await it there)
+        T& wait() {
+            _wait();
             return result();
         }
 
-        // The result of a task that is done, or what it threw
+        // The result of the task, or what it threw: waited for first, on
+        // this thread, when the task is not done yet
         T& result() {
+            if (!done()) {
+                _wait();
+            }
             auto& p = _frame.promise();
             if (p.error) {
                 std::rethrow_exception(p.error);
@@ -481,7 +370,7 @@ namespace sgcl {
             if (_frame.promise().released.exchange(true, std::memory_order_acq_rel)) {
                 _frame.destroy();   // done already: destroyed now
             } else {
-                _frame.release();   // running or waiting: destroys itself when done
+                (void)_frame.release();   // running or waiting: destroys itself when done
             }
         }
 
@@ -490,6 +379,18 @@ namespace sgcl {
         void destroy() noexcept {
             _frame.destroy();
         }
+
+    private:
+        // The wait of wait() and result(): the task started if nobody
+        // started it, this thread blocked until its end
+        void _wait() {
+            assert(!detail::on_worker() && "wait() blocks the worker: co_await the task from a task");
+            _start();   // a task nobody started yet: on the scheduler now
+            _frame.promise().wait();
+        }
+
+        friend class executor;   // executor.h: its spawn and run_until start the task and await its promise
+        friend class strand;
 
         // The task put on the scheduler unless it was started already: the
         // first of spawn(), join() and co_await starts it; true when this
@@ -520,7 +421,6 @@ namespace sgcl {
             return _frame.promise();
         }
 
-    private:
         explicit task(std::coroutine_handle<promise_type> h)
         : _frame(h) {
         }
@@ -599,15 +499,19 @@ namespace sgcl {
             return !_frame || _frame.promise().done();   // an empty task is done, as the page says: nothing is left to run
         }
 
-        void join() {
-            assert(!detail::on_worker() && "join() blocks the worker: co_await the task from a task");
-            _start();   // a task nobody started yet: on the scheduler now
-            _frame.promise().wait();
+        // Waits for the task, on this thread, and rethrows what it threw.
+        // Not from a task on a worker (co_await it there)
+        void wait() {
+            _wait();
             result();
         }
 
-        // Rethrows what the coroutine threw, if anything
+        // Rethrows what the coroutine threw, if anything: waited for
+        // first, on this thread, when the task is not done yet
         void result() {
+            if (!done()) {
+                _wait();
+            }
             if (auto& p = _frame.promise(); p.error) {
                 std::rethrow_exception(p.error);
             }
@@ -621,13 +525,17 @@ namespace sgcl {
             if (_frame.promise().released.exchange(true, std::memory_order_acq_rel)) {
                 _frame.destroy();   // done already: destroyed now
             } else {
-                _frame.release();   // running or waiting: destroys itself when done
+                (void)_frame.release();   // running or waiting: destroys itself when done
             }
         }
 
         void destroy() noexcept {
             _frame.destroy();
         }
+
+    private:
+        friend class executor;   // executor.h: its spawn and run_until start the task and await its promise
+        friend class strand;
 
         // The task put on the scheduler unless it was started already: the
         // first of spawn(), join() and co_await starts it; true when this
@@ -658,7 +566,14 @@ namespace sgcl {
             return _frame.promise();
         }
 
-    private:
+        // The wait of wait() and result(): the task started if nobody
+        // started it, this thread blocked until its end
+        void _wait() {
+            assert(!detail::on_worker() && "wait() blocks the worker: co_await the task from a task");
+            _start();   // a task nobody started yet: on the scheduler now
+            _frame.promise().wait();
+        }
+
         explicit task(std::coroutine_handle<promise_type> h)
         : _frame(h) {
         }
@@ -672,6 +587,20 @@ namespace sgcl {
     [[nodiscard]] task<T> spawn(task<T> t) {
         (void)t.spawn();
         return t;
+    }
+
+    // An operation run as a task of its own, concurrently: `spawn(ch.receive())`
+    // is a task whose result is what `co_await ch.receive()` gives
+    template<class F>
+    [[nodiscard]] auto spawn(operation<F> op) {
+        using R = decltype(std::declval<operation<F>&>().await_resume());
+        return spawn([](operation<F> o) -> task<std::remove_cvref_t<R>> {
+            if constexpr (std::is_void_v<R>) {
+                co_await o;
+            } else {
+                co_return co_await o;
+            }
+        }(std::move(op)));
     }
 
     // The task put on the scheduler and let go of: it runs, nobody waits
@@ -720,125 +649,4 @@ namespace sgcl {
     void go(F f) {
         go(detail::task_of(std::move(f)));
     }
-
-    // A coroutine that co_yields values, consumed with a range-for or
-    // next()/value(); an exception it throws comes out of next() (or the
-    // iterator's ++).
-    template<class T>
-    class generator {
-    public:
-        struct promise_type : managed_frame {
-            std::optional<T> value;
-            std::exception_ptr error;
-
-            generator get_return_object() {
-                return generator(std::coroutine_handle<promise_type>::from_promise(*this));
-            }
-
-            std::suspend_always initial_suspend() noexcept {
-                return {};
-            }
-
-            std::suspend_always final_suspend() noexcept {
-                return {};
-            }
-
-            std::suspend_always yield_value(T v) {
-                value.emplace(std::move(v));
-                return {};
-            }
-
-            void return_void() noexcept {
-            }
-
-            void unhandled_exception() noexcept {
-                error = std::current_exception();
-            }
-        };
-
-        class iterator {
-        public:
-            using iterator_category = std::input_iterator_tag;
-            using value_type = T;
-            using difference_type = std::ptrdiff_t;
-            using pointer = const T*;
-            using reference = const T&;
-
-            iterator() noexcept = default;
-
-            reference operator*() const noexcept {
-                return _g->value();
-            }
-
-            pointer operator->() const noexcept {
-                return &_g->value();
-            }
-
-            iterator& operator++() {
-                if (!_g->next()) {
-                    _g = nullptr;
-                }
-                return *this;
-            }
-
-            void operator++(int) {
-                ++*this;
-            }
-
-            bool operator==(const iterator& o) const noexcept {
-                return _g == o._g;
-            }
-
-            bool operator!=(const iterator& o) const noexcept {
-                return _g != o._g;
-            }
-
-        private:
-            explicit iterator(generator* g) noexcept
-            : _g(g) {
-            }
-
-            generator* _g = nullptr;
-
-            friend class generator;
-        };
-
-        generator() noexcept = default;
-
-        // Runs to the next co_yield: true, or to the end: false
-        bool next() {
-            if (_frame.done()) {
-                return false;
-            }
-            _frame.resume();
-            auto& p = _frame.promise();
-            if (p.error) {
-                std::rethrow_exception(p.error);
-            }
-            return !_frame.done();
-        }
-
-        const T& value() const noexcept {
-            return *_frame.promise().value;
-        }
-
-        iterator begin() {
-            return next() ? iterator(this) : iterator();
-        }
-
-        iterator end() noexcept {
-            return iterator();
-        }
-
-        void destroy() noexcept {
-            _frame.destroy();
-        }
-
-    private:
-        explicit generator(std::coroutine_handle<promise_type> h)
-        : _frame(h) {
-        }
-
-        frame_ptr<promise_type> _frame;
-    };
 }

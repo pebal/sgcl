@@ -6,21 +6,22 @@
 #pragma once
 
 #include "../core/aliases.h"
+#include "../core/atomic.h"
 #include "../core/config.h"
 #include "../core/detail/maker.h"
 #include "../core/detail/os.h"
 #include "../core/tracked_ptr.h"
-#include "atomic.h"
 
 #include <bit>
 #include <type_traits>
 #include <utility>
 
-namespace sgcl {
+namespace sgcl::concurrent {
+    namespace detail { using namespace sgcl::detail; }
     // A bounded wait-free FIFO queue for exactly one producer thread
     // and one consumer thread: a ring of cells, a power of two of them,
     // fixed at construction, with a sequence number per cell, the way
-    // Vyukov's bounded queue (concurrent_bounded_queue) numbers its
+    // Vyukov's bounded queue (bounded_queue) numbers its
     // cells, and without its compare-exchange, since the producer alone
     // moves the tail and the consumer alone the head. A head and a tail
     // count up forever, a cell being the position masked; a cell's
@@ -51,10 +52,10 @@ namespace sgcl {
     // pop that frees it notifies; pop() waits while it is empty, on the
     // cell at the head, which the push that publishes it notifies. The
     // producer's word, the consumer's and the ones both read are three
-    // cache lines (config::CacheLineSize). One producer and one
+    // cache lines (config::cache_line_size). One producer and one
     // consumer, and no more: a second thread on either side is a data
     // race on that side's index. Several producers or consumers take a
-    // concurrent_bounded_queue.
+    // bounded_queue.
     template<class T>
     class spsc_queue {
         // A cell: the sequence and the element, which is neither
@@ -139,8 +140,15 @@ namespace sgcl {
         // The element appended, waiting for room while the queue is
         // full: on the cell at the tail, which the pop that frees it
         // notifies
-        void push(T value) {
-            while (!try_push(std::move(value))) {
+        void push(const T& value) {
+            while (!try_push(value)) {
+                auto pos = _tail.load(std::memory_order_relaxed);
+                _wait(_cell(pos), pos);
+            }
+        }
+
+        void push(T&& value) {
+            while (!try_push(std::move(value))) {   // taken only by the attempt that finds room
                 auto pos = _tail.load(std::memory_order_relaxed);
                 _wait(_cell(pos), pos);
             }
@@ -245,7 +253,7 @@ namespace sgcl {
             _waiters.fetch_sub(1, std::memory_order_relaxed);
         }
 
-        static constexpr unsigned SpinPauses = 1024;   // about 10 us on arm64 (isb: 9 ns), 40 on x86 (pause: 40 ns): the scheduler's window before a worker sleeps (config::WorkerSpinMicroseconds)
+        static constexpr unsigned SpinPauses = 1024;   // about 10 us on arm64 (isb: 9 ns), 40 on x86 (pause: 40 ns): the scheduler's window before a worker sleeps (config::worker_spin_microseconds)
 
         // The buffer and the mask, read by both sides and written by
         // neither, and the count of waiters, written only by a side
@@ -261,9 +269,9 @@ namespace sgcl {
         const size_type _mask;
         tracked_ptr<Cell> _cells;
         atomic<size_type> _waiters = {0};
-        unsigned char _pad0[config::CacheLineSize] = {};
+        unsigned char _pad0[config::cache_line_size] = {};
         atomic<size_type> _head = {0};
-        unsigned char _pad1[config::CacheLineSize] = {};
+        unsigned char _pad1[config::cache_line_size] = {};
         atomic<size_type> _tail = {0};
     };
 }

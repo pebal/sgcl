@@ -206,7 +206,7 @@ namespace sgcl::detail {
                             entry.buffers = true;
                             entry.object_size = element->object_size;
                             ++entry.live_objects;
-                            entry.live_bytes += metadata->pool_allocated ? metadata->object_size : page->page_count * config::PageSize;
+                            entry.live_bytes += metadata->pool_allocated ? metadata->object_size : page->page_count * config::page_size;
                         }
                     }
                 } else {
@@ -692,7 +692,7 @@ namespace sgcl::detail {
 
         // A cache line of its own: the workers push, pop and count on their
         // markers at every object.
-        struct alignas(config::CacheLineSize) Marker {
+        struct alignas(config::cache_line_size) Marker {
             std::vector<MarkItem> work;
             std::vector<void*> objects;   // the live objects, when requested
             size_t live = 0;              // objects marked for the first time
@@ -824,7 +824,7 @@ namespace sgcl::detail {
                 _scanned_threads.push_back(thread);
                 bytes += _stack_segments_of(thread->stack_begin, thread->stack_end);
             }
-            auto workers = _pool.workers(bytes, config::StackScanThreshold, true);
+            auto workers = _pool.workers(bytes, config::stack_scan_threshold, true);
             if (!workers) {
                 for (auto& segment : _stack_segments) {
                     _scan_words(segment.begin, segment.end);
@@ -851,7 +851,7 @@ namespace sgcl::detail {
         }
 
         // Appends the used part of one stack to _stack_segments, in pieces
-        // of at most config::StackScanSegment bytes; returns the bytes added.
+        // of at most config::stack_scan_segment bytes; returns the bytes added.
         size_t _stack_segments_of(uintptr_t begin, uintptr_t end) noexcept {
             begin = (begin + sizeof(uintptr_t) - 1) & ~(uintptr_t)(sizeof(uintptr_t) - 1);
             end &= ~(uintptr_t)(sizeof(uintptr_t) - 1);
@@ -861,8 +861,8 @@ namespace sgcl::detail {
             size_t bytes = 0;
             auto add = [&](uintptr_t from, uintptr_t to) {
                 bytes += to - from;
-                for (; from < to; from += config::StackScanSegment) {
-                    _stack_segments.push_back({from, std::min(to, from + config::StackScanSegment)});
+                for (; from < to; from += config::stack_scan_segment) {
+                    _stack_segments.push_back({from, std::min(to, from + config::stack_scan_segment)});
                 }
             };
             auto page = os::touched_pages((void*)begin, end - begin, _touched_pages);
@@ -995,11 +995,16 @@ namespace sgcl::detail {
         // Rule 2 diagnostic: a word at an offset already classified as data
         // holds a pointer to a live object. Either a tracked_ptr shares its
         // storage with data (a union, std::variant, an inline buffer), which
-        // the collector cannot follow, or an integer happens to hold an
-        // address. Reported once per type. A word pointing into the object
-        // itself is data (an empty std::map or std::list points at its own
-        // end node): nothing to follow there; so is a word naming a root
-        // holder (a root_ptr, a task, inside a managed object).
+        // the collector cannot follow, or a raw pointer is kept as data with
+        // nothing to keep its target. Reported once per type. Not reported:
+        // a word pointing into the object itself (an empty std::map or
+        // std::list points at its own end node: nothing to follow there); a
+        // word naming a root holder (a root_ptr, a task, inside a managed
+        // object); a word inside an object rather than at its start, which a
+        // pointer of either kind names by its start (data that happens to
+        // look like an address, as two small ints packed in a word); and a
+        // raw word whose target a tracked word of the same object holds (an
+        // owner beside a raw pointer into what it owns: slice, io::reader).
         void _check_removed_offsets(ChildPointers& childs, void* ptr) noexcept {
             if (childs.warned.load(std::memory_order_relaxed)) {
                 return;
@@ -1011,13 +1016,39 @@ namespace sgcl::detail {
                     bits &= bits - 1;
                     auto word = (const void*)os::load_word((RawPointer*)ptr + offset);
                     auto page = Heap::page_of_checked(word);
-                    if (page && !page->is_root_holder && _is_registered(page, word) && page->pointer_of(page->index_of(word)) != ptr) {   // a root holder (the cells of the root_ptrs) is data to name: a root_ptr inside a managed object
-                        childs.warned.store(true, std::memory_order_relaxed);
-                        std::fprintf(stderr, "[sgcl] type %s: the word at byte offset %zu was classified as data but holds a pointer to a managed object; a tracked_ptr sharing storage with data is not supported\n", childs.type.name(), offset * sizeof(RawPointer));
-                        return;
+                    if (!page || page->is_root_holder || !_is_registered(page, word)) {   // a root holder (the cells of the root_ptrs) is data to name: a root_ptr inside a managed object
+                        continue;
+                    }
+                    auto start = page->pointer_of(page->index_of(word));
+                    if (start == ptr || word != start || _held_by(childs, ptr, start)) {
+                        continue;
+                    }
+                    childs.warned.store(true, std::memory_order_relaxed);
+                    std::fprintf(stderr, "[sgcl] type %s: the word at byte offset %zu was classified as data but holds a pointer to a managed object; a tracked_ptr sharing storage with data is not supported\n", childs.type.name(), offset * sizeof(RawPointer));
+                    return;
+                }
+            }
+        }
+
+        // Whether a word of the object still taken for a pointer names the
+        // object that starts at target
+        static bool _held_by(ChildPointers& childs, void* ptr, const void* target) noexcept {
+            for (size_t w = 0; w < childs.map.size(); ++w) {
+                auto bits = childs.word(w);
+                while (bits) {
+                    auto offset = w * 64 + std::countr_zero(bits);
+                    bits &= bits - 1;
+                    auto word = (const void*)os::load_word((RawPointer*)ptr + offset);
+                    auto page = Heap::page_of_checked(word);
+                    if (page && !page->is_root_holder) {
+                        auto index = page->index_of(word);
+                        if (index < page->object_count && page->pointer_of(index) == target) {
+                            return true;
+                        }
                     }
                 }
             }
+            return false;
         }
 #endif
 
@@ -1214,7 +1245,7 @@ namespace sgcl::detail {
             unsigned total = 0;
             bool done = false;
             // read by every worker at every object, away from the mutex
-            alignas(config::CacheLineSize) std::atomic<unsigned> idle = {0};
+            alignas(config::cache_line_size) std::atomic<unsigned> idle = {0};
 #ifdef SGCL_MARK_STATS
             std::atomic<size_t> spills = {0};
             std::atomic<size_t> takes = {0};
@@ -1395,7 +1426,7 @@ namespace sgcl::detail {
         // the loads of one object's words wait for the miss before the
         // next object's can start (Cher, Hosking, Vitek: software
         // prefetching for mark-sweep).
-        static constexpr unsigned PrefetchWindow = config::MarkPrefetchWindow;
+        static constexpr unsigned PrefetchWindow = config::mark_prefetch_window;
         // The page loop prefetches the objects of a word this many slots
         // ahead of the trace
         static constexpr unsigned PrefetchAhead = 4;
@@ -1849,7 +1880,7 @@ namespace sgcl::detail {
         }
 
         // The sweep runs here while the garbage of a cycle is small, and on
-        // the pool (config::SweepPageThreshold, SweepThreadsMax) when it is
+        // the pool (config::sweep_page_threshold, config::sweep_threads_max) when it is
         // not: the array of unreachable pages is cut into equal ranges,
         // one per thread, this thread taking the last one.
         size_t _remove_garbage() noexcept {
@@ -1886,9 +1917,9 @@ namespace sgcl::detail {
         class WorkerPool {
         public:
             // 0 while a pass has little to do; a pass over `pages` pages is
-            // worth sharing from config::SweepPageThreshold on
+            // worth sharing from config::sweep_page_threshold on
             unsigned workers_for(size_t pages) {
-                return workers(pages, config::SweepPageThreshold);
+                return workers(pages, config::sweep_page_threshold);
             }
 
             // 0 below `threshold` units of work; otherwise one helper per
@@ -1900,7 +1931,7 @@ namespace sgcl::detail {
                 if (!forced && (units < threshold || (!_enabled && !regardless))) {
                     return 0;
                 }
-                auto max = config::SweepThreadsMax ? config::SweepThreadsMax : std::min<size_t>(8, std::max<size_t>(1, std::thread::hardware_concurrency() / 2));
+                auto max = config::sweep_threads_max ? config::sweep_threads_max : std::min<size_t>(8, std::max<size_t>(1, std::thread::hardware_concurrency() / 2));
                 auto wanted = forced ? std::min<unsigned>(forced, (unsigned)std::max<size_t>(1, max)) : (unsigned)std::min<size_t>(max, units / (threshold / 4));
                 _last = std::max(_last, wanted);
                 if (wanted > _threads.size()) {
@@ -1930,7 +1961,7 @@ namespace sgcl::detail {
             // helpers on the cycles get shorter and the amount per cycle
             // drops although the mutators allocate exactly as before.
             void decide(int64_t live, int64_t allocated) noexcept {
-                if constexpr(config::HelpersGrowthThreshold == 0) {   // always on (measurements, tests)
+                if constexpr(config::helpers_growth_threshold == 0) {   // always on (measurements, tests)
                     _enabled = true;
                     return;
                 }
@@ -1940,7 +1971,7 @@ namespace sgcl::detail {
                 auto rate = seconds > 0 ? allocated / seconds : 0.0;
                 if (!_enabled) {
                     _live_floor = std::min(_live_floor, live);
-                    if (live - _live_floor >= (int64_t)config::HelpersGrowthThreshold) {
+                    if (live - _live_floor >= (int64_t)config::helpers_growth_threshold) {
                         _enabled = true;
                         _level = rate;
                     }
@@ -2037,13 +2068,13 @@ namespace sgcl::detail {
         };
 
         // Zeroes the dead frames below the caller's, on any thread (no
-        // registration needed): config::StackClearSize, within the stack.
+        // registration needed): config::stack_clear_size, within the stack.
         SGCL_NOINLINE static void _clear_frames_below() noexcept {
             uintptr_t here = (uintptr_t)&here;
             uintptr_t begin = 0, end = 0;
-            auto limit = here > config::StackClearSize ? here - config::StackClearSize : 0;
+            auto limit = here > config::stack_clear_size ? here - config::stack_clear_size : 0;
             if (os::thread_stack(begin, end)) {
-                limit = std::max(limit, begin + config::StackGuardMargin);
+                limit = std::max(limit, begin + config::stack_guard_margin);
             }
             limit = std::max(limit, os::lowest_touched(limit, here));
             os::hidden_call([](void*) {}, nullptr, limit);
@@ -2057,7 +2088,7 @@ namespace sgcl::detail {
             if (!thread_registered()) {
                 return;
             }
-            os::hidden_call([](void*) {}, nullptr, stack_clear_limit(config::StackClearSize));
+            os::hidden_call([](void*) {}, nullptr, stack_clear_limit(config::stack_clear_size));
         }
 
         // A pass over an index range [0, count), cut into equal ranges shared
@@ -2618,11 +2649,11 @@ namespace sgcl::detail {
                 auto start = std::chrono::steady_clock::now();
                 _pool.reset_last();
                 auto live_size = MemoryCounters::live_bytes();
-                _pool.decide(live_size, MemoryCounters::last_alloc() * config::PageSize);
+                _pool.decide(live_size, MemoryCounters::last_alloc() * config::page_size);
                 _full = _choose_full_cycle(live_size);
                 // the workers by what a cycle of this kind marked last time: a
                 // young cycle marks the young survivors, a full one the heap
-                _mark_workers = _pool.workers(_full ? _last_marked_full : _last_marked_young, config::MarkObjectThreshold);
+                _mark_workers = _pool.workers(_full ? _last_marked_full : _last_marked_young, config::mark_object_threshold);
 #ifdef SGCL_MARK_STATS
                 // SGCL_MARK_WORKERS: 0 this thread alone, k helpers
                 if (auto e = std::getenv("SGCL_MARK_WORKERS")) {
@@ -2669,7 +2700,7 @@ namespace sgcl::detail {
                     // the dirty pages count like the marked objects of the
                     // previous cycle: enough of them and the pass goes to the pool
                     auto dirty = _collect_dirty_pages();
-                    _mark_workers = std::max(_mark_workers, _pool.workers(dirty, config::MarkObjectThreshold));
+                    _mark_workers = std::max(_mark_workers, _pool.workers(dirty, config::mark_object_threshold));
                 }
                 phase(2);
                 _gate(Gate::Roots);
@@ -2838,9 +2869,9 @@ namespace sgcl::detail {
                 if (!_terminating && can_sleep && !_stepping.load(std::memory_order_acquire)) {
                     sleep_flag.store(true, std::memory_order_relaxed);
                     std::unique_lock<std::mutex> lock(_mutex);
-                    std::chrono::nanoseconds sleep_time = _short_sleep ? config::ShortSleepTime : config::LongSleepTime;
+                    std::chrono::nanoseconds sleep_time = _short_sleep ? config::short_sleep_time : config::long_sleep_time;
                     if (Heap::instance().under_pressure()) {
-                        sleep_time = config::PressureSleepTime;
+                        sleep_time = config::pressure_sleep_time;
                     }
                     _short_sleep = false;
                     sleep_cv.wait_for(lock, sleep_time, [this]{
@@ -2869,10 +2900,10 @@ namespace sgcl::detail {
             }
         }
 
-        // config.h: YoungCyclesMax, FullCycleGrowthPercent. A forced
+        // config::young_cycles_max, full_cycle_growth_percent. A forced
         // collection is always full: the caller waits for a complete one.
         bool _choose_full_cycle(size_t live_size) const noexcept {
-            if constexpr(!config::Generational) {
+            if constexpr(!config::generational) {
                 return true;
             }
             if (_stepping.load(std::memory_order_acquire)) {
@@ -2884,11 +2915,11 @@ namespace sgcl::detail {
             if (_young_collect_count.load(std::memory_order_acquire)) {
                 return false;
             }
-            if (_young_cycles >= config::YoungCyclesMax) {
+            if (_young_cycles >= config::young_cycles_max) {
                 return true;
             }
-            auto base = std::max<size_t>(_live_after_full, config::ChunkSize);
-            return live_size >= base + base * config::FullCycleGrowthPercent / 100;
+            auto base = std::max<size_t>(_live_after_full, config::chunk_size);
+            return live_size >= base + base * config::full_cycle_growth_percent / 100;
         }
 
         void _force_collect() noexcept {

@@ -16,7 +16,7 @@
 namespace {
     // A call to a deleted function in a requires-expression outside a
     // template is a hard error, so the refusal is seen through a concept
-    template<class T> concept Classes = requires(T c) { txt::combining_class(c); };
+    template<class T> concept Classes = requires(T c) { txt::combining_class_of(c); };
     template<class T> concept Composes = requires(T c) { txt::compose(c, c); };
 
     string utf8_of(const char32_t* points) {
@@ -154,10 +154,10 @@ TEST(Normalize_Tests, TheFourFormsOfATextAReaderWrites) {
 }
 
 TEST(Normalize_Tests, TheQuestionsAboutOneCodePoint) {
-    static_assert(txt::combining_class(U'a') == 0);
-    static_assert(txt::combining_class(U'\u0301') == 230);      // above
-    static_assert(txt::combining_class(U'\u0323') == 220);      // below
-    static_assert(txt::combining_class(U'\u0328') == 202);
+    static_assert(txt::combining_class_of(U'a') == 0);
+    static_assert(txt::combining_class_of(U'\u0301') == 230);      // above
+    static_assert(txt::combining_class_of(U'\u0323') == 220);      // below
+    static_assert(txt::combining_class_of(U'\u0328') == 202);
     static_assert(txt::compose(U'e', U'\u0301') == U'é');
     static_assert(txt::compose(U'a', U'b') == 0);
     static_assert(txt::compose(U'\u1100', U'\u1161') == U'\uAC00');          // Hangul, by arithmetic
@@ -175,7 +175,7 @@ TEST(Normalize_Tests, TheQuestionsAboutOneCodePoint) {
     static_assert(Composes<char32_t> && !Composes<char> && !Composes<int>);
 
     // And the names are predicates like the others
-    EXPECT_EQ(string("e\u0301\u0323").runes().count_of([](char32_t c) { return txt::combining_class(c) != 0; }), 2u);
+    EXPECT_EQ(string("e\u0301\u0323").runes().count_of([](char32_t c) { return txt::combining_class_of(c) != 0; }), 2u);
 }
 
 TEST(Normalize_Tests, ComparingWithoutCaringHowItIsWritten) {
@@ -229,4 +229,43 @@ TEST(Normalize_Tests, TheWorkIsDoneOnce) {
     // the form takes the road that compares, and must come back as itself
     string maybe("a\u0301bc");
     EXPECT_EQ(txt::normalize(maybe, txt::nfd).data(), maybe.data());
+}
+
+// without_marks: NFD, the nonspacing marks dropped, NFC. What it does
+// not do is the half worth testing \u2014 a letter whose stroke is part of
+// the letter keeps it, the case is untouched, and a spacing mark stays
+// because it spells a vowel and is not an accent.
+TEST(Normalize_Tests, TheMarksTakenOff) {
+    EXPECT_EQ(txt::without_marks(string("caf\u00e9")), string("cafe"));
+    EXPECT_EQ(txt::without_marks(string("Gr\u00fc\u00dfe")), string("Gru\u00dfe"));
+    // the \u017c, the \u00f3 and the \u0107 lose their marks; the \u0142 has none to lose,
+    // its stroke being part of the letter
+    EXPECT_EQ(txt::without_marks(string("\u017c\u00f3\u0142\u0107")), string("zo\u0142c"));
+    EXPECT_EQ(txt::without_marks(string("\u1f04\u03bd\u03b8\u03c1\u03c9\u03c0\u03bf\u03c2")), string("\u03b1\u03bd\u03b8\u03c1\u03c9\u03c0\u03bf\u03c2"));
+    EXPECT_EQ(txt::without_marks(string("\u00c5ngstr\u00f6m")), string("Angstrom"));
+
+    // the same whether the text arrived composed or decomposed
+    EXPECT_EQ(txt::without_marks(txt::normalize(string("caf\u00e9"), txt::nfd)), string("cafe"));
+    EXPECT_EQ(txt::without_marks(txt::normalize(string("caf\u00e9"), txt::nfc)), string("cafe"));
+
+    // and what it is not: not a transliteration, so the letters whose
+    // mark is part of the letter come through as they are
+    EXPECT_EQ(txt::without_marks(string("\u0141\u00f3d\u017a")), string("\u0141odz"));
+    EXPECT_EQ(txt::without_marks(string("\u00d8")), string("\u00d8"));
+    EXPECT_EQ(txt::without_marks(string("\u0111")), string("\u0111"));
+    EXPECT_EQ(txt::without_marks(string("\u00df")), string("\u00df"));
+    EXPECT_EQ(txt::without_marks(string("\u0131")), string("\u0131"));
+    // not a slug, so the case, the spaces and the punctuation stay
+    EXPECT_EQ(txt::without_marks(string("Caf\u00e9 au Lait!")), string("Cafe au Lait!"));
+    // and a spacing mark is spelling, not an accent: the Devanagari
+    // vowel sign stays where a mark above would be taken off
+    string ka_with_aa("\u0915\u093e");
+    EXPECT_EQ(txt::without_marks(ka_with_aa), ka_with_aa);
+
+    // a text with nothing to take off comes back as the object it was
+    string plain("abc def");
+    EXPECT_EQ(txt::without_marks(plain).data(), plain.data());
+    string cyrillic("\u043f\u0435\u0440\u0435\u043c\u0435\u043d\u043d\u0430\u044f");
+    EXPECT_EQ(txt::without_marks(cyrillic).data(), cyrillic.data());
+    EXPECT_EQ(txt::without_marks(string("")), string(""));
 }

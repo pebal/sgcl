@@ -28,7 +28,7 @@ namespace {
         return e ? *e : txt::encoding::utf8;
     }
 
-    std::string bytes_of(const vector<std::byte>& v) {
+    std::string bytes_of(const vector<byte>& v) {
         std::string out;
         for (auto b : v) {
             out += char(b);
@@ -41,8 +41,8 @@ TEST(Encoding_Tests, EveryByteOfEverySingleByteEncoding) {
     for (const auto& m : ucd::ByteMappings) {
         auto e = named(m.encoding);
         for (uint32_t b = 0; b < 256; ++b) {
-            std::byte one[1] = {std::byte(b)};
-            string got = txt::decode(slice<const std::byte>(one), e);
+            byte one[1] = {byte(b)};
+            string got = txt::decode(slice<const byte>(one), e);
             char buf[utf8::max_width];
             string want = string(buf, utf8::encode(m.points[b], buf));
             ASSERT_EQ(got, want) << m.encoding << " bajt " << std::hex << b;
@@ -100,13 +100,13 @@ TEST(Encoding_Tests, TheNamesAHeaderUses) {
 
 TEST(Encoding_Tests, WhatAByteOrderMarkSays) {
     auto bom = [](std::initializer_list<uint32_t> bytes) {
-        static std::vector<std::byte> keep;
-        keep.assign(bytes.size(), std::byte(0));
+        static std::vector<byte> keep;
+        keep.assign(bytes.size(), byte(0));
         size_t i = 0;
         for (auto b : bytes) {
-            keep[i++] = std::byte(b);
+            keep[i++] = byte(b);
         }
-        return txt::detect_bom(slice<const std::byte>(std::span<const std::byte>(keep)));
+        return txt::detect_bom(slice<const byte>(std::span<const byte>(keep)));
     };
     EXPECT_EQ(bom({0xEF, 0xBB, 0xBF, 'a'}).says, txt::encoding::utf8);
     EXPECT_EQ(bom({0xEF, 0xBB, 0xBF, 'a'}).size, 3u);
@@ -140,8 +140,8 @@ TEST(Encoding_Tests, TheOtherTwoEncodingsOfUnicode) {
     EXPECT_EQ(txt::from_utf32(slice<const char32_t>(bad)), string("�a"));
 
     // An odd number of bytes ends in a replacement rather than in a guess
-    std::byte odd[] = {std::byte('a'), std::byte(0), std::byte('b')};
-    EXPECT_EQ(txt::decode(slice<const std::byte>(odd), txt::encoding::utf16le), string("a�"));
+    byte odd[] = {byte('a'), byte(0), byte('b')};
+    EXPECT_EQ(txt::decode(slice<const byte>(odd), txt::encoding::utf16le), string("a�"));
 }
 
 TEST(Encoding_Tests, WhatCannotBeWrittenAndWhatCannotBeRead) {
@@ -153,13 +153,30 @@ TEST(Encoding_Tests, WhatCannotBeWrittenAndWhatCannotBeRead) {
     EXPECT_EQ(bytes_of(txt::encode(string("€"), txt::encoding::iso8859_2)), "?");
 
     // A byte that means nothing in the encoding is one replacement
-    std::byte hole[] = {std::byte(0x81)};
-    EXPECT_EQ(txt::decode(slice<const std::byte>(hole), txt::encoding::windows1250), string("�"));
-    EXPECT_EQ(txt::decode(slice<const std::byte>(hole), txt::encoding::latin1), string("\u0081"));
-    EXPECT_EQ(txt::decode(slice<const std::byte>(hole), txt::encoding::ascii), string("�"));
+    byte hole[] = {byte(0x81)};
+    EXPECT_EQ(txt::decode(slice<const byte>(hole), txt::encoding::windows1250), string("�"));
+    EXPECT_EQ(txt::decode(slice<const byte>(hole), txt::encoding::latin1), string("\u0081"));
+    EXPECT_EQ(txt::decode(slice<const byte>(hole), txt::encoding::ascii), string("�"));
 
     // Invalid UTF-8 comes through as the replacement it already is
-    std::byte broken[] = {std::byte('a'), std::byte(0xFF), std::byte('b')};
-    EXPECT_EQ(txt::decode(slice<const std::byte>(broken), txt::encoding::utf8), string("a�b"));
-    EXPECT_EQ(txt::decode(slice<const std::byte>(), txt::encoding::utf8), string());
+    byte broken[] = {byte('a'), byte(0xFF), byte('b')};
+    EXPECT_EQ(txt::decode(slice<const byte>(broken), txt::encoding::utf8), string("a�b"));
+    EXPECT_EQ(txt::decode(slice<const byte>(), txt::encoding::utf8), string());
+}
+
+// The strict form: the text, or the first byte that means nothing in the
+// encoding, where the lenient form puts a replacement character
+TEST(Encoding_Tests, StrictDecodeRefusesWhatLenientReplaces) {
+    auto bytes = [](std::string_view s) { return slice<const byte>(reinterpret_cast<const byte*>(s.data()), s.size()); };
+    EXPECT_EQ(*txt::decode(bytes("za\xC5\xBC\xC3\xB3\xC5\x82\xC4\x87"), txt::encoding::utf8, txt::strict), "zażółć");
+    EXPECT_EQ(*txt::decode(bytes("a\xEF\xBF\xBD" "b"), txt::encoding::utf8, txt::strict), "a\xEF\xBF\xBD" "b");   // a U+FFFD written is a character
+    auto bad = txt::decode(bytes("ab\xC5"), txt::encoding::utf8, txt::strict);
+    ASSERT_FALSE(bad);
+    EXPECT_EQ(bad.error().offset(), 2u);
+    EXPECT_EQ(bad.error().message(), "not utf-8");
+    EXPECT_EQ(txt::decode(bytes("ab\xC5"), txt::encoding::utf8), "ab\xEF\xBF\xBD");   // the lenient form, as before
+    EXPECT_EQ(txt::decode(bytes("a\x80"), txt::encoding::ascii, txt::strict).error().offset(), 1u);
+    EXPECT_EQ(txt::decode(bytes(std::string_view("\x00" "a" "\x00", 3)), txt::encoding::utf16be, txt::strict).error().offset(), 2u);   // a unit cut short
+    EXPECT_EQ(txt::decode(bytes(std::string_view("\xD8\x00" "\x00" "a", 4)), txt::encoding::utf16be, txt::strict).error().offset(), 0u);   // a lone surrogate
+    EXPECT_TRUE(txt::decode(bytes("\xFF"), txt::encoding::latin1, txt::strict));   // every byte is a character there
 }

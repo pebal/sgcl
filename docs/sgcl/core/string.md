@@ -18,9 +18,11 @@ namespace sgcl {
 
 What it is for: text that is kept, shared and compared. Copying one between managed objects costs a word and the write barrier; a `std::string` past its small buffer costs an allocation per copy and a `free` per destruction, in the sweep. Hashing one as a map key costs a load after the first time: the hash (`std::hash` of the characters) is computed once and kept in the string's object, as Java's `String` keeps its `hashCode`. What it is not for: a scratch buffer, or text of a few characters made and dropped at once, where `std::string` costs no allocation at all; `std::string` remains the right member for those, in a managed object as anywhere ([README: string](README.md#string) has the numbers).
 
-The interface is the read side of `std::string` and all of `std::string_view`: `size`, `data`, `c_str`, `[]`, `at`, `front`, `back`, the iterators, `compare`, `starts_with`, `ends_with`, `contains`, the six `find`s, `substr` (a new string, or the same object for the whole), the comparisons and `<=>` with a string, a `string_view` or a literal, `operator+` (a new string), `std::hash`, `operator<<`, the conversions to `string_view` and to `std::string` (`str()`); the constructors from a literal, `(s, n)`, a `string_view`, a `std::string` or anything a `string_view` is made of, `(n, ch)`, a range, an initializer list. No mutation, no `capacity`: a string is built as a `std::string` or a `string_view` and made once. The length is kept in 32 bits.
+The interface is the read side of `std::string` and all of `std::string_view`: `size`, `data`, `c_str`, `[]`, `at`, `front`, `back`, the iterators, `compare`, `starts_with`, `ends_with`, `contains`, the six `find`s, `substr` (a new string, or the same object for the whole), the comparisons and `<=>` with a string, a `string_view` or a literal, `operator+` (a new string), `std::hash`, `operator<<`, the conversions to `string_view` and to `std::string` (`str()`); the constructors from a literal, `(s, n)`, a `string_view`, a `std::string` or anything a `string_view` is made of, `(n, ch)`, a range, an initializer list. No mutation, no `capacity`: a string is built as a `std::string` or a `string_view` and made once. The length is kept in 32 bits: `max_size()` is 4 294 967 295 characters, and a longer text is refused with `length_error` before a character of it is read, as `std::string` refuses what passes its own.
 
-Past `std::string`, what the strings of Go (`strings`) and Java have, each a new string or the same object when there is nothing to change: `split` (the pieces between the separators, a range of slices walked as it goes: `pieces`), `fields` (the words between runs of white space, the same range), `join` (static: the parts with a separator between each two, built once), `trim`, `trim_left`, `trim_right` (Unicode white space, or the characters given), `trim_prefix`, `trim_suffix`, `replace` (every occurrence, or the first `count`), `repeat`, `to_lower`, `to_upper` (by Unicode's simple case mapping: `"ŁÓDŹ"` to `"łódź"`), `equal_fold` (the same letters in either case). The text is UTF-8: `size()` counts bytes, `runes()` walks the code points, a `char32_t` is a character wherever a `char` is (`find(U'ż')`, `split(U'·')`) and an `int` — `'ż'`, a multi-character literal — is refused ([utf8](utf8.md)).
+The hash is keyed: a hash of the characters under a key of four words drawn once per process (detail/hash_bytes.h), so which texts share a bucket is not known outside the process, and a map keyed by what a client sends — the names of HTTP headers, the keys of a JSON object — cannot be filled with keys of one bucket (HashDoS; Go and Rust key their maps the same way). The order of a `map` or a `set` of strings therefore differs between runs; the environment variable `SGCL_HASH_SEED`, a number, fixes the key, for a test that prints one. It is faster than the standard library's unkeyed hash at every length (2.4 ns for three bytes, 4.2 ns for a hundred, 10 GB/s over a long text) and is computed once per string, which keeps it. A `std::string` key hashes by `std::hash<std::string>`, which is not keyed: a map of untrusted keys is keyed by `sgcl::string`.
+
+Past `std::string`, what the strings of Go (`strings`) and Java have, each a new string or the same object when there is nothing to change: `split` (the pieces between the separators, a range of slices walked as it goes: `pieces`), `fields` (the words between runs of white space, the same range), `join` (static: the parts with a separator between each two, built once), `trim`, `trim_left`, `trim_right` (Unicode white space, or the characters given), `trim_prefix`, `trim_suffix`, `replace` (every occurrence, or the first `count`), `repeat`, `to_lower`, `to_upper` (by Unicode's simple case mapping: `"ŁÓDŹ"` to `"łódź"`; the full mapping, where `"ß"` becomes `"SS"`, and the locales are [`txt::to_upper_full`](../txt/case.md)), `equal_fold` (the same letters in either case). The text is UTF-8: `size()` counts bytes, `runes()` walks the code points, a `char32_t` is a character wherever a `char` is (`find(U'ż')`, `split(U'·')`) and an `int` — `'ż'`, a multi-character literal — is refused ([utf8](utf8.md)).
 
 The word is a `tracked_ptr`, so a string lives where one may, as the containers do: on a stack or inside a managed object. A piece of a string is a [`slice`](slice.md) (`string_slice`, a `slice<const char>`): the string's object as the owner and a range in it, so `s.as_slice(pos, n)` is a substring with no copy and no lifetime to watch, and the pieces of `split` are such slices. The read interface below is the mixin `mixin::text`, which a text slice shares.
 
@@ -29,7 +31,7 @@ A map or a set keyed by strings is searched with a `std::string_view`, a slice o
 ## Rules
 
 - A `string` is a tracked pointer, so it lives where one may: on a stack or inside a managed object ([The rules](README.md#the-rules), 1).
-- Threads share a `string` the way they share a `tracked_ptr` ([The rules](README.md#the-rules), 6): the object itself is immutable and read from any thread without synchronization, and a string variable that one thread replaces while others read it is an [`atomic<string>`](../concurrent/atomic.md#atomicbasic_string), one word, a load for the string as it was and a store for a new one. The hash is computed by the first thread that asks and stored relaxed: every thread computes the same value.
+- Threads share a `string` the way they share a `tracked_ptr` ([The rules](README.md#the-rules), 6): the object itself is immutable and read from any thread without synchronization, and a string variable that one thread replaces while others read it is an [`atomic<string>`](atomic.md#atomicbasic_string), one word, a load for the string as it was and a store for a new one. The hash is computed by the first thread that asks and stored relaxed: every thread computes the same value.
 - `data()` and the iterators are valid while some string holds the object: a `std::string_view` taken from a temporary dangles as it would from a `std::string`; a slice does not, it holds the object.
 - A string's object is never traced and never zeroed: its bytes are characters and nothing else.
 
@@ -54,12 +56,12 @@ basic_string& operator=(...);                             // the same set
 const CharT* data() const noexcept;  const CharT* c_str() const noexcept;   // terminated; the empty string's is a terminator
 size_type size() const noexcept;  size_type length() const noexcept;  bool empty() const noexcept;
 operator view_type() const noexcept;                      // a std::string_view of the characters, borrowed
-slice<const CharT> as_slice() const noexcept;  slice<const CharT> as_slice(size_type pos, size_type n = npos) const;   // a slice that holds the object: the whole, a range (std::out_of_range past the end)
+slice<const CharT> as_slice() const noexcept;  slice<const CharT> as_slice(size_type pos, size_type n = npos) const;   // a slice that holds the object: the whole, a range (out_of_range past the end)
 operator slice<const CharT>() const noexcept;             // as_slice()
 explicit basic_string(const slice<const CharT>& v);       // the slice's own object when it is the whole of a string, a copy otherwise
 view_type view() const noexcept;                          // the characters as a std::string_view, borrowed
 std::basic_string<CharT, Traits> str() const;             // a copy, to build on
-const CharT& operator[](size_type) const noexcept;  const CharT& at(size_type) const;   // at: std::out_of_range
+const CharT& operator[](size_type) const noexcept;  const CharT& at(size_type) const;   // at: out_of_range
 const CharT& front() const noexcept;  const CharT& back() const noexcept;
 const_iterator begin() const noexcept;  const_iterator end() const noexcept;   // and cbegin, cend, rbegin, rend, crbegin, crend
 size_type copy(CharT* dest, size_type n, size_type pos = 0) const;
@@ -85,7 +87,6 @@ void swap(basic_string&) noexcept;
 size_t hash() const noexcept;                             // std::hash of the characters, computed once, kept in the object
 static size_t hash_of(view_type s) noexcept;              // the hash a string of these characters has: for a lookup by a view
 const void* object() const noexcept;                      // the object's address: the identity; null when empty
-bool equals(const basic_string&) const noexcept;   // what == does
 bool operator==(view_type) const noexcept;  bool operator==(const CharT*) const noexcept;
 std::strong_ordering operator<=>(view_type) const noexcept;  std::strong_ordering operator<=>(const CharT*) const noexcept;
 ```
@@ -99,7 +100,8 @@ basic_string operator+(string, string);  (string, std view);  (std view, string)
 std::basic_ostream& operator<<(std::basic_ostream&, const basic_string&);
 void swap(basic_string&, basic_string&) noexcept;
 template<class T> string to_string(T number);              // an integral or a floating-point number; "true"/"false" for a bool; a char as a string of one
-template<class T> optional<T> parse(std::string_view text, int base = 10);   // an integer from its text; parse<double>(text), parse<bool>(text): nullopt unless the text is exactly one number that fits
+template<class T> expected<T, number_error> parse(std::string_view text, int base = 10);   // an integer from its text; parse<double>(text), parse<bool>(text): the error unless the text is exactly one number that fits
+class number_error;   // why(): empty, not_a_number, trailing, out_of_range; offset(), code() (std::errc as from_chars), message()
 template<...> struct std::hash<basic_string<...>>;   // the cached hash; transparent: a std::string_view, a slice or a literal hashes as the string would
 template<...> struct std::equal_to<basic_string<...>>;   // transparent: a string against a std view, a slice or a literal
 template<...> struct std::less<basic_string<...>>;       // transparent
@@ -119,7 +121,7 @@ assert(ages.at("alice") == 30);               // searched with the literal: no s
 assert(ages.find(std::string_view("alice")) != ages.end() && !ages.contains("bob"));
 ```
 
-`to_string` makes a string of a number, `parse<T>` a number of a text: `parse<int>("42")`, `parse<double>("2.5")`, `parse<bool>("true")`, `parse<int>("ff", 16)`, an `optional` that is `nullopt` unless the text is exactly one number of the type (no white space, no `+`, no sign for an unsigned type, nothing after the digits, in range), `std::from_chars` under it, so no locale and no allocation: C#'s `TryParse`, Go's `strconv`, Java's `parseInt` without the exception. A `string` converts to the view, so `parse<int>(s)` reads a string.
+`to_string` makes a string of a number, `parse<T>` a number of a text: `parse<int>("42")`, `parse<double>("2.5")`, `parse<bool>("true")`, `parse<int>("ff", 16)`, an `expected` whose error, a `number_error`, says why the text is not exactly one number of the type (no white space, no `+`, no sign for an unsigned type, nothing after the digits, in range) and the byte it stopped on, `std::from_chars` under it, so no locale and no allocation: C#'s `TryParse`, Go's `strconv`, Java's `parseInt` without the exception. A `string` converts to the view, so `parse<int>(s)` reads a string.
 
 The operations past `std::string` return a new string, or the same object when there is nothing to change (`trim` of a string without white space at its ends, `replace` of what does not occur, `to_lower` of a string with no upper-case letter — by Unicode's case, `"łódź"` has none), so a result may be compared by `object()` as by `==`. `split` and `fields` return `pieces`: a value of a few words (the string, the separator as a copy, the limit) that is a forward range of [`string_slice`](slice.md)s into the string, each piece found as the walk reaches it, one `find` per step and no allocation, as `std::views::split` and Go's `strings.SplitSeq`. Each piece holds the string's object, so it is valid on its own, wherever it is kept: `for (sgcl::string_slice piece : s.split(','))` walks them, `sgcl::vector<sgcl::string_slice> parts(s.split(','))` keeps them (every sequence has a constructor from a range), `sgcl::vector<sgcl::string> strings(s.split(','))` makes a string of each, and `join` takes the range as it is. `split` keeps an empty piece where two separators meet or one ends the string, as Go's `strings.Split` does and Java's `split` does not; with `max_parts` the last piece holds the rest of the string; an empty separator splits into characters; an empty string splits into nothing. `fields` drops the empty pieces: the words. `replace` goes left to right without overlapping and never looks into what it has put in; an empty `from` changes nothing. `join` takes any range whose elements a `std::string_view` is made of: strings, slices, literals, `std::string`.
 
@@ -216,6 +218,6 @@ paragraph 1
 
 ## See also
 
-- [slice](slice.md): a piece of a string that holds the object; [tracked_ptr](tracked_ptr.md): the word; [map](../containers/map.md), [sorted_map](../containers/sorted_map.md): the containers a string keys
+- [slice](slice.md): a piece of a string that holds the object; [tracked_ptr](tracked_ptr.md): the word; [map](map.md), [sorted_map](sorted_map.md): the containers a string keys
 - README: [string](README.md#string), [The rules](README.md#the-rules), [Allocation](../../garbage_collector/benchmarks.md#allocation)
 - `benchmarks/core/string.cpp`: the cost against `std::string`; `tests/core/string.cpp`: every behaviour above, checked.

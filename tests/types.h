@@ -28,6 +28,20 @@ inline char* unhide(uintptr_t h) noexcept {
     return (char*)~h;
 }
 
+// A sorted container's tree whole: the red-black invariants, the links,
+// the order and the size (rb_tree.h: _check, private)
+namespace sgcl::detail {
+    struct RbTreeCheck {
+        static bool of(const auto& tree) {
+            return tree._check();
+        }
+    };
+}
+
+inline bool tree_is_valid(const auto& tree) {
+    return sgcl::detail::RbTreeCheck::of(tree);
+}
+
 struct Bar {
     virtual ~Bar() = default;
     virtual int get_value() const { return 0; };

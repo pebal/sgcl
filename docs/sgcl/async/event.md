@@ -1,4 +1,4 @@
-# sgcl::event
+# sgcl::async::event
 
 ```cpp
 #include "sgcl/async/event.h"   // or "sgcl/sgcl.h"
@@ -20,14 +20,14 @@ An event: set once, waited for by any number, and a wait after the set does not 
 ```cpp
 void set();  bool is_set() const noexcept;
 void wait();                                   // a thread
-auto async_wait() noexcept;                    // co_await: the task resumed by the set
+wait_op operator co_await();             // co_await e: the task resumed by the set
 template<class F> auto on_set(F f);            // a case of a select
 ```
 
 ```cpp
-event ready;
-auto worker = [](event& ready) -> task<> {
-    co_await ready.async_wait();                // all start together
+async::event ready;
+auto worker = [](async::event& ready) -> async::task<> {
+    co_await ready;                // all start together
 };
 ready.set();
 ```

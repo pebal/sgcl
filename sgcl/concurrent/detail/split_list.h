@@ -5,16 +5,16 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "../../containers/dynamic_array.h"
-#include "../../containers/detail/transparent.h"
-#include "../../containers/vector.h"
+#include "../../core/dynamic_array.h"
+#include "../../core/detail/transparent.h"
+#include "../../core/vector.h"
 #include "../../core/aliases.h"
 #include "../../core/config.h"
 #include "../../core/detail/os.h"
 #include "../../core/make_tracked.h"
 #include "../../core/tracked_ptr.h"
-#include "../atomic.h"
-#include "../atomic_ref.h"
+#include "../../core/atomic.h"
+#include "../../core/atomic_ref.h"
 
 #include <algorithm>
 #include <atomic>
@@ -26,7 +26,8 @@
 #include <type_traits>
 #include <utility>
 
-namespace sgcl::detail {
+namespace sgcl::concurrent::detail {
+    using namespace sgcl::detail;
     template<class Key, class T, class Hash, class KeyEqual>
     struct ConcurrentMapTraits {
         using key_type = Key;
@@ -55,8 +56,8 @@ namespace sgcl::detail {
         }
     };
 
-    // The hash table under concurrent_map and
-    // concurrent_set (concurrent_map.h has the account
+    // The hash table under map and
+    // set (map.h has the account
     // of the algorithm): the split-ordered list of Shalev and Shavit, one
     // lock-free sorted list holding every element, ordered by the bit
     // reversal of the hash, with an array of buckets that point into it at
@@ -135,12 +136,12 @@ namespace sgcl::detail {
         struct Counters {
             struct Cell {
                 atomic<long> n = {0};
-                unsigned char _pad[config::CacheLineSize - sizeof(atomic<long>)] = {};
+                unsigned char _pad[config::cache_line_size - sizeof(atomic<long>)] = {};
             };
 
             Cell cell[Stripes];
             atomic<bool> growing = {false};   // one thread doubles the array at a time; the others go on
-            unsigned char _pad[config::CacheLineSize - sizeof(atomic<bool>)] = {};
+            unsigned char _pad[config::cache_line_size - sizeof(atomic<bool>)] = {};
         };
 
         static constexpr size_type InitialBuckets = 16;

@@ -5,7 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "../containers/vector.h"
+#include "../core/vector.h"
 #include "properties.h"
 #include "detail/segment_tables.h"
 
@@ -448,6 +448,17 @@ namespace sgcl::txt {
         // iterator. Rule LB1 is already in the table: AI, SG, XX and the
         // unassigned are AL there, CJ is NS, and SA is CM or AL by its
         // category.
+        //
+        // Which is as far as this goes for the scripts that write without
+        // spaces — Thai, Lao, Khmer, Burmese. Where a line may be broken
+        // in them follows from the words, and the words are found only
+        // with a dictionary of the language, a few hundred kilobytes of
+        // one; resolving SA to AL is the standard's own fallback for an
+        // implementation that has no dictionary, and it is what we do.
+        // So a text in those scripts breaks between characters rather
+        // than between words: right by the rules and not what a reader of
+        // them expects. Deliberate, and the day it matters it is a
+        // dictionary and a segmentation of its own, not another rule.
         constexpr lb lb_of(char32_t c) noexcept {
             return lb(value_of(c, segment_tables::LineBreak));
         }
@@ -815,10 +826,12 @@ namespace sgcl::txt {
         // class over it, as runes is over the code points: constructed
         // from the text, holding the slice so that a loop over a
         // temporary is safe, allocating nothing per element, deciding as
-        // it walks. The element is a slice of the text.
-        template<auto End>
+        // it walks. The element is a slice of the text. Keep, when given,
+        // passes over the segments it refuses (words: the runs between
+        // the words).
+        template<auto End, auto Keep = nullptr>
         class segment_range
-        : public mixin::enumerable<segment_range<End>> {
+        : public mixin::enumerable<segment_range<End, Keep>> {
         public:
             using value_type = slice<const char>;
             using size_type = size_t;
@@ -840,6 +853,7 @@ namespace sgcl::txt {
                 iterator& operator++() noexcept {
                     _pos = _end;
                     _end = End(_text.view(), _pos);
+                    _skip();
                     return *this;
                 }
 
@@ -865,10 +879,22 @@ namespace sgcl::txt {
             private:
                 friend class segment_range;
 
-                iterator(slice<const char> text, size_t pos) noexcept
+                iterator(const slice<const char>& text, size_t pos) noexcept
                 : _text(text)
                 , _pos(pos)
                 , _end(End(text.view(), pos)) {
+                    _skip();
+                }
+
+                // On past the segments Keep refuses
+                void _skip() noexcept {
+                    if constexpr (Keep != nullptr) {
+                        auto view = _text.view();
+                        while (_pos < view.size() && !Keep(view.substr(_pos, _end - _pos))) {
+                            _pos = _end;
+                            _end = End(view, _pos);
+                        }
+                    }
                 }
 
                 slice<const char> _text;
@@ -880,7 +906,7 @@ namespace sgcl::txt {
 
             segment_range() noexcept = default;
 
-            explicit segment_range(slice<const char> text) noexcept
+            explicit segment_range(const slice<const char>& text) noexcept
             : _text(text) {
             }
 
@@ -896,15 +922,28 @@ namespace sgcl::txt {
                 return iterator(_text, _text.size());
             }
 
+            // No segment: an empty text, or, where Keep refuses some, none
+            // it keeps (" . " has no words)
             bool empty() const noexcept {
-                return _text.empty();
+                if constexpr (Keep != nullptr) {
+                    return begin() == end();
+                } else {
+                    return _text.empty();
+                }
             }
 
             // Walked and counted, not stored
             size_type count() const noexcept {
                 size_t n = 0;
-                for (size_t pos = 0; pos < _text.size(); ++n) {
-                    pos = End(_text.view(), pos);
+                auto view = _text.view();
+                for (size_t pos = 0; pos < view.size();) {
+                    size_t end = End(view, pos);
+                    if constexpr (Keep != nullptr) {
+                        n += Keep(view.substr(pos, end - pos));
+                    } else {
+                        ++n;
+                    }
+                    pos = end;
                 }
                 return n;
             }
@@ -925,15 +964,32 @@ namespace sgcl::txt {
     // Devanagari \u0915\u093F is a consonant with its vowel sign.
     using graphemes = detail::segment_range<detail::cluster_end>;
 
-    // words: the text cut at every word boundary — the words themselves
-    // and the runs between them, which is what UAX #29 defines and what a
-    // double click and a search by whole words need. A run of spaces is
-    // one segment (rule WB3d) while each punctuation mark is its own;
-    // "don't" and "3.14" are one each, because the rules keep an
-    // apostrophe and a decimal point inside a word. To count the words rather than the segments, ask for the
-    // ones with something alphanumeric in them:
-    // words(s).count_of([](auto w) { return w.runes().exists(is_alnum); })
-    using words = detail::segment_range<detail::word_end>;
+    namespace detail {
+        // A segment of the word boundaries that is a word: one with a
+        // letter or a digit in it
+        inline bool is_word_segment(std::string_view s) noexcept {
+            for (size_t i = 0; i < s.size();) {
+                auto [c, width] = utf8::decode(s, i);
+                if (is_alnum_fn(c)) {
+                    return true;
+                }
+                i += width;
+            }
+            return false;
+        }
+    }
+
+    // word_breaks: the text cut at every word boundary — the words
+    // themselves and the runs between them, which is what UAX #29 defines
+    // and what a double click and a text put back together need. A run of
+    // spaces is one segment (rule WB3d) while each punctuation mark is its
+    // own; "don't" and "3.14" are one each, because the rules keep an
+    // apostrophe and a decimal point inside a word.
+    using word_breaks = detail::segment_range<detail::word_end>;
+
+    // words: the words alone, the segments of word_breaks with a letter
+    // or a digit in them — "can't stop, won't stop" is four
+    using words = detail::segment_range<detail::word_end, &detail::is_word_segment>;
 
     // sentences: the text cut where one sentence ends and the next
     // begins. A full stop is not enough and not always needed: "i.e." and
@@ -1008,7 +1064,7 @@ namespace sgcl::txt {
         private:
             friend class line_breaks;
 
-            iterator(slice<const char> text, size_t pos) noexcept
+            iterator(const slice<const char>& text, size_t pos) noexcept
             : _text(text)
             , _pos(pos)
             , _end(pos) {
@@ -1060,7 +1116,7 @@ namespace sgcl::txt {
 
         line_breaks() noexcept = default;
 
-        explicit line_breaks(slice<const char> text) noexcept
+        explicit line_breaks(const slice<const char>& text) noexcept
         : _text(text) {
         }
 
@@ -1105,7 +1161,7 @@ namespace sgcl::txt {
     // alternative is cutting a word in half. The width is counted in
     // terminal cells (columns), which is what a monospaced renderer and a
     // table of columns need.
-    inline vector<slice<const char>> wrap(slice<const char> text, size_t width) {
+    inline vector<slice<const char>> wrap(const slice<const char>& text, size_t width) {
         vector<slice<const char>> out;
         auto v = text.view();
         size_t start = 0;     // the first byte of the line being built
@@ -1193,7 +1249,7 @@ namespace sgcl::txt {
     // The number of graphemes: what to count when a limit is a number of
     // characters a reader would count, where size() is bytes and
     // rune_count() code points
-    inline size_t grapheme_count(slice<const char> text) noexcept {
+    inline size_t grapheme_count(const slice<const char>& text) noexcept {
         return graphemes(text).count();
     }
 
@@ -1208,7 +1264,7 @@ namespace sgcl::txt {
     // position past the end is the end, and prev of 0 is 0; from a
     // position inside a grapheme, next goes to its end and prev to its
     // start, so a cursor that starts astray is put right by either.
-    inline size_t grapheme_start(slice<const char> text, size_t pos) noexcept {
+    inline size_t grapheme_start(const slice<const char>& text, size_t pos) noexcept {
         auto v = text.view();
         if (pos >= v.size()) {
             return v.size();
@@ -1224,13 +1280,13 @@ namespace sgcl::txt {
         return start;
     }
 
-    inline size_t grapheme_next(slice<const char> text, size_t pos) noexcept {
+    inline size_t grapheme_next(const slice<const char>& text, size_t pos) noexcept {
         return detail::cluster_end(text.view(), grapheme_start(text, pos));
     }
 
     // Scanned from the start of the text, the rules of UAX #29 running one
     // way only: a slice is usually a line, and a cursor is not a loop
-    inline size_t grapheme_prev(slice<const char> text, size_t pos) noexcept {
+    inline size_t grapheme_prev(const slice<const char>& text, size_t pos) noexcept {
         auto v = text.view();
         pos = std::min(pos, v.size());
         size_t prev = 0;

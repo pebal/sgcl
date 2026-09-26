@@ -6,7 +6,7 @@
 #pragma once
 
 #include "error.h"
-#include "../containers/vector.h"
+#include "../core/vector.h"
 #include "../core/aliases.h"
 #include "../core/string.h"
 #include "../core/utf8.h"
@@ -199,7 +199,7 @@ namespace sgcl::io::path {
 
     // The absolute form: the working directory joined when relative,
     // cleaned
-    inline result<string> abs(const string& p) {
+    inline expected<string, error> abs(const string& p) {
         if (is_abs(p)) {
             return clean(p);
         }
@@ -213,7 +213,7 @@ namespace sgcl::io::path {
     // The path from base to target with ".." where needed, both cleaned
     // first; an error when it cannot be done lexically (one absolute,
     // the other relative)
-    inline result<string> rel(const string& base_path, const string& target) {
+    inline expected<string, error> rel(const string& base_path, const string& target) {
         auto b = clean(base_path);
         auto t = clean(target);
         std::string_view bv(b), tv(t);
@@ -492,7 +492,7 @@ namespace sgcl::io::path {
     // and '?' never match a separator): '*' any run, '?' one character,
     // '[a-z]' a class, '[^a-z]' its negation, '\' an escape;
     // errc::invalid_pattern for a malformed pattern
-    inline result<bool> match(const string& pattern_text, const string& name_text) {
+    inline expected<bool, error> match(const string& pattern_text, const string& name_text) {
         std::string_view pattern(pattern_text), name(name_text);
         if (!detail::valid_pattern(pattern)) {
             return io::detail::fail(error(errc::invalid_pattern, "match", pattern_text));
@@ -520,7 +520,7 @@ namespace sgcl::io::path {
     // The paths that match the pattern, sorted within each directory;
     // a directory that cannot be read is skipped; a pattern without
     // meta characters names the file if it exists
-    inline result<vector<string>> glob(const string& pattern) {
+    inline expected<vector<string>, error> glob(const string& pattern) {
         auto m = match(pattern, string());
         if (!m) {
             return io::detail::fail(m);

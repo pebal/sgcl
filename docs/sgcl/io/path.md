@@ -10,8 +10,8 @@ namespace sgcl::io::path {
     string base(const string& p);  string dir(const string& p);  string ext(const string& p);  string stem(const string& p);
     pair<string, string> split(const string& p);  vector<string> split_list(const string& list);
     bool is_abs(const string& p) noexcept;
-    result<string> abs(const string& p);  result<string> rel(const string& base, const string& target);
-    result<bool> match(const string& pattern, const string& name);  result<vector<string>> glob(const string& pattern);
+    expected<string, error> abs(const string& p);  expected<string, error> rel(const string& base, const string& target);
+    expected<bool, error> match(const string& pattern, const string& name);  expected<vector<string>, error> glob(const string& pattern);
     string from_slash(const string& p);  string to_slash(const string& p);
 }
 ```
@@ -38,10 +38,10 @@ string stem(const string& p);            // base without ext
 pair<string, string> split(const string& p);       // {dir with its trailing separator as written, file}
 vector<string> split_list(const string& list);     // a PATH-like list, empty elements skipped
 bool is_abs(const string& p) noexcept;
-result<string> abs(const string& p);               // the working directory joined when relative, cleaned
-result<string> rel(const string& base, const string& target);   // the path from base to target with ".."; errc::invalid_path when one is absolute and the other not, or base begins with ".."
-result<bool> match(const string& pattern, const string& name);  // '*' any run without a separator, '?' one character, '[a-z]' a class, '[^a-z]' its negation, '\' an escape
-result<vector<string>> glob(const string& pattern);                // the paths that match, sorted within each directory; unreadable directories skipped; without meta characters, the file if it exists
+expected<string, error> abs(const string& p);               // the working directory joined when relative, cleaned
+expected<string, error> rel(const string& base, const string& target);   // the path from base to target with ".."; errc::invalid_path when one is absolute and the other not, or base begins with ".."
+expected<bool, error> match(const string& pattern, const string& name);  // '*' any run without a separator, '?' one character, '[a-z]' a class, '[^a-z]' its negation, '\' an escape
+expected<vector<string>, error> glob(const string& pattern);                // the paths that match, sorted within each directory; unreadable directories skipped; without meta characters, the file if it exists
 string from_slash(const string& p);  string to_slash(const string& p);   // identity on POSIX
 ```
 
@@ -70,7 +70,7 @@ using namespace sgcl;
 // Renames every *.jpeg under a directory to *.jpg
 int main(int argc, char** argv) {
     auto root = argc > 1 ? argv[1] : ".";
-    io::walk_dir(root, [](const io::dir_entry& e, const optional<io::error>&) {
+    io::walk_dir(root, [](const io::directory_entry& e, const optional<io::error>&) {
         if (io::path::ext(e.path) == ".jpeg") {
             auto to = io::path::join(io::path::dir(e.path), io::path::stem(e.path) + ".jpg");
             if (auto r = io::rename(e.path, to)) std::cout << e.path << " -> " << io::path::base(to) << '\n';

@@ -33,22 +33,26 @@ namespace sgcl {
 
     template<class, size_t, class>
     class array;
-    template<class, class, class>
-    class concurrent_sorted_map;
-    template<class>
-    class concurrent_queue;
-    template<class, class>
-    class concurrent_sorted_set;
-    template<class, class, class, class>
-    class concurrent_map;
-    template<class, class, class>
-    class concurrent_set;
-    template<class>
-    class concurrent_stack;
-    template<class>
-    class channel;
-    template<class>
-    class copy_on_write;
+    namespace concurrent {
+        template<class, class, class>
+        class sorted_map;
+        template<class>
+        class queue;
+        template<class, class>
+        class sorted_set;
+        template<class, class, class, class>
+        class map;
+        template<class, class, class>
+        class set;
+        template<class>
+        class stack;
+        template<class>
+        class copy_on_write;
+    }
+    namespace async {
+        template<class>
+        class channel;
+    }
     template<class>
     class deque;
     template<class>

@@ -44,6 +44,13 @@ namespace sgcl {
         : _cell(_make_cell(static_cast<element_type*>(p.get()))) {
         }
 
+        // From a root_ptr: the root's conversion to its tracked_ptr is one
+        // the template above cannot deduce through
+        template<class U, std::enable_if_t<std::is_convertible_v<U*, element_type*>, int> = 0>
+        weak_ptr(const root_ptr<U>& r)
+        : weak_ptr(r.ptr()) {
+        }
+
         weak_ptr(const weak_ptr&) noexcept = default;
         weak_ptr(weak_ptr&&) noexcept = default;
 
@@ -125,8 +132,8 @@ namespace sgcl {
         }
 
         // A weak_ptr over a cell made with flags (expiry_queue.h)
-        explicit weak_ptr(tracked_ptr<detail::WeakCell> cell) noexcept
-        : _cell(std::move(cell)) {
+        explicit weak_ptr(const tracked_ptr<detail::WeakCell>& cell) noexcept
+        : _cell(cell) {
         }
 
         tracked_ptr<detail::WeakCell> _cell;
@@ -143,4 +150,7 @@ namespace sgcl {
 
     template<class T>
     weak_ptr(const tracked_ptr<T>&) -> weak_ptr<T>;
+
+    template<class T>
+    weak_ptr(const root_ptr<T>&) -> weak_ptr<T>;
 }

@@ -5,7 +5,10 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include <cstddef>
+#include <new>
 #include <optional>
+#include <stdexcept>
 #include <system_error>
 #include <thread>
 #include <tuple>
@@ -41,6 +44,21 @@ namespace sgcl {
     using std::error_code;
     using std::error_category;
     using std::error_condition;
+
+    // The byte of the standard library, under the library's name: the
+    // element of every buffer, slice<byte> and slice<const byte>
+    using std::byte;
+
+    // The exceptions the library throws, under the library's names: a
+    // broken contract (an index outside, a size past the maximum, an
+    // argument outside the domain), and the allocation that failed
+    using std::logic_error;
+    using std::out_of_range;
+    using std::length_error;
+    using std::invalid_argument;
+    using std::domain_error;
+    using std::runtime_error;
+    using std::bad_alloc;
 
     // The current thread of the standard library, under the library's
     // name; the thread itself is the library's own (thread.h), its closure

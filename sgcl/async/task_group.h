@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "operation.h"
 #include "../core/make_tracked.h"
 #include "../core/tracked_ptr.h"
 #include "coroutine.h"
@@ -18,13 +19,14 @@
 #include <exception>
 #include <utility>
 
-namespace sgcl {
+namespace sgcl::async {
+    namespace detail { using namespace sgcl::detail; }
     // Structured concurrency, the way Go's errgroup and Kotlin's
     // coroutineScope have it: a scope that owns the tasks it spawns. A
     // group is made under a token (`task_group g(token)`: a child
-    // stop_source, stopped with the caller's), `g.spawn(t)` starts a
+    // stop_source, stopped with the caller's), `g.go(t)` starts a
     // child on the scheduler and counts it, and the wait for the group
-    // (`g.wait()` on a thread, `co_await g.async_wait()` in a task,
+    // (`g.wait()` on a thread, `co_await g` in a task,
     // `g.on_done(f)` as a case of a select) is the wait for every child.
     // The first child that throws requests the stop of the group, which
     // the others see through `g.token()` and leave; the wait rethrows
@@ -114,21 +116,23 @@ namespace sgcl {
             }
         }
 
-        // A child: started on the scheduler and counted; a task nobody
-        // spawned, or one spawned already. Its result, if it has one, is
-        // dropped; its exception is the group's
+        // A child: started on the scheduler and counted, with no handle
+        // given back, as sgcl::async::go starts a task (spawn is the name
+        // of the forms that hand one back); a task nobody spawned, or one
+        // spawned already. Its result, if it has one, is dropped; its
+        // exception is the group's
         template<class T>
-        void spawn(task<T> t) {
+        void go(task<T> t) {
             task<> runner = detail::run_in_group(std::move(t), _s);   // made before the count: a frame that cannot be made (bad_alloc) leaves the count as it was
             _s->running.add();
             runner.resume();   // to its first suspension: the child put on the scheduler, the runner its continuation; the runner takes this task's header first (task::resume), so the child inherits the executor and the task-locals
             runner.detach();
         }
 
-        // The same for a coroutine function with captures (sgcl::spawn)
+        // The same for a coroutine function with captures (sgcl::async::go)
         template<detail::TaskFactory F>
-        void spawn(F f) {
-            spawn(detail::task_of(std::move(f)));
+        void go(F f) {
+            go(detail::task_of(std::move(f)));
         }
 
         // The token the children are given: stopped by the first
@@ -152,21 +156,18 @@ namespace sgcl {
             return (size_t)_s->running.count();
         }
 
-        // Waits for every child, on this thread, then rethrows the first
-        // exception a child threw, if any. Not from a task on a worker
-        // (co_await async_wait() there)
+        // Waits for every child, then rethrows the first exception a child
+        // threw, if any: `g.wait()` on a thread (not from a task on a
+        // worker, which it would block), `co_await g` in a task, as a task
+        // is waited for
         void wait() {
-            assert(!detail::on_worker() && "wait() blocks the worker: co_await async_wait() from a task");
+            assert(!detail::on_worker() && "wait() blocks the worker: co_await the group from a task");
             _s->running.wait();
             _s->rethrow();
         }
 
-        // `co_await g.async_wait()`: the task resumed when every child
-        // has finished, the first exception rethrown then
-        task<> async_wait() {
-            tracked_ptr<detail::GroupState> s = _s;   // the frame's own hold: the state outlives the group object
-            co_await s->running.async_wait();
-            s->rethrow();
+        auto operator co_await() {
+            return detail::either([this] { return _co_wait(); }, [this] { wait(); });
         }
 
         // A case of a select: f() when every child has finished; the
@@ -179,5 +180,12 @@ namespace sgcl {
 
     private:
         tracked_ptr<detail::GroupState> _s;
+
+        // the two halves of the operations above: a thread's and a task's
+        task<> _co_wait() {
+            tracked_ptr<detail::GroupState> s = _s;   // the frame's own hold: the state outlives the group object
+            co_await s->running;
+            s->rethrow();
+        }
     };
 }

@@ -14,10 +14,11 @@
 #include <type_traits>
 #include <utility>
 
-namespace sgcl {
+namespace sgcl::async {
+    namespace detail { using namespace sgcl::detail; }
     // The select of Go: a wait on several channels at once, for a thread
     // (`select(...)`, which blocks) or a coroutine (`co_await
-    // async_select(...)`), each case a channel's `on_receive(f)` or
+    // select(...)`), each case a channel's `on_receive(f)` or
     // `on_send(v, f)` (channel.h) and at most one `otherwise(f)`, the
     // case taken when no other can be served at once (Go's default).
     // The case served runs its body, on the calling thread or, for a
@@ -92,7 +93,7 @@ namespace sgcl {
                     tracked_ptr state = make_tracked<SelectState>();
                     _register(state);
                     std::atomic_thread_fence(std::memory_order_seq_cst);   // the pushes before the looks (channel.h: _fence)
-                    if (_any_ready() && _cancel(state)) {
+                    if (_any_ready() && _cancel(*state)) {
                         _take_back();
                         continue;
                     }
@@ -348,9 +349,9 @@ namespace sgcl {
                 }(std::make_index_sequence<N>());
             }
 
-            static bool _cancel(const tracked_ptr<SelectState>& state) noexcept {
+            static bool _cancel(SelectState& state) noexcept {
                 int e = SelectState::Pending;
-                return state->state.compare_exchange_strong(e, SelectState::Cancelled, std::memory_order_acq_rel, std::memory_order_acquire);
+                return state.state.compare_exchange_strong(e, SelectState::Cancelled, std::memory_order_acq_rel, std::memory_order_acquire);
             }
 
             // After a cancel: the send cases' elements back from their waiters
@@ -402,15 +403,11 @@ namespace sgcl {
         };
     }
 
-    // Waits until one case is served, runs its body and returns its index
+    // Waits until one case is served, runs its body and gives its index:
+    // `co_await async::select(...)` in a task, `async::select(...).wait()`
+    // on a thread
     template<class... Cases>
-    size_t select(Cases... cases) {
-        return detail::Select<Cases...>(std::move(cases)...).wait();
-    }
-
-    // The same for a coroutine: co_await async_select(...)
-    template<class... Cases>
-    detail::Select<Cases...> async_select(Cases... cases) {
+    [[nodiscard]] detail::Select<Cases...> select(Cases... cases) {
         return detail::Select<Cases...>(std::move(cases)...);
     }
 }

@@ -117,7 +117,7 @@ TEST(Generational_Tests, YoungGarbageIsSweptByYoungCycle) {
 // Garbage among the marked objects waits for a full cycle: a young cycle
 // neither traces nor sweeps them.
 TEST(Generational_Tests, OldGarbageWaitsForFullCycle) {
-    if (!config::Generational) {
+    if (!config::generational) {
         GTEST_SKIP() << "built without SGCL_GENERATIONAL";
     }
     Payload::alive = 0;
@@ -138,7 +138,7 @@ TEST(Generational_Tests, OldGarbageWaitsForFullCycle) {
 // replaced in its old holder it is garbage that only a full cycle sweeps.
 // A replacement that never saw a young cycle goes at the next one.
 TEST(Generational_Tests, ReplacedChildWaitsIfPromoted) {
-    if (!config::Generational) {
+    if (!config::generational) {
         GTEST_SKIP() << "built without SGCL_GENERATIONAL";
     }
     Payload::alive = 0;

@@ -9,7 +9,7 @@
 #include "path.h"
 #include "../async/blocking.h"
 #include "../async/coroutine.h"
-#include "../containers/vector.h"
+#include "../core/vector.h"
 #include "../core/aliases.h"
 #include "../core/string.h"
 
@@ -25,7 +25,7 @@ namespace sgcl::io {
     // The file system (os, io/fs): what is at a path, and making,
     // moving and removing things there. Paths are strings; the
     // operations are std::filesystem's and the platform's under a
-    // thin layer that returns result<T> and speaks in this module's
+    // thin layer that returns expected<T, error> and speaks in this module's
     // types. A function that takes a path follows symlinks, its l-
     // variant does not, as on POSIX.
 
@@ -66,19 +66,19 @@ namespace sgcl::io {
         bool is_symlink() const noexcept { return type == file_type::symlink; }
     };
 
-    result<file_info> stat(const string& path);
-    result<file_info> lstat(const string& path);
+    expected<file_info, error> stat(const string& path);
+    expected<file_info, error> lstat(const string& path);
 
     // An entry of a directory listing: the name and the type come from
     // the listing itself, the rest (info()) from a stat when asked
-    struct dir_entry {
+    struct directory_entry {
         string name;
         string path;   // dir joined with name
         file_type type = file_type::unknown;
 
         bool is_directory() const noexcept { return type == file_type::directory; }
 
-        result<file_info> info() const {
+        expected<file_info, error> info() const {
             return lstat(path);
         }
     };
@@ -134,9 +134,17 @@ namespace sgcl::io {
         inline fs::path fs_path(const string& p) {
             return fs::path(p.str());
         }
+
+        // A blocking call of this module in a task, on the blocking pool:
+        // f holds copies of the arguments (a task is lazy, the caller's
+        // may be gone before it runs)
+        template<class F>
+        async::task<std::invoke_result_t<F&>> on_pool(F f) {
+            co_return co_await async::spawn_blocking(std::move(f));
+        }
     }
 
-    inline result<file_info> stat(const string& path) {
+    inline expected<file_info, error> stat(const string& path) {
         struct ::stat st;
         if (::stat(path.c_str(), &st) != 0) {
             return detail::fail(last_error("stat", path));
@@ -144,12 +152,22 @@ namespace sgcl::io {
         return detail::info_of(st, path);
     }
 
-    inline result<file_info> lstat(const string& path) {
+    inline expected<file_info, error> lstat(const string& path) {
         struct ::stat st;
         if (::lstat(path.c_str(), &st) != 0) {
             return detail::fail(last_error("lstat", path));
         }
         return detail::info_of(st, path);
+    }
+
+    // `stat(...)` on this thread, `co_await async_stat(...)` in a task (a
+    // stat of a path on a slow or network disk waits as a read does)
+    inline async::task<expected<file_info, error>> async_stat(const string& path) {
+        return detail::on_pool([path] { return stat(path); });
+    }
+
+    inline async::task<expected<file_info, error>> async_lstat(const string& path) {
+        return detail::on_pool([path] { return lstat(path); });
     }
 
     // Whether something is at the path; whether it is a directory or a
@@ -172,14 +190,14 @@ namespace sgcl::io {
 
     // One directory (an error when the parent is missing or it exists);
     // the whole chain, existing ones left alone (mkdir -p)
-    inline result<void> mkdir(const string& path, permissions p = permissions(0777)) {
+    inline expected<void, error> mkdir(const string& path, permissions p = permissions(0777)) {
         if (::mkdir(path.c_str(), static_cast<mode_t>(p)) != 0) {
             return detail::fail(last_error("mkdir", path));
         }
         return {};
     }
 
-    inline result<void> mkdir_all(const string& path, permissions p = permissions(0777)) {
+    inline expected<void, error> mkdir_all(const string& path, permissions p = permissions(0777)) {
         string clean = io::path::clean(path);
         size_t pos = 0;
         while (pos < clean.size()) {
@@ -199,10 +217,15 @@ namespace sgcl::io {
         return {};
     }
 
+    // `mkdir_all(...)` on this thread, `co_await async_mkdir_all(...)` in a task
+    inline async::task<expected<void, error>> async_mkdir_all(const string& path, permissions p = permissions(0777)) {
+        return detail::on_pool([path, p] { return mkdir_all(path, p); });
+    }
+
     // A file, a symlink or an empty directory; everything under the path
     // and the path itself, nothing there being no error for remove_all
-    inline result<void> remove(const string& path) {
-        std::error_code ec;
+    inline expected<void, error> remove(const string& path) {
+        error_code ec;
         bool removed = detail::fs::remove(detail::fs_path(path), ec);
         if (ec) {
             return detail::fail(detail::fs_error(ec, "remove", path));
@@ -213,8 +236,8 @@ namespace sgcl::io {
         return {};
     }
 
-    inline result<void> remove_all(const string& path) {
-        std::error_code ec;
+    inline expected<void, error> remove_all(const string& path) {
+        error_code ec;
         detail::fs::remove_all(detail::fs_path(path), ec);
         if (ec) {
             return detail::fail(detail::fs_error(ec, "remove_all", path));
@@ -222,17 +245,22 @@ namespace sgcl::io {
         return {};
     }
 
+    // `remove_all(...)` on this thread, `co_await async_remove_all(...)` in a task
+    inline async::task<expected<void, error>> async_remove_all(const string& path) {
+        return detail::on_pool([path] { return remove_all(path); });
+    }
+
     // Moves, replacing what is at the new path (rename(2)); copies the
     // bytes and the permissions of a regular file, replacing the target
-    inline result<void> rename(const string& from, const string& to) {
+    inline expected<void, error> rename(const string& from, const string& to) {
         if (::rename(from.c_str(), to.c_str()) != 0) {
             return detail::fail(last_error("rename", from));
         }
         return {};
     }
 
-    inline result<void> copy_file(const string& from, const string& to) {
-        std::error_code ec;
+    inline expected<void, error> copy_file(const string& from, const string& to) {
+        error_code ec;
         detail::fs::copy_file(detail::fs_path(from), detail::fs_path(to), detail::fs::copy_options::overwrite_existing, ec);
         if (ec) {
             return detail::fail(detail::fs_error(ec, "copy_file", from));
@@ -240,15 +268,20 @@ namespace sgcl::io {
         return {};
     }
 
-    inline result<void> symlink(const string& target, const string& link) {
+    // `copy_file(...)` on this thread, `co_await async_copy_file(...)` in a task
+    inline async::task<expected<void, error>> async_copy_file(const string& from, const string& to) {
+        return detail::on_pool([from, to] { return copy_file(from, to); });
+    }
+
+    inline expected<void, error> symlink(const string& target, const string& link) {
         if (::symlink(target.c_str(), link.c_str()) != 0) {
             return detail::fail(last_error("symlink", link));
         }
         return {};
     }
 
-    inline result<string> read_link(const string& link) {
-        std::error_code ec;
+    inline expected<string, error> read_link(const string& link) {
+        error_code ec;
         auto target = detail::fs::read_symlink(detail::fs_path(link), ec);
         if (ec) {
             return detail::fail(detail::fs_error(ec, "read_link", link));
@@ -256,14 +289,14 @@ namespace sgcl::io {
         return string(target.native());
     }
 
-    inline result<void> chmod(const string& path, permissions p) {
+    inline expected<void, error> chmod(const string& path, permissions p) {
         if (::chmod(path.c_str(), static_cast<mode_t>(p)) != 0) {
             return detail::fail(last_error("chmod", path));
         }
         return {};
     }
 
-    inline result<void> set_modified(const string& path, file_time t) {
+    inline expected<void, error> set_modified(const string& path, file_time t) {
         auto ns = t.time_since_epoch();
         struct timespec times[2];
         times[0].tv_sec = 0;
@@ -277,31 +310,44 @@ namespace sgcl::io {
     }
 
     // The entries of a directory, sorted by name, "." and ".." left out
-    inline result<vector<dir_entry>> read_dir(const string& path) {
-        std::error_code ec;
+    namespace detail {
+    inline expected<vector<directory_entry>, error> _block_read_dir(const string& path)  {
+        error_code ec;
         detail::fs::directory_iterator it(detail::fs_path(path), ec);
         if (ec) {
             return detail::fail(detail::fs_error(ec, "read_dir", path));
         }
-        vector<dir_entry> entries;
+        vector<directory_entry> entries;
         for (; it != detail::fs::directory_iterator(); it.increment(ec)) {
             if (ec) {
                 return detail::fail(detail::fs_error(ec, "read_dir", path));
             }
-            dir_entry e;
+            directory_entry e;
             e.name = string(it->path().filename().native());
             e.path = io::path::join(path, e.name);
-            std::error_code tec;
+            error_code tec;
             auto st = it->symlink_status(tec);
             e.type = tec ? file_type::unknown : detail::type_of(st.type());
             entries.push_back(std::move(e));
         }
-        std::sort(entries.begin(), entries.end(), [](const dir_entry& a, const dir_entry& b) { return a.name < b.name; });
+        std::sort(entries.begin(), entries.end(), [](const directory_entry& a, const directory_entry& b) { return a.name < b.name; });
         return entries;
     }
+    }
 
-    inline task<result<vector<dir_entry>>> async_read_dir(const string& path) {
-        co_return co_await spawn_blocking([path] { return read_dir(path); });
+    namespace detail {
+    inline async::task<expected<vector<directory_entry>, error>> _co_read_dir(string path)  {   // by value: a task is lazy, the caller's string may be gone before it runs
+        co_return co_await async::spawn_blocking([path] { return _block_read_dir(path); });
+    }
+    }
+
+    // `read_dir(...)` on this thread, `co_await async_read_dir(...)` in a task
+    inline expected<vector<directory_entry>, error> read_dir(const string& path) {
+        return detail::_block_read_dir(path);
+    }
+
+    inline async::task<expected<vector<directory_entry>, error>> async_read_dir(const string& path) {
+        return detail::_co_read_dir(path);
     }
 
     // What the function given to walk_dir returns for an entry: go on,
@@ -311,9 +357,9 @@ namespace sgcl::io {
     namespace detail {
         template<class F>
         walk_action walk(const string& dir, F& f) {
-            auto entries = read_dir(dir);
+            auto entries = _block_read_dir(dir);
             if (!entries) {
-                return f(dir_entry{io::path::base(dir), dir, file_type::directory}, optional<error>(entries.error())) == walk_action::stop ? walk_action::stop : walk_action::next;
+                return f(directory_entry{io::path::base(dir), dir, file_type::directory}, optional<error>(entries.error())) == walk_action::stop ? walk_action::stop : walk_action::next;
             }
             for (auto& e : *entries) {
                 auto a = f(e, optional<error>());
@@ -331,12 +377,12 @@ namespace sgcl::io {
     }
 
     // Every entry under root, in lexical order, the directory before its
-    // contents, f called with each: walk_action(const dir_entry&, const
+    // contents, f called with each: walk_action(const directory_entry&, const
     // optional<error>&). A directory that cannot be read is reported
     // once, as the error with its entry, and the walk goes on; root
     // itself is not reported. Symlinks are not followed.
     template<class F>
-    result<void> walk_dir(const string& root, F f) {
+    expected<void, error> walk_dir(const string& root, F f) {
         auto info = lstat(root);
         if (!info) {
             return detail::fail(info);
@@ -346,5 +392,61 @@ namespace sgcl::io {
         }
         detail::walk(root, f);
         return {};
+    }
+
+    namespace detail {
+        // The walk of a task: each directory read on the blocking pool, f
+        // called in the task, in the same order as walk(); a stack of the
+        // listings instead of recursion
+        template<class F>
+        async::task<expected<void, error>> _co_walk_dir(string root, F f) {   // by value: a task is lazy
+            auto info = co_await async_lstat(root);
+            if (!info) {
+                co_return detail::fail(info);
+            }
+            if (!info->is_directory()) {
+                co_return detail::fail(error(std::make_error_code(std::errc::not_a_directory), "walk_dir", root));
+            }
+            struct level {
+                vector<directory_entry> entries;
+                size_t next = 0;
+            };
+            vector<level> levels;
+            auto first = co_await async_read_dir(root);
+            if (!first) {
+                f(directory_entry{io::path::base(root), root, file_type::directory}, optional<error>(first.error()));
+                co_return expected<void, error>();
+            }
+            levels.push_back(level{std::move(*first)});
+            while (!levels.empty()) {
+                if (levels.back().next == levels.back().entries.size()) {
+                    levels.pop_back();
+                    continue;
+                }
+                const directory_entry& e = levels.back().entries[levels.back().next++];   // the listing unchanged until the push below, e's last use
+                auto a = f(e, optional<error>());
+                if (a == walk_action::stop) {
+                    break;
+                }
+                if (e.is_directory() && a != walk_action::skip_dir) {
+                    auto sub = co_await async_read_dir(e.path);
+                    if (!sub) {
+                        if (f(directory_entry{io::path::base(e.path), e.path, file_type::directory}, optional<error>(sub.error())) == walk_action::stop) {
+                            break;
+                        }
+                        continue;
+                    }
+                    levels.push_back(level{std::move(*sub)});
+                }
+            }
+            co_return expected<void, error>();
+        }
+    }
+
+    // `walk_dir(...)` on this thread, `co_await async_walk_dir(...)` in a
+    // task: the directories read on the blocking pool, f called in the task
+    template<class F>
+    async::task<expected<void, error>> async_walk_dir(const string& root, F f) {
+        return detail::_co_walk_dir(root, std::move(f));
     }
 }

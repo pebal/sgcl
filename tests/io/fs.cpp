@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #include "tests/types.h"
 
+using namespace sgcl::async;
+
 #include <string>
 #include <string_view>
 
@@ -18,7 +20,7 @@ namespace {
         std::string _dir;
 
         void SetUp() override {
-            auto d = temp_dir({}, "sgcl-fs-*");
+            auto d = make_temp_dir({}, "sgcl-fs-*");
             ASSERT_TRUE(d) << d.error().message();
             _dir = d->str();
         }
@@ -123,7 +125,7 @@ TEST_F(IoFs_Tests, WalkDirOrderSkipStop) {
     ASSERT_TRUE(write_file(at("a/g"), ""));
     ASSERT_TRUE(write_file(at("z"), ""));
     std::vector<std::string> seen;
-    auto r = walk_dir(dir(), [&](const dir_entry& e, const optional<error>& err) {
+    auto r = walk_dir(dir(), [&](const directory_entry& e, const optional<error>& err) {
         EXPECT_FALSE(err);
         seen.push_back(e.path.str().substr(_dir.size() + 1));
         return std::string_view(e.name) == "skip" ? walk_action::skip_dir : walk_action::next;
@@ -132,11 +134,11 @@ TEST_F(IoFs_Tests, WalkDirOrderSkipStop) {
     std::vector<std::string> expected = {"a", "a/b", "a/b/f", "a/g", "a/skip", "z"};
     EXPECT_EQ(seen, expected);
     int count = 0;
-    walk_dir(dir(), [&](const dir_entry&, const optional<error>&) {
+    walk_dir(dir(), [&](const directory_entry&, const optional<error>&) {
         return ++count == 2 ? walk_action::stop : walk_action::next;
     });
     EXPECT_EQ(count, 2);
-    auto notdir = walk_dir(at("z"), [](const dir_entry&, const optional<error>&) { return walk_action::next; });
+    auto notdir = walk_dir(at("z"), [](const directory_entry&, const optional<error>&) { return walk_action::next; });
     ASSERT_FALSE(notdir);
 }
 
@@ -149,7 +151,93 @@ namespace {
 
 TEST_F(IoFs_Tests, AsyncReadDir) {
     ASSERT_TRUE(write_file(at("one"), ""));
-    auto t = sgcl::spawn(count_entries(dir()));
-    EXPECT_EQ(t.join(), 1u);
-    sgcl::scheduler::stop();
+    auto t = sgcl::async::spawn(count_entries(dir()));
+    EXPECT_EQ(t.wait(), 1u);
+    sgcl::async::scheduler::stop();
+}
+
+namespace {
+    // Every async_ form of the file system in one task, the walk's order
+    // that of walk_dir
+    task<std::string> fs_in_a_task(string d) {
+        string sub = path::join(d, "x/y");
+        if (!co_await async_mkdir_all(sub)) {
+            co_return "mkdir_all";
+        }
+        auto f = co_await async_create(path::join(sub, "f"));
+        if (!f || !(*f)->write(string("hello"))) {
+            co_return "create";
+        }
+        if (!co_await (*f)->async_sync() || !co_await (*f)->async_truncate(4)) {
+            co_return "sync, truncate";
+        }
+        (void)(*f)->close();
+        auto st = co_await async_stat(path::join(sub, "f"));
+        if (!st || st->size != 4) {
+            co_return "stat";
+        }
+        if (!co_await async_copy_file(path::join(sub, "f"), path::join(d, "g"))) {
+            co_return "copy_file";
+        }
+        auto g = co_await async_open(path::join(d, "g"));
+        if (!g) {
+            co_return "open";
+        }
+        (void)(*g)->close();
+        auto copied = read_text(path::join(d, "g"));
+        if (!copied || *copied != "hell") {
+            co_return "the copy";
+        }
+        std::string order;
+        auto w = co_await async_walk_dir(d, [&](const directory_entry& e, const optional<error>&) {
+            order += e.path.str().substr(d.size() + 1) + " ";
+            return walk_action::next;
+        });
+        if (!w) {
+            co_return "walk_dir";
+        }
+        auto l = co_await async_lstat(d);
+        if (!l || !l->is_directory()) {
+            co_return "lstat";
+        }
+        if (!co_await async_remove_all(path::join(d, "x"))) {
+            co_return "remove_all";
+        }
+        auto missing = co_await async_open(path::join(d, "x/y/f"));
+        if (missing || !missing.error().is_not_found()) {
+            co_return "open of a missing file";
+        }
+        co_return order;
+    }
+}
+
+TEST_F(IoFs_Tests, AsyncFormsOnThePool) {
+    auto t = sgcl::async::spawn(fs_in_a_task(dir()));
+    EXPECT_EQ(t.wait(), "g x x/y x/y/f ");
+    sgcl::async::scheduler::stop();
+}
+
+// The task's walk skips and stops as walk_dir does
+TEST_F(IoFs_Tests, AsyncWalkDirSkipsAndStops) {
+    ASSERT_TRUE(io::mkdir_all(at("a/b")));
+    ASSERT_TRUE(io::mkdir_all(at("a/skip/deep")));
+    ASSERT_TRUE(write_file(at("a/b/f"), ""));
+    ASSERT_TRUE(write_file(at("a/g"), ""));
+    ASSERT_TRUE(write_file(at("z"), ""));
+    std::vector<std::string> seen;
+    auto r = sgcl::async::spawn(async_walk_dir(dir(), [&](const directory_entry& e, const optional<error>&) {
+        seen.push_back(e.path.str().substr(_dir.size() + 1));
+        return std::string_view(e.name) == "skip" ? walk_action::skip_dir : walk_action::next;
+    })).wait();
+    ASSERT_TRUE(r);
+    std::vector<std::string> expected = {"a", "a/b", "a/b/f", "a/g", "a/skip", "z"};
+    EXPECT_EQ(seen, expected);
+    int count = 0;
+    sgcl::async::spawn(async_walk_dir(dir(), [&](const directory_entry&, const optional<error>&) {
+        return ++count == 2 ? walk_action::stop : walk_action::next;
+    })).wait();
+    EXPECT_EQ(count, 2);
+    auto notdir = sgcl::async::spawn(async_walk_dir(at("z"), [](const directory_entry&, const optional<error>&) { return walk_action::next; })).wait();
+    ASSERT_FALSE(notdir);
+    sgcl::async::scheduler::stop();
 }

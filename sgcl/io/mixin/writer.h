@@ -5,80 +5,66 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "../../async/coroutine.h"
-#include "../../core/slice.h"
-#include "../../core/string.h"
-#include "../detail/bytes.h"
-#include "../error.h"
+#include "../functions.h"
 
 #include <cstddef>
-#include <string_view>
 
-namespace sgcl::io {
-    class reader;
+namespace sgcl::io::mixin {
+    // The mixin over Derived::write(slice<const byte>) -> expected<size_t, error>
+    // (all of it, or an error that says how far it got, as Go's Write) and,
+    // where Derived has it, async_write: write of any data, the type
+    // telling what it is — a string, a text slice (a line of a
+    // buffered_reader, a piece of a string), a literal or a character
+    // array (to its first NUL), a C string, a std::string_view, one byte —
+    // and copy_from, each the algorithm of functions.h over this stream.
+    // A class that defines write hides the base's overloads of the name,
+    // as C++ hides a base's name, and brings them back by using:
+    //     using mixin::writer<file>::write;
+    //     using mixin::writer<file>::async_write;
+    // The async overloads carry no constraint of their own (it would ask
+    // whether Derived has an async_write, which these are): they are
+    // instantiated only where they are called, over a Derived that has one.
+    template<class Derived>
+    class writer {
+    public:
+        template<class D>
+        requires detail::Text<D>
+        expected<size_t, error> write(const D& text) {
+            return io::write(_self(), text);
+        }
 
-    namespace mixin {
-        // The mixin over Derived::write(span<const byte>) -> result<size_t>:
-        // writes the whole span, as Go's Write, and returns its size; fewer
-        // only with an error, which says how far it got. write_text is the
-        // same bytes (a name of its own, so that a class overriding write
-        // does not hide it): a string, a text slice (a line of a
-        // buffered_reader, a piece of a string), a literal or a
-        // std::string_view (a std::string's), the last three written from
-        // where they lie, no string made; the literal's overload is also what
-        // keeps it from being ambiguous between the string and the slice.
-        template<class Derived>
-        class writer {
-        public:
-            result<size_t> write_text(const string& text) {
-                return _self().write(detail::bytes_of(text));
-            }
+        expected<size_t, error> write(byte b) {
+            return io::write(_self(), b);
+        }
 
-            result<size_t> write_text(const slice<const char>& text) {
-                return _self().write(detail::bytes_of(text));
-            }
+        template<class D>
+        requires detail::Text<D>
+        async::task<expected<size_t, error>> async_write(const D& text) {
+            return io::async_write(_self(), text);
+        }
 
-            result<size_t> write_text(const char* text) {
-                return _self().write(detail::bytes_of(text));
-            }
+        async::task<expected<size_t, error>> async_write(byte b) {
+            return io::async_write(_self(), b);
+        }
 
-            result<size_t> write_text(std::string_view text) {
-                return _self().write(detail::bytes_of(text));
-            }
+        // Everything from r to its end, written here: the bytes copied
+        template<req::reader R>
+        expected<size_t, error> copy_from(R&& r) {
+            return io::copy(_self(), std::forward<R>(r));
+        }
 
-            result<size_t> write_byte(std::byte b) {
-                return _self().write(slice<const std::byte>(&b, 1));
-            }
+        template<req::async_reader R>
+        async::task<expected<size_t, error>> async_copy_from(R&& r) requires req::async_writer<Derived&> {
+            return io::async_copy(_self(), std::forward<R>(r));
+        }
 
-            // Everything from r to its end, written here: the bytes copied
-            result<size_t> copy_from(io::reader& r);
+    protected:
+        writer() = default;
+        ~writer() = default;
 
-            task<result<size_t>> async_write_text(const string& text) {
-                co_return co_await _self().async_write(detail::bytes_of(text));
-            }
-
-            task<result<size_t>> async_write_text(const slice<const char>& text) {
-                co_return co_await _self().async_write(detail::bytes_of(text));
-            }
-
-            task<result<size_t>> async_write_text(const char* text) {
-                co_return co_await _self().async_write(detail::bytes_of(text));
-            }
-
-            task<result<size_t>> async_write_text(std::string_view text) {
-                co_return co_await _self().async_write(detail::bytes_of(text));
-            }
-
-            task<result<size_t>> async_copy_from(io::reader& r);
-
-        protected:
-            writer() = default;
-            ~writer() = default;
-
-        private:
-            Derived& _self() noexcept {
-                return static_cast<Derived&>(*this);
-            }
-        };
-    }
+    private:
+        Derived& _self() noexcept {
+            return static_cast<Derived&>(*this);
+        }
+    };
 }

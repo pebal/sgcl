@@ -7,6 +7,8 @@
 // suspended frame are roots.
 #include "tests/types.h"
 
+using namespace sgcl::async;
+
 #include <coroutine>
 #include <stdexcept>
 
@@ -30,17 +32,6 @@ namespace {
     task<int> hold_parameter(tracked_ptr<Node> node) {
         co_await std::suspend_always{};
         co_return node->value;
-    }
-
-    // Yields nodes, keeping a chain of the yielded ones in a local
-    generator<tracked_ptr<Node>> nodes(int count) {
-        tracked_ptr<Node> chain;
-        for (int i = 0; i < count; ++i) {
-            tracked_ptr<Node> n = make_tracked<Node>(i);
-            n->next = chain;
-            chain = n;
-            co_yield n;
-        }
     }
 
     task<int> throws() {
@@ -97,7 +88,7 @@ TEST(Coroutine_Tests, AParameterOfASuspendedFrameIsARoot) {
 }
 
 TEST(Coroutine_Tests, TheFrameGoesWithTheTask) {
-    sgcl::detail::cell_allocator.release();   // the block of the cells of the earlier tasks' root_ptrs (root_ptr.h) let go of, before the baseline
+    sgcl::async::detail::cell_allocator.release();   // the block of the cells of the earlier tasks' root_ptrs (root_ptr.h) let go of, before the baseline
     settle();                            // the garbage of the previous test, before the baseline
     const int before = Node::alive.load();
     const size_t objects = collector::get_live_object_count();
@@ -107,32 +98,10 @@ TEST(Coroutine_Tests, TheFrameGoesWithTheTask) {
         settle();
         EXPECT_EQ(Node::alive.load(), before + 1);
     });                                  // the task destroys the coroutine: its local is gone
-    sgcl::detail::cell_allocator.release();   // the block of the task's root_ptr cell let go of (root_ptr.h): freed once the cell is back
+    sgcl::async::detail::cell_allocator.release();   // the block of the task's root_ptr cell let go of (root_ptr.h): freed once the cell is back
     settle();
     EXPECT_EQ(Node::alive.load(), before);
     EXPECT_EQ(collector::get_live_object_count(), objects);   // the frame too
-}
-
-TEST(Coroutine_Tests, AGeneratorHoldsItsChainAcrossYields) {
-    settle();                            // the garbage of the previous test, before the baseline
-    const int before = Node::alive.load();
-    int seen = 0;
-    off_frame([&] {
-        for (auto& n : nodes(5)) {
-            collector::force_collect(true);
-            EXPECT_EQ(n->value, seen);
-            ++seen;
-            // the chain of the earlier nodes hangs from the local in the frame
-            int length = 0;
-            for (auto p = n; p; p = p->next) {
-                ++length;
-            }
-            EXPECT_EQ(length, seen);
-        }
-    });
-    EXPECT_EQ(seen, 5);
-    settle();
-    EXPECT_EQ(Node::alive.load(), before);
 }
 
 TEST(Coroutine_Tests, AFrameOutlivesTheFunctionThatMadeIt) {
@@ -210,4 +179,41 @@ TEST(Coroutine_Tests, AFrameInsideAManagedObject) {
     owner = nullptr;
     settle();
     EXPECT_EQ(Node::alive.load(), before);
+}
+
+namespace {
+    // A coroutine type of its own over a managed frame: suspended at the
+    // start and at the end, a frame_ptr its only member
+    struct own_coroutine {
+        struct promise_type : managed_frame {
+            own_coroutine get_return_object() {
+                return own_coroutine{frame_ptr<promise_type>(std::coroutine_handle<promise_type>::from_promise(*this))};
+            }
+            std::suspend_always initial_suspend() noexcept { return {}; }
+            std::suspend_always final_suspend() noexcept { return {}; }
+            void return_void() noexcept {}
+            void unhandled_exception() { throw; }
+        };
+        frame_ptr<promise_type> frame;
+    };
+
+    own_coroutine count_once(int& n) {
+        ++n;
+        co_return;
+    }
+}
+
+// release() gives the handle back, as unique_ptr::release gives the
+// pointer: the frame_ptr empty, the coroutine not destroyed
+TEST(Coroutine_Tests, AFramePtrsReleaseGivesTheHandleBack) {
+    int n = 0;
+    auto c = count_once(n);
+    auto h = c.frame.release();
+    EXPECT_FALSE(c.frame);
+    ASSERT_TRUE(h);
+    EXPECT_EQ(n, 0);
+    h.resume();
+    EXPECT_EQ(n, 1);
+    EXPECT_TRUE(h.done());
+    h.destroy();                         // the coroutine the frame_ptr let go of: its owner's to destroy
 }

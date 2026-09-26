@@ -33,7 +33,7 @@ namespace sgcl::detail {
     // separate statics the linker laid them next to a mutex taken once per
     // page and the page counters written once per cycle, whose writes took
     // the line from every mutator (Heap::globals).
-    struct alignas(config::CacheLineSize) HeapGlobals {
+    struct alignas(config::cache_line_size) HeapGlobals {
         uintptr_t base = 0;
         size_t size = 0;
         std::atomic<Page*>* table = nullptr;
@@ -48,8 +48,8 @@ namespace sgcl::detail {
 
     class Heap {
     public:
-        static constexpr size_t PageSize = config::PageSize;
-        static constexpr size_t ChunkSize = config::ChunkSize;
+        static constexpr size_t PageSize = config::page_size;
+        static constexpr size_t ChunkSize = config::chunk_size;
         static constexpr unsigned PageShift = std::countr_zero(PageSize);
         static constexpr unsigned ChunkShift = std::countr_zero(ChunkSize);
         static constexpr unsigned PagesPerChunk = ChunkSize / PageSize;
@@ -113,7 +113,7 @@ namespace sgcl::detail {
         }
 
         static void stamp_card(const void* location, uint32_t epoch) noexcept {
-            if constexpr(!config::Generational) {
+            if constexpr(!config::generational) {
                 return;
             }
             auto& card = card_of(location);
@@ -147,7 +147,7 @@ namespace sgcl::detail {
         }
 
         static bool dirty_since_last(const void* data, size_t pages, uint32_t epoch) noexcept {
-            if constexpr(!config::Generational) {
+            if constexpr(!config::generational) {
                 return false;
             }
             for (size_t i = 0; i < pages; ++i) {
@@ -215,7 +215,7 @@ namespace sgcl::detail {
             return _committed_chunks.load(std::memory_order_relaxed) * ChunkSize;
         }
 
-        // Hard cap on committed memory (0 = none); see config::HeapLimitPercent.
+        // Hard cap on committed memory (0 = none); see config::heap_limit_percent.
         size_t memory_limit() const noexcept {
             return _limit.load(std::memory_order_relaxed);
         }
@@ -224,10 +224,10 @@ namespace sgcl::detail {
             _limit.store(bytes, std::memory_order_relaxed);
         }
 
-        // Above config::HeapPressurePercent of the limit.
+        // Above config::heap_pressure_percent of the limit.
         bool under_pressure() const noexcept {
             auto limit = memory_limit();
-            return limit && committed_bytes() * 100 >= limit * config::HeapPressurePercent;
+            return limit && committed_bytes() * 100 >= limit * config::heap_pressure_percent;
         }
 
         size_t reserved_bytes() const noexcept {
@@ -259,14 +259,14 @@ namespace sgcl::detail {
 
         Heap() {
             auto physical = os::physical_memory();
-            size_t size = std::max(physical * config::HeapReserveFactor, config::HeapReserveMinimum);
+            size_t size = std::max(physical * config::heap_reserve_factor, config::heap_reserve_minimum);
             os::Reservation r;
             // The range gets a guard chunk at both ends (never allocated,
             // never committed): the write barrier takes an address within
             // ChunkSize of its own frame for a stack address without
             // looking at the range (page.h: mark_card), which holds only
             // if no object can lie that close to anything outside the range.
-            while (size >= config::HeapReserveFloor) {
+            while (size >= config::heap_reserve_floor) {
                 r = os::reserve(size + 3 * ChunkSize);   // slack to align the base to a chunk, two guards
                 if (r.base) {
                     break;
@@ -289,18 +289,18 @@ namespace sgcl::detail {
             globals.table = (std::atomic<Page*>*)std::calloc(_page_count, sizeof(std::atomic<Page*>));
             _chunks = (Chunk*)std::calloc(_chunk_count, sizeof(Chunk));
             _tags = (Tag*)std::calloc(_page_count, sizeof(Tag));
-            if constexpr(config::Generational) {
+            if constexpr(config::generational) {
                 globals.cards = (std::atomic<uint8_t>*)os::map_lazy(CardCount);
             }
             globals.biased_table = globals.table - (globals.base >> PageShift);
-            if (!globals.table || !_chunks || !_tags || (config::Generational && !globals.cards)) {
+            if (!globals.table || !_chunks || !_tags || (config::generational && !globals.cards)) {
                 std::fprintf(stderr, "[sgcl] cannot allocate the heap tables\n");
                 std::terminate();
             }
             _has_free.assign((_chunk_count + 63) / 64, 0);
             os::advise_huge_pages((void*)globals.base, globals.size);
             if (auto limit = os::memory_limit()) {
-                _limit.store(limit / 100 * config::HeapLimitPercent, std::memory_order_relaxed);
+                _limit.store(limit / 100 * config::heap_limit_percent, std::memory_order_relaxed);
             }
         }
 
@@ -493,13 +493,13 @@ namespace sgcl::detail {
 
     public:
         // GC thread, once per cycle: decommits chunks that were already free
-        // at the previous call, keeping config::HeapFreeChunkReserve of them.
+        // at the previous call, keeping config::heap_free_chunk_reserve of them.
         void trim() noexcept {
             std::lock_guard<std::mutex> lock(_mutex);
             auto previous = _epoch++;
             // under memory pressure every free chunk goes back at once
             bool pressure = under_pressure();
-            size_t reserve = pressure ? 0 : config::HeapFreeChunkReserve;
+            size_t reserve = pressure ? 0 : config::heap_free_chunk_reserve;
             if (_free_committed <= reserve) {   // the usual case: nothing to return
                 return;
             }
@@ -613,8 +613,8 @@ namespace sgcl::detail {
         uint32_t _bin_mask = 0;
         Tag* _tags = nullptr;
         // read by every page allocation (under_pressure), away from the mutex
-        alignas(config::CacheLineSize) std::atomic<size_t> _committed_chunks = {0};
+        alignas(config::cache_line_size) std::atomic<size_t> _committed_chunks = {0};
         std::atomic<size_t> _limit = {0};
-        alignas(config::CacheLineSize) std::mutex _mutex;
+        alignas(config::cache_line_size) std::mutex _mutex;
     };
 }

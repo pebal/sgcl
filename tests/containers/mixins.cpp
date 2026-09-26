@@ -8,6 +8,8 @@
 #include "sgcl/sgcl.h"
 #include "tests/types.h"
 
+using namespace sgcl::async;
+
 #include <string>
 #include <utility>
 
@@ -93,11 +95,11 @@ TEST(MSequence_Tests, TheDeductionGuides) {
     EXPECT_EQ(q.front(), 1);
     EXPECT_EQ(s.top(), 2);
     EXPECT_EQ(pq.top(), 2);
-    sgcl::copy_on_write cow(std::string("x"));
-    static_assert(std::is_same_v<decltype(cow), sgcl::copy_on_write<std::string>>);
+    sgcl::concurrent::copy_on_write cow(std::string("x"));
+    static_assert(std::is_same_v<decltype(cow), sgcl::concurrent::copy_on_write<std::string>>);
     EXPECT_EQ(*cow.load(), "x");
     // the task's guide checked without a task run: a spawn starts the
     // scheduler, whose objects outlive its stop and would be counted by
     // every live-object assertion of the suites after this one
-    static_assert(std::is_same_v<decltype(sgcl::task(std::declval<sgcl::task<int>>())), sgcl::task<int>>);
+    static_assert(std::is_same_v<decltype(sgcl::async::task(std::declval<sgcl::async::task<int>>())), sgcl::async::task<int>>);
 }

@@ -3,7 +3,7 @@
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
-#include "sgcl/containers/deque.h"
+#include "sgcl/core/deque.h"
 #include "tests/types.h"
 
 #include <algorithm>

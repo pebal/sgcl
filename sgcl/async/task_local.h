@@ -13,7 +13,8 @@
 #include <coroutine>
 #include <utility>
 
-namespace sgcl {
+namespace sgcl::async {
+    namespace detail { using namespace sgcl::detail; }
     namespace detail {
         // The values of a task's task_locals: a chain of nodes, one per
         // set, the newest first, whose head the frame's header holds
@@ -55,7 +56,7 @@ namespace sgcl {
     // passing it through every signature: a request id, a deadline, a
     // stop token, a logger, the current user (Go's context.WithValue,
     // Kotlin's CoroutineContext, tokio's task_local!). Declared once, at
-    // namespace scope (`sgcl::task_local<int> request_id;`): the variable
+    // namespace scope (`sgcl::async::task_local<int> request_id;`): the variable
     // is the key, the values live in managed nodes the tasks' frames
     // point to (detail::TaskLocals), so the variable holds nothing and
     // lives anywhere. `co_await request_id.set(7)` sets the value for the
@@ -82,7 +83,7 @@ namespace sgcl {
         // for the tasks it starts from here on. An awaitable that never
         // suspends: the co_await is what names the coroutine whose value
         // it is (a function the task calls reads, the task sets)
-        class setter {
+        class [[nodiscard]] setter {
         public:
             bool await_ready() const noexcept {
                 return false;

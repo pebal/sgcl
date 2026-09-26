@@ -75,7 +75,7 @@ TEST(Heap_Tests, LargeRangesAreReusedAndDecommitted) {
     for (int i = 0; i < 4; ++i) {
         collector::force_collect(true);
     }
-    auto slack = (sgcl::config::HeapFreeChunkReserve + 8) * sgcl::detail::Heap::ChunkSize;
+    auto slack = (sgcl::config::heap_free_chunk_reserve + 8) * sgcl::detail::Heap::ChunkSize;
     EXPECT_LE(heap.committed_bytes(), committed_before + slack);
 }
 
@@ -110,10 +110,10 @@ TEST(Heap_Tests, PagesOfOneByteObjectsAreReleased) {
     churn<uint16_t>(4 * 32768 + 10);
     const auto after_u16 = live_bytes_settled();
     // the allocator keeps the partly used page it owns: at most one page more
-    EXPECT_LE(after_u16, before + config::PageSize) << "uint16_t: " << (after_u16 - before) / config::PageSize << " pages kept";
+    EXPECT_LE(after_u16, before + config::page_size) << "uint16_t: " << (after_u16 - before) / config::page_size << " pages kept";
     churn<char>(4 * 65536 + 10);
     const auto after_char = live_bytes_settled();
-    EXPECT_LE(after_char, after_u16 + config::PageSize) << "char: " << (after_char - after_u16) / config::PageSize << " pages kept";
+    EXPECT_LE(after_char, after_u16 + config::page_size) << "char: " << (after_char - after_u16) / config::page_size << " pages kept";
 }
 
 TEST(Heap_Tests, CheckedLookupRejectsForeignPointers) {
@@ -161,7 +161,7 @@ namespace {
     }
 
     size_t elements_per_page() {
-        return sgcl::config::PageSize / sizeof(Elem);
+        return sgcl::config::page_size / sizeof(Elem);
     }
 }
 
@@ -188,7 +188,7 @@ TEST(Heap_Tests, LargeArrayFullyRetainedByItsOwner) {
             auto base = (char*)keep[i].data();
             auto page = sgcl::detail::Page::page_of(base);
             for (size_t p = 0; p < page->page_count; ++p) {
-                ASSERT_EQ(sgcl::detail::Heap::page_of_checked(base + p * sgcl::config::PageSize), page) << "vector " << i << " page " << p;
+                ASSERT_EQ(sgcl::detail::Heap::page_of_checked(base + p * sgcl::config::page_size), page) << "vector " << i << " page " << p;
             }
             for (int j = 0; j < Elements; j += 4093) {
                 ASSERT_EQ(keep[i][j], i) << "vector " << i << " element " << j;
@@ -266,7 +266,7 @@ TEST(Heap_Tests, FreeRangesAreBinnedAndCoalesce) {
         auto p = (char*)heap.alloc_range(pages);
         ASSERT_NE(p, nullptr);
         for (auto& r : ranges) {   // no overlap with anything still held
-            EXPECT_TRUE(p + pages * sgcl::config::PageSize <= r.p || r.p + r.pages * sgcl::config::PageSize <= p);
+            EXPECT_TRUE(p + pages * sgcl::config::page_size <= r.p || r.p + r.pages * sgcl::config::page_size <= p);
         }
         ranges.push_back({p, pages});
         if (i % 3 == 2) {   // churn: free a random one

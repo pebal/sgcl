@@ -7,14 +7,14 @@ namespace sgcl {
     template<class T>
     class slice;
     using string_slice = slice<const char>;   // a piece of a string that holds it (string.h)
-    template<class T> slice<const std::byte> as_bytes(const slice<T>& s) noexcept;
-    template<class T> slice<std::byte> as_writable_bytes(const slice<T>& s) noexcept;
+    template<class T> slice<const byte> as_bytes(const slice<T>& s) noexcept;
+    template<class T> slice<byte> as_writable_bytes(const slice<T>& s) noexcept;
 }
 ```
 
-`sgcl::slice<T>` is the elements `[begin, end)` of some contiguous storage and the managed object they lie in, kept alive by the slice for as long as the slice exists: what a slice is in Go (a piece of the array that shares it and holds it), and what `std::span` and `std::string_view` are not (a range with no duty to keep its memory). Three words: the owner, a `tracked_ptr` to the object — a [string](string.md), the buffer of a [vector](../containers/vector.md), the block of a [buffered_reader](../io/buffered.md) — and two raw pointers into it. A slice of unmanaged memory (a stack array, a `std::vector`, a `std::span`) has no owner: its word is null, and the slice promises what a span does, the memory valid for the call. Which of the two a slice is follows from where the memory comes from, not from a choice: a string, a vector, a reader's block hand out slices with the owner set (`s.as_slice()`, `v.as_slice()`, a line of `read_line`); a raw pointer or a std container give one without. The owner is given by whoever knows it, never guessed from an address (a pointer into an object finds the object only within its first page).
+`sgcl::slice<T>` is the elements `[begin, end)` of some contiguous storage and the managed object they lie in, kept alive by the slice for as long as the slice exists: what a slice is in Go (a piece of the array that shares it and holds it), and what `std::span` and `std::string_view` are not (a range with no duty to keep its memory). Three words: the owner, a `tracked_ptr` to the object — a [string](string.md), the buffer of a [vector](vector.md), the block of a [buffered_reader](../io/buffered.md) — and two raw pointers into it. A slice of unmanaged memory (a stack array, a `std::vector`, a `std::span`) has no owner: its word is null, and the slice promises what a span does, the memory valid for the call. Which of the two a slice is follows from where the memory comes from, not from a choice: a string, a vector, a reader's block hand out slices with the owner set (`s.as_slice()`, `v.as_slice()`, a line of `read_line`); a raw pointer or a std container give one without. The owner is given by whoever knows it, never guessed from an address (a pointer into an object finds the object only within its first page).
 
-What it is for, with an owner: a piece of a string with no copy — a token, a field, a line, the pieces of [`split`](string.md#members) — kept in a container or a managed object as it is, the source alive for as long as any piece is; a line of a file handed out by a reader without an allocation, valid after the reader has moved on to the next block; a fragment of a buffer given to an asynchronous `read`, the buffer rooted by the argument while the task waits. Without an owner: what a `std::span` is for, one type for both. `slice<const char>` is text and has the read interface of a string (`mixin::text`: `find`, `starts_with`, `compare`, `trim`, `substr`…); `slice<std::byte>` is a buffer to read into, `slice<const std::byte>` data to write; `slice<T>` of anything else is a span with an owner.
+What it is for, with an owner: a piece of a string with no copy — a token, a field, a line, the pieces of [`split`](string.md#members) — kept in a container or a managed object as it is, the source alive for as long as any piece is; a line of a file handed out by a reader without an allocation, valid after the reader has moved on to the next block; a fragment of a buffer given to an asynchronous `read`, the buffer rooted by the argument while the task waits. Without an owner: what a `std::span` is for, one type for both. `slice<const char>` is text and has the read interface of a string (`mixin::text`: `find`, `starts_with`, `compare`, `trim`, `substr`…); `slice<byte>` is a buffer to read into, `slice<const byte>` data to write; `slice<T>` of anything else is a span with an owner.
 
 What it costs: a slice without an owner is three word stores — no barrier, no registration of the thread, the price of a span. A slice with an owner is a `tracked_ptr`'s copy: the write barrier, and the registration of the thread's stack the first time a managed word lands on it. The rule the two paths keep is that a non-null owner never lands on a stack the collector does not know: the constructor from an owner, and the copy and the assignment from an owned slice, register; the paths without an owner skip it.
 
@@ -72,8 +72,8 @@ friend bool operator==(const slice& a, view_type s);  friend bool operator==(con
 std::hash<slice<const CharT>>, std::equal_to, std::less;             // transparent: a string of the characters hashes the same
 operator<<(std::ostream&, const slice<const CharT>&);
 
-template<class T> slice<const std::byte> as_bytes(const slice<T>& s) noexcept;              // the bytes, the owner carried over
-template<class T> slice<std::byte> as_writable_bytes(const slice<T>& s) noexcept;
+template<class T> slice<const byte> as_bytes(const slice<T>& s) noexcept;              // the bytes, the owner carried over
+template<class T> slice<byte> as_writable_bytes(const slice<T>& s) noexcept;
 ```
 
 ```cpp
@@ -83,9 +83,9 @@ slice<const char> name = value.trim_prefix("alice, ");   // "bob", the same owne
 for (auto piece : text.split(','))                    // the pieces of a string: slices of it
     std::cout << piece.trim() << '\n';
 
-vector<std::byte> buffer(4096);
-slice<std::byte> room = buffer;                  // the buffer's own object as the owner
-auto n = file->read(room);                             // io::reader::read takes a slice; an async_read holds the buffer while the task waits
+vector<byte> buffer(4096);
+slice<byte> room = buffer;                  // the buffer's own object as the owner
+auto n = file->read(room);                                    // io::reader::read takes a slice; async_read holds the buffer while the task waits
 auto data = room.first(*n);
 
 int local[16];
@@ -139,7 +139,7 @@ int main() {
 
 ## See also
 
-- [string](string.md): `as_slice`, `split` and `fields` hand out slices; a string of a slice; [vector](../containers/vector.md): `as_slice` over the buffer
+- [string](string.md): `as_slice`, `split` and `fields` hand out slices; a string of a slice; [vector](vector.md): `as_slice` over the buffer
 - [buffered_reader](../io/buffered.md): lines as slices of the block; [stream](../io/stream.md): `read` and `write` take slices
 - [tracked_ptr](tracked_ptr.md): the owner's word and its barrier; [README: The rules](README.md#the-rules)
 - `tests/core/slice.cpp`: owners and none, subslices, the owner kept alive by a slice alone, a dead slice in a container, the text interface, the bytes, a fresh thread registered by an owned slice.

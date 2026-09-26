@@ -15,7 +15,8 @@
 #include <cstddef>
 #include <utility>
 
-namespace sgcl {
+namespace sgcl::async {
+    namespace detail { using namespace sgcl::detail; }
     class strand;
 
     // A task on a thread of the program's choosing. The scheduler runs a
@@ -24,20 +25,20 @@ namespace sgcl {
     // usually the main one, for every call into them. An executor is a
     // queue of frames that only the thread running the executor resumes:
     // `ex.run()` is that thread's loop, run(task) the loop until the task
-    // is done (`int main() { sgcl::executor main; return main.run(program()); }`:
+    // is done (`int main() { sgcl::async::executor main; return main.run(program()); }`:
     // the program one task on the main thread), poll() one pass over
     // what is queued, for a foreign loop (a CFRunLoop, a GMainLoop, a
     // game's frame) that calls it when it has a moment. A task moves to
-    // an executor with `co_await sgcl::on(ex)` (Kotlin's
+    // an executor with `co_await sgcl::async::on(ex)` (Kotlin's
     // withContext(Dispatchers.Main)) and back to the pool with `co_await
-    // sgcl::on_workers()`; ex.spawn(t) starts a task on it. A task on an
+    // sgcl::async::on_workers()`; ex.spawn(t) starts a task on it. A task on an
     // executor stays on it: its frame remembers the executor (coroutine.h:
     // FrameHeader), and every wake of the frame, whatever woke it (a
     // channel, a timer, a task it awaited, a yield, a select), goes
     // through the scheduler's enqueue, which routes it to the executor's
     // queue (scheduler.h: ExecutorQueue). A task the task awaits runs
     // where the task does, as a call would; a task it spawns with
-    // sgcl::spawn or go runs on the pool, a task it spawns with ex.spawn
+    // sgcl::async::spawn or go runs on the pool, a task it spawns with ex.spawn
     // on ex.
     //
     // The thread running the executor parks when the queue is empty, on
@@ -123,15 +124,12 @@ namespace sgcl {
                 left = 0;
             }
             for (; left > 0; --left) {
-                auto f = _q->ready.try_pop();
+                auto f = _q->take();
                 if (!f) {
-                    break;
+                    break;   // the rest is a push under way: the next pass
                 }
-                ++_q->taken;
-                if (*f) {
-                    detail::resume_frame(std::move(*f));
-                    ++n;
-                }
+                detail::resume_frame(std::move(f));
+                ++n;
             }
             _q->running.store(false, std::memory_order_release);
             return n;
@@ -150,7 +148,7 @@ namespace sgcl {
         }
 
         // A task started on this executor: queued here, run by the thread
-        // that runs the executor; nodiscard as sgcl::spawn (a task object
+        // that runs the executor; nodiscard as sgcl::async::spawn (a task object
         // dropped destroys the coroutine; go() for a task nobody waits for)
         template<class T>
         [[nodiscard]] task<T> spawn(task<T> t) {
@@ -164,7 +162,7 @@ namespace sgcl {
             spawn(std::move(t)).detach();
         }
 
-        // The same for a coroutine function with captures (sgcl::spawn)
+        // The same for a coroutine function with captures (sgcl::async::spawn)
         template<detail::TaskFactory F>
         [[nodiscard]] auto spawn(F f) {
             return spawn(detail::task_of(std::move(f)));
@@ -239,7 +237,7 @@ namespace sgcl {
     // strand's queue when it is woken, so the strand is held between two
     // suspensions of a task and never across one: a task that reads a
     // structure, awaits, and writes it does not find it as it left it
-    // (a mutex does that, mutex.h). `co_await sgcl::on(s)` moves a task to
+    // (a mutex does that, mutex.h). `co_await sgcl::async::on(s)` moves a task to
     // the strand, s.spawn(t) starts one there; the frame remembers the
     // strand as it would an executor. The head of the queue is handed to
     // the workers when the strand goes from idle to busy, the next one
@@ -269,7 +267,7 @@ namespace sgcl {
             spawn(std::move(t)).detach();
         }
 
-        // The same for a coroutine function with captures (sgcl::spawn)
+        // The same for a coroutine function with captures (sgcl::async::spawn)
         template<detail::TaskFactory F>
         [[nodiscard]] auto spawn(F f) {
             return spawn(detail::task_of(std::move(f)));
@@ -291,11 +289,11 @@ namespace sgcl {
         root_ptr<detail::ExecutorQueue> _q;
     };
 
-    // `co_await sgcl::on(ex)`: the task goes on on the executor (or the
+    // `co_await sgcl::async::on(ex)`: the task goes on on the executor (or the
     // strand), from the next line; at once when it is there already. What
     // it awaits from then on wakes it there. From a thread that is no
     // worker and no executor (a task resumed by hand) as from a worker
-    class on {
+    class [[nodiscard]] on {
     public:
         explicit on(executor& ex) noexcept
         : _q(ex._q.ptr()) {
@@ -331,10 +329,10 @@ namespace sgcl {
         tracked_ptr<detail::ExecutorQueue> _q;
     };
 
-    // `co_await sgcl::on_workers()`: the task goes on on the pool of
+    // `co_await sgcl::async::on_workers()`: the task goes on on the pool of
     // workers, from the next line; at once when it is on a worker with no
     // executor. A task that left the main thread for a computation
-    struct on_workers {
+    struct [[nodiscard]] on_workers {
         bool await_ready() const noexcept {
             return false;
         }

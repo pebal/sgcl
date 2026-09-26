@@ -419,3 +419,45 @@ TEST(WeakMap_Tests, AHitBuildsNoValueAndAMissBuildsItInPlace) {
     EXPECT_EQ(*it, a);
 }
 
+
+// A const weak container is walked and searched as a mutable one is: the
+// iterator holds the object it stands on, the values const
+TEST(WeakMap_Tests, AConstContainerIsWalkedAndSearched) {
+    tracked_ptr a = make_tracked<Node>(1);
+    tracked_ptr b = make_tracked<Node>(2);
+    weak_map<Node, int> m;
+    m[a] = 10;
+    m[b] = 20;
+    const auto& cm = m;
+    int sum = 0;
+    for (auto [key, value] : cm) {
+        static_assert(std::is_same_v<decltype(value), const int&>);
+        sum += key->value * value;
+    }
+    EXPECT_EQ(sum, 50);
+    EXPECT_EQ(cm.find(a)->value, 10);
+    EXPECT_TRUE(cm.find(tracked_ptr<Node>()) == cm.end());
+    EXPECT_TRUE(m.cbegin() != m.cend());
+    weak_map<Node, int>::const_iterator from = m.begin();     // an iterator converts, as std's do
+    EXPECT_TRUE(from == m.cbegin());
+    EXPECT_TRUE(m.find(a) != m.cend());
+    EXPECT_TRUE(from->key == a || from->key == b);
+    weak_multimap<Node, int> mm;
+    mm.insert(a, 1);
+    mm.insert(a, 2);
+    const auto& cmm = mm;
+    int values = 0;
+    for (auto e : cmm) {
+        values += e.value;
+    }
+    EXPECT_EQ(values, 3);
+    weak_set<Node> s;
+    s.insert(a);
+    const auto& cs = s;
+    int seen = 0;
+    for (auto object : cs) {
+        seen += object->value;
+    }
+    EXPECT_EQ(seen, 1);
+    EXPECT_EQ(*cs.find(a), a);
+}

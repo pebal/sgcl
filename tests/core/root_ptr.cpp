@@ -364,8 +364,33 @@ TEST(RootPtr_Tests, InAManagedObjectAndAsAWeakPtrsSource) {
         tracked_ptr h = make_tracked<Holder>();
         h->root = make_tracked<Node>(5);
         EXPECT_EQ(h->root->value, 5);
-        weak_ptr<Node> w = h->root.ptr();                        // from the root's tracked_ptr
+        weak_ptr<Node> w = h->root;                              // from the root itself
         EXPECT_EQ(w.lock(), h->root);
+    });
+    EXPECT_EQ(live_after_collect(), live0);
+}
+
+// A weak_ptr and a tracked_ptr of a base straight from a root_ptr: the
+// root's conversion to its tracked_ptr is one a template constructor
+// cannot deduce through, so these have constructors of their own
+TEST(RootPtr_Tests, AWeakPtrAndABasePointerFromARoot) {
+    auto live0 = live_after_collect();
+    off_frame([&] {
+        root_ptr<Derived> root = make_tracked<Derived>(7);
+        weak_ptr w = root;                                       // deduced: weak_ptr<Derived>
+        static_assert(std::is_same_v<decltype(w), weak_ptr<Derived>>);
+        weak_ptr<Node> base_weak = root;
+        tracked_ptr<Node> base = root;
+        tracked_ptr<const Derived> constant = root;
+        tracked_ptr deduced = root;
+        static_assert(std::is_same_v<decltype(deduced), tracked_ptr<Derived>>);
+        EXPECT_EQ(w.lock(), root.ptr());
+        EXPECT_EQ(base_weak.lock().get(), root.get());
+        EXPECT_EQ(base.get(), root.get());
+        EXPECT_EQ(constant.get(), root.get());
+        base = nullptr;
+        base = root;                                             // an assignment through the same constructor
+        EXPECT_EQ(base->value, 7);
     });
     EXPECT_EQ(live_after_collect(), live0);
 }

@@ -21,8 +21,11 @@ bool is_control(char32_t c) noexcept;        // C0 and C1
 bool is_format(char32_t c) noexcept;         // Cf: the joiner, the marks of direction, the soft hyphen
 bool is_printable(char32_t c) noexcept;      // a letter, mark, number, punctuation mark or symbol, and the space
 bool is_emoji(char32_t c) noexcept;          // Extended_Pictographic
+bool is_space(char32_t c) noexcept;          // White_Space: core's unicode::is_space under this module's name
+bool is_upper(char32_t c) noexcept;          // has a lower case form other than itself (unicode::is_upper)
+bool is_lower(char32_t c) noexcept;          // has an upper case form other than itself (unicode::is_lower)
 
-int numeric_value(char32_t c) noexcept;      // the value of a decimal digit, -1 when it is not one
+int numeric_value_of(char32_t c) noexcept;      // the value of a decimal digit, -1 when it is not one
 
 size_t columns(char32_t c) noexcept;         // the cells it takes on a terminal: 0, 1 or 2
 size_t columns(const string& text) noexcept; // the sum over the text; also slice<const char> and a C string
@@ -87,7 +90,7 @@ int main() {
     string digits = "٣ ١ ٤";
     int sum = 0;
     for (char32_t c : digits.runes()) {
-        sum += std::max(0, txt::numeric_value(c));
+        sum += std::max(0, txt::numeric_value_of(c));
     }
     std::cout << digits << " sums to " << sum << ", written in "
               << (digits.runes().exists([](char32_t c) { return txt::script_of(c) == txt::script::arabic; }) ? "Arabic" : "?")

@@ -12,7 +12,7 @@
 #include <cstring>
 
 namespace sgcl::detail {
-    struct alignas(config::CacheLineSize) Page {
+    struct alignas(config::cache_line_size) Page {
         template<class T>
         using Info = TypeInfo<T>;
 
@@ -139,10 +139,10 @@ namespace sgcl::detail {
         // mutator can be lost to a clear. Pointers held on the stacks need
         // no card: the stacks are scanned every cycle.
         static void mark_card(const void* location) noexcept {
-            if constexpr(!config::Generational) {
+            if constexpr(!config::generational) {
                 return;
             }
-            // Fast path for the stack: a location within ChunkSize of this
+            // Fast path for the stack: a location within config::chunk_size of this
             // frame is not an object, because the heap's range keeps a
             // guard chunk at both ends (heap.h). No memory is read; without
             // it a copy onto the stack pays the card's reads (1.34 to 1.69
@@ -150,7 +150,7 @@ namespace sgcl::detail {
             // nothing reads (heap.h: card_of covers every address).
             char probe;
             auto distance = (intptr_t)((const char*)location - &probe);
-            if ((uintptr_t)(distance + (intptr_t)config::ChunkSize) < 2 * config::ChunkSize) {
+            if ((uintptr_t)(distance + (intptr_t)config::chunk_size) < 2 * config::chunk_size) {
                 return;
             }
             Heap::mark_card(location);
@@ -196,7 +196,7 @@ namespace sgcl::detail {
         }
 
         size_t data_size() const noexcept {   // the page, or the range of a large object
-            return page_count * config::PageSize;
+            return page_count * config::page_size;
         }
 
         // The type's metadata, and the object's first byte, of any address
@@ -375,7 +375,7 @@ namespace sgcl::detail {
         // read on every barrier (data, multiplier) and the flags they write
         // (state_updated, card, object_created, owned, on_empty_list); the
         // second what the collector writes while it works (its lists, the
-        // page's marks). The states follow at CacheLineSize, on lines of
+        // page's marks). The states follow at config::cache_line_size, on lines of
         // their own, so that a collector's write to the header never
         // invalidates the line a barrier is storing a state into.
         Metadata* const metadata;
@@ -456,5 +456,5 @@ namespace sgcl::detail {
         Page* next_empty = {nullptr};   // the lists of empty pages: a type's, then its allocators' buffer
         Page* next = {nullptr};         // the list a thread publishes its new pages on (thread.h: Data::pages)
     };
-    static_assert(sizeof(Page) == config::CacheLineSize, "the page header is one line of CacheLineSize; the states follow it");
+    static_assert(sizeof(Page) == config::cache_line_size, "the page header is one line of config::cache_line_size; the states follow it");
 }

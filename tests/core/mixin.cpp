@@ -72,11 +72,11 @@ TEST(Mixin_Tests, WhatTheContainersDeclare) {
     static_assert(req::bidirectional<list<int>> && !req::random_access<list<int>> && req::sequence<list<int>>);
     static_assert(req::enumerable<forward_list<int>> && !req::bidirectional<forward_list<int>>);
     static_assert(req::bidirectional<sorted_set<int>> && !req::ordered<sorted_set<int>> && !req::sequence<sorted_set<int>> && !req::lookup<sorted_set<int>>);
-    static_assert(req::lookup<sorted_map<int, int>> && req::lookup<sorted_multimap<int, int>> && req::lookup<map<int, int>> && req::lookup<ordered_map<int, int>> && req::lookup<im::map<int, int>>);
+    static_assert(req::lookup<sorted_map<int, int>> && req::lookup<sorted_multimap<int, int>> && req::lookup<map<int, int>> && req::lookup<ordered_map<int, int>> && req::lookup<immutable::map<int, int>>);
     static_assert(req::enumerable<set<int>> && !req::bidirectional<set<int>>);
-    static_assert(req::random_access<im::vector<int>> && req::ordered<im::vector<int>> && !req::sequence<im::vector<int>>);
-    static_assert(req::enumerable<im::list<int>> && req::ordered<im::list<int>> && req::enumerable<im::map<int, int>> && req::enumerable<im::set<int>>);
-    static_assert(req::immutable<im::vector<int>> && req::immutable<im::list<int>> && req::immutable<im::map<int, int>> && req::immutable<im::set<int>>);
+    static_assert(req::random_access<immutable::vector<int>> && req::ordered<immutable::vector<int>> && !req::sequence<immutable::vector<int>>);
+    static_assert(req::enumerable<immutable::list<int>> && req::ordered<immutable::list<int>> && req::enumerable<immutable::map<int, int>> && req::enumerable<immutable::set<int>>);
+    static_assert(req::immutable<immutable::vector<int>> && req::immutable<immutable::list<int>> && req::immutable<immutable::map<int, int>> && req::immutable<immutable::set<int>>);
     static_assert(!req::immutable<vector<int>> && !req::immutable<slice<const int>> && !req::immutable<sorted_set<int>>);   // not written is not immutable
     static_assert(req::contiguous<slice<int>> && req::sequence<slice<int>> && req::contiguous<slice<const int>> && !req::sequence<slice<const int>>);
     static_assert(req::contiguous<range<int*>> && req::sequence<range<int*>> && req::random_access<range<detail::counter<int>>> && !req::sequence<range<detail::counter<int>>>);
@@ -114,7 +114,7 @@ TEST(Mixin_Tests, AMethodExistsOnlyForElementsThatAllowIt) {
     static_assert(!HasContains<vector<Plain>, Plain> && !HasMin<vector<Plain>> && !HasSort<vector<Plain>>);
     static_assert(!req::ordered<vector<Plain>> && req::enumerable<vector<Plain>> && req::sequence<vector<Plain>>);
     static_assert(HasMin<vector<LessOnly>> && HasSort<vector<LessOnly>> && !HasContains<vector<LessOnly>, LessOnly>);
-    static_assert(!HasSort<im::vector<int>> && HasMin<im::vector<int>>);   // ordered, not written in place
+    static_assert(!HasSort<immutable::vector<int>> && HasMin<immutable::vector<int>>);   // ordered, not written in place
     static_assert(!HasSort<slice<const int>> && HasSort<slice<int>>);
     vector<Plain> v = {Plain{1}, Plain{2}};
     EXPECT_TRUE(v.exists([](const Plain& p) { return p.a == 2; }));
@@ -167,7 +167,7 @@ TEST(Mixin_Tests, AContainerHidesTheMixinWithABetterAnswer) {
     EXPECT_TRUE(m.exists([](const auto& kv) { return kv.second == "b"; }));
     set<int> us = {1, 2};
     EXPECT_TRUE(us.contains(1) && us.all([](int x) { return x > 0; }));
-    im::set<int> is = im::set<int>().insert(1).insert(2);
+    immutable::set<int> is = immutable::set<int>().insert(1).insert(2);
     EXPECT_TRUE(is.contains(2) && is.exists([](int x) { return x == 1; }));
 }
 
@@ -205,8 +205,8 @@ TEST(Mixin_Tests, LookupOnEveryMap) {
     ordered_map<int, int> om = {{5, 50}};
     EXPECT_EQ(om.value_or(6, -1), -1);
     // the immutable map: find gives a pointer, not an iterator; the mixin tells the two apart
-    im::map<int, std::string> imm = im::map<int, std::string>().insert(1, "one").insert(2, "two");
-    static_assert(req::lookup<decltype(imm)> && !req::lookup<im::set<int>>);
+    immutable::map<int, std::string> imm = immutable::map<int, std::string>().insert(1, "one").insert(2, "two");
+    static_assert(req::lookup<decltype(imm)> && !req::lookup<immutable::set<int>>);
     EXPECT_EQ(*imm.get(1), "one");
     EXPECT_FALSE(imm.get(3));
     EXPECT_EQ(*imm.try_get(2), "two");
@@ -230,9 +230,9 @@ TEST(Mixin_Tests, TheOrderOfARange) {
     v.stable_sort([](int a, int b) { return a > b; });
     EXPECT_EQ(v[0], 3);
     EXPECT_TRUE(v.is_sorted([](int a, int b) { return a > b; }));
-    im::vector<int> iv = im::vector<int>().push_back(1).push_back(2);
+    immutable::vector<int> iv = immutable::vector<int>().push_back(1).push_back(2);
     EXPECT_TRUE(iv.is_sorted() && iv.binary_search(2) && iv.max() == 2);
-    im::list<int> il = {1, 2, 3};
+    immutable::list<int> il = {1, 2, 3};
     EXPECT_TRUE(il.is_sorted() && il.min() == 1 && il.contains(3) && il.index_of(2) == 1u);
     EXPECT_EQ(range(5).max(), 4);   // a value, the counter's
     EXPECT_TRUE(range(5).contains(3) && range(5).is_sorted() && range(5).binary_search(4));
@@ -249,7 +249,7 @@ TEST(Mixin_Tests, TheOrderOfARange) {
 }
 
 TEST(Mixin_Tests, TheMixinsHaveNoStateAndAreNotParameters) {
-    static_assert(std::is_empty_v<mixin::enumerable<Ring<int>>> && std::is_empty_v<mixin::lookup<sorted_map<int, int>>> && std::is_empty_v<mixin::contiguous<vector<int>>> && std::is_empty_v<mixin::immutable<im::vector<int>>>);
+    static_assert(std::is_empty_v<mixin::enumerable<Ring<int>>> && std::is_empty_v<mixin::lookup<sorted_map<int, int>>> && std::is_empty_v<mixin::contiguous<vector<int>>> && std::is_empty_v<mixin::immutable<immutable::vector<int>>>);
     static_assert(sizeof(Ring<int>) == sizeof(std::vector<int>));
     static_assert(sizeof(slice<int>) == 3 * sizeof(void*));
     static_assert(!std::is_default_constructible_v<mixin::enumerable<Ring<int>>>);   // protected: a base only

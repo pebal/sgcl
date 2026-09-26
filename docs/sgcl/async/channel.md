@@ -1,4 +1,4 @@
-# sgcl::channel
+# sgcl::async::channel
 
 ```cpp
 #include "sgcl/async/channel.h"   // or "sgcl/sgcl.h"
@@ -11,9 +11,9 @@ namespace sgcl {
 }
 ```
 
-`sgcl::channel<T>` is the channel of Go: a queue with the synchronization of both ends. A channel of capacity *n* buffers *n* elements; one of capacity 0 buffers none, and a send waits until a receive takes the element, so that the pair is a meeting of the two sides (a rendezvous) and not a delivery to a buffer. A receive on an empty channel waits, a send on a full one waits: a producer ahead of its consumer stops (back-pressure). `close()` ends the stream: what was sent is still received, then every receive returns nothing at once and every send returns `false`; a range-for over the channel runs until then.
+`sgcl::async::channel<T>` is the channel of Go: a queue with the synchronization of both ends. A channel of capacity *n* buffers *n* elements; one of capacity 0 buffers none, and a send waits until a receive takes the element, so that the pair is a meeting of the two sides (a rendezvous) and not a delivery to a buffer. A receive on an empty channel waits, a send on a full one waits: a producer ahead of its consumer stops (back-pressure). `close()` ends the stream: what was sent is still received, then every receive returns nothing at once and every send returns `false`; a range-for over the channel runs until then.
 
-The waiting is done by a thread, on an atomic of its own, or by a coroutine: `co_await ch.async_receive()` and `co_await ch.async_send(v)` suspend the coroutine with its handle on the channel's list of waiters, and the send or the receive that serves it hands it to the [scheduler](scheduler.md), which runs it on a worker; the serving thread returns at once. The buffer is a lock-free ring (the bounded queue of Vyukov: a managed array of slots made once, a sequence number per slot, one compare-exchange per send or receive and no allocation per element), the lists of waiters are [concurrent_queue](../concurrent/concurrent_queue.md)s, and every waiter is a managed object: nothing in the channel takes a lock, nothing frees anything, and a waiter that was cancelled or served is reclaimed by the collector ([README: Lock-free containers](../concurrent/README.md#lock-free-containers). A rendezvous has a small ring too, through which a waiting sender's element passes to the receiver that serves it, so that waiting senders are served in their order. A buffered channel keeps a count of the entries of each list beside it, so that a send that has pushed and a receive that has popped, with nobody waiting, which is the common case, look at one word rather than at the head of a queue (the [benchmarks](../concurrent/benchmarks.md): 30 ns for a send and a receive on one thread against 60 without the count); a rendezvous, which serves every element through the lists, keeps none.
+The waiting is done by a thread, on an atomic of its own, or by a coroutine: `co_await ch.receive()` and `co_await ch.send(v)` suspend the coroutine with its handle on the channel's list of waiters, and the send or the receive that serves it hands it to the [scheduler](scheduler.md), which runs it on a worker; the serving thread returns at once. The buffer is a lock-free ring (the bounded queue of Vyukov: a managed array of slots made once, a sequence number per slot, one compare-exchange per send or receive and no allocation per element), the lists of waiters are [concurrent::queue](../concurrent/queue.md)s, and every waiter is a managed object: nothing in the channel takes a lock, nothing frees anything, and a waiter that was cancelled or served is reclaimed by the collector ([README: Lock-free containers](../concurrent/README.md#lock-free-containers). A rendezvous has a small ring too, through which a waiting sender's element passes to the receiver that serves it, so that waiting senders are served in their order. A buffered channel keeps a count of the entries of each list beside it, so that a send that has pushed and a receive that has popped, with nobody waiting, which is the common case, look at one word rather than at the head of a queue (the [benchmarks](../concurrent/benchmarks.md): 30 ns for a send and a receive on one thread against 60 without the count); a rendezvous, which serves every element through the lists, keeps none.
 
 ## Rules
 
@@ -41,25 +41,22 @@ explicit channel(size_type capacity = 0);   // 0: a rendezvous
 channel(const channel&) = delete;
 ```
 
-### send, try_send, async_send
+### send, try_send, send
 
 ```cpp
-bool send(const T& value);
-bool send(T&& value);
+auto send(const T& value);   // an operation: co_await ch.send(v) in a task, ch.send(v).wait() on a thread; true when delivered
+auto send(T&& value);
 bool try_send(const T& value);
 bool try_send(T&& value);
-auto async_send(const T& value);   // co_await gives the bool of send
-auto async_send(T&& value);
 ```
 
 `send` delivers the element: to a waiting receiver, into the buffer when it has room, or after waiting for a receiver to make room (or, on a rendezvous, to take it); `true`, or `false` when the channel is closed. `try_send` delivers without waiting: `false` when closed, full, or, on a rendezvous, when no receiver waits.
 
-### receive, try_receive, async_receive
+### receive, try_receive, receive
 
 ```cpp
-optional<T> receive();
+auto receive();   // an operation: co_await ch.receive() in a task, ch.receive().wait() on a thread; optional<T>, nothing once closed and drained
 optional<T> try_receive();
-auto async_receive();   // co_await gives the optional<T> of receive
 ```
 
 `receive` takes the next element, waiting for one; nothing once the channel is closed and drained. `try_receive` takes without waiting; nothing when there is nothing.
@@ -86,12 +83,10 @@ iterator end() noexcept;
 ### channel<void>
 
 ```cpp
-bool send();
+auto send();     // operations, as above: co_await or  gives a bool
+auto receive();  // whether a signal came, false once closed
 bool try_send();
-bool receive();        // whether a signal came, false once closed
 bool try_receive();
-auto async_send();
-auto async_receive();  // co_await gives the bool
 void close(); bool closed() const noexcept; size_type capacity() const noexcept; size_type size() const noexcept; bool empty() const noexcept;
 ```
 
@@ -113,22 +108,22 @@ struct Job {
     int id;
 };
 
-task<> worker(channel<tracked_ptr<Job>>& jobs, channel<int>& results) {
-    while (auto job = co_await jobs.async_receive()) {     // suspends while jobs is empty
-        co_await results.async_send((*job)->id * 2);       // suspends while results is full
+async::task<> worker(async::channel<tracked_ptr<Job>>& jobs, async::channel<int>& results) {
+    while (auto job = co_await jobs.receive()) {     // suspends while jobs is empty
+        co_await results.send((*job)->id * 2);       // suspends while results is full
     }
     results.close();                                       // jobs closed: the stream ends downstream
 }
 
 int main() {
-    channel<tracked_ptr<Job>> jobs(8);
-    channel<int> results(8);
-    task w = spawn(worker(jobs, results));   // on the scheduler: runs whenever a job comes
+    async::channel<tracked_ptr<Job>> jobs(8);
+    async::channel<int> results(8);
+    async::task w = async::spawn(worker(jobs, results));   // on the scheduler: runs whenever a job comes
     vector<thread> producers;
     for (int p : range(4)) {
         producers.emplace_back([&, p] {
             for (int i : range(100)) {
-                jobs.send(make_tracked<Job>(p * 100 + i));   // waits when the buffer of eight is full
+                jobs.send(make_tracked<Job>(p * 100 + i)).wait();   // waits when the buffer of eight is full
             }
         });
     }
@@ -142,7 +137,7 @@ int main() {
         t.join();
     }
     jobs.close();
-    w.join();                                              // the worker's loop ended with the close
+    w.wait();                                              // the worker's loop ended with the close
     collector.join();
     std::cout << sum << "\n";
     return sum == 2 * 399 * 400 / 2 ? 0 : 1;
@@ -157,5 +152,5 @@ The output:
 
 ## See also
 
-- [select](select.md): a wait on several channels at once; [concurrent_queue](../concurrent/concurrent_queue.md), the lists of waiters; [coroutine](coroutine.md), the tasks that await a channel; [scheduler](scheduler.md), what runs them
+- [select](select.md): a wait on several channels at once; [concurrent::queue](../concurrent/queue.md), the lists of waiters; [coroutine](coroutine.md), the tasks that await a channel; [scheduler](scheduler.md), what runs them
 - [README: Lock-free containers](../concurrent/README.md#lock-free-containers)

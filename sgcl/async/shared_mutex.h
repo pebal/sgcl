@@ -5,13 +5,14 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "../concurrent/atomic.h"
 #include "../core/aliases.h"
+#include "../core/atomic.h"
 #include "../core/make_tracked.h"
 #include "../core/tracked_ptr.h"
 #include "channel.h"
 #include "coroutine.h"
 #include "mutex.h"
+#include "operation.h"
 
 #include <atomic>
 #include <coroutine>
@@ -19,7 +20,8 @@
 #include <type_traits>
 #include <utility>
 
-namespace sgcl {
+namespace sgcl::async {
+    namespace detail { using namespace sgcl::detail; }
     // A shared mutex: any number of readers at once, or one writer; Go's
     // sync.RWMutex, Java's ReentrantReadWriteLock. Not a channel under a
     // name, as the others are: a lock a reader takes by adding one to a
@@ -102,7 +104,7 @@ namespace sgcl {
         void lock() {
             _writers.lock();
             if (!_claim()) {
-                _drained.receive();
+                (void)_drained.receive().wait();
             }
         }
 
@@ -130,8 +132,8 @@ namespace sgcl {
             _writers.unlock();
         }
 
-        // The guards: `auto g = co_await m.async_scoped_lock_shared();` for
-        // a reader, `co_await m.async_scoped_lock()` for the writer
+        // The guards: `auto g = co_await m.scoped_lock_shared();` for
+        // a reader, `co_await m.scoped_lock()` for the writer
         // (std::shared_lock and std::lock_guard do the same for a thread)
         class shared_guard {
         public:
@@ -150,6 +152,12 @@ namespace sgcl {
                 if (_m) {
                     _m->unlock_shared();
                 }
+            }
+
+            // The mutex let go of by the guard, still locked: the caller
+            // unlocks it (std::unique_lock::release)
+            shared_mutex* release() noexcept {
+                return std::exchange(_m, nullptr);
             }
 
         private:
@@ -175,6 +183,12 @@ namespace sgcl {
                 }
             }
 
+            // The mutex let go of by the guard, still locked: the caller
+            // unlocks it (std::unique_lock::release)
+            shared_mutex* release() noexcept {
+                return std::exchange(_m, nullptr);
+            }
+
         private:
             shared_mutex* _m;
         };
@@ -183,7 +197,7 @@ namespace sgcl {
         // that a lock nobody contends allocates nothing; the wait, when
         // there is one, a task awaited from await_suspend
         template<bool Shared, bool Scoped>
-        class async_lock_op {
+        class lock_op {
         public:
             bool await_ready() {
                 if constexpr (Shared) {
@@ -216,7 +230,7 @@ namespace sgcl {
         private:
             friend class shared_mutex;
 
-            explicit async_lock_op(shared_mutex& m) noexcept
+            explicit lock_op(shared_mutex& m) noexcept
             : _m(&m) {
             }
 
@@ -227,23 +241,30 @@ namespace sgcl {
             optional<task<>::awaiter> _await;
         };
 
-        // `co_await m.async_lock_shared()`: a reader, locked when the task resumes
-        async_lock_op<true, false> async_lock_shared() noexcept {
-            return async_lock_op<true, false>(*this);
+        // The locks held for a scope, the only forms a task has (lock() and
+        // lock_shared() are the standard's, for std::unique_lock and
+        // std::shared_lock on a thread): `auto g = co_await m.scoped_lock();`,
+        // `co_await m.scoped_lock_shared()`, and `.wait()` on a thread
+        auto scoped_lock_shared() {
+            return operation([this](auto how) {
+                if constexpr (std::is_same_v<decltype(how), detail::awaited_t>) {
+                    return lock_op<true, true>(*this);
+                } else {
+                    lock_shared();
+                    return shared_guard(*this);
+                }
+            });
         }
 
-        // `auto g = co_await m.async_scoped_lock_shared();`
-        async_lock_op<true, true> async_scoped_lock_shared() noexcept {
-            return async_lock_op<true, true>(*this);
-        }
-
-        // `co_await m.async_lock()`: the writer
-        async_lock_op<false, false> async_lock() noexcept {
-            return async_lock_op<false, false>(*this);
-        }
-
-        async_lock_op<false, true> async_scoped_lock() noexcept {
-            return async_lock_op<false, true>(*this);
+        auto scoped_lock() {
+            return operation([this](auto how) {
+                if constexpr (std::is_same_v<decltype(how), detail::awaited_t>) {
+                    return lock_op<false, true>(*this);
+                } else {
+                    lock();
+                    return guard(*this);
+                }
+            });
         }
 
     private:
@@ -283,7 +304,7 @@ namespace sgcl {
                 if (_writer_gone(writer)) {
                     return;
                 }
-                round->receive();
+                (void)round->receive().wait();
             }
         }
 
@@ -294,7 +315,7 @@ namespace sgcl {
                 if (_writer_gone(writer)) {
                     co_return;
                 }
-                co_await round->async_receive();
+                co_await round->receive();
             }
         }
 
@@ -321,12 +342,12 @@ namespace sgcl {
 
         task<> _async_wait(int stage) {
             if (stage == 0) {
-                co_await _writers.async_lock();
+                co_await _writers._ch.receive();
                 if (_claim()) {
                     co_return;
                 }
             }
-            co_await _drained.async_receive();
+            co_await _drained.receive();
         }
 
         atomic<uint64_t> _word = {0};

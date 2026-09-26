@@ -5,10 +5,10 @@
 //------------------------------------------------------------------------------
 #include "tests/types.h"
 
-#include "sgcl/containers/sorted_map.h"
-#include "sgcl/containers/sorted_multimap.h"
-#include "sgcl/containers/sorted_multiset.h"
-#include "sgcl/containers/sorted_set.h"
+#include "sgcl/core/sorted_map.h"
+#include "sgcl/core/sorted_multimap.h"
+#include "sgcl/core/sorted_multiset.h"
+#include "sgcl/core/sorted_set.h"
 
 #include <algorithm>
 #include <functional>
@@ -148,7 +148,7 @@ TEST(SortedSet_Test, DefaultConstructorEmpty) {
     EXPECT_EQ(s.find(1), s.end());
     EXPECT_FALSE(s.contains(1));
     EXPECT_EQ(s.erase(1), 0u);
-    EXPECT_TRUE(s._check());
+    EXPECT_TRUE(tree_is_valid(s));
     static_assert(noexcept(sgcl::sorted_set<int>()));
 }
 
@@ -171,7 +171,7 @@ TEST(SortedSet_Test, Constructors) {
     EXPECT_EQ(elements_of(moved), (std::vector<int>{4, 5, 6}));
     EXPECT_EQ(*it, 5);
     EXPECT_EQ(std::next(it), moved.find(6));
-    EXPECT_TRUE(moved._check());
+    EXPECT_TRUE(tree_is_valid(moved));
 }
 
 TEST(SortedSet_Test, RangeOfAnotherType) {
@@ -182,7 +182,7 @@ TEST(SortedSet_Test, RangeOfAnotherType) {
     std::vector<std::string_view> views = {"b", "a", "c", "a"};
     sgcl::sorted_set<std::string> s(views.begin(), views.end());
     EXPECT_EQ(elements_of(s), (std::vector<std::string>{"a", "b", "c"}));
-    EXPECT_TRUE(s._check());
+    EXPECT_TRUE(tree_is_valid(s));
     s.insert(views.begin(), views.end());
     EXPECT_EQ(s.size(), 3u);
     sgcl::sorted_multiset<std::string> ms(views.begin(), views.end());
@@ -204,7 +204,7 @@ TEST(SortedSet_Test, RangeOfAnotherType) {
     sgcl::sorted_multiset<FromInt> multi(ints.begin(), ints.end());
     EXPECT_EQ(FromInt::conversions, ints.size());
     EXPECT_EQ(multi.size(), ints.size());
-    EXPECT_TRUE(multi._check());
+    EXPECT_TRUE(tree_is_valid(multi));
 }
 
 TEST(SortedSet_Test, Assignment) {
@@ -270,7 +270,7 @@ TEST(SortedSet_Test, Insert) {
     it = s.emplace_hint(s.begin(), "zzz");
     EXPECT_EQ(it, std::prev(s.end()));
     EXPECT_EQ(s.size(), 8u);
-    EXPECT_TRUE(s._check());
+    EXPECT_TRUE(tree_is_valid(s));
 }
 
 TEST(SortedSet_Test, Erase) {
@@ -289,7 +289,7 @@ TEST(SortedSet_Test, Erase) {
         EXPECT_EQ(*it, 9);
         EXPECT_EQ(elements_of(s), (std::vector<Int>{0, 1, 2, 5, 9}));
         EXPECT_EQ(Int::counter, 5u);
-        EXPECT_TRUE(s._check());
+        EXPECT_TRUE(tree_is_valid(s));
         EXPECT_EQ(std::erase_if(s, [](const Int& v) { return v < 2; }), 2u);
         EXPECT_EQ(Int::counter, 3u);
         s.clear();
@@ -310,8 +310,8 @@ TEST(SortedSet_Test, Swap) {
     swap(a, b);
     EXPECT_EQ(elements_of(a), (std::vector<int>{1, 2}));
     EXPECT_EQ(it, a.begin());
-    EXPECT_TRUE(a._check());
-    EXPECT_TRUE(b._check());
+    EXPECT_TRUE(tree_is_valid(a));
+    EXPECT_TRUE(tree_is_valid(b));
 }
 
 TEST(SortedSet_Test, NodeHandles) {
@@ -349,8 +349,8 @@ TEST(SortedSet_Test, NodeHandles) {
             EXPECT_EQ(Int::counter, 4u);
         }
         EXPECT_EQ(Int::counter, 3u);
-        EXPECT_TRUE(s._check());
-        EXPECT_TRUE(empty._check());
+        EXPECT_TRUE(tree_is_valid(s));
+        EXPECT_TRUE(tree_is_valid(empty));
     });
     EXPECT_EQ(collector::get_live_object_count(), 5u);
 }
@@ -365,9 +365,9 @@ TEST(SortedSet_Test, MergeAndComparison) {
     a.merge(g);
     EXPECT_EQ(elements_of(a), (std::vector<int>{1, 2, 3, 4, 5, 6}));
     EXPECT_EQ(elements_of(g), (std::vector<int>{5}));
-    EXPECT_TRUE(a._check());
-    EXPECT_TRUE(b._check());
-    EXPECT_TRUE(g._check());
+    EXPECT_TRUE(tree_is_valid(a));
+    EXPECT_TRUE(tree_is_valid(b));
+    EXPECT_TRUE(tree_is_valid(g));
 
     sgcl::sorted_set<int> x = {1, 2};
     sgcl::sorted_set<int> y = {1, 3};
@@ -416,7 +416,7 @@ TEST(SortedSet_Test, ThrowingComparator) {
         EXPECT_THROW(s.erase(36), std::runtime_error);
         ThrowingLess::countdown = -1;
         EXPECT_EQ(elements_of(s), before);
-        EXPECT_TRUE(s._check());
+        EXPECT_TRUE(tree_is_valid(s));
     }
     });
     EXPECT_EQ(collector::get_live_object_count(), 33u);
@@ -441,7 +441,7 @@ TEST(SortedSet_Test, ElementsHoldingTrackedPointers) {
     });
     EXPECT_EQ(s.size(), 10u);
     EXPECT_EQ(collector::get_live_object_count(), 21u);
-    EXPECT_TRUE(s._check());
+    EXPECT_TRUE(tree_is_valid(s));
 }
 
 TEST(SortedSet_Test, IteratorsInAVector) {
@@ -467,7 +467,7 @@ TEST(SortedSet_Test, IteratorsInAVector) {
         EXPECT_EQ(*its[i], i);
         EXPECT_EQ(std::next(its[i]), i + 2 < 100 ? its[i + 2] : s.end());
     }
-    EXPECT_TRUE(s._check());
+    EXPECT_TRUE(tree_is_valid(s));
 }
 
 TEST(SortedSet_Test, RawIteratorSurvivesCollection) {
@@ -511,7 +511,7 @@ TEST(SortedSet_Test, RawIteratorSurvivesCollection) {
                 EXPECT_EQ(std::next(it)->key, 16);
                 EXPECT_EQ(std::prev(it)->key, 14);
             });
-            EXPECT_TRUE(s._check());
+            EXPECT_TRUE(tree_is_valid(s));
         }
         s.erase(it);
     });
@@ -543,7 +543,7 @@ TEST(SortedMultiset_Test, Duplicates) {
     it = s.erase(s.find(3));
     EXPECT_EQ(*it, 3);
     EXPECT_EQ(s.size(), 2u);
-    EXPECT_TRUE(s._check());
+    EXPECT_TRUE(tree_is_valid(s));
     it = s.emplace_hint(s.end(), 3);
     EXPECT_EQ(it, std::prev(s.end()));
     EXPECT_EQ(std::erase_if(s, [](int v) { return v == 3; }), 2u);
@@ -573,7 +573,7 @@ TEST(SortedMultiset_Test, NodeHandlesAndMerge) {
     s.merge(empty);
     EXPECT_EQ(elements_of(s), (std::vector<Int>{1, 1, 2, 2, 3}));
     EXPECT_EQ(Int::counter, 5u);
-    EXPECT_TRUE(s._check());
+    EXPECT_TRUE(tree_is_valid(s));
     s.clear();
     EXPECT_EQ(Int::counter, 0u);
 }
@@ -609,7 +609,7 @@ TEST(SortedMultiset_Test, StressAgainstStdMultiset) {
         ASSERT_EQ(s.size(), oracle.size());
         if (i % 5000 == 0) {
             collector::force_collect();
-            ASSERT_TRUE(s._check());
+            ASSERT_TRUE(tree_is_valid(s));
             ASSERT_TRUE(std::equal(s.begin(), s.end(), oracle.begin(), oracle.end()));
         }
     }
@@ -642,7 +642,7 @@ TEST(SortedMultimap_Test, DuplicatesAndBounds) {
     it = m.insert(std::pair<const char*, int>("d", 1));
     EXPECT_EQ(it, std::prev(m.end()));
     EXPECT_EQ(values_of(m), (std::vector<int>{1, 0, 1, 2, 3, 4, 5, 6, 1, 1}));
-    EXPECT_TRUE(m._check());
+    EXPECT_TRUE(tree_is_valid(m));
     const auto& cm = m;
     auto [cfirst, clast] = cm.equal_range("z");
     EXPECT_EQ(cfirst, cm.end());
@@ -650,7 +650,7 @@ TEST(SortedMultimap_Test, DuplicatesAndBounds) {
     EXPECT_EQ(m.erase("b"), 7u);
     EXPECT_EQ(keys_of(m), (std::vector<std::string>{"a", "c", "d"}));
     EXPECT_EQ(m.erase("b"), 0u);
-    EXPECT_TRUE(m._check());
+    EXPECT_TRUE(tree_is_valid(m));
     it = m.erase(m.begin(), m.find("d"));
     EXPECT_EQ(it->first, "d");
     EXPECT_EQ(m.size(), 1u);
@@ -684,7 +684,7 @@ TEST(SortedMultimap_Test, LifetimeAndHandles) {
     EXPECT_TRUE(u.empty());
     EXPECT_EQ(keys_of(m), (std::vector<int>{0, 0, 0, 1, 7}));
     EXPECT_EQ(values_of(m), (std::vector<Int>{0, 1, 100, 3, 7}));
-    EXPECT_TRUE(m._check());
+    EXPECT_TRUE(tree_is_valid(m));
     m = other;
     EXPECT_EQ(Int::counter, 2u);
     EXPECT_EQ(m, other);
@@ -733,7 +733,7 @@ TEST(SortedMultimap_Test, StressAgainstStdMultimap) {
         ASSERT_EQ(m.size(), oracle.size());
         if (i % 5000 == 0) {
             collector::force_collect();
-            ASSERT_TRUE(m._check());
+            ASSERT_TRUE(tree_is_valid(m));
             ASSERT_TRUE(std::equal(m.begin(), m.end(), oracle.begin(), oracle.end()));
         }
     }

@@ -5,8 +5,8 @@
 //------------------------------------------------------------------------------
 #include "tests/types.h"
 
-#include "sgcl/containers/map.h"
-#include "sgcl/containers/multimap.h"
+#include "sgcl/core/map.h"
+#include "sgcl/core/multimap.h"
 
 #include <algorithm>
 #include <memory>
@@ -1434,5 +1434,31 @@ TEST(Map_Test, ANodeHandleDyingInASweepDestroysItsElementOnce) {
         ASSERT_EQ(Int::counter, before);   // destroyed once: by the node's sweep or by the handle, never both
         drop_a_handle_in_a_managed_object<2>(false);
         ASSERT_EQ(Int::counter, before);
+    }
+}
+
+TEST(Map_Test, KeysAStrideApartSpreadOverTheBuckets) {
+    // an integer's hash is itself: keys a power of two apart differ only
+    // above the mask, and each would share one bucket with the rest
+    // (43 ns a find became 18 us); the bucket takes the higher bits too
+    for (unsigned shift : {4u, 12u, 20u, 32u, 44u}) {
+        sgcl::map<uint64_t, int> m;
+        for (uint64_t i = 0; i < 4096; ++i) {
+            m.emplace(i << shift, int(i));
+        }
+        size_t longest = 0;
+        for (size_t n = 0; n < m.bucket_count(); ++n) {
+            longest = std::max(longest, m.bucket_size(n));
+        }
+        EXPECT_LE(longest, 8u) << "a stride of 2^" << shift;
+        EXPECT_EQ(m.find(uint64_t(4095) << shift)->second, 4095);
+    }
+    // consecutive keys stay in consecutive buckets, one each
+    sgcl::map<uint64_t, int> seq;
+    for (uint64_t i = 0; i < 1000; ++i) {
+        seq.emplace(i, int(i));
+    }
+    for (uint64_t i = 0; i < 1000; ++i) {
+        EXPECT_EQ(seq.bucket(i), i);
     }
 }

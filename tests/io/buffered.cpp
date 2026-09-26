@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #include "tests/types.h"
 
+using namespace sgcl::async;
+
 #include <string>
 #include <string_view>
 
@@ -13,11 +15,11 @@ namespace {
     namespace io = sgcl::io;
 
     // A reader that hands out its text in pieces of at most n bytes
-    class dribble final : public reader {
+    class dribble final : public io::mixin::reader<dribble> {
     public:
         dribble(std::string s, size_t n) : _s(std::move(s)), _n(n) {}
 
-        result<size_t> read(slice<std::byte> out) override {
+        expected<size_t, io::error> read(slice<byte> out) {
             size_t k = std::min({out.size(), _n, _s.size() - _pos});
             std::memcpy(out.data(), _s.data() + _pos, k);
             _pos += k;
@@ -25,7 +27,7 @@ namespace {
             return k;
         }
 
-        task<result<size_t>> async_read(slice<std::byte> out) override {
+        task<expected<size_t, io::error>> async_read(slice<byte> out) {
             co_return read(out);
         }
 
@@ -38,15 +40,18 @@ namespace {
     };
 
     // A writer that counts its calls
-    class counting final : public writer {
+    class counting final : public io::mixin::writer<counting> {
     public:
-        result<size_t> write(slice<const std::byte> data) override {
+        using io::mixin::writer<counting>::write;
+        using io::mixin::writer<counting>::async_write;
+
+        expected<size_t, io::error> write(slice<const byte> data) {
             text.append(reinterpret_cast<const char*>(data.data()), data.size());
             ++writes;
             return data.size();
         }
 
-        task<result<size_t>> async_write(slice<const std::byte> data) override {
+        task<expected<size_t, io::error>> async_write(slice<const byte> data) {
             co_return write(data);
         }
 
@@ -95,7 +100,7 @@ TEST(IoBuffered_Tests, ReadsInBlocksNotBytes) {
 }
 
 TEST(IoBuffered_Tests, ALineLongerThanTheBlock) {
-    std::string longline(3 * sgcl::config::IoBufferSize + 100, 'L');
+    std::string longline(3 * sgcl::config::io_buffer_size + 100, 'L');
     std::string text = "short\n" + longline + "\nafter\n";
     sgcl::tracked_ptr r = make_tracked<buffered_reader>(make_tracked<dribble>(text, 5000));
     auto l = r->read_line();
@@ -126,9 +131,9 @@ TEST(IoBuffered_Tests, MaxLineBounds) {
     ASSERT_FALSE(l);
     EXPECT_EQ(l.error().code(), make_error_code(errc::line_too_long));
     // a bound longer than the block, and a line between the two
-    std::string mid(sgcl::config::IoBufferSize + 10, 'm');
+    std::string mid(sgcl::config::io_buffer_size + 10, 'm');
     sgcl::tracked_ptr r2 = make_tracked<buffered_reader>(make_tracked<dribble>(mid + "\n" + mid + mid + "\n", 4000));
-    r2->set_max_line(2 * sgcl::config::IoBufferSize);
+    r2->set_max_line(2 * sgcl::config::io_buffer_size);
     l = r2->read_line();
     ASSERT_TRUE(l && *l);
     EXPECT_EQ((*l)->size(), mid.size());
@@ -141,24 +146,24 @@ TEST(IoBuffered_Tests, ReadUntilPeekByteDiscard) {
     sgcl::tracked_ptr r = make_tracked<buffered_reader>(make_tracked<dribble>("a,bb,,ccc", 2));
     auto t = r->read_until(',');
     ASSERT_TRUE(t && *t);
-    EXPECT_EQ(**t, "a");
+    EXPECT_EQ(**t, "a,");                                   // with its delimiter, as Go's ReadString
     auto p = r->peek(3);
     ASSERT_TRUE(p);
     EXPECT_EQ(std::string_view(reinterpret_cast<const char*>(p->data()), p->size()), "bb,");
     EXPECT_GE(r->buffered(), 3u);
     t = r->read_until(',');
     ASSERT_TRUE(t && *t);
-    EXPECT_EQ(**t, "bb");
+    EXPECT_EQ(**t, "bb,");
     t = r->read_until(',');
     ASSERT_TRUE(t && *t);
-    EXPECT_EQ(**t, "");
+    EXPECT_EQ(**t, ",");
     auto b = r->read_byte();
     ASSERT_TRUE(b && *b);
-    EXPECT_EQ(**b, std::byte('c'));
+    EXPECT_EQ(**b, byte('c'));
     EXPECT_EQ(*r->discard(1), 1u);
     t = r->read_until(',');
     ASSERT_TRUE(t && *t);
-    EXPECT_EQ(**t, "c");
+    EXPECT_EQ(**t, "c");                                    // the last token, with no delimiter after it
     EXPECT_EQ(*r->discard(5), 0u);
     b = r->read_byte();
     ASSERT_TRUE(b);
@@ -168,7 +173,7 @@ TEST(IoBuffered_Tests, ReadUntilPeekByteDiscard) {
 TEST(IoBuffered_Tests, ReadMixedWithLines) {
     sgcl::tracked_ptr r = make_tracked<buffered_reader>(make_tracked<dribble>("head\n" + std::string(20000, 'b') + "tail", 1 << 20));
     EXPECT_EQ(**r->read_line(), "head");
-    std::byte small[10];
+    byte small[10];
     EXPECT_EQ(*r->read(small), 10u);            // from the block
     std::string rest(19990, '\0');
     EXPECT_EQ(*r->read_full(std::as_writable_bytes(std::span(rest))), 19990u);   // larger than the block: through the block, then direct
@@ -180,7 +185,7 @@ TEST(IoBuffered_Tests, WriterBuffersAndFlushes) {
     sgcl::tracked_ptr sink = make_tracked<counting>();
     sgcl::tracked_ptr w = make_tracked<buffered_writer>(sink);
     for (int i = 0; i < 100; ++i) {
-        ASSERT_TRUE(w->write_text("0123456789"));
+        ASSERT_TRUE(w->write("0123456789"));
     }
     EXPECT_EQ(sink->writes, 0);   // 1000 bytes: all in the block
     EXPECT_EQ(w->buffered(), 1000u);
@@ -188,25 +193,25 @@ TEST(IoBuffered_Tests, WriterBuffersAndFlushes) {
     EXPECT_EQ(sink->writes, 1);
     EXPECT_EQ(sink->text.size(), 1000u);
     // more than the block in one write: the block first, then direct
-    std::string big(3 * sgcl::config::IoBufferSize, 'z');
-    ASSERT_TRUE(w->write_text("abc"));
-    ASSERT_TRUE(w->write_text(string(big)));
+    std::string big(3 * sgcl::config::io_buffer_size, 'z');
+    ASSERT_TRUE(w->write("abc"));
+    ASSERT_TRUE(w->write(string(big)));
     EXPECT_EQ(w->buffered(), 0u);
     EXPECT_EQ(sink->text.size(), 1003 + big.size());
     EXPECT_EQ(sink->text.substr(1000, 3), "abc");
     // exactly filling the block flushes it
-    std::string fill(sgcl::config::IoBufferSize, 'f');
-    ASSERT_TRUE(w->write_text(string(fill)));
+    std::string fill(sgcl::config::io_buffer_size, 'f');
+    ASSERT_TRUE(w->write(string(fill)));
     EXPECT_EQ(w->buffered(), 0u);
     ASSERT_TRUE(w->close());
     EXPECT_TRUE(w->is_closed());
-    auto after = w->write_text("x");
+    auto after = w->write("x");
     ASSERT_FALSE(after);
     EXPECT_TRUE(after.error().is_closed());
 }
 
 TEST(IoBuffered_Tests, AsyncLines) {
-    auto t = sgcl::spawn([]() -> task<int> {
+    auto t = sgcl::async::spawn([]() -> task<int> {
         std::string text;
         for (int i = 0; i < 300; ++i) {
             text += std::to_string(i) + "\n";
@@ -225,15 +230,15 @@ TEST(IoBuffered_Tests, AsyncLines) {
         }
         sgcl::tracked_ptr sink = make_tracked<counting>();
         sgcl::tracked_ptr w = make_tracked<buffered_writer>(sink);
-        co_await w->async_write_text("async");
+        co_await w->async_write("async");
         co_await w->async_flush();
         if (sink->text != "async") {
             co_return -2;
         }
         co_return n;
     }());
-    EXPECT_EQ(t.join(), 300);
-    sgcl::scheduler::stop();
+    EXPECT_EQ(t.wait(), 300);
+    sgcl::async::scheduler::stop();
 }
 
 TEST(IoBuffered_Tests, ALineIsASliceThatHoldsTheBlock) {
@@ -260,12 +265,12 @@ TEST(IoBuffered_Tests, ALineIsASliceThatHoldsTheBlock) {
     EXPECT_EQ(copy.size(), 6u);
     std::string own(kept.begin(), kept.end());
     EXPECT_TRUE(own.rfind("line ", 0) == 0);                    // the block is reused for later lines: a kept line is copied when its text matters
-    sgcl::tracked_ptr r2 = make_tracked<buffered_reader>(make_tracked<dribble>("short\n" + std::string(3 * sgcl::config::IoBufferSize, 'L') + "\n", 5000));
+    sgcl::tracked_ptr r2 = make_tracked<buffered_reader>(make_tracked<dribble>("short\n" + std::string(3 * sgcl::config::io_buffer_size, 'L') + "\n", 5000));
     auto s0 = r2->read_line();
     auto s1 = r2->read_line();                                  // the long line: a slice of the reader's vector
     ASSERT_TRUE(s1 && *s1);
     EXPECT_TRUE((*s1)->owned());
     EXPECT_NE((*s1)->owner(), (*s0)->owner());                  // another object than the block
-    EXPECT_EQ((*s1)->size(), 3u * sgcl::config::IoBufferSize);
+    EXPECT_EQ((*s1)->size(), 3u * sgcl::config::io_buffer_size);
 }
 

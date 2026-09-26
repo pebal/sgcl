@@ -64,9 +64,9 @@ TEST(MemoryLimit_Tests, AllocationAfterBadAllocStaysInsideItsPage) {
     auto next = detail::Maker<LimitBig>::make_tracked_data();
     auto raw = (uintptr_t)next.get();
     auto home = detail::Heap::page_of_checked((void*)raw);
-    const bool inside_a_page = home && home->is_used && raw >= home->data && raw < home->data + config::PageSize;
+    const bool inside_a_page = home && home->is_used && raw >= home->data && raw < home->data + config::page_size;
     EXPECT_TRUE(inside_a_page) << "the slot lies " << (long)(raw - page->data) << " bytes past the start of the page it should come from"
-                               << " (page size " << config::PageSize << "): free_bits[0] " << page->free_bits()[0]
+                               << " (page size " << config::page_size << "): free_bits[0] " << page->free_bits()[0]
                                << " summary[0] " << page->summary()[0] << " owned " << page->owned.load();
     // the free slots of the page after one allocation: 14 if it came from
     // this page, 15 if the allocator took another

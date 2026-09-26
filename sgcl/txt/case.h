@@ -344,7 +344,7 @@ namespace sgcl::txt {
     // "don't" is one word and its apostrophe does not start a new letter
     inline string to_title(const string& text, locale where = {}) {
         return detail::cased_text(text, [&](std::string_view v, vector<char32_t>& out) {
-            for (auto word : words(text)) {
+            for (auto word : word_breaks(text)) {
                 size_t base = size_t(word.data() - text.data());
                 bool first = true;
                 for (size_t i = 0; i < word.size();) {

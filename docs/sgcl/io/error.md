@@ -1,4 +1,4 @@
-# sgcl::io::error, sgcl::io::result
+# sgcl::io::error
 
 ```cpp
 #include "sgcl/io/error.h"   // or "sgcl/io/io.h", "sgcl/sgcl.h"
@@ -8,16 +8,15 @@ namespace sgcl::io {
     const std::error_category& category() noexcept;
     error_code make_error_code(errc e) noexcept;
     class error;                                          // code, operation, path
-    template<class T = void> using result = expected<T, error>;
     error last_error(const string& op, const string& path = {}) noexcept;   // from errno
 }
 ```
 
-What an operation of io reports when it fails, and the shape every operation returns. `error` is a value: the `error_code` (`errno` in the system category, or an `errc` of the module in its own), the operation (`"open"`, `"read"`, `"mkdir"`) and the path or the name of the stream it was on, so that `message()` reads `open log.txt: no such file or directory`, as Go's `*PathError`. The predicates ask the question a caller asks, whatever the category of the code. `result<T>` is [`expected<T, error>`](../core/expected.md): the value, or the error; `result<>` for an operation that returns nothing. The end of a stream is not an error (a read returns 0); only `read_full`, which was promised more, reports `errc::unexpected_eof`.
+What an operation of io reports when it fails, and the shape every operation returns. `error` is a value: the `error_code` (`errno` in the system category, or an `errc` of the module in its own), the operation (`"open"`, `"read"`, `"mkdir"`) and the path or the name of the stream it was on, so that `message()` reads `open log.txt: no such file or directory`, as Go's `*PathError`. The predicates ask the question a caller asks, whatever the category of the code. Every operation returns [`expected<T, error>`](../core/expected.md): the value, or the error; `expected<void, error>` for an operation that returns nothing. The end of a stream is not an error (a read returns 0); only `read_full`, which was promised more, reports `errc::unexpected_eof`.
 
 ## Rules
 
-- An `error` holds two [`string`](../core/string.md)s, so it lives where a `tracked_ptr` may: on a stack, in a managed object, in a `result` on either. Copied freely, compared by code.
+- An `error` holds two [`string`](../core/string.md)s, so it lives where a `tracked_ptr` may: on a stack, in a managed object, in an `expected` on either. Copied freely, compared by code.
 - Nothing in the module throws; `r.value()` on a failed result throws `bad_expected_access<error>` with the error inside, for the code that wants exceptions.
 - An `error_code` (`sgcl::error_code`, the standard's under the library's name) compares by category as well as value: `e.code() == std::errc::no_such_file_or_directory` (the condition) is the portable test, not `== std::make_error_code(...)`; the predicates do that.
 
@@ -41,7 +40,7 @@ error_code code() const noexcept;
 const string& op() const noexcept;
 const string& path() const noexcept;
 string message() const;                       // "op path: what the code says"
-bool is_not_found() const noexcept;           // ENOENT
+bool is_not_found() const noexcept;           // ENOENT, errc::not_found (look_path)
 bool is_exists() const noexcept;              // EEXIST
 bool is_permission() const noexcept;          // EACCES, EPERM
 bool is_closed() const noexcept;              // errc::closed, EBADF
@@ -61,16 +60,12 @@ if (!f) {
 }
 ```
 
-### result
+### expected<T, error>
+
+What every operation returns (no alias: the same `expected<T, E>` as the whole library's, whose `E` is the error of the call). The value or the error; tested with `if (r)`, read with `*r` / `r->`, the error with `r.error()`. Propagation is two lines, as Go's three: `if (!r) return unexpected(r.error());`, or a chain of `and_then`.
 
 ```cpp
-template<class T = void> using result = expected<T, error>;
-```
-
-The value or the error; tested with `if (r)`, read with `*r` / `r->`, the error with `r.error()`. Propagation is two lines, as Go's three: `if (!r) return unexpected(r.error());`, or a chain of `and_then`.
-
-```cpp
-io::result<string> first_line(const string& path) {
+expected<string, io::error> first_line(const string& path) {
     auto f = io::open(path);
     if (!f) return unexpected(f.error());
     tracked_ptr lines = make_tracked<io::buffered_reader>(*f);
@@ -110,5 +105,5 @@ int main() {
 
 ## See also
 
-- [expected](../core/expected.md): the type under `result`; [file](file.md), [fs](fs.md): the operations that return one
+- [expected](../core/expected.md): what every operation returns; [file](file.md), [fs](fs.md): the operations that return one
 - `tests/io/stream.cpp`: `ErrorCarriesOpPathAndCode`.

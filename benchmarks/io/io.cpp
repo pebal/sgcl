@@ -8,17 +8,19 @@
 //
 //   io run sgcl [n]         command("true").run(): posix_spawn and a wait, from a thread
 //   io output sgcl [n]      command("echo", "hello").output(): a pipe, a copying task, the text
-//   io asyncrun sgcl [n]    async_run() from a task: the exit waited for on the reactor
-//   io parallel sgcl [n]    n async_run() of "true" at once, 32 in flight
+//   io asyncrun sgcl [n]    run() from a task: the exit waited for on the reactor
+//   io parallel sgcl [n]    n run() of "true" at once, 32 in flight
 #include "benchmarks/common.h"
 #include "sgcl/sgcl.h"
+
+using namespace sgcl::async;
 
 #include <cstdio>
 #include <cstdlib>
 #include <string>
 
 namespace {
-    sgcl::task<long> async_runs(long n) {
+    sgcl::async::task<long> async_runs(long n) {
         long ok = 0;
         for (long i = 0; i < n; ++i) {
             sgcl::io::command c("true");
@@ -27,16 +29,16 @@ namespace {
         co_return ok;
     }
 
-    sgcl::task<long> parallel_runs(long n, long width) {
+    sgcl::async::task<long> parallel_runs(long n, long width) {
         long ok = 0;
         for (long done = 0; done < n; done += width) {
-            sgcl::vector<sgcl::task<sgcl::io::result<void>>> batch;
+            sgcl::vector<sgcl::async::task<sgcl::expected<void, sgcl::io::error>>> batch;
             sgcl::vector<sgcl::io::command> commands;
             for (long i = 0; i < width && done + i < n; ++i) {
                 commands.push_back(sgcl::io::command("true"));
             }
             for (auto& c : commands) {
-                batch.push_back(sgcl::spawn(c.async_run()));
+                batch.push_back(sgcl::async::spawn(c.async_run()));
             }
             for (auto& t : batch) {
                 ok += (bool)co_await t;
@@ -78,12 +80,12 @@ int main(int argc, char** argv) {
     } else if (what == "asyncrun") {
         n = n ? n : 1000;
         auto t0 = bench::Clock::now();
-        ok = sgcl::spawn(async_runs(n)).join();
+        ok = sgcl::async::spawn(async_runs(n)).wait();
         report("asyncrun", bench::seconds_since(t0), n);
     } else if (what == "parallel") {
         n = n ? n : 2000;
         auto t0 = bench::Clock::now();
-        ok = sgcl::spawn(parallel_runs(n, 32)).join();
+        ok = sgcl::async::spawn(parallel_runs(n, 32)).wait();
         report("parallel", bench::seconds_since(t0), n);
     } else {
         std::fprintf(stderr, "unknown case %s\n", what.c_str());

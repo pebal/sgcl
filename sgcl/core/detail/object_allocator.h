@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../aliases.h"
 #include "heap.h"
 #include "memory_counters.h"
 #include "object_allocator_base.h"
@@ -35,7 +36,7 @@ namespace sgcl::detail {
                 os::fail_after_fork("a managed allocation");   // before the heap's copied lock (os.h)
             }
             size += sizeof(ValueType);
-            auto pages = (size + config::PageSize - 1) / config::PageSize;
+            auto pages = (size + config::page_size - 1) / config::page_size;
             auto since = MemoryCounters::add_alloc(pages);   // page_allocator.h: the same rule
             bool wake = since * 4 > MemoryCounters::live_after_cycle() + 64;
             auto data = (ValueType*)Heap::instance().alloc_range(pages);
@@ -45,7 +46,7 @@ namespace sgcl::detail {
                 collect_before_bad_alloc();
                 data = (ValueType*)Heap::instance().alloc_range(pages);
                 if (!data) {
-                    throw std::bad_alloc();
+                    throw bad_alloc();
                 }
             }
             wake = wake || Heap::instance().under_pressure();

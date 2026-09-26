@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../core/clock.h"
+#include "../core/duration.h"
 #include "../core/root_ptr.h"
 #include "channel.h"
 #include "scheduler.h"
@@ -18,7 +20,8 @@
 #include <thread>
 #include <vector>
 
-namespace sgcl {
+namespace sgcl::async {
+    namespace detail { using namespace sgcl::detail; }
     // Time, the way Go has it: `co_await sleep(d)` suspends a task for d,
     // `co_await sleep_until(t)` until a point; `after(d)` is a channel
     // that gets one signal after d, then is closed, `at(t)` the same at
@@ -30,42 +33,13 @@ namespace sgcl {
     // managed object held by a root_ptr in the heap, so what it points to
     // (a frame, a channel) lives while the timer does.
     //
-    // The module reads the time in one place, `clock::now()`: the steady
-    // clock, unless a test has installed a manual_clock, whose time moves
-    // only when the test advances it, every timer due firing then, in
-    // order, with no real waiting (tokio's time::pause and advance,
-    // Kotlin's runTest): a test of a thirty-second timeout takes
-    // microseconds. The production path pays one relaxed load of the
-    // flag per read and nothing else.
-    using duration = std::chrono::steady_clock::duration;
-    using time_point = std::chrono::steady_clock::time_point;
-
-    namespace detail {
-        // The manual clock's state, static so that a read is a load of
-        // the flag and, when it is set, of the time: the flag relaxed
-        // (the reads that matter, the timer thread's, happen under the
-        // timers' lock the advance takes after storing the time), the
-        // time with the release/acquire pair of advance and the reads
-        inline std::atomic<bool> manual_clock_installed = {false};
-        inline std::atomic<time_point::rep> manual_clock_now = {0};
-    }
-
-    // The clock of the module: a Clock of the standard library, the
-    // steady clock's time, or the manual clock's while one is installed
-    struct clock {
-        using rep = time_point::rep;
-        using period = time_point::period;
-        using duration = sgcl::duration;
-        using time_point = sgcl::time_point;
-        static constexpr bool is_steady = true;
-
-        static time_point now() noexcept {
-            if (detail::manual_clock_installed.load(std::memory_order_relaxed)) [[unlikely]] {
-                return time_point(duration(detail::manual_clock_now.load(std::memory_order_acquire)));
-            }
-            return std::chrono::steady_clock::now();
-        }
-    };
+    // The time is read in one place, `clock::now()` (core/clock.h): the
+    // steady clock, unless a test has installed a manual_clock (below),
+    // whose time moves only when the test advances it, every timer due
+    // firing then, in order, with no real waiting.
+    //
+    // A span of time is sgcl::duration (core/duration.h), a point
+    // sgcl::time_point (core/clock.h), the steady clock's.
 
     namespace detail {
         class Timers;
@@ -173,12 +147,12 @@ namespace sgcl {
                         return;
                     }
                     auto now = clock::now();
-                    if (_heap.empty() || _heap.front()->when > now) {
+                    if (_heap.empty() || _heap.front()->when > now || _heap.front()->when == time_point::max()) {   // a timer at max() never fires: now() + duration::max() saturates to it (Go's when() cuts the same way)
                         if (_settled != _epoch) {   // nothing due at this time: whoever changed the clock may go on
                             _settled = _epoch;
                             _settled_cv.notify_all();
                         }
-                        if (_heap.empty() || manual_clock_installed.load(std::memory_order_relaxed)) {
+                        if (_heap.empty() || manual_clock_installed.load(std::memory_order_relaxed) || _heap.front()->when == time_point::max()) {
                             _cv.wait(lock);         // under a manual clock time moves only by an advance, which wakes the thread
                         } else {
                             _cv.wait_until(lock, _heap.front()->when);
@@ -192,7 +166,7 @@ namespace sgcl {
                     _fire(t);
                     lock.lock();
                     if (t->period != duration::zero() && !t->ch->closed()) {
-                        t->when += t->period;
+                        t->when = t->when + t->period;   // saturated: a tick past the end of time stops at max(), which never fires
                         _heap.push_back(std::move(t));
                         std::push_heap(_heap.begin(), _heap.end(), _later);
                     }
@@ -239,42 +213,42 @@ namespace sgcl {
         // A timer on a channel: one signal at `when` and the close (period
         // zero), or a signal at `when` and every period after until the
         // channel is closed
-        inline void add_timer(time_point when, duration period, tracked_ptr<void> keep, channel<void>* ch) {
+        inline void add_timer(time_point when, duration period, const tracked_ptr<void>& keep, channel<void>* ch) {
             root_ptr<Timer> t = make_tracked<Timer>();
             t->when = when;
             t->period = period;
-            t->keep = std::move(keep);
+            t->keep = keep;
             t->ch = ch;
             timers_instance().add(std::move(t));
         }
 
-        inline void add_timer(duration d, duration period, tracked_ptr<void> keep, channel<void>* ch) {
-            add_timer(clock::now() + d, period, std::move(keep), ch);
+        inline void add_timer(duration d, duration period, const tracked_ptr<void>& keep, channel<void>* ch) {
+            add_timer(clock::now() + d, period, keep, ch);
         }
 
         // A call at `when`, on the timer's thread, with the object kept:
         // what does more than a channel can (a stop_source's deadline:
         // the close and the children in one step, so that the stop is
         // requested before anyone woken by it looks)
-        inline tracked_ptr<Timer> add_timer(time_point when, tracked_ptr<void> keep, void (*fire)(void*)) {
+        inline tracked_ptr<Timer> add_timer(time_point when, const tracked_ptr<void>& keep, void (*fire)(void*)) {
             root_ptr<Timer> t = make_tracked<Timer>();
             t->when = when;
-            t->keep = std::move(keep);
+            t->keep = keep;
             t->fire = fire;
             tracked_ptr<Timer> handle(t);   // for the owner that may cancel it
             timers_instance().add(std::move(t));
             return handle;
         }
 
-        inline tracked_ptr<Timer> add_timer(duration d, tracked_ptr<void> keep, void (*fire)(void*)) {
-            return add_timer(clock::now() + d, std::move(keep), fire);
+        inline tracked_ptr<Timer> add_timer(duration d, const tracked_ptr<void>& keep, void (*fire)(void*)) {
+            return add_timer(clock::now() + d, keep, fire);
         }
 
         // A sleep: the frame resumed at `when`
-        inline void add_sleep(time_point when, tracked_ptr<FrameWord> frame) {
+        inline void add_sleep(time_point when, const tracked_ptr<FrameWord>& frame) {
             root_ptr<Timer> t = make_tracked<Timer>();
             t->when = when;
-            t->frame = std::move(frame);
+            t->frame = frame;
             timers_instance().add(std::move(t));
         }
 
@@ -296,7 +270,8 @@ namespace sgcl {
     }
 
     // The clock of a test: installed, it stops the module's time at the
-    // steady clock's now, and moves it only by `advance(d)`, which fires
+    // steady clock's now (and time::now(), the wall time, with it), and
+    // moves it only by `advance(d)`, which fires
     // every timer due by then, in order, and returns when the tasks they
     // woke have run to their next waits. A sleep of thirty seconds
     // completes in microseconds of wall time, a tick fires the number of
@@ -319,7 +294,10 @@ namespace sgcl {
         // The module's time this clock's, from the steady clock's now
         void install() {
             assert(!detail::manual_clock_installed.load(std::memory_order_relaxed) && "one manual clock at a time");
-            detail::manual_clock_now.store(std::chrono::steady_clock::now().time_since_epoch().count(), std::memory_order_release);
+            auto start = std::chrono::steady_clock::now().time_since_epoch().count();
+            detail::manual_clock_origin.store(start, std::memory_order_relaxed);
+            detail::manual_clock_wall_origin.store(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count(), std::memory_order_relaxed);
+            detail::manual_clock_now.store(start, std::memory_order_release);
             detail::manual_clock_installed.store(true, std::memory_order_release);
             detail::timers_instance().clock_changed();
             _installed = true;
@@ -341,7 +319,7 @@ namespace sgcl {
         // The time as this clock has it
         time_point now() const noexcept {
             assert(_installed);
-            return time_point(duration(detail::manual_clock_now.load(std::memory_order_acquire)));
+            return time_point(time_point::duration(detail::manual_clock_now.load(std::memory_order_acquire)));
         }
 
         // The time forward by d: the timers due by then fired, the tasks
@@ -365,9 +343,9 @@ namespace sgcl {
         bool _installed = false;
     };
 
-    // `co_await sgcl::sleep(d)`: the task suspended for d, no thread held;
-    // `sgcl::sleep(d).wait()` blocks the thread, through the clock
-    class sleep {
+    // `co_await sgcl::async::sleep(d)`: the task suspended for d, no thread held;
+    // `sgcl::async::sleep(d).wait()` blocks the thread, through the clock
+    class [[nodiscard]] sleep {
     public:
         explicit sleep(duration d) noexcept
         : _d(d) {
@@ -391,9 +369,9 @@ namespace sgcl {
         duration _d;
     };
 
-    // `co_await sgcl::sleep_until(t)`: the task suspended until t, a point
-    // of the module's clock; `sgcl::sleep_until(t).wait()` blocks the thread
-    class sleep_until {
+    // `co_await sgcl::async::sleep_until(t)`: the task suspended until t, a point
+    // of the module's clock; `sgcl::async::sleep_until(t).wait()` blocks the thread
+    class [[nodiscard]] sleep_until {
     public:
         explicit sleep_until(time_point t) noexcept
         : _t(t) {
@@ -450,13 +428,13 @@ namespace sgcl {
     // that has passed, does not block
     inline void sleep::wait() const {
         if (_d > duration::zero()) {
-            after(_d)->receive();
+            (void)after(_d)->receive().wait();
         }
     }
 
     inline void sleep_until::wait() const {
         if (_t > clock::now()) {
-            at(_t)->receive();
+            (void)at(_t)->receive().wait();
         }
     }
 

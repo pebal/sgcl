@@ -6,12 +6,15 @@
 #pragma once
 
 #include "channel.h"
+#include "operation.h"
 #include "coroutine.h"
 
+#include <cassert>
 #include <coroutine>
 #include <utility>
 
-namespace sgcl {
+namespace sgcl::async {
+    namespace detail { using namespace sgcl::detail; }
     // An event: set once, waited for by any number; a wait after the set does not wait
     class event {
     public:
@@ -27,12 +30,18 @@ namespace sgcl {
             return _ch.closed();
         }
 
+        // Waits for the set: `e.wait()` on a thread, `co_await e` in a
+        // task, as a task is waited for
         void wait() {
-            _ch.receive();
+            assert(!detail::on_worker() && "wait() blocks the worker: co_await the event from a task");
+            (void)_ch.receive().wait();
         }
 
-        // `co_await e.async_wait()`: the task resumed by the set
-        class async_wait_op {
+        class wait_op;
+        wait_op operator co_await();
+
+        // The awaiter of `co_await e`: the task resumed by the set
+        class wait_op {
         public:
             bool await_ready() {
                 return _op.await_ready();
@@ -50,16 +59,12 @@ namespace sgcl {
         private:
             friend class event;
 
-            explicit async_wait_op(channel<void>& ch) noexcept
-            : _op(ch.async_receive()) {
+            explicit wait_op(channel<void>& ch) noexcept
+            : _op(ch.receive()) {
             }
 
-            decltype(std::declval<channel<void>&>().async_receive()) _op;
+            decltype(std::declval<channel<void>&>().receive()) _op;
         };
-
-        async_wait_op async_wait() noexcept {
-            return async_wait_op(_ch);
-        }
 
         template<class F>
         auto on_set(F f) {
@@ -69,4 +74,8 @@ namespace sgcl {
     private:
         channel<void> _ch;
     };
+
+    inline event::wait_op event::operator co_await() {
+        return wait_op(_ch);
+    }
 }

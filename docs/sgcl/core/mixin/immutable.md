@@ -9,7 +9,7 @@ namespace sgcl::mixin {
 }
 ```
 
-`mixin::immutable<Derived>` is a declaration without methods: that the container is a value that never changes. No method writes an element in place; every change — `set`, `push_back`, `insert`, `erase` — is a `const` method that returns a new container sharing the old one's structure, and a copy is one word. `req::immutable<R>` is "R carries `mixin::immutable`" ([the mixins](README.md)): a function that takes `const req::immutable auto&` can keep what it was given, hand it to another thread or compare it with a later version, without a copy and without a lock, because nothing it holds will change under it. The four immutable containers carry it: [im::vector](../../containers/im/vector.md), [im::list](../../containers/im/list.md), [im::map](../../containers/im/map.md), [im::set](../../containers/im/set.md).
+`mixin::immutable<Derived>` is a declaration without methods: that the container is a value that never changes. No method writes an element in place; every change — `set`, `push_back`, `insert`, `erase` — is a `const` method that returns a new container sharing the old one's structure, and a copy is one word. `req::immutable<R>` is "R carries `mixin::immutable`" ([the mixins](README.md)): a function that takes `const req::immutable auto&` can keep what it was given, hand it to another thread or compare it with a later version, without a copy and without a lock, because nothing it holds will change under it. The four immutable containers carry it: [immutable::vector](../../immutable/vector.md), [immutable::list](../../immutable/list.md), [immutable::map](../../immutable/map.md), [immutable::set](../../immutable/set.md).
 
 Not the same as not being written: `slice<const T>` and `sorted_set` carry no [mixin::sequence](sequence.md) either, but the object under a `slice<const T>` may change behind it and a `sorted_set` has `insert`. What they do not say, `mixin::immutable` says: the value is final.
 
@@ -23,7 +23,7 @@ Not the same as not being written: `slice<const T>` and `sorted_set` carry no [m
 None: a declaration.
 
 ```cpp
-static_assert(req::immutable<im::vector<int>> && req::immutable<im::map<int, int>>);
+static_assert(req::immutable<immutable::vector<int>> && req::immutable<immutable::map<int, int>>);
 static_assert(!req::immutable<vector<int>> && !req::immutable<slice<const int>> && !req::immutable<sorted_set<int>>);
 ```
 
@@ -39,21 +39,21 @@ using namespace sgcl;
 // main thread moves on to newer versions, no copy and no lock, which the
 // parameter's requirement is the promise of.
 template<req::immutable R>
-task<size_t> count_even(R snapshot) {
-    co_await sgcl::sleep(std::chrono::milliseconds(1));
+async::task<size_t> count_even(R snapshot) {
+    co_await async::sleep(std::chrono::milliseconds(1));
     co_return snapshot.count_of([](int x) { return x % 2 == 0; });
 }
 
 int main() {
-    im::vector<int> v;
+    immutable::vector<int> v;
     for (int i : range(8)) {
         v = v.push_back(i);
     }
-    auto evens = spawn(count_even(v));               // running on a worker: the task holds version v
+    auto evens = async::spawn(count_even(v));               // running on a worker: the task holds version v
     for (int i : range(8, 16)) {
         v = v.push_back(i * 2);                     // newer versions: the task's is untouched
     }
-    size_t n = evens.join();
+    size_t n = evens.wait();
     std::cout << n << " even of the first eight, " << v.size() << " in the latest\n";
     return n == 4 && v.size() == 16 ? 0 : 1;
 }
@@ -67,5 +67,5 @@ The output:
 
 ## See also
 
-- [the mixins and the requirements](README.md); [im](../../containers/im/README.md): the containers that carry it
+- [the mixins and the requirements](README.md); [im](../../immutable/README.md): the containers that carry it
 - `tests/core/mixin.cpp`

@@ -51,11 +51,11 @@ namespace {
 }
 
 TEST(Intern_Tests, EqualValuesShareTheObjectDifferentOnesDoNot) {
-    intern<Point, PointHash> pool;
+    concurrent::intern<Point, PointHash> pool;
     EXPECT_TRUE(pool.empty());
-    tracked_ptr<const Point> a = pool.get({1, 2});
-    tracked_ptr<const Point> b = pool.get({1, 2});
-    tracked_ptr<const Point> c = pool.get({2, 1});
+    tracked_ptr<const Point> a = pool.of({1, 2});
+    tracked_ptr<const Point> b = pool.of({1, 2});
+    tracked_ptr<const Point> c = pool.of({2, 1});
     EXPECT_EQ(a, b);
     EXPECT_NE(a, c);
     EXPECT_EQ(a->x, 1);
@@ -66,14 +66,14 @@ TEST(Intern_Tests, EqualValuesShareTheObjectDifferentOnesDoNot) {
     pool.clear();
     EXPECT_TRUE(pool.empty());
     EXPECT_EQ(pool.find(Point{1, 2}), nullptr);
-    EXPECT_NE(pool.get(Point{1, 2}), a);        // forgotten by the pool, alive where held: made again
+    EXPECT_NE(pool.of(Point{1, 2}), a);        // forgotten by the pool, alive where held: made again
     EXPECT_EQ(a->y, 2);
 }
 
 TEST(Intern_Tests, TheDefaultPoolIsOneForTheProgram) {
-    using Points = intern<Point, PointHash>;
+    using Points = concurrent::intern<Point, PointHash>;
     tracked_ptr<const Point> a = Points::make({7, 7});
-    tracked_ptr<const Point> b = Points::pool().get({7, 7});
+    tracked_ptr<const Point> b = Points::pool().of({7, 7});
     EXPECT_EQ(a, b);
     EXPECT_EQ(Points::pool().find(Point{7, 7}), a);
     std::thread other([&] {                // the same pool from another thread
@@ -85,14 +85,14 @@ TEST(Intern_Tests, TheDefaultPoolIsOneForTheProgram) {
 TEST(Intern_Tests, ADeadObjectIsReplacedByANewOne) {
     settle();
     const int before = Counted::alive.load();
-    intern<Counted, CountedHash> pool;
+    concurrent::intern<Counted, CountedHash> pool;
     tracked_ptr<const Counted> kept;
     uintptr_t dropped_address = 0;
     off_frame([&] {
-        kept = pool.get(Counted(1));
-        tracked_ptr<const Counted> dropped = pool.get(Counted(2));
+        kept = pool.of(Counted(1));
+        tracked_ptr<const Counted> dropped = pool.of(Counted(2));
         dropped_address = hide(dropped.get());
-        EXPECT_EQ(pool.get(Counted(2)), dropped);
+        EXPECT_EQ(pool.of(Counted(2)), dropped);
     });
     EXPECT_EQ(Counted::alive.load(), before + 2);
     EXPECT_EQ(pool.size(), 2u);
@@ -101,10 +101,10 @@ TEST(Intern_Tests, ADeadObjectIsReplacedByANewOne) {
     EXPECT_EQ(pool.size(), 2u);            // the dead entry not yet swept
     EXPECT_EQ(pool.find(Counted(2)), nullptr);      // and never found
     EXPECT_EQ(pool.find(Counted(1)), kept);
-    tracked_ptr<const Counted> again = pool.get(Counted(2));   // a new object, entered beside the dead entry
+    tracked_ptr<const Counted> again = pool.of(Counted(2));   // a new object, entered beside the dead entry
     EXPECT_EQ(again->value, 2);
     EXPECT_EQ(Counted::alive.load(), before + 2);
-    EXPECT_EQ(pool.get(Counted(2)), again);
+    EXPECT_EQ(pool.of(Counted(2)), again);
     EXPECT_EQ(pool.size(), 3u);
     EXPECT_EQ(pool.sweep(), 1u);
     EXPECT_EQ(pool.size(), 2u);
@@ -114,10 +114,10 @@ TEST(Intern_Tests, ADeadObjectIsReplacedByANewOne) {
 
 TEST(Intern_Tests, TheInsertionsSweepTheDeadEntriesByThemselves) {
     settle();
-    intern<Counted, CountedHash> pool;
+    concurrent::intern<Counted, CountedHash> pool;
     off_frame([&] {
         for (int i = 0; i < 300; ++i) {
-            pool.get(Counted(i));          // made and dropped at once
+            pool.of(Counted(i));          // made and dropped at once
         }
     });
     settle();
@@ -125,7 +125,7 @@ TEST(Intern_Tests, TheInsertionsSweepTheDeadEntriesByThemselves) {
     EXPECT_GT(before, 0u);
     off_frame([&] {
         for (int i = 1000; i < 1600; ++i) {   // more insertions than entries: a sweep ran
-            pool.get(Counted(i));
+            pool.of(Counted(i));
         }
     });
     EXPECT_LT(pool.size(), before + 600);
@@ -135,44 +135,44 @@ TEST(Intern_Tests, TheInsertionsSweepTheDeadEntriesByThemselves) {
 }
 
 TEST(Intern_Tests, StringsAreTheirOwnObjects) {
-    string a = intern_string("alpha");
-    string b = intern_string("alpha");
-    string c = intern<string>::make(std::string("alpha"));
-    string d = intern_string("beta");
+    string a = concurrent::intern_string("alpha");
+    string b = concurrent::intern_string("alpha");
+    string c = concurrent::intern<string>::make(std::string("alpha"));
+    string d = concurrent::intern_string("beta");
     EXPECT_EQ(a.object(), b.object());     // one object for the value
     EXPECT_EQ(a.object(), c.object());
     EXPECT_NE(a.object(), d.object());
     EXPECT_EQ(a, "alpha");
     EXPECT_EQ(d, "beta");
     string own("gamma");                   // a string passed in enters as it is, Java's String.intern
-    string got = intern<string>::make(own);
+    string got = concurrent::intern<string>::make(own);
     EXPECT_EQ(got.object(), own.object());
-    EXPECT_EQ(intern<string>::make(std::string_view("gamma")).object(), own.object());
-    string empty = intern_string("");      // the empty string is null: one value, no object, never entered
+    EXPECT_EQ(concurrent::intern<string>::make(std::string_view("gamma")).object(), own.object());
+    string empty = concurrent::intern_string("");      // the empty string is null: one value, no object, never entered
     EXPECT_EQ(empty.object(), nullptr);
     EXPECT_TRUE(empty.empty());
-    EXPECT_EQ(intern<string>::pool().find("").object(), nullptr);
-    EXPECT_EQ(intern<string>::pool().find("alpha").object(), a.object());
-    EXPECT_EQ(intern<string>::pool().find("delta").object(), nullptr);
+    EXPECT_EQ(concurrent::intern<string>::pool().find("").object(), nullptr);
+    EXPECT_EQ(concurrent::intern<string>::pool().find("alpha").object(), a.object());
+    EXPECT_EQ(concurrent::intern<string>::pool().find("delta").object(), nullptr);
     std::string longer(3000, 'x');         // a string of a large class, an object still
-    string l1 = intern_string(longer);
-    string l2 = intern_string(longer);
+    string l1 = concurrent::intern_string(longer);
+    string l2 = concurrent::intern_string(longer);
     EXPECT_EQ(l1.object(), l2.object());
     EXPECT_EQ(l1.size(), 3000u);
 }
 
 TEST(Intern_Tests, AStringPresentIsInternedFromAViewWithoutATemporary) {
-    string a = intern_string("present");
+    string a = concurrent::intern_string("present");
     collector::force_collect(true);
     const auto before = collector::get_statistics().live_bytes;
     for (int i = 0; i < 10000; ++i) {
-        string s = intern_string("present");
+        string s = concurrent::intern_string("present");
         if (s.object() != a.object()) {
             ADD_FAILURE() << "another object";
             break;
         }
         std::string_view view = "present";
-        if (intern<string>::make(view).object() != a.object()) {
+        if (concurrent::intern<string>::make(view).object() != a.object()) {
             ADD_FAILURE() << "another object from a view";
             break;
         }
@@ -182,19 +182,19 @@ TEST(Intern_Tests, AStringPresentIsInternedFromAViewWithoutATemporary) {
 
 TEST(Intern_Tests, ADeadStringIsMadeAgain) {
     settle();
-    intern<string> pool;
+    concurrent::intern<string> pool;
     uintptr_t old_object = 0;
     off_frame([&] {
-        string s = pool.get("transient");
+        string s = pool.of("transient");
         old_object = hide(s.object());
-        EXPECT_EQ(pool.get(std::string_view("transient")).object(), s.object());
+        EXPECT_EQ(pool.of(std::string_view("transient")).object(), s.object());
     });
     settle();
     EXPECT_EQ(pool.size(), 1u);
     EXPECT_EQ(pool.find("transient").object(), nullptr);   // dead: not found
-    string again = pool.get("transient");  // a new string
+    string again = pool.of("transient");  // a new string
     EXPECT_EQ(again, "transient");
-    EXPECT_EQ(pool.get("transient").object(), again.object());
+    EXPECT_EQ(pool.of("transient").object(), again.object());
     EXPECT_EQ(pool.size(), 2u);
     EXPECT_EQ(pool.sweep(), 1u);
     EXPECT_EQ(pool.size(), 1u);
@@ -203,13 +203,13 @@ TEST(Intern_Tests, ADeadStringIsMadeAgain) {
 
 TEST(Intern_Tests, APoolInsideAManagedObject) {
     struct Holder {
-        intern<Point, PointHash> points;
-        intern<string> names;
+        concurrent::intern<Point, PointHash> points;
+        concurrent::intern<string> names;
     };
     tracked_ptr h = make_tracked<Holder>();
-    tracked_ptr<const Point> p = h->points.get({4, 5});
-    EXPECT_EQ(h->points.get(Point{4, 5}), p);
-    EXPECT_EQ(h->names.get("x").object(), h->names.get("x").object());
+    tracked_ptr<const Point> p = h->points.of({4, 5});
+    EXPECT_EQ(h->points.of(Point{4, 5}), p);
+    EXPECT_EQ(h->names.of("x").object(), h->names.of("x").object());
     EXPECT_EQ(h->points.size(), 1u);
     EXPECT_EQ(h->names.size(), 1u);
 }
@@ -222,7 +222,7 @@ TEST(Intern_Tests, ManyThreadsInternTheSameFewValues) {
     const int values = 10;
     const int rounds = 2000;
     off_frame([&] {
-        intern<Point, PointHash> pool;
+        concurrent::intern<Point, PointHash> pool;
         vector<vector<tracked_ptr<const Point>>> got(threads);   // one per value per thread, held: the objects stay alive
         vector<vector<string>> names(threads);
         for (int t = 0; t < threads; ++t) {   // sized before the threads start: no buffer grows under a collection
@@ -235,7 +235,7 @@ TEST(Intern_Tests, ManyThreadsInternTheSameFewValues) {
             ws.emplace_back([&, t] {
                 for (int r = 0; r < rounds; ++r) {
                     for (int v = 0; v < values; ++v) {
-                        tracked_ptr<const Point> p = pool.get({v, v * 2});
+                        tracked_ptr<const Point> p = pool.of({v, v * 2});
                         if (p->x != v || p->y != v * 2) {
                             bad = true;
                         }
@@ -244,7 +244,7 @@ TEST(Intern_Tests, ManyThreadsInternTheSameFewValues) {
                         } else if (got[t][v] != p) {
                             bad = true;    // the object changed while held: two objects for one value
                         }
-                        string s = intern_string("value-" + std::to_string(v));
+                        string s = concurrent::intern_string("value-" + std::to_string(v));
                         if (names[t][v].empty()) {
                             names[t][v] = s;
                         } else if (names[t][v].object() != s.object()) {
@@ -282,17 +282,17 @@ TEST(Intern_Tests, ManyThreadsInternValuesTheyDrop) {
     const int before = Counted::alive.load();
     const int threads = 8;
     const int per_thread = 3000;
-    intern<Counted, CountedHash> pool;
+    concurrent::intern<Counted, CountedHash> pool;
     vector<tracked_ptr<const Counted>> kept;
     off_frame([&] {
-        concurrent_queue<tracked_ptr<const Counted>> kept_by_threads;   // what the threads keep, handed over
+        concurrent::queue<tracked_ptr<const Counted>> kept_by_threads;   // what the threads keep, handed over
         auto round = [&](int base) {
             std::vector<std::thread> ws;
             for (int t = 0; t < threads; ++t) {
                 ws.emplace_back([&, t] {
                     for (int i = 0; i < per_thread; ++i) {
                         int v = base + i * threads + t;   // a value of its own per thread: as many insertions as values
-                        tracked_ptr<const Counted> p = pool.get(Counted(v));
+                        tracked_ptr<const Counted> p = pool.of(Counted(v));
                         if (p->value != v) {
                             ADD_FAILURE() << "wrong object";
                         }

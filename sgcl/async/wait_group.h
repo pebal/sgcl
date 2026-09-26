@@ -5,16 +5,19 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "../concurrent/atomic.h"
+#include "operation.h"
+#include "../core/atomic.h"
 #include "../core/make_tracked.h"
 #include "../core/tracked_ptr.h"
 #include "channel.h"
 #include "coroutine.h"
 
 #include <atomic>
+#include <cassert>
 #include <utility>
 
-namespace sgcl {
+namespace sgcl::async {
+    namespace detail { using namespace sgcl::detail; }
     // A wait group: add(n) counts the work, done() counts it off, wait()
     // waits for the count to reach zero; a group whose count came back
     // from zero (add after the work was done) is waited for again, as
@@ -60,27 +63,6 @@ namespace sgcl {
             return _count.load(std::memory_order_acquire);
         }
 
-        void wait() {
-            while (_count.load(std::memory_order_acquire) > 0) {
-                tracked_ptr<channel<void>> round = _round.load(std::memory_order_acquire);
-                if (_count.load(std::memory_order_acquire) == 0) {
-                    return;
-                }
-                round->receive();
-            }
-        }
-
-        // `co_await g.async_wait()`: the task resumed at zero
-        task<> async_wait() {
-            while (_count.load(std::memory_order_acquire) > 0) {
-                tracked_ptr<channel<void>> round = _round.load(std::memory_order_acquire);
-                if (_count.load(std::memory_order_acquire) == 0) {
-                    co_return;
-                }
-                co_await round->async_receive();
-            }
-        }
-
         // A case of a select: f() when the count is zero (the channel of
         // the current round, closed at zero)
         template<class F>
@@ -88,8 +70,40 @@ namespace sgcl {
             return _round.load(std::memory_order_acquire)->on_receive(std::move(f));
         }
 
+        // Waits for zero: `g.wait()` on a thread, `co_await g` in a task,
+        // as a task is waited for
+        void wait() {
+            assert(!detail::on_worker() && "wait() blocks the worker: co_await the group from a task");
+            _wait();
+        }
+
+        auto operator co_await() {
+            return detail::either([this] { return _co_wait(); }, [this] { _wait(); });
+        }
+
     private:
+        void _wait() {
+            while (_count.load(std::memory_order_acquire) > 0) {
+                tracked_ptr<channel<void>> round = _round.load(std::memory_order_acquire);
+                if (_count.load(std::memory_order_acquire) == 0) {
+                    return;
+                }
+                (void)round->receive().wait();
+            }
+        }
+
         std::atomic<long> _count = {0};
         atomic<tracked_ptr<channel<void>>> _round;
+
+        // the two halves of the operations above: a thread's and a task's
+        task<> _co_wait() {
+            while (_count.load(std::memory_order_acquire) > 0) {
+                tracked_ptr<channel<void>> round = _round.load(std::memory_order_acquire);
+                if (_count.load(std::memory_order_acquire) == 0) {
+                    co_return;
+                }
+                co_await round->receive();
+            }
+        }
     };
 }

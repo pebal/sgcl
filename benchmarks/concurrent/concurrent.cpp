@@ -3,9 +3,9 @@
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
-// The lock-free containers shared by every thread: concurrent_queue
-// (Michael–Scott), concurrent_stack (Treiber), concurrent_sorted_map and
-// concurrent_sorted_set (a skip list) and concurrent_map (a
+// The lock-free containers shared by every thread: concurrent::queue
+// (Michael–Scott), concurrent::stack (Treiber), concurrent::sorted_map and
+// concurrent::sorted_set (a skip list) and concurrent::map (a
 // split-ordered list), against what C++ has without a collector and
 // against Go and Java (benchmarks/go/concurrent,
 // benchmarks/java/Concurrent.java: the same shapes, Java's
@@ -48,6 +48,8 @@
 #include "benchmarks/common.h"
 #include "sgcl/sgcl.h"
 
+using namespace sgcl::async;
+
 #include <array>
 #include <atomic>
 #include <condition_variable>
@@ -72,7 +74,7 @@ namespace {
     };
 
     struct SgclQueue {
-        sgcl::concurrent_queue<sgcl::tracked_ptr<Item>> q;
+        sgcl::concurrent::queue<sgcl::tracked_ptr<Item>> q;
         void push(long v) {
             q.emplace(sgcl::make_tracked<Item>(v));
         }
@@ -83,7 +85,7 @@ namespace {
     };
 
     struct SgclStack {
-        sgcl::concurrent_stack<sgcl::tracked_ptr<Item>> s;
+        sgcl::concurrent::stack<sgcl::tracked_ptr<Item>> s;
         void push(long v) {
             s.emplace(sgcl::make_tracked<Item>(v));
         }
@@ -94,7 +96,7 @@ namespace {
     };
 
     struct SgclMap {
-        sgcl::concurrent_sorted_map<long, sgcl::tracked_ptr<Item>> m;
+        sgcl::concurrent::sorted_map<long, sgcl::tracked_ptr<Item>> m;
         bool insert(long k) {
             return m.try_emplace(k, sgcl::make_tracked<Item>(k)).second;
         }
@@ -227,7 +229,7 @@ namespace {
     };
 
     struct SgclUmap {
-        sgcl::concurrent_map<long, sgcl::tracked_ptr<Item>> m;
+        sgcl::concurrent::map<long, sgcl::tracked_ptr<Item>> m;
         bool insert(long k) {
             return m.try_emplace(k, sgcl::make_tracked<Item>(k)).second;
         }
@@ -241,7 +243,7 @@ namespace {
     };
 
     struct SgclSet {
-        sgcl::concurrent_sorted_set<long> s;
+        sgcl::concurrent::sorted_set<long> s;
         bool insert(long k) {
             return s.insert(k).second;
         }
@@ -302,7 +304,7 @@ namespace {
     using Values = std::array<long, 64>;
 
     struct SgclCow {
-        sgcl::copy_on_write<Values> v;
+        sgcl::concurrent::copy_on_write<Values> v;
         SgclCow() : v(Values{}) {}
         long read() {
             auto s = v.load();
@@ -396,13 +398,13 @@ namespace {
     }
 
     struct SgclChan {
-        sgcl::channel<sgcl::tracked_ptr<Item>> ch;
+        sgcl::async::channel<sgcl::tracked_ptr<Item>> ch;
         explicit SgclChan(size_t cap, int = 1) : ch(cap) {}
         void send(long v) {
-            ch.send(sgcl::make_tracked<Item>(v));
+            ch.send(sgcl::make_tracked<Item>(v)).wait();
         }
         long receive() {
-            auto p = ch.receive();
+            auto p = ch.receive().wait();
             return p ? (*p)->value : -1;
         }
         void close() {
@@ -451,7 +453,7 @@ namespace {
     // (waiting when full), consumers pop (waiting when empty), a null item
     // per consumer as the end once the last producer is done
     struct BoundedQueueChan {
-        sgcl::concurrent_bounded_queue<sgcl::tracked_ptr<Item>> q;
+        sgcl::concurrent::bounded_queue<sgcl::tracked_ptr<Item>> q;
         int consumers;
         explicit BoundedQueueChan(size_t cap, int consumers = 1) : q(cap ? cap : 1), consumers(consumers) {}
         void send(long v) {
@@ -480,7 +482,7 @@ namespace {
                 return a->value < b->value;
             }
         };
-        sgcl::concurrent_priority_queue<sgcl::tracked_ptr<Item>, Less> q;
+        sgcl::concurrent::priority_queue<sgcl::tracked_ptr<Item>, Less> q;
         void push(long v) {
             q.push(sgcl::make_tracked<Item>(priority_of(v)));
         }
@@ -532,7 +534,7 @@ namespace {
                 uintptr_t sum = 0;
                 for (long i = 0; i < n; ++i) {
                     x ^= x << 13; x ^= x >> 7; x ^= x << 17;
-                    sgcl::string s = sgcl::intern<sgcl::string>::make(std::string_view(pool[x % distinct]));
+                    sgcl::string s = sgcl::concurrent::intern<sgcl::string>::make(std::string_view(pool[x % distinct]));
                     sum += (uintptr_t)s.object();
                 }
                 if (sum == 1) {
@@ -557,7 +559,7 @@ namespace {
         for (long i = 0; i < objects; ++i) {
             pool.push_back(sgcl::make_tracked<Item>(i));
         }
-        sgcl::concurrent_weak_map<Item, long> m;
+        sgcl::concurrent::weak_map<Item, long> m;
         std::vector<std::thread> ws;
         auto t0 = bench::Clock::now();
         for (int t = 0; t < threads; ++t) {
@@ -630,40 +632,40 @@ namespace {
     // consumer tasks on the scheduler, sending and receiving with co_await;
     // what Go's benchmark measures (goroutines), against its channel
     void run_chan_tasks(int threads, size_t cap, long n) {
-        sgcl::channel<sgcl::tracked_ptr<Item>> ch(cap);
+        sgcl::async::channel<sgcl::tracked_ptr<Item>> ch(cap);
         int producers = std::max(1, threads / 2), consumers = std::max(1, threads / 2);
         sgcl::atomic<int> done = {0};
-        auto producer = [](sgcl::channel<sgcl::tracked_ptr<Item>>& ch, long n, sgcl::atomic<int>& done, int producers) -> sgcl::task<> {
+        auto producer = [](sgcl::async::channel<sgcl::tracked_ptr<Item>>& ch, long n, sgcl::atomic<int>& done, int producers) -> sgcl::async::task<> {
             for (long i = 0; i < n; ++i) {
-                co_await ch.async_send(sgcl::make_tracked<Item>(i));
+                co_await ch.send(sgcl::make_tracked<Item>(i));
             }
             if (++done == producers) {
                 ch.close();
             }
         };
-        auto consumer = [](sgcl::channel<sgcl::tracked_ptr<Item>>& ch) -> sgcl::task<long> {
+        auto consumer = [](sgcl::async::channel<sgcl::tracked_ptr<Item>>& ch) -> sgcl::async::task<long> {
             long sum = 0;
-            while (auto p = co_await ch.async_receive()) {
+            while (auto p = co_await ch.receive()) {
                 sum += (*p)->value;
             }
             co_return sum;
         };
-        sgcl::scheduler::workers();   // started before the clock
+        sgcl::async::scheduler::workers();   // started before the clock
         auto t0 = bench::Clock::now();
-        std::vector<sgcl::task<>> ps;
-        std::vector<sgcl::task<long>> cs;
+        std::vector<sgcl::async::task<>> ps;
+        std::vector<sgcl::async::task<long>> cs;
         for (int t = 0; t < producers; ++t) {
-            ps.push_back(sgcl::spawn(producer(ch, n, done, producers)));
+            ps.push_back(sgcl::async::spawn(producer(ch, n, done, producers)));
         }
         for (int t = 0; t < consumers; ++t) {
-            cs.push_back(sgcl::spawn(consumer(ch)));
+            cs.push_back(sgcl::async::spawn(consumer(ch)));
         }
         for (auto& p : ps) {
-            p.join();
+            p.wait();
         }
         long sum = 0;
         for (auto& c : cs) {
-            sum += c.join();
+            sum += c.wait();
         }
         double wall = bench::seconds_since(t0);
         double ops = (double)n * producers;
@@ -832,7 +834,7 @@ namespace {
     // spsc: the single-producer single-consumer ring between one thread
     // and one, the same harness as the channel's with threads = 2
     struct SpscChan {
-        sgcl::spsc_queue<sgcl::tracked_ptr<Item>> q;
+        sgcl::concurrent::spsc_queue<sgcl::tracked_ptr<Item>> q;
         explicit SpscChan(size_t cap, int = 1) : q(cap ? cap : 1) {}
         void send(long v) {
             q.push(sgcl::make_tracked<Item>(v));
@@ -847,11 +849,11 @@ namespace {
     };
 
     // cache: a bounded LRU cache read by every thread; sgcl: the
-    // concurrent_cache (an approximated LRU, no shared write on a hit);
+    // concurrent::cache (an approximated LRU, no shared write on a hit);
     // mutex: the classic C++ answer, std::unordered_map with a std::list
     // of the order under a std::mutex, exact LRU, every hit a write
     struct SgclCache {
-        sgcl::concurrent_cache<long, sgcl::tracked_ptr<Item>> c;
+        sgcl::concurrent::cache<long, sgcl::tracked_ptr<Item>> c;
         explicit SgclCache(size_t capacity) : c(capacity) {}
         bool get(long k) {
             auto v = c.get(k);
@@ -934,7 +936,7 @@ namespace {
     // value sent, and the share the subscribers received (a slow one is
     // lapped and loses values: a broadcast never waits for a reader)
     void run_bcast(int subscribers, size_t cap, long n) {
-        sgcl::broadcast<long> b(cap);
+        sgcl::async::broadcast<long> b(cap);
         std::vector<std::thread> ws;
         std::atomic<long> received = {0};
         std::latch subscribed(subscribers);   // every subscription made before the first send: a subscription starts at the next value sent
@@ -943,7 +945,7 @@ namespace {
                 auto s = b.subscribe();
                 subscribed.count_down();
                 long got = 0;
-                while (auto v = s.receive()) {
+                while (auto v = s.receive().wait()) {
                     got += *v >= 0;
                 }
                 received += got;
@@ -966,21 +968,21 @@ namespace {
     // scheduler receiving every value with co_await, one thread sending;
     // what Go's benchmark measures (a goroutine per subscriber)
     void run_bcast_tasks(int subscribers, size_t cap, long n) {
-        sgcl::broadcast<long> b(cap);
+        sgcl::async::broadcast<long> b(cap);
         std::latch subscribed(subscribers);
-        auto reader = [](sgcl::broadcast<long>& b, std::latch& subscribed) -> sgcl::task<long> {
+        auto reader = [](sgcl::async::broadcast<long>& b, std::latch& subscribed) -> sgcl::async::task<long> {
             auto s = b.subscribe();
             subscribed.count_down();
             long got = 0;
-            while (auto v = co_await s.async_receive()) {
+            while (auto v = co_await s.receive()) {
                 got += *v >= 0;
             }
             co_return got;
         };
-        sgcl::scheduler::workers();   // started before the clock
-        std::vector<sgcl::task<long>> rs;
+        sgcl::async::scheduler::workers();   // started before the clock
+        std::vector<sgcl::async::task<long>> rs;
         for (int t = 0; t < subscribers; ++t) {
-            rs.push_back(sgcl::spawn(reader(b, subscribed)));
+            rs.push_back(sgcl::async::spawn(reader(b, subscribed)));
         }
         subscribed.wait();
         auto t0 = bench::Clock::now();
@@ -990,7 +992,7 @@ namespace {
         b.close();
         long received = 0;
         for (auto& r : rs) {
-            received += r.join();
+            received += r.wait();
         }
         double wall = bench::seconds_since(t0);
         std::printf("bcast subscribers=%d capacity=%zu ns/op=%.1f received=%.0f%% ops/s=%.0f wall=%.2fs cpu=%.2fs\n", subscribers, cap, wall * 1e9 / n, 100.0 * received / ((double)n * subscribers), n / wall, wall, bench::cpu_seconds());
@@ -1061,7 +1063,7 @@ int main(int argc, char** argv) {
     }
     if (what == "intern") {
         if (!bench::has_variant(v.c_str(), {"sgcl"})) {
-            std::fprintf(stderr, "usage: concurrent intern sgcl [threads] [distinct] [n]\n");
+            std::fprintf(stderr, "usage: concurrent concurrent::intern sgcl [threads] [distinct] [n]\n");
             return 2;
         }
         long distinct = argc > 4 ? std::atol(argv[4]) : 1000;

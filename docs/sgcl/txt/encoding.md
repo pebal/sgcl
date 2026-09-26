@@ -20,10 +20,12 @@ constexpr const char* name_of(encoding) noexcept;                  // the name a
 optional<encoding> encoding_from_name(const string& name) noexcept;
 
 struct byte_order_mark { optional<encoding> says; size_t size; explicit operator bool() const; };
-byte_order_mark detect_bom(slice<const std::byte>) noexcept;
+byte_order_mark detect_bom(slice<const byte>) noexcept;
 
-string decode(slice<const std::byte> bytes, encoding from);
-vector<std::byte> encode(const string& text, encoding to);
+string decode(const slice<const byte>& bytes, encoding from);                              // a byte that means nothing: U+FFFD
+expected<string, decode_error> decode(const slice<const byte>& bytes, encoding from, strict_t);   // decode(b, e, txt::strict): or the first such byte
+class decode_error { size_t offset() const; encoding from() const; string message() const; };   // "not utf-8"
+vector<byte> encode(const string& text, encoding to);
 
 vector<char16_t> to_utf16(const string&);    string from_utf16(slice<const char16_t>);
 vector<char32_t> to_utf32(const string&);    string from_utf32(slice<const char32_t>);
@@ -31,9 +33,15 @@ vector<char32_t> to_utf32(const string&);    string from_utf32(slice<const char3
 
 An **encoding is a value, not a tag**, and this is the one place in the module where that is so. Elsewhere — the four normalization forms — the choice is made when the program is written, so a tag costs nothing and saves a table; here the name comes out of a header while the program runs, and nothing can be chosen beforehand.
 
-`encoding_from_name` reads a name as a header writes it: any case, with the dashes or without, under the aliases IANA lists and the ones that turn up in the wild (`utf8`, `ISO_8859-2`, `cp1250`, `iso8859_2`). A name nobody knows is `nullopt` — an ordinary answer, not a failure, so no `result<T>`.
+`encoding_from_name` reads a name as a header writes it: any case, with the dashes or without, under the aliases IANA lists and the ones that turn up in the wild (`utf8`, `ISO_8859-2`, `cp1250`, `iso8859_2`). A name nobody knows is `nullopt` — an ordinary answer, not a failure, so no `expected`.
 
 `detect_bom` says what a byte order mark at the front announces and how many bytes it takes. Nothing else in the header looks at one: a caller who wants it honoured skips those bytes itself, which keeps that decision where it belongs.
+
+## What is not here
+
+The multi byte legacy encodings of the same list — **Shift_JIS, EUC-JP, GB18030, Big5 and EUC-KR** — are not implemented, and that is a decision rather than an oversight. Their tables come to some three or four hundred kilobytes against the six hundred the whole module holds today; a linker drops what a program never asks about, so nobody's binary would carry them, but the repository and every build of it would. They are worth the room the day something here has to read the older files of that part of the world. Until then, a text in one of them is turned into UTF-8 before it reaches this library — `iconv` and every platform's own converter do it.
+
+`encoding_from_name` answers `nullopt` for their names, as it does for any name it does not know, so a program that meets one in a header can say so rather than guess.
 
 ## Nothing is refused
 
@@ -42,6 +50,7 @@ A byte that means nothing in its encoding decodes to one `U+FFFD`, exactly as an
 ```cpp
 decode(one_byte(0x81), encoding::windows1250);   // U+FFFD: that byte is nothing there
 decode(one_byte(0x81), encoding::latin1);        // U+0081: in Latin-1 every byte is a code point
+decode(one_byte(0x81), encoding::windows1250, strict);   // decode_error at byte 0, for a program that must not store a changed text
 encode(string("日"), encoding::iso8859_2);          // "?"
 encode(string("Ł"), encoding::iso8859_2);           // one byte, 0xA3
 ```
@@ -65,11 +74,11 @@ int main() {
                   << txt::decode(bytes.as_slice(), *e) << '\n';
     }
 
-    std::byte page[] = {std::byte(0xEF), std::byte(0xBB), std::byte(0xBF),
-                        std::byte('c'), std::byte('z'), std::byte(0xC5), std::byte(0x82)};
-    auto bom = txt::detect_bom(slice<const std::byte>(page));
+    byte page[] = {byte(0xEF), byte(0xBB), byte(0xBF),
+                        byte('c'), byte('z'), byte(0xC5), byte(0x82)};
+    auto bom = txt::detect_bom(slice<const byte>(page));
     std::cout << "znacznik mówi " << (bom ? txt::name_of(*bom.says) : "nic")
-              << ", treść: " << txt::decode(slice<const std::byte>(page).subslice(bom.size), txt::encoding::utf8) << '\n';
+              << ", treść: " << txt::decode(slice<const byte>(page).subslice(bom.size), txt::encoding::utf8) << '\n';
     return 0;
 }
 ```

@@ -17,6 +17,9 @@ namespace sgcl {
     namespace detail {
         template<class, class> class AtomicWord;   // detail/atomic_word.h: the operations of the atomics
 
+        template<class T>
+        T* load_plain(const tracked_ptr<T>& p) noexcept;   // below the class
+
         // Tag of the callers that hold a reference to current_thread():
         // the thread is registered, the constructor need not check.
         struct OnRegisteredThread {};
@@ -84,6 +87,15 @@ namespace sgcl {
         tracked_ptr(tracked_ptr<U>&& p) noexcept
         : _raw_ptr(_registered(static_cast<element_type*>(p.get()))) {
             _init();
+        }
+
+        // From a root_ptr of another type (a derived class, or const):
+        // the root's operator const tracked_ptr<U>& is a conversion the
+        // templates above cannot deduce through. A root_ptr of this very
+        // type converts through that operator already.
+        template<class U, std::enable_if_t<!std::is_same_v<U, T> && std::is_convertible_v<U*, element_type*>, int> = 0>
+        tracked_ptr(const root_ptr<U>& r) noexcept
+        : tracked_ptr(r.ptr()) {
         }
 
         template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
@@ -344,6 +356,7 @@ namespace sgcl {
         template<class> friend class weak_ptr;
         template<class, size_t, class> friend class array;
         template<class> friend class dynamic_array;
+        template<class U> friend U* detail::load_plain(const tracked_ptr<U>& p) noexcept;
         template<class> friend class detail::Maker;
     };
 
@@ -381,6 +394,9 @@ namespace sgcl {
 
     template <typename T>
     tracked_ptr(unique_ptr<T>&&) -> tracked_ptr<T>;
+
+    template<class T>
+    tracked_ptr(const root_ptr<T>&) -> tracked_ptr<T>;
 
     template<class T, class U>
     inline std::strong_ordering operator<=>(const tracked_ptr<T>& l, const tracked_ptr<U>& r) noexcept {
@@ -436,6 +452,17 @@ namespace sgcl {
         return s;
     }
 
+    namespace detail {
+        // The pointer read without an atomic load (get_plain), for a word
+        // that no other thread writes while this one reads it: a value's
+        // own word, as a container reads the pointer to its buffer. The
+        // one door to it for the modules above core (time's zone), so that
+        // core names none of their insides.
+        template<class T>
+        T* load_plain(const tracked_ptr<T>& p) noexcept {
+            return p.get_plain();
+        }
+    }
 }
 
 namespace std {

@@ -7,6 +7,8 @@
 // managed node of their own, followed by the collector.
 #include "tests/types.h"
 
+using namespace sgcl::async;
+
 #include <latch>
 #include <stdexcept>
 

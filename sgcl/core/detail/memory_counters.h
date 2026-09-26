@@ -41,7 +41,7 @@ namespace sgcl::detail {
             return _alloc.load(std::memory_order_relaxed) - _free.load(std::memory_order_relaxed);
         }
         inline static size_t live_bytes() noexcept {
-            return live_pages() * config::PageSize;
+            return live_pages() * config::page_size;
         }
         // Pages in use when the last cycle ended, with its garbage swept:
         // the base of the wake rule. The pages in use right now include the
@@ -60,9 +60,9 @@ namespace sgcl::detail {
             _free_at_cycle.store(_free.load(std::memory_order_relaxed), std::memory_order_relaxed);
         }
     private:
-        alignas(config::CacheLineSize) inline static std::atomic<size_t> _alloc = {0};
-        alignas(config::CacheLineSize) inline static std::atomic<size_t> _free = {0};
-        alignas(config::CacheLineSize) inline static std::atomic<size_t> _alloc_at_cycle = {0};
+        alignas(config::cache_line_size) inline static std::atomic<size_t> _alloc = {0};
+        alignas(config::cache_line_size) inline static std::atomic<size_t> _free = {0};
+        alignas(config::cache_line_size) inline static std::atomic<size_t> _alloc_at_cycle = {0};
         inline static std::atomic<size_t> _free_at_cycle = {0};
         inline static std::atomic<size_t> _last_alloc = {0};
         inline static std::atomic<size_t> _live_after_cycle = {0};

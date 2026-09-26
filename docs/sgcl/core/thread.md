@@ -16,7 +16,7 @@ namespace sgcl {
 - A thread is a thread to the collector: its stack is scanned, the tracked pointers on it are roots, from the first line of the function it runs ([The rules](README.md#the-rules), 1).
 - The callable and the arguments are copied (decayed) into a managed node, so a `tracked_ptr` is captured by value and passed as an argument as it would be to a `function`; the callable is called once, with the arguments as rvalues, as `std::thread` calls it.
 - The closure is destroyed on the new thread when the function returns, before `join` returns; what it held by value is released then and collected later.
-- The threads of a program, kept until joined, live in a container that holds them where it may: `sgcl::vector<sgcl::thread>` on a stack ([vector](../containers/vector.md)). A `thread` holds no tracked pointer itself, so it may live anywhere `std::thread` may.
+- The threads of a program, kept until joined, live in a container that holds them where it may: `sgcl::vector<sgcl::thread>` on a stack ([vector](vector.md)). A `thread` holds no tracked pointer itself, so it may live anywhere `std::thread` may.
 
 ## Members
 
@@ -80,5 +80,5 @@ The output:
 
 ## See also
 
-- [function](function.md): the same closure in a managed node, called many times; [root_ptr](root_ptr.md): the root that carries the node through `std::thread`; [atomic](../concurrent/atomic.md): a `tracked_ptr` shared between threads; [vector](../containers/vector.md): where the threads are kept
+- [function](function.md): the same closure in a managed node, called many times; [root_ptr](root_ptr.md): the root that carries the node through `std::thread`; [atomic](atomic.md): a `tracked_ptr` shared between threads; [vector](vector.md): where the threads are kept
 - [The rules](README.md#the-rules)

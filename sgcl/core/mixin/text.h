@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../aliases.h"
 #include "../unicode.h"
 #include "../utf8.h"
 
@@ -60,7 +61,7 @@ namespace sgcl::mixin {
 
         const CharT& at(size_type i) const {
             if (i >= _self().size()) {
-                throw std::out_of_range("sgcl::at");
+                throw out_of_range("sgcl::text::at");   // a string's or a text slice's
             }
             return _self().data()[i];
         }

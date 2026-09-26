@@ -896,6 +896,12 @@ TEST(Vector_Test, StdEraseAndEraseIf) {
     EXPECT_EQ(std::erase_if(v, [](int x) { return x > 2; }), 2u);
     EXPECT_EQ(v.size(), 1u);
     EXPECT_EQ(v[0], 1);
+    // unqualified, found by argument-dependent lookup in sgcl as for the
+    // other containers (they were declared in namespace std before)
+    sgcl::vector<int> w = {1, 2, 3};
+    EXPECT_EQ(erase_if(w, [](int x) { return x != 2; }), 2u);
+    EXPECT_EQ(erase(w, 2), 1u);
+    EXPECT_TRUE(w.empty());
 }
 
 TEST(Vector_Test, RangesAndDeduction) {
@@ -972,7 +978,7 @@ TEST(Vector_Test, GrowthDuringACycle) {
         sgcl::vector<tracked_ptr<Node>> kept;
         off_frame([&] {
             std::vector<std::thread> workers;
-            sgcl::concurrent_queue<tracked_ptr<Node>> handed;
+            sgcl::concurrent::queue<tracked_ptr<Node>> handed;
             for (int t = 0; t < threads; ++t) {
                 workers.emplace_back([&, t] {
                     sgcl::vector<tracked_ptr<Node>> mine;   // grows on this thread's stack

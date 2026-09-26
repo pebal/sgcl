@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../aliases.h"
 #include "../make_tracked.h"
 #include "bytes.h"
 #include "../tracked_ptr.h"
@@ -123,6 +124,9 @@ namespace sgcl::detail {
 
         template<class CharT>
         static Word make(std::basic_string_view<CharT> s) {
+            if (s.size() > UINT32_MAX) {   // the header holds 32 bits of it: past that the length would be cut short
+                throw length_error("sgcl::basic_string");
+            }
             const size_t bytes = sizeof(StringHeader) + (s.size() + 1) * sizeof(CharT);
             if (bytes <= 256) {
                 return Word(small_table<CharT>[(bytes - 1) / 4](s));

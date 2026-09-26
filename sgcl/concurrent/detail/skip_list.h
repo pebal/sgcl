@@ -5,13 +5,13 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "../../containers/detail/transparent.h"
+#include "../../core/detail/transparent.h"
 #include "../../core/aliases.h"
 #include "../../core/detail/os.h"
 #include "../../core/make_tracked.h"
 #include "../../core/tracked_ptr.h"
-#include "../../containers/vector.h"
-#include "../atomic.h"
+#include "../../core/vector.h"
+#include "../../core/atomic.h"
 
 #include <algorithm>
 #include <bit>
@@ -22,7 +22,8 @@
 #include <type_traits>
 #include <utility>
 
-namespace sgcl::detail {
+namespace sgcl::concurrent::detail {
+    using namespace sgcl::detail;
     template<class Key, class T, class Compare>
     struct ConcurrentSortedMapTraits {
         using key_type = Key;
@@ -49,7 +50,7 @@ namespace sgcl::detail {
         }
     };
 
-    // The skip list under concurrent_sorted_map and concurrent_sorted_set (concurrent_sorted_map.h
+    // The skip list under sorted_map and sorted_set (sorted_map.h
     // has the account of the algorithm): Traits names the element
     // (value_type), the key inside it, the comparison and whether the
     // iterators are const.

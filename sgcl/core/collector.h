@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "aliases.h"
 #include "detail/collector.h"
 
 #include <ostream>
@@ -28,7 +29,7 @@ namespace sgcl {
             size_t count = 0;
             detail::os::hidden_call([](void* out) {
                 *(size_t*)out = std::get<1>(detail::collector_instance().get_live_objects()).size();
-            }, &count, detail::stack_clear_limit(config::StackClearSize));
+            }, &count, detail::stack_clear_limit(config::stack_clear_size));
             return count;
         }
 
@@ -36,7 +37,7 @@ namespace sgcl {
             std::tuple<pause_guard, std::vector<void*>> result;
             detail::os::hidden_call([](void* out) {
                 *(std::tuple<pause_guard, std::vector<void*>>*)out = detail::collector_instance().get_live_objects();
-            }, &result, detail::stack_clear_limit(config::StackClearSize));
+            }, &result, detail::stack_clear_limit(config::stack_clear_size));
             return result;
         }
 
@@ -45,14 +46,14 @@ namespace sgcl {
             detail::os::hidden_call([](void* p) {
                 auto args = (bool*)p;
                 args[1] = detail::collector_instance().force_collect(args[0]);
-            }, args, detail::stack_clear_limit(config::StackClearSize));
+            }, args, detail::stack_clear_limit(config::stack_clear_size));
             return args[1];
         }
 
         // Zeroes `bytes` of stack below the caller's frame (the whole unused
         // stack for SIZE_MAX). Objects referenced only by words left behind
         // in dead frames become collectable.
-        SGCL_ALWAYS_INLINE static void clear_stack(size_t bytes = config::StackClearSize) noexcept {
+        SGCL_ALWAYS_INLINE static void clear_stack(size_t bytes = config::stack_clear_size) noexcept {
             detail::os::hidden_call([](void*) {}, nullptr, detail::stack_clear_limit(bytes));
         }
 
@@ -124,7 +125,7 @@ namespace sgcl {
                 for (auto& s : stats) {
                     result.push_back(type_statistics{s.type, s.buffers, s.object_size, s.live_objects, s.live_bytes, s.pages});
                 }
-            }, &result, detail::stack_clear_limit(config::StackClearSize));
+            }, &result, detail::stack_clear_limit(config::stack_clear_size));
             return result;
         }
 
@@ -136,7 +137,7 @@ namespace sgcl {
         // Ceiling on committed managed memory: by default 90% of the cgroup
         // limit (Linux) or of the physical memory. Near it the collector runs
         // more often and returns free chunks at once; at it an allocation
-        // forces a collection and throws std::bad_alloc if that is not enough.
+        // forces a collection and throws bad_alloc if that is not enough.
         // 0 disables the ceiling.
         inline static size_t get_memory_limit() noexcept {
             return detail::Heap::instance().memory_limit();

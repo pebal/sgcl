@@ -17,7 +17,7 @@
 namespace sgcl::detail {
     // The cells of the root_ptrs (root_ptr.h), the roots that live in
     // unmanaged memory, a line of the L1 cache of them to a block
-    // (config.h: L1LineSize; 16 on a 128-byte line, 8 on a 64-byte one): a
+    // (config::l1_line_size; 16 on a 128-byte line, 8 on a 64-byte one): a
     // managed object of nothing but pointers, made by the thread's cell
     // allocator (cell_allocator.h) once per block and never
     // freed by a mutator. A free slot holds its own address, which no
@@ -47,7 +47,7 @@ namespace sgcl::detail {
     // them as the atomic words they are used as (a slot in use is a
     // detail::Pointer, the same word).
     struct CellBlock {
-        static constexpr unsigned Slots = config::L1LineSize / sizeof(void*);
+        static constexpr unsigned Slots = config::l1_line_size / sizeof(void*);
 
         static uintptr_t word(const uintptr_t& s) noexcept {
             return os::load_word(&s);   // written by other threads (the pointers, the allocator): a volatile read, as of any word the collector reads
@@ -93,6 +93,6 @@ namespace sgcl::detail {
         uintptr_t slots[Slots];
     };
 
-    static_assert(sizeof(CellBlock) == config::L1LineSize);
+    static_assert(sizeof(CellBlock) == config::l1_line_size);
     static_assert(std::is_trivially_default_constructible_v<CellBlock> && std::is_trivially_destructible_v<CellBlock>);
 }

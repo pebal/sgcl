@@ -11,7 +11,7 @@
 
 namespace sgcl::detail {
     // The whole page holds objects: the header is outside (heap.h).
-    static constexpr size_t PageDataSize = config::PageSize;
+    static constexpr size_t PageDataSize = config::page_size;
 
     template<class T>
     struct PageInfo {

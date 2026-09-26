@@ -270,7 +270,7 @@ namespace sgcl::detail {
         static void _free(Page* pages) noexcept {
             std::vector<void*> data;
             for (auto page = pages; page; page = page->next_empty) {
-                std::memset((void*)page->data, 0, config::PageSize);
+                std::memset((void*)page->data, 0, config::page_size);
                 data.push_back((void*)page->data);
                 page->is_used = false;
             }

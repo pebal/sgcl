@@ -17,13 +17,13 @@ The interface is that of `std::function`: the constructors (a null function poin
 
 `move_only_function<Signature>` is `std::move_only_function` over the same storage: the callable need not be copyable (a lambda capturing a `unique_ptr`), an empty `move_only_function` of another signature or an empty function of either library makes an empty one, the signature's `const` and `noexcept` are honoured (`R(Args...) const` is callable through a `const move_only_function&`, `R(Args...) noexcept` makes the call `noexcept`; the reference qualifiers `&` and `&&` are not supported), `in_place_type`, and calling an empty one is undefined (debug builds assert).
 
-The word is a `tracked_ptr`, so a `function` lives where one may, as the containers do: on a stack or inside a managed object. What the closure captures follows the rules of its type where the `function` lives, as a member would. [`expiry_queue`](../containers/expiry_queue.md) takes its function as a `function`: an entry's function may capture the objects it works on.
+The word is a `tracked_ptr`, so a `function` lives where one may, as the containers do: on a stack or inside a managed object. What the closure captures follows the rules of its type where the `function` lives, as a member would. [`expiry_queue`](expiry_queue.md) takes its function as a `function`: an entry's function may capture the objects it works on.
 
 ## Rules
 
 - A `function` lives where a `tracked_ptr` may ([The rules](README.md#the-rules), 1); the closure follows the rules of its captures where the `function` lives.
 - A closure in a node is destroyed by `reset`, an assignment or the destructor, at once, on the calling thread; the objects it captured are unreferenced from then on and die with the next cycle that finds them so.
-- A closure in a node is traced: one that captures a strong pointer to the object holding the `function` is a cycle, collected when nothing else reaches it; one that captures a strong pointer to an object an [`expiry_queue`](../containers/expiry_queue.md) watches keeps that object alive.
+- A closure in a node is traced: one that captures a strong pointer to the object holding the `function` is a cycle, collected when nothing else reaches it; one that captures a strong pointer to an object an [`expiry_queue`](expiry_queue.md) watches keeps that object alive.
 - Thread safety is that of `std::function` ([The rules](README.md#the-rules), 6).
 
 ## Members
@@ -126,7 +126,7 @@ clicked ok
 
 ## See also
 
-- [any](any.md): the same storage for a value; [expiry_queue](../containers/expiry_queue.md): where a `function` runs with the object alive one last time
+- [any](any.md): the same storage for a value; [expiry_queue](expiry_queue.md): where a `function` runs with the object alive one last time
 - [tracked_ptr](tracked_ptr.md), [weak_ptr](weak_ptr.md), [unique_ptr](unique_ptr.md)
 - README: [variant, any, function and expected](README.md#variant-any-function-and-expected), [Pointer maps](../../garbage_collector/overview.md#pointer-maps), [The rules](README.md#the-rules)
 - `tests/core/function.cpp`: every behaviour above, checked.

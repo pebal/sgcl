@@ -5,8 +5,8 @@
 //------------------------------------------------------------------------------
 // range: a pair of iterators as a range, and the integers of a half-open
 // interval, in a range-for and under std::ranges.
-#include "sgcl/containers/sorted_multimap.h"
 #include "sgcl/core/range.h"
+#include "sgcl/core/sorted_multimap.h"
 #include "tests/types.h"
 
 #include <algorithm>

@@ -1,4 +1,4 @@
-# sgcl::wait_group
+# sgcl::async::wait_group
 
 ```cpp
 #include "sgcl/async/wait_group.h"   // or "sgcl/sgcl.h"
@@ -21,15 +21,15 @@ A wait group: `add(n)` counts the work, `done()` counts it off, `wait()` waits f
 ```cpp
 void add(long n = 1);  void done();  long count() const noexcept;
 void wait();                                   // a thread
-task<> async_wait();                           // co_await: the task resumed at zero
+operation<void> operator co_await();            // co_await g: the task resumed at zero
 template<class F> auto on_done(F f);           // a case of a select: f() when the count is zero
 ```
 
 ```cpp
-wait_group all;
+async::wait_group all;
 all.add(2);
-go([](wait_group& all) -> task<> { all.done(); co_return; }(all));
-go([](wait_group& all) -> task<> { all.done(); co_return; }(all));
+async::go([](async::wait_group& all) -> async::task<> { all.done(); co_return; }(all));
+async::go([](async::wait_group& all) -> async::task<> { all.done(); co_return; }(all));
 all.wait();                                     // both done
 ```
 
@@ -48,19 +48,19 @@ using namespace std::chrono_literals;
 // done, and an event that starts them together. Every wait here is a
 // task's, no thread held.
 struct Site {
-    semaphore slots{3};
-    mutex lock;
-    wait_group pending;
-    event go;
+    async::semaphore slots{3};
+    async::mutex lock;
+    async::wait_group pending;
+    async::event go;
     int fetched = 0;   // guarded by lock
 };
 
-task<> fetch(tracked_ptr<Site> site, int page) {
-    co_await site->go.async_wait();                          // all start together
-    co_await site->slots.async_acquire();                    // three at a time
-    co_await sgcl::sleep(1ms);                               // the fetch
+async::task<> fetch(tracked_ptr<Site> site, int page) {
+    co_await site->go;                          // all start together
+    co_await site->slots.acquire();                    // three at a time
+    co_await async::sleep(1ms);                               // the fetch
     {
-        auto guard = co_await site->lock.async_scoped_lock();
+        auto guard = co_await site->lock.scoped_lock();
         ++site->fetched;
     }
     site->slots.release();
@@ -71,7 +71,7 @@ int main() {
     tracked_ptr site = make_tracked<Site>();
     for (int page : range(20)) {
         site->pending.add();
-        go(fetch(site, page));
+        async::go(fetch(site, page));
     }
     site->go.set();
     site->pending.wait();                                    // this thread waits for the twenty

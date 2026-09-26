@@ -10,7 +10,8 @@ Where a text may be cut: between the characters a human counts (UAX #29), betwee
 
 ```cpp
 class graphemes;      // the grapheme clusters: what a reader calls a character
-class words;          // the words and the runs between them
+class word_breaks;    // the words and the runs between them
+class words;          // the words alone
 class sentences;      // the sentences, the space after the stop with the sentence it closes
 class line_breaks;    // the pieces that must stay on one line, their trailing spaces included
 ```
@@ -43,11 +44,11 @@ A grapheme is one combining sequence, one flag (two regional indicators), one em
 
 ## The words and what is between them
 
-`words` cuts at every word boundary, which gives the words **and** the runs between them — that is what the annex defines and what a double click needs. A run of spaces is one segment while each punctuation mark is its own. To count the words, ask for the segments with something alphanumeric in them:
+`word_breaks` cuts at every word boundary, which gives the words **and** the runs between them — that is what the annex defines and what a double click, or a text put back together word by word, needs. A run of spaces is one segment while each punctuation mark is its own. `words` gives the words alone: the same segments, those with a letter or a digit in them.
 
 ```cpp
-auto is_word = [](slice<const char> w) { return w.runes().exists(is_alnum); };
-words(s).count_of(is_word);
+words(s).count();              // "can't stop, won't stop": 4
+word_breaks(s).count();        // the same text: 8, the spaces and the comma too
 ```
 
 The rules keep an apostrophe and a decimal point inside a word (`don't`, `3.14`, `192.168.0.1`) and cut at a hyphen (`e-mail` is two).
@@ -67,6 +68,8 @@ These are the rules of the annex and nothing more, so an initial before a capita
 `truncate` cuts to `width` columns with the ellipsis counted inside that number and the cut made at a grapheme boundary — never inside a character. A text that already fits comes back as the same object.
 
 Unlike the other three, `line_breaks` carries state in its iterator: rule LB15a asks what stood before an opening quotation mark, and that may be on the other side of a break opportunity, so the scan runs from the beginning of the text. Walking the range is still linear.
+
+**The scripts that write without spaces are the limit of this.** In Thai, Lao, Khmer and Burmese a line may be broken between words, and the words are not marked: finding them takes a dictionary of the language, a few hundred kilobytes of one. UAX #14 gives those characters the class SA and says an implementation without a dictionary resolves it from the category — which is what rule LB1 does here, making them ordinary letters. So a text in those scripts breaks between characters rather than between words: correct by the rules, and not what somebody who reads them expects. The day it matters it is a dictionary and a segmentation of its own, not another rule.
 
 ## Example
 
@@ -97,8 +100,7 @@ int main() {
     size_t caret = text.find("🇵🇱");
     std::cout << caret << " -> " << txt::grapheme_next(text, caret) << '\n';
 
-    auto is_word = [](slice<const char> w) { return w.runes().exists(txt::is_alnum); };
-    std::cout << txt::words(text).count_of(is_word) << " words, "
+    std::cout << txt::words(text).count() << " words, "
               << txt::sentences(text).count() << " sentence\n";
     return 0;
 }

@@ -5,14 +5,15 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "../concurrent/concurrent_queue.h"
+#include "../concurrent/queue.h"
 #include "../core/weak_ptr.h"
 #include "channel.h"
 #include "timer.h"
 
 #include <utility>
 
-namespace sgcl {
+namespace sgcl::async {
+    namespace detail { using namespace sgcl::detail; }
     // Cancellation, the way Go's context has it, under the names of
     // std::stop_source and std::stop_token: a source requests the stop,
     // the tokens handed down see it. A token is a channel of signals
@@ -29,7 +30,7 @@ namespace sgcl {
         struct StopState {
             channel<void> signal;                        // closed: the stop requested
             tracked_ptr<StopState> parent;
-            concurrent_queue<weak_ptr<StopState>> children;
+            concurrent::queue<weak_ptr<StopState>> children;
 
             bool stopped() const noexcept {
                 return signal.closed();
@@ -72,11 +73,47 @@ namespace sgcl {
             return _s->signal.on_receive(std::move(f));
         }
 
-        // `co_await token.stopped()`: the task suspended until the stop
-        auto stopped() const noexcept {
+        // Waits for the stop, and gives nothing: `co_await token.stopped()`
+        // in a task, `token.stopped().wait()` on a thread
+        auto stopped() const {
             assert(_s && "an empty stop_token has nothing to await: stop_possible() says");
-            return _s->signal.async_receive();
+            return operation([s = _s](auto how) -> decltype(auto) {
+                if constexpr (detail::is_awaited<decltype(how)>) {
+                    return stop_wait(s->signal);
+                } else {
+                    (void)s->signal.receive().wait();
+                }
+            });
         }
+
+    private:
+        // The awaitable of stopped(): the channel's receive, with nothing
+        // given back (a receive of a closed channel of signals is false,
+        // which says nothing here)
+        class stop_wait {
+        public:
+            explicit stop_wait(async::channel<void>& ch) noexcept
+            : _op(ch.receive()) {
+            }
+
+            bool await_ready() {
+                return _op.await_ready();
+            }
+
+            template<class P>
+            bool await_suspend(std::coroutine_handle<P> h) {
+                return _op.await_suspend(h);
+            }
+
+            void await_resume() {
+                (void)_op.await_resume();
+            }
+
+        private:
+            decltype(std::declval<async::channel<void>&>().receive()) _op;
+        };
+
+    public:
 
         friend bool operator==(const stop_token& a, const stop_token& b) noexcept {
             return a._s == b._s;
@@ -85,8 +122,8 @@ namespace sgcl {
     private:
         friend class stop_source;
 
-        explicit stop_token(tracked_ptr<detail::StopState> s) noexcept
-        : _s(std::move(s)) {
+        explicit stop_token(const tracked_ptr<detail::StopState>& s) noexcept
+        : _s(s) {
         }
 
         tracked_ptr<detail::StopState> _s;
@@ -143,6 +180,11 @@ namespace sgcl {
         // closed and the children stopped in one step
         void stop_after(duration d) {
             detail::add_timer(d, _s, [](void* s) { static_cast<detail::StopState*>(s)->stop(); });
+        }
+
+        // The same at a point of the module's clock
+        void stop_at(time_point when) {
+            detail::add_timer(when, _s, [](void* s) { static_cast<detail::StopState*>(s)->stop(); });
         }
 
     private:

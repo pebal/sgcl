@@ -6,11 +6,13 @@
 #pragma once
 
 #include "channel.h"
+#include "operation.h"
 
 #include <cstddef>
 #include <utility>
 
-namespace sgcl {
+namespace sgcl::async {
+    namespace detail { using namespace sgcl::detail; }
     // A semaphore of n permits: acquire() takes one, release() gives one back
     class semaphore {
     public:
@@ -28,8 +30,10 @@ namespace sgcl {
         semaphore(const semaphore&) = delete;
         semaphore& operator=(const semaphore&) = delete;
 
-        void acquire() {
-            _ch.receive();
+        // Takes a permit, waiting for one: `co_await s.acquire()` in a task,
+        // `s.acquire().wait()` on a thread
+        auto acquire() {
+            return _ch.receive();
         }
 
         bool try_acquire() {
@@ -38,10 +42,6 @@ namespace sgcl {
 
         void release() {
             _ch.try_send();
-        }
-
-        auto async_acquire() noexcept {
-            return _ch.async_receive();
         }
 
         template<class F>

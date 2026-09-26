@@ -5,7 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "../concurrent/concurrent_queue.h"
+#include "../concurrent/queue.h"
 #include "../core/config.h"
 #include "../core/make_tracked.h"
 #include "../core/root_ptr.h"
@@ -26,7 +26,8 @@
 #include <type_traits>
 #include <utility>
 
-namespace sgcl {
+namespace sgcl::async {
+    namespace detail { using namespace sgcl::detail; }
     // A blocking call from a task: `T r = co_await spawn_blocking(f);`
     // runs f on a pool of threads apart from the scheduler's workers and
     // hands what it returns (or throws) back through a promise
@@ -40,17 +41,17 @@ namespace sgcl {
     //
     // The pool, one per process: a queue of jobs and threads that take
     // from it, started with the first job that finds no idle thread and
-    // grown one thread per such job up to config::BlockingThreads (the
+    // grown one thread per such job up to config::blocking_threads (the
     // larger of 64 and four times the hardware concurrency, by default:
     // the threads are expected to block, so there are more of them than
     // cores); a thread that finds the queue empty parks for the idle
-    // time (config::BlockingIdleMilliseconds, 10 s; blocking_pool::
+    // time (config::blocking_idle_milliseconds, 10 s; blocking_pool::
     // set_idle_time) and exits when nothing came, so that a program that
     // stopped blocking has no threads for it. A job is a managed object
     // holding the closure and the promise: the closure lives there, so
     // that what it captured (a tracked_ptr to the buffer being read into)
     // is traced through the job's pointer map, and the promise is where
-    // the task waits. The queue is a concurrent_queue in a managed object
+    // the task waits. The queue is a concurrent::queue in a managed object
     // the pool owns (as the scheduler's global queue is), lock-free, and a
     // push holds the job while it waits; the pool's mutex covers its
     // counts only (the idle threads, the wake credits, the jobs pending,
@@ -109,7 +110,7 @@ namespace sgcl {
             }
 
             struct Queue {
-                concurrent_queue<tracked_ptr<BlockingJobBase>> jobs;
+                concurrent::queue<tracked_ptr<BlockingJobBase>> jobs;
             };
 
             struct Statistics {
@@ -127,13 +128,13 @@ namespace sgcl {
             // decision under it, so that a thread about to park sees the
             // push (its look at the queue is under the lock too) or is
             // seen here as idle and woken
-            void submit(tracked_ptr<BlockingJobBase> job) {
+            void submit(const tracked_ptr<BlockingJobBase>& job) {
                 std::unique_lock lock(_m);
                 if (!_queue) {
                     _queue = make_tracked<Queue>();
                     scheduler_stop_hook3.store([] { blocking_pool_instance().stop(); }, std::memory_order_release);   // scheduler::stop() stops the pool too
                 }
-                _queue->jobs.push(std::move(job));
+                _queue->jobs.push(job);
                 ++_pending;
                 if (_idle > 0) {
                     --_idle;   // the credit: this thread counts as woken from here, and the one that wakes takes it
@@ -201,7 +202,7 @@ namespace sgcl {
             using Threads = std::list<std::thread>;
 
             static unsigned _cap() noexcept {
-                return config::BlockingThreads ? config::BlockingThreads : std::max(64u, 4 * std::thread::hardware_concurrency());
+                return config::blocking_threads ? config::blocking_threads : std::max(64u, 4 * std::thread::hardware_concurrency());
             }
 
             // A thread started, under the lock: the handles of the threads
@@ -290,7 +291,7 @@ namespace sgcl {
             unsigned _notify = 0;               // credits handed out and not yet taken
             size_t _pending = 0;                // jobs queued or running
             bool _stop = false;
-            duration _idle_time = std::chrono::milliseconds(config::BlockingIdleMilliseconds);
+            duration _idle_time = std::chrono::milliseconds(config::blocking_idle_milliseconds);
         };
 
         inline BlockingPool& blocking_pool_instance() {
@@ -300,7 +301,7 @@ namespace sgcl {
     }
 
     // The handle of a job on the pool: `co_await` gives what f returned,
-    // or rethrows what it threw, and so does join() for a thread; the job
+    // or rethrows what it threw, and so does wait() for a thread; the job
     // runs whether or not the handle is kept (a handle dropped is a job
     // whose result nobody reads, and the job is the collector's once it
     // ran). A root_ptr to the job, as a task's handle is to its frame, so
@@ -318,15 +319,16 @@ namespace sgcl {
         blocking_task& operator=(const blocking_task&) = delete;
 
         bool done() const noexcept {
-            return _job && _job->result.ready();
+            return _job && _job->result.done();
         }
 
-        // Waits for the result, on this thread: not from a task on a worker
-        T join() {
+        // Waits for the job, on this thread: what f returned, or what it
+        // threw, rethrown. Not from a task on a worker
+        T wait() {
             if constexpr (std::is_void_v<T>) {
-                _job->result.get();
+                _job->result.wait();
             } else {
-                return std::move(_job->result.get());
+                return std::move(_job->result.wait());
             }
         }
 
@@ -353,8 +355,8 @@ namespace sgcl {
         private:
             friend class blocking_task;
 
-            explicit awaiter(tracked_ptr<detail::BlockingJob<T>> job) noexcept
-            : _job(std::move(job))
+            explicit awaiter(const tracked_ptr<detail::BlockingJob<T>>& job) noexcept
+            : _job(job)
             , _aw(_job->result.operator co_await()) {
             }
 
@@ -366,9 +368,17 @@ namespace sgcl {
             return awaiter(_job.ptr());
         }
 
-        // The promise the job fills: for a select case, `t.result().on_ready(f)`
-        promise<T>& result() noexcept {
-            return _job->result;
+        // What f returned, or what it threw, as a task's result() has it:
+        // waited for first, on this thread, when the job has not run yet;
+        // a reference into the job (void for a job of nothing)
+        decltype(auto) result() {
+            return _job->result.result();
+        }
+
+        // A case of a select: f() once the job ran
+        template<class F>
+        auto on_done(F f) {
+            return _job->result.on_done(std::move(f));
         }
 
         // From the job, by spawn_blocking
@@ -380,8 +390,8 @@ namespace sgcl {
         root_ptr<detail::BlockingJob<T>> _job;
     };
 
-    // f queued for the pool: `T r = co_await sgcl::spawn_blocking(f);`
-    // from a task, `spawn_blocking(f).join()` from a thread. f is moved
+    // f queued for the pool: `T r = co_await sgcl::async::spawn_blocking(f);`
+    // from a task, `spawn_blocking(f).wait()` from a thread. f is moved
     // into the job, a managed object, so it may capture tracked pointers;
     // what it captures by reference must outlive the job, which a task's
     // locals do while the task awaits it
@@ -393,7 +403,7 @@ namespace sgcl {
         return blocking_task<T>(job);
     }
 
-    // The same, where it reads better: `co_await sgcl::blocking([&] { return read(fd, buf, n); })`
+    // The same, where it reads better: `co_await sgcl::async::blocking([&] { return read(fd, buf, n); })`
     template<class F>
     auto blocking(F f) {
         return spawn_blocking(std::move(f));
@@ -408,13 +418,13 @@ namespace sgcl {
             return detail::blocking_pool_instance().statistics();
         }
 
-        // The most threads the pool grows to (config::BlockingThreads)
+        // The most threads the pool grows to (config::blocking_threads)
         static unsigned max_threads() noexcept {
             return detail::BlockingPool::cap();
         }
 
         // How long an idle thread waits for a job before it exits
-        // (config::BlockingIdleMilliseconds by default)
+        // (config::blocking_idle_milliseconds by default)
         static void set_idle_time(duration d) {
             detail::blocking_pool_instance().set_idle_time(d);
         }

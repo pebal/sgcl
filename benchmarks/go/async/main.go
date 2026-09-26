@@ -166,7 +166,7 @@ func main() {
 		<-done
 		<-done
 		report("pingpong", time.Since(t0).Seconds(), 2*n)
-	case "generator": // a range-over-func iterator: the consumer and the producer hand control directly, as the async_generator does
+	case "generator": // a range-over-func iterator: the consumer and the producer hand control directly, as the async::generator does
 		if n == 0 {
 			n = 2000000
 		}

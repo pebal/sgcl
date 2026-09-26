@@ -41,18 +41,18 @@ The requirements (`namespace sgcl::req`) are the concepts of the library: what a
 | `req::comparable<T>` | `int`, `std::pair<int, int>`, a struct with `<=>` or with `<` alone; not a struct without | `min`, `sort`, `<=>` of a container need it |
 | `req::enumerable<R>` | every container of the library that iterates, `slice`, `range`; not `std::vector`, not `string` | `count_of`, `for_each` |
 | `req::bidirectional<R>` | `vector`, `deque`, `list`, `sorted_set`, `sorted_map`, `slice`; not `forward_list`, `set` | `last_index_of`, `reverse` |
-| `req::random_access<R>` | `vector`, `array`, `deque`, `im::vector`, `slice`; not `list` | `binary_search`, `sort` |
+| `req::random_access<R>` | `vector`, `array`, `deque`, `immutable::vector`, `slice`; not `list` | `binary_search`, `sort` |
 | `req::contiguous<R>` | `vector`, `array`, `dynamic_array`, `slice` | `data()` |
-| `req::sequence<R>` | the mutable sequences, `slice<T>`; not `im::vector`, not `slice<const T>`, not `sorted_set` | `fill`, `sort` |
-| `req::ordered<R>` | a sequence, `slice`, `im::vector`, `im::list` of comparable elements; not `sorted_set`, not `vector<point>` | `max`, `is_sorted`, `lower_bound` |
-| `req::lookup<R>` | `sorted_map`, `sorted_multimap`, `map`, `multimap`, `ordered_map`, `im::map` | `get`, `contains_key` |
-| `req::immutable<R>` | `im::vector`, `im::list`, `im::map`, `im::set`; not `slice<const T>`, not `sorted_set` | a snapshot kept, shared or compared without a copy |
+| `req::sequence<R>` | the mutable sequences, `slice<T>`; not `immutable::vector`, not `slice<const T>`, not `sorted_set` | `fill`, `sort` |
+| `req::ordered<R>` | a sequence, `slice`, `immutable::vector`, `immutable::list` of comparable elements; not `sorted_set`, not `vector<point>` | `max`, `is_sorted`, `lower_bound` |
+| `req::lookup<R>` | `sorted_map`, `sorted_multimap`, `map`, `multimap`, `ordered_map`, `immutable::map` | `get`, `contains_key` |
+| `req::immutable<R>` | `immutable::vector`, `immutable::list`, `immutable::map`, `immutable::set`; not `slice<const T>`, not `sorted_set` | a snapshot kept, shared or compared without a copy |
 
 ```cpp
 static_assert(req::ordered<vector<int>> && !req::ordered<sorted_set<int>> && !req::enumerable<std::vector<int>>);
 struct point { int x, y; };
 static_assert(req::enumerable<vector<point>> && !req::ordered<vector<point>>);   // iterates; has no order
-static_assert(req::immutable<im::vector<int>> && !req::immutable<slice<const int>>);   // a value that never changes; not merely not written
+static_assert(req::immutable<immutable::vector<int>> && !req::immutable<slice<const int>>);   // a value that never changes; not merely not written
 ```
 
 ## Example

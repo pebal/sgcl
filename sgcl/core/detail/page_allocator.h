@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../aliases.h"
 #include "heap.h"
 #include "memory_counters.h"
 
@@ -45,7 +46,7 @@ namespace sgcl::detail {
                     collect_before_bad_alloc();
                     _count = heap.alloc_pages(_cache, CacheSize);
                     if (!_count) {
-                        throw std::bad_alloc();
+                        throw bad_alloc();
                     }
                 }
             }

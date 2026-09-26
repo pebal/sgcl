@@ -19,7 +19,7 @@ namespace sgcl::detail {
     // of headers is bounded by the number of pages ever in use at once.
     class HeaderSlab {
     public:
-        static constexpr size_t Alignment = config::CacheLineSize;
+        static constexpr size_t Alignment = config::cache_line_size;
         static constexpr size_t BlockSize = 0x10000;
 
         explicit HeaderSlab(size_t size) noexcept

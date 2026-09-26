@@ -93,6 +93,34 @@ namespace {
         Overlapping() {}
         size_t word = 0;   // data in one object, an address in another: rule 2 broken
     };
+    // An owner and a raw word into what it owns (io::reader's handle,
+    // slice): the raw word is data to the collector, and safe, since the
+    // tracked word of the same object keeps its target
+    struct Covered {
+        Covered() {}
+        tracked_ptr<Payload> owner;
+        size_t raw = 0;
+    };
+
+    // The same shape with the owner pointing elsewhere: the raw word
+    // keeps nothing, which is the mistake the report is for
+    struct Uncovered {
+        Uncovered() {}
+        tracked_ptr<Payload> owner;
+        size_t raw = 0;
+    };
+
+    // Data that happens to hold an address inside a live object, not at
+    // its start (two small ints packed in a word, as an immutable map's
+    // node holds them): no pointer of any kind
+    struct Blob {
+        char bytes[256] = {};
+    };
+
+    struct Packed {
+        Packed() {}
+        size_t word = 0;
+    };
 }
 
 TEST(Maps_Tests, DataOffsetsAreEliminatedPointerOffsetsStay) {
@@ -244,5 +272,54 @@ TEST(Maps_Tests, SharedStorageIsReportedInDebug) {
     }
     auto output = ::testing::internal::GetCapturedStderr();
     EXPECT_NE(output.find("classified as data but holds a pointer"), std::string::npos) << output;
+}
+
+// A raw word whose target a tracked word of the same object holds is not
+// reported: the owner keeps what the raw word names
+TEST(Maps_Tests, ARawWordItsOwnerCoversIsNotReported) {
+    tracked_ptr<Payload> target = make_tracked<Payload>(5);
+    tracked_ptr<Covered> data = make_tracked<Covered>();
+    tracked_ptr<Covered> covered = make_tracked<Covered>();
+    data->raw = 12345;
+    covered->owner = target;
+    covered->raw = (size_t)target.get();
+    ::testing::internal::CaptureStderr();
+    for (int i = 0; i < 4; ++i) {
+        collector::force_collect(true);
+    }
+    auto output = ::testing::internal::GetCapturedStderr();
+    EXPECT_EQ(output.find("Covered"), std::string::npos) << output;
+}
+
+// The same with the owner elsewhere: reported, the raw word keeping nothing
+TEST(Maps_Tests, ARawWordNoOwnerCoversIsReported) {
+    tracked_ptr<Payload> target = make_tracked<Payload>(5);
+    tracked_ptr<Uncovered> data = make_tracked<Uncovered>();
+    tracked_ptr<Uncovered> uncovered = make_tracked<Uncovered>();
+    data->raw = 12345;
+    uncovered->owner = make_tracked<Payload>(6);
+    uncovered->raw = (size_t)target.get();
+    ::testing::internal::CaptureStderr();
+    for (int i = 0; i < 4; ++i) {
+        collector::force_collect(true);
+    }
+    auto output = ::testing::internal::GetCapturedStderr();
+    EXPECT_NE(output.find("Uncovered"), std::string::npos) << output;
+}
+
+// Data that lands inside a live object, not at its start, is not taken
+// for a pointer: a pointer names an object by its start
+TEST(Maps_Tests, DataInsideAnObjectIsNotReported) {
+    tracked_ptr<Blob> target = make_tracked<Blob>();
+    tracked_ptr<Packed> data = make_tracked<Packed>();
+    tracked_ptr<Packed> inside = make_tracked<Packed>();
+    data->word = 12345;
+    inside->word = (size_t)target.get() + 64;
+    ::testing::internal::CaptureStderr();
+    for (int i = 0; i < 4; ++i) {
+        collector::force_collect(true);
+    }
+    auto output = ::testing::internal::GetCapturedStderr();
+    EXPECT_EQ(output.find("Packed"), std::string::npos) << output;
 }
 #endif

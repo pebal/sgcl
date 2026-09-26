@@ -5,18 +5,19 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "../../containers/detail/weak_table.h"
 #include "../../core/aliases.h"
+#include "../../core/atomic.h"
+#include "../../core/detail/weak_table.h"
 #include "../../core/tracked_ptr.h"
 #include "../../core/weak_ptr.h"
-#include "../atomic.h"
 
 #include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
 
-namespace sgcl::detail {
+namespace sgcl::concurrent::detail {
+    using namespace sgcl::detail;
     // The key of the concurrent weak containers: the weak pointer to the
     // object and the hash the entry was placed with. The sequential weak
     // containers key their tables by the weak pointer alone and hash it
@@ -88,8 +89,8 @@ namespace sgcl::detail {
     };
 
     // What the concurrent weak containers share: a lock-free hash table
-    // keyed by WeakKeys (the Table: a concurrent_map or a
-    // concurrent_set of them), the entries of dead objects
+    // keyed by WeakKeys (the Table: a map or a
+    // set of them), the entries of dead objects
     // swept out every so many insertions, and the counters that decide
     // when. The sweep is a walk of the table that erases, by iterator,
     // every entry whose cell is cleared: the collector clears a cell

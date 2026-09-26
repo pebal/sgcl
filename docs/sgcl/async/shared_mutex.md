@@ -1,4 +1,4 @@
-# sgcl::shared_mutex
+# sgcl::async::shared_mutex
 
 ```cpp
 #include "sgcl/async/shared_mutex.h"   // or "sgcl/sgcl.h"
@@ -14,27 +14,27 @@ Go's `sync.RWMutex` and Java's `ReentrantReadWriteLock`: any number of readers a
 
 - It lives where a `tracked_ptr` may: on a stack or inside a managed object ([The rules](../core/README.md#the-rules), 1); not copyable, not movable.
 - Not recursive either way: a reader that takes the lock again while a writer waits deadlocks (the writer blocks new readers, Go's rule), a writer that takes it again deadlocks on itself.
-- `std::shared_lock<sgcl::shared_mutex>` and `std::lock_guard<sgcl::shared_mutex>` work for a thread; `co_await m.async_scoped_lock_shared()` and `co_await m.async_scoped_lock()` for a task. Up to 2<sup>31</sup> readers at once.
+- `std::shared_lock<sgcl::async::shared_mutex>` and `std::lock_guard<sgcl::async::shared_mutex>` work for a thread; `co_await m.scoped_lock_shared()` and `co_await m.scoped_lock()` for a task. Up to 2<sup>31</sup> readers at once.
 
 ## Members
 
 ```cpp
 void lock_shared();  bool try_lock_shared() noexcept;  void unlock_shared();   // a reader
 void lock();  bool try_lock();  void unlock();                                  // the writer
-auto async_lock_shared() noexcept;             // co_await: a reader, locked
-auto async_scoped_lock_shared() noexcept;      // co_await: a shared_guard that unlocks when destroyed
-auto async_lock() noexcept;                    // co_await: the writer, locked
-auto async_scoped_lock() noexcept;             // co_await: a guard
+auto scoped_lock_shared() noexcept;             // co_await: a reader, locked
+auto scoped_lock_shared() noexcept;      // co_await: a shared_guard that unlocks when destroyed
+auto scoped_lock() noexcept;                    // co_await: the writer, locked
+auto scoped_lock() noexcept;             // co_await: a guard
 class shared_guard;  class guard;
 ```
 
 ```cpp
-shared_mutex table;
-auto read = [](shared_mutex& table) -> task<> {
-    auto guard = co_await table.async_scoped_lock_shared();   // with the other readers
+async::shared_mutex table;
+auto read = [](async::shared_mutex& table) -> async::task<> {
+    auto guard = co_await table.scoped_lock_shared();   // with the other readers
 };
-auto write = [](shared_mutex& table) -> task<> {
-    auto guard = co_await table.async_scoped_lock();          // alone
+auto write = [](async::shared_mutex& table) -> async::task<> {
+    auto guard = co_await table.scoped_lock();          // alone
 };
 ```
 
@@ -53,40 +53,40 @@ using namespace sgcl;
 // readers' results handed to the main thread through a queue under a
 // mutex with a condition variable. Every wait of a task is a co_await.
 struct Table {
-    shared_mutex lock;
+    async::shared_mutex lock;
     vector<int> squares;   // guarded by lock
 };
 
 struct Results {
-    mutex lock;
-    condition_variable ready;
+    async::mutex lock;
+    async::condition_variable ready;
     vector<long> queue;    // guarded by lock
     int pending = 0;             // guarded by lock
 };
 
-task<> reader(tracked_ptr<Table> table, tracked_ptr<Results> results, int rounds) {
+async::task<> reader(tracked_ptr<Table> table, tracked_ptr<Results> results, int rounds) {
     long consistent = 0;
     for (int round : range(rounds)) {
         (void)round;
-        auto guard = co_await table->lock.async_scoped_lock_shared();   // any number of readers at once, never with the writer
+        auto guard = co_await table->lock.scoped_lock_shared();   // any number of readers at once, never with the writer
         bool ok = true;
         for (size_t i : range(table->squares.size())) {
             ok = ok && table->squares[i] == (int)((i + 1) * (i + 1));
         }
         consistent += ok;
-        co_await yield();
+        co_await async::yield();
     }
-    auto guard = co_await results->lock.async_scoped_lock();
+    auto guard = co_await results->lock.scoped_lock();
     results->queue.push_back(consistent);
     --results->pending;
     results->ready.notify_one();
 }
 
-task<> writer(tracked_ptr<Table> table, int rounds) {
+async::task<> writer(tracked_ptr<Table> table, int rounds) {
     for (int i : range(rounds)) {
-        auto guard = co_await table->lock.async_scoped_lock();         // alone: the readers wait, and new ones queue behind it
+        auto guard = co_await table->lock.scoped_lock();         // alone: the readers wait, and new ones queue behind it
         table->squares.push_back((i + 1) * (i + 1));
-        co_await yield();
+        co_await async::yield();
     }
 }
 
@@ -96,9 +96,9 @@ int main() {
     results->pending = 4;
     for (int i : range(4)) {
         (void)i;
-        go(reader(table, results, 100));
+        async::go(reader(table, results, 100));
     }
-    task<> w = spawn(writer(table, 100));
+    async::task<> w = async::spawn(writer(table, 100));
     long total = 0;
     std::unique_lock lock(results->lock);                                  // this thread: the standard's lock over the module's mutex
     results->ready.wait(lock, [&] { return results->pending == 0; });     // the predicate, checked under the mutex before each wait
@@ -106,10 +106,10 @@ int main() {
         total += consistent;
     }
     lock.unlock();
-    w.join();
+    w.wait();
     std::cout << table->squares.size() << " squares, the last " << table->squares.back() << "\n";
     std::cout << results->queue.size() << " readers, " << total << " consistent looks at the table\n";
-    scheduler::stop();
+    async::scheduler::stop();
 }
 ```
 

@@ -58,6 +58,29 @@ TEST(Slice_Tests, UnmanagedMemoryGivesASliceWithoutAnOwner) {
     EXPECT_EQ(widened[2], 30);
 }
 
+TEST(Slice_Tests, AnArrayGivesASliceWithoutAnOwner) {
+    sgcl::array<int, 4> a = {1, 2, 3, 4};
+    slice s(a);
+    static_assert(std::is_same_v<decltype(s), slice<int>>);
+    EXPECT_FALSE(s.owned());
+    EXPECT_EQ(s.data(), a.data());
+    EXPECT_EQ(s.size(), 4u);
+    s[1] = 20;
+    EXPECT_EQ(a[1], 20);
+    const sgcl::array<int, 4>& ca = a;
+    slice cs(ca);
+    static_assert(std::is_same_v<decltype(cs), slice<const int>>);
+    auto sum = [](slice<const int> v) { int n = 0; for (int x : v) n += x; return n; };
+    EXPECT_EQ(sum(a), 1 + 20 + 3 + 4);            // a parameter of a slice takes the array
+    EXPECT_EQ(a.as_slice(2).size(), 2u);
+    EXPECT_THROW((void)a.as_slice(5), sgcl::out_of_range);
+    sgcl::array<int, 0> none;
+    EXPECT_TRUE(none.as_slice().empty());
+    sgcl::array<byte, 8> bytes = {};
+    slice<byte> b = bytes;
+    EXPECT_EQ(b.size(), 8u);
+}
+
 TEST(Slice_Tests, SubslicesShareTheOwner) {
     sgcl::tracked_ptr b = make_tracked<Block>();
     slice<int> s(b, b->values, 8);
@@ -172,11 +195,11 @@ TEST(Slice_Tests, BytesOfASlice) {
     sgcl::tracked_ptr b = make_tracked<Block>();
     slice<int> s(b, b->values, 8);
     auto bytes = as_bytes(s);
-    static_assert(std::is_same_v<decltype(bytes), slice<const std::byte>>);
+    static_assert(std::is_same_v<decltype(bytes), slice<const byte>>);
     EXPECT_EQ(bytes.size(), 8 * sizeof(int));
     EXPECT_EQ(bytes.owner(), s.owner());
     auto writable = as_writable_bytes(s);
-    writable[4] = std::byte(9);                 // the low byte of values[1] on a little-endian machine
+    writable[4] = byte(9);                 // the low byte of values[1] on a little-endian machine
     EXPECT_EQ(b->values[1] & 0xFF, 9);
 }
 

@@ -6,7 +6,7 @@
 #pragma once
 #include "../core/detail/bytes.h"
 
-#include "../containers/vector.h"
+#include "../core/vector.h"
 #include "properties.h"
 #include "detail/encoding_tables.h"
 
@@ -34,6 +34,16 @@ namespace sgcl::txt {
     // Unicode itself, ASCII and ISO-8859-1 beside them. The enum, the
     // names, the aliases and the tables all come out of one list in the
     // generator, so none of them can drift from the others.
+    //
+    // What is not here is deliberate: the multi byte legacy encodings of
+    // the same list — Shift_JIS, EUC-JP, GB18030, Big5 and EUC-KR. Their
+    // tables run to some three or four hundred kilobytes against the six
+    // hundred the whole module holds today, and a linker drops what a
+    // program never asks about, so the weight is not in anybody's binary
+    // but in the repository and in every build of it. The day something
+    // here has to read the older files of that part of the world they are
+    // worth the room; until then a text in one of them is turned into
+    // UTF-8 before it reaches this library.
     using detail::encoding;
 
     // The name a header would use for it
@@ -110,7 +120,7 @@ namespace sgcl::txt {
         }
 
         // A unit of UTF-16 from two bytes, and of UTF-32 from four
-        constexpr uint32_t unit(const std::byte* p, size_t n, bool big) noexcept {
+        constexpr uint32_t unit(const byte* p, size_t n, bool big) noexcept {
             uint32_t v = 0;
             for (size_t i = 0; i < n; ++i) {
                 v |= uint32_t(uint8_t(p[big ? i : n - 1 - i])) << (8 * (n - 1 - i));
@@ -132,7 +142,7 @@ namespace sgcl::txt {
         }
     };
 
-    inline byte_order_mark detect_bom(slice<const std::byte> bytes) noexcept {
+    inline byte_order_mark detect_bom(const slice<const byte>& bytes) noexcept {
         auto at = [&](size_t i) { return i < bytes.size() ? uint8_t(bytes[i]) : 0x100u; };
         if (at(0) == 0xEF && at(1) == 0xBB && at(2) == 0xBF) {
             return {encoding::utf8, 3};
@@ -167,7 +177,7 @@ namespace sgcl::txt {
     // Bytes in some encoding as text. A byte that means nothing in it is
     // one replacement character, as an invalid byte of UTF-8 is: nothing
     // is refused and nothing is thrown.
-    inline string decode(slice<const std::byte> bytes, encoding from) {
+    inline string decode(const slice<const byte>& bytes, encoding from) {
         // Three bytes an input byte covers every encoding here: a byte of
         // a single byte encoding stands for a code point of the Basic
         // Multilingual Plane, a pair of UTF-16 units for one outside it,
@@ -256,11 +266,126 @@ namespace sgcl::txt {
         return string(out.data(), size_t(at - out.data()));
     }
 
+    // The strict form of decode, as a tag: `decode(bytes, from, strict)`
+    struct strict_t {
+        explicit strict_t() = default;
+    };
+    inline constexpr strict_t strict{};
+
+    // Why bytes are not text in an encoding: the first byte that means
+    // nothing in it
+    class decode_error {
+    public:
+        decode_error(size_t offset, encoding from) noexcept
+        : _offset(offset)
+        , _from(from) {
+        }
+
+        size_t offset() const noexcept {
+            return _offset;
+        }
+
+        encoding from() const noexcept {
+            return _from;
+        }
+
+        string message() const {
+            return string(std::string("not ") + name_of(_from));
+        }
+
+        friend bool operator==(const decode_error&, const decode_error&) noexcept = default;
+
+    private:
+        size_t _offset;
+        encoding _from;
+    };
+
+    namespace detail {
+        // The first byte that decode would make a replacement character
+        // of, or npos: an invalid sequence of UTF-8 (a U+FFFD written in
+        // it is a character), a lone surrogate or a unit cut short in
+        // UTF-16 and UTF-32, a byte over 127 in ASCII, a byte a single
+        // byte encoding does not define
+        inline size_t first_undecodable(const slice<const byte>& bytes, encoding from) noexcept {
+            auto* p = bytes.data();
+            size_t n = bytes.size();
+            switch (from) {
+                case encoding::utf8: {
+                    std::string_view v(reinterpret_cast<const char*>(p), n);
+                    for (size_t i = 0; i < v.size();) {
+                        auto [c, w] = utf8::decode(v, i);
+                        if (c == utf8::replacement && w == 1) {
+                            return i;
+                        }
+                        i += w;
+                    }
+                    return npos;
+                }
+                case encoding::utf16le:
+                case encoding::utf16be: {
+                    bool big = from == encoding::utf16be;
+                    for (size_t i = 0; i + 1 < n; i += 2) {
+                        uint32_t u = unit(p + i, 2, big);
+                        if (u >= 0xD800 && u < 0xDC00 && i + 3 < n) {
+                            uint32_t low = unit(p + i + 2, 2, big);
+                            if (low >= 0xDC00 && low < 0xE000) {
+                                i += 2;
+                                continue;
+                            }
+                        }
+                        if (u >= 0xD800 && u < 0xE000) {
+                            return i;
+                        }
+                    }
+                    return n % 2 ? n - 1 : npos;
+                }
+                case encoding::utf32le:
+                case encoding::utf32be: {
+                    bool big = from == encoding::utf32be;
+                    for (size_t i = 0; i + 3 < n; i += 4) {
+                        if (!utf8::valid(char32_t(unit(p + i, 4, big)))) {
+                            return i;
+                        }
+                    }
+                    return n % 4 ? n - n % 4 : npos;
+                }
+                case encoding::ascii:
+                    for (size_t i = 0; i < n; ++i) {
+                        if (uint8_t(p[i]) >= 0x80) {
+                            return i;
+                        }
+                    }
+                    return npos;
+                case encoding::latin1:
+                    return npos;
+                default: {
+                    auto* table = table_of(from).to_unicode;
+                    for (size_t i = 0; i < n; ++i) {
+                        if (char32_t(table[uint8_t(p[i])]) == utf8::replacement) {
+                            return i;
+                        }
+                    }
+                    return npos;
+                }
+            }
+        }
+    }
+
+    // Bytes in some encoding as text, or the first byte that means
+    // nothing in it: what a program that must not store a changed text
+    // asks, where the form above puts a replacement character in
+    inline expected<string, decode_error> decode(const slice<const byte>& bytes, encoding from, strict_t) {
+        if (size_t at = detail::first_undecodable(bytes, from); at != npos) {
+            return unexpected(decode_error(at, from));
+        }
+        return decode(bytes, from);
+    }
+
     // Text as bytes in some encoding. A character the encoding cannot
     // write is a question mark, which is what every library that does
     // this has always done and what a reader can at least see
-    inline vector<std::byte> encode(const string& text, encoding to) {
-        vector<std::byte> out;
+    inline vector<byte> encode(const string& text, encoding to) {
+        vector<byte> out;
         auto v = text.view();
         // Sized once and written through, as to_utf16 is. The room is
         // taken from the length of the text and not from counting its
@@ -273,10 +398,10 @@ namespace sgcl::txt {
                  : to == encoding::utf32le || to == encoding::utf32be ? v.size() * 4
                  : v.size());
         auto* at = out.data();
-        auto byte = [&](uint32_t b) { *at++ = std::byte(uint8_t(b)); };
+        auto put = [&](uint32_t b) { *at++ = byte(uint8_t(b)); };
         auto unit16 = [&](uint32_t u, bool big) {
-            byte(big ? u >> 8 : u & 0xFF);
-            byte(big ? u & 0xFF : u >> 8);
+            put(big ? u >> 8 : u & 0xFF);
+            put(big ? u & 0xFF : u >> 8);
         };
         for (size_t i = 0; i < v.size();) {
             auto [c, w] = utf8::decode(v, i);
@@ -286,7 +411,7 @@ namespace sgcl::txt {
                     char buf[utf8::max_width];
                     size_t k = utf8::encode(c, buf);
                     for (size_t j = 0; j < k; ++j) {
-                        byte(uint8_t(buf[j]));
+                        put(uint8_t(buf[j]));
                     }
                     break;
                 }
@@ -306,19 +431,19 @@ namespace sgcl::txt {
                 case encoding::utf32be: {
                     bool big = to == encoding::utf32be;
                     for (int k = 0; k < 4; ++k) {
-                        byte((uint32_t(c) >> (8 * (big ? 3 - k : k))) & 0xFF);
+                        put((uint32_t(c) >> (8 * (big ? 3 - k : k))) & 0xFF);
                     }
                     break;
                 }
                 case encoding::ascii:
-                    byte(c < 0x80 ? uint32_t(c) : uint32_t('?'));
+                    put(c < 0x80 ? uint32_t(c) : uint32_t('?'));
                     break;
                 case encoding::latin1:
-                    byte(c < 0x100 ? uint32_t(c) : uint32_t('?'));
+                    put(c < 0x100 ? uint32_t(c) : uint32_t('?'));
                     break;
                 default: {
                     int b = c < 0x80 ? int(c) : detail::single_byte_of(c, to);
-                    byte(b >= 0 ? uint32_t(b) : uint32_t('?'));
+                    put(b >= 0 ? uint32_t(b) : uint32_t('?'));
                     break;
                 }
             }
@@ -361,7 +486,7 @@ namespace sgcl::txt {
         return out;
     }
 
-    inline string from_utf16(slice<const char16_t> units) {
+    inline string from_utf16(const slice<const char16_t>& units) {
         std::string out(units.size() * 3, '\0');
         char* at = out.data();
         for (size_t i = 0; i < units.size(); ++i) {
@@ -404,7 +529,7 @@ namespace sgcl::txt {
         return out;
     }
 
-    inline string from_utf32(slice<const char32_t> points) {
+    inline string from_utf32(const slice<const char32_t>& points) {
         std::string out;
         out.reserve(points.size());
         for (auto c : points) {

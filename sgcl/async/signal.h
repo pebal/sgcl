@@ -25,13 +25,14 @@
 #define SGCL_SIGNALS_POSIX 0
 #endif
 
-namespace sgcl {
+namespace sgcl::async {
+    namespace detail { using namespace sgcl::detail; }
     // The signals of the process as a channel, the way Go's os/signal has
     // them: `signals({SIGINT, SIGTERM})` is a channel that gets the number
     // of every signal of those delivered to the process from then on, so
     // that a task `co_await`s it, a thread receives on it, a select takes
     // it as a case: the shutdown of a server is `co_await
-    // async_select(sigint->on_receive([&] { running = false; }), ...)`.
+    // select(sigint->on_receive([&] { running = false; }), ...)`.
     // The delivery: the handler installed for the number does nothing but
     // write the number to a pipe (the one thing a handler may safely do),
     // and one thread of the module reads the pipe and sends the number on
@@ -62,12 +63,12 @@ namespace sgcl {
             // The channel registered for the numbers: their handler
             // installed (the disposition saved once, for reset), the
             // thread and the pipe started on the first registration
-            void notify(std::initializer_list<int> numbers, tracked_ptr<void> keep, channel<int>* ch) {
+            void notify(std::initializer_list<int> numbers, const tracked_ptr<void>& keep, channel<int>* ch) {
 #if SGCL_SIGNALS_POSIX
                 std::lock_guard lock(_m);
                 _start();
                 root_ptr<SignalWait> w = make_tracked<SignalWait>();
-                w->keep = std::move(keep);
+                w->keep = keep;
                 w->ch = ch;
                 for (int n : numbers) {
                     _save(n);

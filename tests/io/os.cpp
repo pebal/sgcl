@@ -51,10 +51,10 @@ TEST(IoOs_Tests, ProcessAndDirectories) {
     EXPECT_TRUE(is_directory(*home));
     ASSERT_TRUE(cache_dir());
     ASSERT_TRUE(config_dir());
-    EXPECT_TRUE(is_directory(temp_path()));
+    EXPECT_TRUE(is_directory(temp_dir()));
     auto wd = working_dir();
     ASSERT_TRUE(wd);
-    auto tmp = temp_dir();
+    auto tmp = make_temp_dir();
     ASSERT_TRUE(tmp);
     ASSERT_TRUE(io::chdir(*tmp));
     auto now = working_dir();
@@ -66,14 +66,12 @@ TEST(IoOs_Tests, ProcessAndDirectories) {
 }
 
 TEST(IoOs_Tests, StandardStreams) {
-    auto out = io::stdout();
-    EXPECT_EQ(out->fd(), 1);
-    EXPECT_FALSE(out->is_closed());
-    auto err = io::stderr();
-    EXPECT_EQ(err->fd(), 2);
-    EXPECT_EQ(err->path(), "stderr");
-    auto in = io::stdin();
-    EXPECT_EQ(in->fd(), 0);
+    EXPECT_EQ(io::stdout.fd(), 1);
+    EXPECT_FALSE(io::stdout.file()->is_closed());
+    EXPECT_EQ(io::stdout.file(), io::stdout.file());   // one file, made once
+    EXPECT_EQ(io::stderr.fd(), 2);
+    EXPECT_EQ(io::stderr.file()->path(), "stderr");
+    EXPECT_EQ(io::stdin.fd(), 0);
     // the C streams under their names in the same unit
     EXPECT_EQ(fileno(::stderr), 2);
     EXPECT_EQ(fileno(::stdin), 0);

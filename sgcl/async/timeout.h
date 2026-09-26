@@ -6,7 +6,9 @@
 #pragma once
 
 #include "../core/aliases.h"
+#include "../core/expected.h"
 #include "../core/make_tracked.h"
+#include "../core/string.h"
 #include "../core/tracked_ptr.h"
 #include "channel.h"
 #include "coroutine.h"
@@ -16,19 +18,22 @@
 #include "timer.h"
 
 #include <exception>
-#include <stdexcept>
+#include <type_traits>
 #include <utility>
 
-namespace sgcl {
+namespace sgcl::async {
+    namespace detail { using namespace sgcl::detail; }
     // A timeout on a task, what the `timeout(d, f)` case is for a select
     // (timer.h) and Go's `select { case r := <-done: case <-time.After(d): }`
-    // is: `co_await timeout(t, d)` is the task's result as an optional,
-    // nullopt when d passed first (true or false for a task of nothing);
-    // `co_await with_deadline(t, d)` is the result itself, or the
-    // exception timed_out when d passed first; `with_deadline(t, token)`
-    // the same with a token's stop as the deadline (a token whose source
-    // was given a stop_after, or is stopped by hand). Each is a task,
-    // waited for as one: awaited, joined, spawned or not.
+    // is: `co_await with_timeout(t, d)` is the task's result, or the error
+    // timed_out when d passed first; `with_deadline(t, when)` the same by a
+    // point of the module's clock (Go's context.WithTimeout and
+    // WithDeadline); `with_deadline(t, token)` the result, or the error
+    // stopped when the token's stop came first (a source given a
+    // stop_after or a stop_at, or stopped by hand: the library cannot
+    // tell which). A failure of the library is an expected (DESIGN 220);
+    // what the task itself threw comes through as it is. Each is a task,
+    // waited for as one: awaited, waited for, spawned or not.
     //
     // A race against a duration is one object and no frame of its own:
     // the raced task is held by it and given a continuation that is a
@@ -49,18 +54,30 @@ namespace sgcl {
     // it stops itself when it sees its token): it runs on to its end,
     // its result lands where nobody reads it any more, and the objects
     // and the frames are the collector's. To have the loser stop, give it a token whose source
-    // the timeout may stop: `timeout(t, d, source)` requests the stop of
-    // the source when d passes first, so a task made with
+    // the timeout may stop: `with_timeout(t, d, source)` requests the
+    // stop of the source when d passes first, so a task made with
     // `source.token()` sees it (`stop_source src(parent); co_await
-    // timeout(work(src.token()), 1s, src);`). A result that came at the
+    // with_timeout(work(src.token()), 1s, src);`). A result that came at the
     // same instant as the deadline is a result: the slot is looked at
     // whichever case the select served.
-    class timed_out
-    : public std::runtime_error {
+    // The errors of the races: the time passed first, or the token's stop
+    // came first
+    class timed_out {
     public:
-        timed_out()
-        : std::runtime_error("timed out") {
+        string message() const {
+            return "timed out";
         }
+
+        friend bool operator==(const timed_out&, const timed_out&) noexcept = default;
+    };
+
+    class stopped {
+    public:
+        string message() const {
+            return "stopped";
+        }
+
+        friend bool operator==(const stopped&, const stopped&) noexcept = default;
     };
 
     namespace detail {
@@ -144,7 +161,7 @@ namespace sgcl {
                 co_return true;
             }
             go(finish_race(std::move(t), slot));
-            co_await async_select(slot->done.on_receive([] {}), deadline.on_receive([] {}));
+            co_await select(slot->done.on_receive([] {}), deadline.on_receive([] {}));
             co_return slot->done.closed();
         }
 
@@ -197,7 +214,7 @@ namespace sgcl {
             // may resume it before this returns.
             struct awaiter {
                 tracked_ptr<TimeoutRace> race;
-                duration d;
+                time_point when;   // the deadline: a point of the module's clock
 
                 bool await_ready() const noexcept {
                     return race->t.done();
@@ -209,7 +226,7 @@ namespace sgcl {
                     auto frame = frame_of(h);
                     r->waiter = frame;
                     r->t._start(frame_header(frame.get()).executor);
-                    r->timer = add_timer(d, r, &on_time);
+                    r->timer = add_timer(when, r, &on_time);
                     if (r->t._frame.promise().await(r.get(), r)) {
                         return true;
                     }
@@ -229,109 +246,84 @@ namespace sgcl {
             };
         };
 
-        // What timeout gives: the result as an optional, or a bool for a task of nothing
-        template<class T>
-        struct TimeoutResult {
-            using type = optional<T>;
-
-            static type some(TimeoutSlot<T>& slot) {
-                return type(std::in_place, slot.take());
-            }
-
-            static type some(task<T>& t) {
-                return type(std::in_place, std::move(t.result()));
-            }
-
-            static T take(task<T>& t) {   // the result itself, for with_deadline
+        // The result of a race won by the task, as the expected it gives:
+        // the value (nothing for a task of nothing), or what the task threw
+        template<class E, class T>
+        expected<T, E> race_won(task<T>& t) {
+            if constexpr (std::is_void_v<T>) {
+                t.result();
+                return expected<void, E>();
+            } else {
                 return std::move(t.result());
             }
-
-            static type none() noexcept {
-                return nullopt;
-            }
-        };
-
-        template<>
-        struct TimeoutResult<void> {
-            using type = bool;
-
-            static type some(TimeoutSlot<void>& slot) {
-                slot.take();
-                return true;
-            }
-
-            static type some(task<>& t) {
-                t.result();
-                return true;
-            }
-
-            static void take(task<>& t) {
-                t.result();
-            }
-
-            static type none() noexcept {
-                return false;
-            }
-        };
-    }
-
-    // `co_await timeout(t, d)`: the result of t, or nullopt when d passed
-    // first (true or false for a task<>); the loser runs on, unseen
-    template<class T>
-    task<typename detail::TimeoutResult<T>::type> timeout(task<T> t, duration d) {
-        tracked_ptr<detail::TimeoutRace<T>> race = make_tracked<detail::TimeoutRace<T>>(std::move(t));
-        if (co_await typename detail::TimeoutRace<T>::awaiter{race, d}) {
-            co_return detail::TimeoutResult<T>::some(race->t);
         }
-        co_return detail::TimeoutResult<T>::none();
+
+        template<class E, class T>
+        expected<T, E> race_won(TimeoutSlot<T>& slot) {
+            if constexpr (std::is_void_v<T>) {
+                slot.take();
+                return expected<void, E>();
+            } else {
+                return slot.take();
+            }
+        }
     }
 
-    // The same, with the stop of the source requested when d passed
+    // `co_await with_deadline(t, when)`: the result of t, or timed_out
+    // when the point of the module's clock came first (Go's
+    // context.WithDeadline); with_timeout gives the time instead of the
+    // point (context.WithTimeout)
+    template<class T>
+    task<expected<T, timed_out>> with_deadline(task<T> t, time_point when) {
+        tracked_ptr<detail::TimeoutRace<T>> race = make_tracked<detail::TimeoutRace<T>>(std::move(t));
+        if (!co_await typename detail::TimeoutRace<T>::awaiter{race, when}) {
+            co_return unexpected(timed_out());
+        }
+        co_return detail::race_won<timed_out>(race->t);
+    }
+
+    // The same, with the stop of the source requested when the point came
     // first: for a task made with the source's token, which stops itself
     template<class T>
-    task<typename detail::TimeoutResult<T>::type> timeout(task<T> t, duration d, stop_source loser) {
+    task<expected<T, timed_out>> with_deadline(task<T> t, time_point when, stop_source loser) {
         tracked_ptr<detail::TimeoutRace<T>> race = make_tracked<detail::TimeoutRace<T>>(std::move(t));
-        if (co_await typename detail::TimeoutRace<T>::awaiter{race, d}) {
-            co_return detail::TimeoutResult<T>::some(race->t);
-        }
-        loser.request_stop();
-        co_return detail::TimeoutResult<T>::none();
-    }
-
-    // `co_await with_deadline(t, d)`: the result of t, or timed_out
-    // thrown when d passed first
-    template<class T>
-    task<T> with_deadline(task<T> t, duration d) {
-        tracked_ptr<detail::TimeoutRace<T>> race = make_tracked<detail::TimeoutRace<T>>(std::move(t));
-        if (!co_await typename detail::TimeoutRace<T>::awaiter{race, d}) {
-            throw timed_out();
-        }
-        co_return detail::TimeoutResult<T>::take(race->t);
-    }
-
-    template<class T>
-    task<T> with_deadline(task<T> t, duration d, stop_source loser) {
-        tracked_ptr<detail::TimeoutRace<T>> race = make_tracked<detail::TimeoutRace<T>>(std::move(t));
-        if (!co_await typename detail::TimeoutRace<T>::awaiter{race, d}) {
+        if (!co_await typename detail::TimeoutRace<T>::awaiter{race, when}) {
             loser.request_stop();
-            throw timed_out();
+            co_return unexpected(timed_out());
         }
-        co_return detail::TimeoutResult<T>::take(race->t);
+        co_return detail::race_won<timed_out>(race->t);
     }
 
-    // `co_await with_deadline(t, token)`: the result of t, or timed_out
-    // thrown when the token was stopped first (a deadline given to its
-    // source with stop_after, or a stop by hand); a task made with the
-    // same token stops itself
+    // `co_await with_timeout(t, d)`: the result of t, or timed_out when d
+    // passed first
     template<class T>
-    task<T> with_deadline(task<T> t, stop_token token) {
+    task<expected<T, timed_out>> with_timeout(task<T> t, duration d) {
+        return with_deadline(std::move(t), clock::now() + d);
+    }
+
+    template<class T>
+    task<expected<T, timed_out>> with_timeout(task<T> t, duration d, stop_source loser) {
+        return with_deadline(std::move(t), clock::now() + d, std::move(loser));
+    }
+
+    // `co_await with_deadline(t, token)`: the result of t, or stopped when
+    // the token was stopped first (a deadline given to its source with
+    // stop_after or stop_at, or a stop by hand); a task made with the same
+    // token stops itself
+    template<class T>
+    task<expected<T, stopped>> with_deadline(task<T> t, stop_token token) {
         if (!token.stop_possible()) {   // an empty token: no deadline
-            co_return co_await t;
+            if constexpr (std::is_void_v<T>) {
+                co_await t;
+                co_return expected<void, stopped>();
+            } else {
+                co_return co_await t;
+            }
         }
         tracked_ptr<detail::TimeoutSlot<T>> slot = make_tracked<detail::TimeoutSlot<T>>();
         if (!co_await detail::race(slot, std::move(t), token.channel())) {
-            throw timed_out();
+            co_return unexpected(stopped());
         }
-        co_return slot->take();
+        co_return detail::race_won<stopped>(*slot);
     }
 }

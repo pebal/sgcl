@@ -30,12 +30,28 @@ bool equal_normalized(const string& a, const string& b);               // the sa
 int compare_normalized(const string& a, const string& b);              // an order blind to the writing
 size_t hash_normalized(const string& text);                            // a hash equal_normalized agrees with
 
-uint8_t combining_class(char32_t c) noexcept;    // 0 for a starter, and the order of the marks
+uint8_t combining_class_of(char32_t c) noexcept;    // 0 for a starter, and the order of the marks
 char32_t compose(char32_t a, char32_t b) noexcept;   // what they compose to, or 0
 string decompose(char32_t c);                    // one code point taken apart, canonically
 ```
 
-`combining_class` and `compose` are objects of the shape the rest of the module uses: they take a `char32_t`, refuse everything else, and are passable where a predicate is asked for.
+`combining_class_of` and `compose` are objects of the shape the rest of the module uses: they take a `char32_t`, refuse everything else, and are passable where a predicate is asked for.
+
+## The marks taken off
+
+```cpp
+string without_marks(const string& text);
+```
+
+Decomposed canonically, the nonspacing marks dropped, composed again. `"café"` becomes `"cafe"`, `"ἄνθρωπος"` loses its breathing and its accent, `"Ångström"` becomes `"Angstrom"`. It is here and not in [`identifier`](identifier.md) because it needs no table of its own: it is the walk above with one filter in it.
+
+What it does **not** do is worth more than what it does, because the name of this operation promises more than any implementation of it can give.
+
+- **It is not a transliteration.** A letter whose mark is part of the letter and not a mark at all comes through untouched, because it has no canonical decomposition to take apart: `Ł`, `ø`, `đ`, `ħ`, `ı` and `ß` are letters of their alphabets. `"Łódź"` becomes `"Łodz"` with its `Ł` still an `Ł`, and `"żółć"` becomes `"zołc"`. Turning those into Latin letters is a mapping a language chooses, not one Unicode holds.
+- **It is not a slug.** It does not lower the case, it does not touch the spaces or the punctuation, and it does not drop what is not a letter. Compose it with `to_lower_full` and with whatever rule the URLs want.
+- **It is not a way of comparing names.** Two words that differ only in an accent are different words in most languages that write accents, and a comparison that ignores them will say Polish `"łasa"` and `"lasa"` are one word. [`fold_case`](case.md), [`nfkc_casefold`](identifier.md) and the [collator](collate.md) at its first strength are what compare text.
+
+The spacing marks (`Mc`) and the enclosing ones (`Me`) stay: an Indic vowel sign is spelling and not an accent, and dropping it would take the vowel out of the syllable rather than the accent off a letter. A text with nothing to take off comes back as the same object — 6.1 ns over ASCII against 197 over a Latin name with accents in it (`bench_identifier marks ascii`, where the benchmark lives because the rest of what it measures is in [`identifier`](identifier.md)).
 
 ## What it costs
 

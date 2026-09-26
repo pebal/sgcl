@@ -1,9 +1,9 @@
-# sgcl::semaphore
+# sgcl::async::semaphore
 
 ```cpp
 #include "sgcl/async/semaphore.h"   // or "sgcl/sgcl.h"
 
-namespace sgcl {
+namespace sgcl::async {
     class semaphore;   // n permits
 }
 ```
@@ -14,22 +14,22 @@ A semaphore of *n* permits: `acquire()` takes one, `release()` gives one back; a
 
 - It lives where a `tracked_ptr` may: on a stack or inside a managed object ([The rules](../core/README.md#the-rules), 1); not copyable, not movable.
 - A `release()` without a matching `acquire()` is lost (the channel is full): a semaphore never has more permits than its maximum.
-- A `semaphore(0)`, made closed, has one permit at most: a `release()` opens it (a channel of capacity zero would lose the release with nobody waiting).
+- A `async::semaphore(0)`, made closed, has one permit at most: a `release()` opens it (a channel of capacity zero would lose the release with nobody waiting).
 
 ## Members
 
 ```cpp
 explicit semaphore(size_t permits, size_t max = 0);   // max: permits by default
-void acquire();  bool try_acquire();  void release();
-auto async_acquire() noexcept;                 // co_await: a permit taken
+auto acquire();                                // an operation: co_await s.acquire() in a task, s.acquire().wait() on a thread
+bool try_acquire();  void release();
 template<class F> auto on_acquire(F f);        // a case of a select
 size_t available() const noexcept;             // the permits free now
 ```
 
 ```cpp
-semaphore slots(4);                       // four at a time
-auto fetch = [](semaphore& slots) -> task<> {
-    co_await slots.async_acquire();
+async::semaphore slots(4);                       // four at a time
+auto fetch = [](async::semaphore& slots) -> async::task<> {
+    co_await slots.acquire();
     // ... at most four here
     slots.release();
 };

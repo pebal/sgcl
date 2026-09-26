@@ -12,7 +12,7 @@
 // with a lock); with unique_ptr the nodes have one owner, so the stack is
 // guarded by a mutex, the classic answer without a collector.
 // Every compare-exchange variant backs off exponentially after a lost
-// exchange (sgcl/detail/backoff.h, config::BackoffMax pauses at most; Go
+// exchange (sgcl/core/detail/backoff.h, config::backoff_max pauses at most; Go
 // and Java the same), the answer of Herlihy and Shavit to many threads at
 // one word.
 //   lockfree_stack <sgcl|shared|unique> [threads=4] [mode=mixed] [n=1000000]

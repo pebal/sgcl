@@ -6,6 +6,8 @@
 #pragma once
 
 #include "aliases.h"
+#include "expected.h"
+#include "detail/hash_bytes.h"
 #include "detail/string_data.h"
 #include "mixin/text.h"
 #include "slice.h"
@@ -66,8 +68,8 @@ namespace sgcl {
         // returned it, nothing else
         struct StringAccess {
             template<class S>
-            static S over(tracked_ptr<const void> word) noexcept {
-                return S(std::move(word));
+            static S over(const tracked_ptr<const void>& word) noexcept {
+                return S(word);
             }
         };
     }
@@ -202,7 +204,7 @@ namespace sgcl {
 
         slice_type as_slice(size_type pos, size_type n = npos) const {
             if (pos > size()) {
-                throw std::out_of_range("sgcl::basic_string::as_slice");
+                throw out_of_range("sgcl::basic_string::as_slice");
             }
             return slice_type(_word, data() + pos, data() + pos + std::min(n, size() - pos));
         }
@@ -239,7 +241,7 @@ namespace sgcl {
         // whole string when the range is the whole string
         basic_string substr(size_type pos = 0, size_type n = npos) const {
             if (pos > size()) {
-                throw std::out_of_range("sgcl::basic_string::substr");
+                throw out_of_range("sgcl::basic_string::substr");
             }
             if (pos == 0 && n >= size()) {
                 return *this;
@@ -434,7 +436,7 @@ namespace sgcl {
             }
             auto v = this->view();
             if (v.size() > max_size() / count) {
-                throw std::length_error("sgcl::basic_string::repeat");
+                throw length_error("sgcl::basic_string::repeat");
             }
             std::basic_string<CharT, Traits> s;
             s.reserve(v.size() * count);
@@ -470,10 +472,14 @@ namespace sgcl {
             std::swap(_word, o._word);
         }
 
+    private:
         // The same object, or the same characters: the lengths first,
         // the hashes when both are known, the characters last (the free
-        // operators below).
-        bool equals(const basic_string& o) const noexcept {
+        // operator== below)
+        template<class C, class Tr>
+        friend bool operator==(const basic_string<C, Tr>&, const basic_string<C, Tr>&) noexcept;
+
+        bool _equals(const basic_string& o) const noexcept {
             if (object() == o.object()) {
                 return true;
             }
@@ -490,6 +496,7 @@ namespace sgcl {
             return this->view() == o.view();
         }
 
+    public:
         // The hash of the characters, computed the first time and kept in
         // the string's object (0 is "not yet"); the empty string's is a constant
         size_t hash() const noexcept {
@@ -499,7 +506,7 @@ namespace sgcl {
             auto header = _header();
             auto h = header->hash.load(std::memory_order_relaxed);
             if (!h) {
-                h = _fold(std::hash<view_type>()(this->view()));
+                h = _fold(detail::hash_bytes(data(), size() * sizeof(CharT)));
                 header->hash.store(h, std::memory_order_relaxed);
             }
             return (size_t)h * HashMultiplier;
@@ -510,7 +517,7 @@ namespace sgcl {
         // strings is searched with either and no string is made for the
         // search (std::hash<basic_string> is transparent, below)
         static size_t hash_of(view_type s) noexcept {
-            return s.empty() ? HashMultiplier : (size_t)_fold(std::hash<view_type>()(s)) * HashMultiplier;
+            return s.empty() ? HashMultiplier : (size_t)_fold(detail::hash_bytes(s.data(), s.size() * sizeof(CharT))) * HashMultiplier;
         }
 
         // The address of the string's object: its identity (two strings
@@ -526,7 +533,7 @@ namespace sgcl {
 
         static constexpr size_t HashMultiplier = 0x9E3779B97F4A7C15ull;
 
-        // The standard library's hash of the characters, folded to the 32
+        // The keyed hash of the characters (detail/hash_bytes.h), folded to the 32
         // bits the header keeps; never 0
         static uint32_t _fold(size_t h) noexcept {
             auto r = (uint32_t)(h ^ (h >> 32));
@@ -630,7 +637,7 @@ namespace sgcl {
 
         // A string over the word of its object (detail::StringAccess:
         // atomic.h, intern.h)
-        explicit basic_string(tracked_ptr<const void> w) noexcept
+        explicit basic_string(const tracked_ptr<const void>& w) noexcept
         : _word(w) {
         }
 
@@ -828,7 +835,7 @@ namespace sgcl {
 
     template<class CharT, class Traits>
     bool operator==(const basic_string<CharT, Traits>& a, const basic_string<CharT, Traits>& b) noexcept {
-        return a.equals(b);
+        return a._equals(b);
     }
 
     template<class CharT, class Traits>
@@ -921,45 +928,109 @@ namespace sgcl {
         return string(1, c);
     }
 
+    // Why parse<T> read no number: the reason and the byte it stopped on
+    // (0 for an empty text or one that does not begin as a number, the
+    // first byte after the digits for a text with more after them or a
+    // number out of the type's range). The
+    // code is what std::from_chars reports: invalid_argument, or
+    // result_out_of_range for a number that does not fit the type.
+    class number_error {
+    public:
+        enum class reason : uint8_t {
+            empty,          // no text
+            not_a_number,   // the text does not begin as a number of the type
+            trailing,       // a number, and more after it
+            out_of_range    // a number the type cannot hold
+        };
+
+        constexpr number_error(reason r, size_t offset) noexcept
+        : _reason(r)
+        , _offset(offset) {
+        }
+
+        std::errc code() const noexcept {
+            return _reason == reason::out_of_range ? std::errc::result_out_of_range : std::errc::invalid_argument;
+        }
+
+        reason why() const noexcept {
+            return _reason;
+        }
+
+        size_t offset() const noexcept {
+            return _offset;
+        }
+
+        string message() const {
+            switch (_reason) {
+                case reason::empty: return "an empty text";
+                case reason::not_a_number: return "not a number";
+                case reason::trailing: return "more after the number";
+                case reason::out_of_range: return "a number out of the type's range";
+            }
+            return "not a number";
+        }
+
+        friend bool operator==(const number_error&, const number_error&) noexcept = default;
+
+    private:
+        reason _reason;
+        size_t _offset;
+    };
+
+    namespace detail {
+        inline number_error number_failure(std::string_view text, const char* end, std::errc ec) noexcept {
+            if (text.empty()) {
+                return number_error(number_error::reason::empty, 0);
+            }
+            if (ec == std::errc::result_out_of_range) {
+                return number_error(number_error::reason::out_of_range, size_t(end - text.data()));   // from_chars gives where the number ends
+            }
+            if (ec != std::errc()) {
+                return number_error(number_error::reason::not_a_number, 0);
+            }
+            return number_error(number_error::reason::trailing, size_t(end - text.data()));
+        }
+    }
+
     // A number from its text, the reverse of to_string: parse<int>("42"),
-    // parse<double>("2.5"), parse<bool>("true"); nothing when the text is
-    // not exactly one number (no white space, no sign for an unsigned
+    // parse<double>("2.5"), parse<bool>("true"); the error when the text
+    // is not exactly one number (no white space, no sign for an unsigned
     // type, nothing after the digits) or it does not fit the type. What
-    // C#'s TryParse, Go's strconv and Java's parseInt do, as an optional:
+    // C#'s TryParse, Go's strconv and Java's parseInt do, as an expected:
     // std::from_chars under it, so no locale and no allocation. A base
     // other than 10 for the integers: parse<int>("ff", 16).
     template<class T>
     requires std::is_integral_v<T> && (!std::is_same_v<T, bool>)
-    optional<T> parse(std::string_view text, int base = 10) noexcept {
+    expected<T, number_error> parse(std::string_view text, int base = 10) noexcept {
         T value;
         auto [end, ec] = std::from_chars(text.data(), text.data() + text.size(), value, base);
         if (ec != std::errc() || end != text.data() + text.size() || text.empty()) {
-            return nullopt;
+            return unexpected(detail::number_failure(text, end, ec));
         }
         return value;
     }
 
     template<class T>
     requires std::is_floating_point_v<T>
-    optional<T> parse(std::string_view text) noexcept {
+    expected<T, number_error> parse(std::string_view text) noexcept {
         T value;
         auto [end, ec] = std::from_chars(text.data(), text.data() + text.size(), value);
         if (ec != std::errc() || end != text.data() + text.size() || text.empty()) {
-            return nullopt;
+            return unexpected(detail::number_failure(text, end, ec));
         }
         return value;
     }
 
     template<class T>
     requires std::is_same_v<T, bool>
-    optional<T> parse(std::string_view text) noexcept {
+    expected<T, number_error> parse(std::string_view text) noexcept {
         if (text == "true") {
             return true;
         }
         if (text == "false") {
             return false;
         }
-        return nullopt;
+        return unexpected(number_error(text.empty() ? number_error::reason::empty : number_error::reason::not_a_number, 0));
     }
 }
 

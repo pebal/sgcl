@@ -22,9 +22,9 @@ T=$(mktemp -d)
 JAVA=("$JBIN/java" -XX:+UseZGC -XX:+UnlockDiagnosticVMOptions -XX:OnSpinWaitInst=isb -Duser.language=en -Duser.country=US -cp "$T/jout")
 CORES=$(getconf _NPROCESSORS_ONLN)
 VARIANTS=${VARIANTS:-sgcl unique shared std go java-zgc}
-CASES=${CASES:-alloc copy weak stack queue cstack cmap umap set cow chan bqueue pqueue intern wmap spsc cache im bcast async io bt graph lt string}
+CASES=${CASES:-alloc copy weak stack queue cstack cmap umap set cow chan bqueue pqueue intern wmap spsc cache im bcast async io math net hash json xml time bt graph lt string}
 want() { [[ " $VARIANTS " == *" $1 "* ]]; }
-want_im() { case "$1" in sgcl|std) want "$1";; *) "$BIN/bench_im" vector "$1" 1 > /dev/null 2>&1;; esac; }   # an immer variant when the binary has it (-DSGCL_IMMER_INCLUDE)
+want_im() { case "$1" in sgcl|std) want "$1";; *) "$BIN/bench_immutable" vector "$1" 1 > /dev/null 2>&1;; esac; }   # an immer variant when the binary has it (-DSGCL_IMMER_INCLUDE)
 case_() { [[ " $CASES " == *" $1 "* ]]; }
 
 RUNS=${RUNS:-3}
@@ -151,7 +151,7 @@ fi
 
 if case_ bqueue; then
 KEY=ns/op
-echo "# bounded queue, threads / 2 producers of 200 k items each, threads / 2 consumers: conc|bqueue|capacity|threads|variant|ns per item (sgcl: concurrent_bounded_queue between threads; Go: its channel of the capacity, goroutines; Java: ArrayBlockingQueue)"
+echo "# bounded queue, threads / 2 producers of 200 k items each, threads / 2 consumers: conc|bqueue|capacity|threads|variant|ns per item (sgcl: concurrent::bounded_queue between threads; Go: its channel of the capacity, goroutines; Java: ArrayBlockingQueue)"
 for cap in 64 1024; do for t in 2 4 16 32 64; do
     want sgcl && { run "$BIN/bench_concurrent" bqueue sgcl $t $cap 200000; echo "conc|bqueue|$cap|$t|sgcl|$(field ns/op)"; }
     want go && { run "$T/concurrent" chan $t $cap 200000; echo "conc|bqueue|$cap|$t|go|$(field ns/op)"; }
@@ -161,7 +161,7 @@ fi
 
 if case_ pqueue; then
 KEY=ns/op
-echo "# priority queue, mixed, 200 k per thread, over an empty queue and over one holding 100 k: conc|pqueue|prefill|threads|variant|ns per op (sgcl: concurrent_priority_queue; mutex: std::priority_queue of shared_ptr under a std::mutex; Go: container/heap under a mutex; Java: PriorityBlockingQueue)"
+echo "# priority queue, mixed, 200 k per thread, over an empty queue and over one holding 100 k: conc|pqueue|prefill|threads|variant|ns per op (sgcl: concurrent::priority_queue; mutex: std::priority_queue of shared_ptr under a std::mutex; Go: container/heap under a mutex; Java: PriorityBlockingQueue)"
 for p in 0 100000; do for t in 1 4 16 32 64; do
     want sgcl && { run "$BIN/bench_concurrent" pqueue sgcl $t 200000 $p; echo "conc|pqueue|$p|$t|sgcl|$(field ns/op)"; }
     want shared && { run "$BIN/bench_concurrent" pqueue mutex $t 200000 $p; echo "conc|pqueue|$p|$t|mutex|$(field ns/op)"; }
@@ -182,7 +182,7 @@ fi
 
 if case_ wmap; then
 KEY=ns/op
-echo "# concurrent weak map, 10 k objects, 1 M operations per thread, half insertions and half lookups: conc|wmap|threads|variant|ns per op (sgcl: concurrent_weak_map; Java: WeakHashMap under Collections.synchronizedMap; Go has none)"
+echo "# concurrent weak map, 10 k objects, 1 M operations per thread, half insertions and half lookups: conc|wmap|threads|variant|ns per op (sgcl: concurrent::weak_map; Java: WeakHashMap under Collections.synchronizedMap; Go has none)"
 for t in 1 4 16 32 64; do
     want sgcl && { run "$BIN/bench_concurrent" wmap sgcl $t 10000 1000000; echo "conc|wmap|$t|sgcl|$(field ns/op)"; }
     want java-zgc && { run "${JAVA[@]}" -Xmx128m Concurrent wmap $t 10000 1000000; echo "conc|wmap|$t|java-zgc|$(field ns/op)"; }
@@ -199,7 +199,7 @@ fi
 
 if case_ cache; then
 KEY=ns/op
-echo "# LRU cache of 10 k entries over 20 k keys, 1 M operations per thread, 90% gets: conc|cache|threads|variant|ns per op|hit rate (sgcl: concurrent_cache; mutex: unordered_map and a list under a mutex, exact LRU; Go and Java have none in their standard libraries)"
+echo "# LRU cache of 10 k entries over 20 k keys, 1 M operations per thread, 90% gets: conc|cache|threads|variant|ns per op|hit rate (sgcl: concurrent::cache; mutex: unordered_map and a list under a mutex, exact LRU; Go and Java have none in their standard libraries)"
 for t in 1 4 16 32 64; do
     want sgcl && { run "$BIN/bench_concurrent" cache sgcl $t 10000 1000000; echo "conc|cache|$t|sgcl|$(field ns/op)|$(field hits)"; }
     want shared && { run "$BIN/bench_concurrent" cache mutex $t 10000 1000000; echo "conc|cache|$t|mutex|$(field ns/op)|$(field hits)"; }
@@ -216,18 +216,20 @@ done
 fi
 
 if case_ im; then
-echo "# immutable containers against immer, one thread (bench_im; the immer variants need -DSGCL_IMMER_INCLUDE): im|vector|variant|ns push_back (a version each)|ns get at random|ns set (a version each)|ns per element built at once"
-for v in sgcl immer immer-unsafe; do want_im "$v" && { run "$BIN/bench_im" vector "$v" 1000000; echo "im|vector|$v|$(field push_back)|$(field get)|$(field set)|$(field build)"; }; done
+echo "# immutable containers against immer, one thread (bench_immutable; the immer variants need -DSGCL_IMMER_INCLUDE): im|vector|variant|ns push_back (a version each)|ns get at random|ns set (a version each)|ns per element built at once"
+for v in sgcl immer immer-unsafe; do want_im "$v" && { run "$BIN/bench_immutable" vector "$v" 1000000; echo "im|vector|$v|$(field push_back)|$(field get)|$(field set)|$(field build)"; }; done
 echo "# im|list|variant|ns push_front (a version each, 1 M)|ns per element walked|ns pop_front (a version each)"
-for v in sgcl std; do want "$v" && { run "$BIN/bench_im" list "$v" 1000000; echo "im|list|$v|$(field push_front)|$(field walk)|$(field pop_front)"; }; done
+for v in sgcl std; do want "$v" && { run "$BIN/bench_immutable" list "$v" 1000000; echo "im|list|$v|$(field push_front)|$(field walk)|$(field pop_front)"; }; done
 echo "# im|map|variant|ns insert (a version each, 200 k random long keys)|ns find|ns per element built at once (std: std::map in place)"
-for v in sgcl immer immer-unsafe std; do want_im "$v" && { run "$BIN/bench_im" map "$v" 200000; echo "im|map|$v|$(field insert)|$(field find)|$(field build)"; }; done
+for v in sgcl immer immer-unsafe std; do want_im "$v" && { run "$BIN/bench_immutable" map "$v" 200000; echo "im|map|$v|$(field insert)|$(field find)|$(field build)"; }; done
+echo "# im|map-builder|variant|ns per element built through the builder (200 k random long keys; immer: its transient)|ns find in the map built|ns per change of an edit through one builder (a tenth of the keys set, a tenth erased)|ns per change made a version each"
+for v in builder immer-builder; do { [ $v = builder ] && want sgcl; } || { [ $v = immer-builder ] && want_im immer; } || continue; run "$BIN/bench_immutable" map "$v" 200000; echo "im|map-builder|$v|$(field build)|$(field find)|$(field edit)|$(field edit_each)"; done
 fi
 
 
 if case_ async; then
 KEY=ns/op
-echo "# the async module on the scheduler: async|case|variant|ns per operation (yield: a worker's yield; exyield: an executor's; strand: a round trip on_workers + on(strand); await: a task that returns at once, awaited; spawn: one spawned and awaited; whenall: when_all of two, per task; timeout: timeout(t, 1h) of a task that returns at once, per race; select: a channel case served at once beside a timeout case of an hour; cv: a turn handed between two tasks through a condition variable; pingpong: two tasks over two rendezvous channels, per hop; generator: an async_generator's value; mutex: an uncontended async lock; Go: goroutines, time.After, sync.Cond, a range-over-func iterator; Java: virtual threads, CompletableFuture.orTimeout, SynchronousQueue, Condition)"
+echo "# the async module on the scheduler: async|case|variant|ns per operation (yield: a worker's yield; exyield: an executor's; strand: a round trip on_workers + on(strand); await: a task that returns at once, awaited; spawn: one spawned and awaited; whenall: when_all of two, per task; timeout: with_timeout(t, 1h) of a task that returns at once, per race; select: a channel case served at once beside a timeout case of an hour; cv: a turn handed between two tasks through a condition variable; pingpong: two tasks over two rendezvous channels, per hop; generator: an async::generator's value; mutex: an uncontended async lock; Go: goroutines, time.After, sync.Cond, a range-over-func iterator; Java: virtual threads, CompletableFuture.orTimeout, SynchronousQueue, Condition)"
 for c in yield exyield strand await spawn whenall timeout select cv pingpong generator mutex; do
     want sgcl && { run "$BIN/bench_async" $c sgcl; echo "async|$c|sgcl|$(field ns/op)"; }
     case $c in exyield|strand) continue;; esac
@@ -244,6 +246,64 @@ for c in run output asyncrun parallel; do
     want sgcl && { run "$BIN/bench_io" $c sgcl; echo "io|$c|sgcl|$(field ns/op)"; }
     want go && { run "$T/exec" $c; echo "io|$c|go|$(field ns/op)"; }
 done
+fi
+
+if case_ math; then
+KEY=ns/op
+echo "# the math module: math|op|n|variant|ns per operation (big_integer: add, mul, sqr, div of n limbs, tostr and parse of n decimal digits, sum += x of n limbs, fact of n, pow, modpow of n bits, gcd, modinv, sqrt, prime of n bits, pi, factorial, binomial, fib, harmonic; random: one draw, shuffle of a thousand; Go: math/big and math/rand/v2 ChaCha8)"
+for c in "add 1" "add 100" "mul 10" "mul 100" "mul 1000" "mul 10000" "sqr 100" "sqr 3000" "div 100" "div 1000" "div 10000" "tostr 10000" "tostr 1000000" "parse 10000" "parse 1000000" "sum 100" "fact 1000" "pow 1000" "modpow 1024" "modpow 2048" "modpow 4096" "gcd 100" "gcd 1000" "modinv 100" "modinv 1000" "sqrt 1000" "sqrt 10000" "prime 1024" "pi 10000" "pi 100000" "factorial 100000" "binomial 10000" "fib 1000000" "harmonic 10000" "small 0" "uint64 0" "intn 0" "double 0" "normal 0" "shuffle 0"; do read -r op n <<< "$c"
+    want sgcl && { run "$BIN/bench_math" sgcl $op $n; echo "math|$op|$n|sgcl|$(field ns/op)"; }
+    want go && { run "$T/math" $op $n; echo "math|$op|$n|go|$(field ns/op)"; }
+done
+fi
+
+if case_ net; then
+KEY=ns/op
+echo "# the net module: net|case|variant|ns per operation (pingpong: 64 B there and back over one TCP connection, per round trip; stream: 1 GB one way, 32 KB writes, per byte; connect: connect and accept on the loopback, per connection; parse, format: ip_address against netip.Addr, per address; url: net::url::parse against net/url; http_parse: a request head parsed; http_hello: a GET and its response over one kept connection)"
+for c in pingpong stream connect parse format url http_parse http_hello; do
+    want sgcl && { run "$BIN/bench_net" $c sgcl; echo "net|$c|sgcl|$(field ns/op)"; }
+    want go && { run "$T/net" $c; echo "net|$c|go|$(field ns/op)"; }
+done
+fi
+
+if case_ json; then
+KEY=ns/op
+echo "# the encoding module's JSON and CSV: json|op|corpus|variant|ns per operation|MB/s (Go: encoding/json/v2, jsontext, encoding/csv; the corpora of nativejson-benchmark in ~/Programming/oracles/nativejson)"
+for c in "parse twitter" "parse citm_catalog" "parse canada" "write twitter" "pretty twitter" "tokens twitter" "skip twitter" "tokens strings" "typed twitter" "stringify twitter" "csv 10000" "csvtyped 10000" "csvwrite 10000"; do read -r op arg <<< "$c"
+    want sgcl && { run "$BIN/bench_json" sgcl $op $arg; echo "json|$op|$arg|sgcl|$(field ns/op)|$(field MB/s)"; }
+    want go && { run "$T/json" $op $arg; echo "json|$op|$arg|go|$(field ns/op)|$(field MB/s)"; }
+done
+fi
+
+if case_ xml; then
+KEY=ns/op
+echo "# the encoding module's XML: xml|op|books|variant|ns per operation|MB/s (a catalog of 5000 books, 1.47 MB; Go: encoding/xml)"
+for op in tokens stream tree write typed; do
+    want sgcl && { run "$BIN/bench_xml" sgcl $op 5000; echo "xml|$op|5000|sgcl|$(field ns/op)|$(field MB/s)"; }
+    want go && { run "$T/xml" $op 5000; echo "xml|$op|5000|go|$(field ns/op)|$(field MB/s)"; }
+done
+fi
+
+if case_ time; then
+KEY=ns/op
+echo "# the time module, one call over 4096 instants: time|case|variant|ns per call (std: libc++ std::format, system_clock; Go: package time, http.ParseTime)"
+for c in now fields_utc fields_local offset_now offset_random local_to_instant format_rfc3339 format_http format_pattern format_string parse_rfc3339 parse_http parse_pattern duration_string duration_parse load_cached; do
+    want sgcl && { run "$BIN/bench_time" $c sgcl; echo "time|$c|sgcl|$(field ns/op)"; }
+    case $c in now|fields_utc|format_rfc3339|format_http|format_pattern) want std && { run "$BIN/bench_time" $c std; echo "time|$c|std|$(field ns/op)"; };; esac
+    want go && { run "$T/time" $c; echo "time|$c|go|$(field ns/op)"; }
+done
+want sgcl && { run1 "$BIN/bench_time" load_cold sgcl; echo "time|load_cold|sgcl|$(field ns/op)"; }
+want go && { run1 "$T/time" load_cold; echo "time|load_cold|go|$(field ns/op)"; }
+fi
+
+if case_ hash; then
+KEY=ns/op
+echo "# the hash module, one call over random bytes: hash|case|length|variant|ns per call|GB/s (Go: hash/crc32, crc64, adler32, fnv, maphash; github.com/zeebo/xxh3, github.com/dchest/siphash; an FNV Reset, Write and Sum)"
+for c in crc32 crc32c crc64 crc64_iso adler32 fnv32a fnv64a fnv128a xxh3_64 xxh3_128 xxh3_64-seeded maphash siphash; do for len in 16 64 1024 65536 1048576; do
+    want sgcl && { run "$BIN/bench_hash" $c sgcl $len; echo "hash|$c|$len|sgcl|$(field ns/op)|$(field GB/s)"; }
+    want go && { run "$T/hash" $c $len; echo "hash|$c|$len|go|$(field ns/op)|$(field GB/s)"; }
+done; done
+for len in 16 64 1024 65536; do want sgcl && { run "$BIN/bench_hash" string-hash sgcl $len; echo "hash|string-hash|$len|sgcl|$(field ns/op)|$(field GB/s)"; }; done
 fi
 
 if case_ bt; then

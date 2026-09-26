@@ -43,7 +43,7 @@ namespace sgcl::detail {
     inline thread_local ThreadStack thread_stack;
     // True on a thread while it sweeps garbage: the destructors it runs are
     // those of objects that die together with everything reachable only
-    // from them, in no order (containers.h: a container inside such an
+    // from them, in no order (the containers: a container inside such an
     // object leaves its nodes to the sweep).
     inline thread_local bool sweeping = false;
 
@@ -59,7 +59,7 @@ namespace sgcl::detail {
         // A line of its own: the hazard pointer is written at every atomic
         // operation of the thread, and the Data of two threads would
         // otherwise share a line.
-        struct alignas(config::CacheLineSize) Data {
+        struct alignas(config::cache_line_size) Data {
             Data(PageAllocator* p) noexcept
             : page_allocator(p) {
             }
@@ -164,12 +164,12 @@ namespace sgcl::detail {
 
     private:
         PageAllocator* const _page_allocator;
-        std::array<std::unique_ptr<ObjectAllocatorBase>, config::MaxTypesNumber> _allocators;
+        std::array<std::unique_ptr<ObjectAllocatorBase>, config::max_types_number> _allocators;
         Data* const _data;
 
         // The allocators are an array indexed by the type's number, one
         // number per type for the process (_type_index), at most
-        // config::MaxTypesNumber of them
+        // config::max_types_number of them
         template<class Allocator>
         Allocator& _allocator() {
             auto& alocator = _allocators[_type_index<typename Allocator::ValueType>()];
@@ -192,10 +192,10 @@ namespace sgcl::detail {
 
         static unsigned _next_type_index() {
             auto index = _type_counter++;
-            if (index >= config::MaxTypesNumber) {
+            if (index >= config::max_types_number) {
                 // Was an assert: in release the next line would index past
                 // _allocators. Not a recoverable condition for the caller.
-                std::fprintf(stderr, "[sgcl] more than %zu managed types; raise config::MaxTypesNumber\n", config::MaxTypesNumber);
+                std::fprintf(stderr, "[sgcl] more than %zu managed types; raise config::max_types_number\n", config::max_types_number);
                 std::terminate();
             }
             return index;
@@ -253,13 +253,13 @@ namespace sgcl::detail {
     }
 
     // Lowest address to zero when clearing the stack below the caller:
-    // `bytes` below here, never within config::StackGuardMargin of the end
+    // `bytes` below here, never within config::stack_guard_margin of the end
     // of this thread's stack, and never below the pages the stack has
     // already touched (zeroing untouched pages would only add them to the
     // scan).
     SGCL_ALWAYS_INLINE uintptr_t stack_clear_limit(size_t bytes) noexcept {
         uintptr_t here = (uintptr_t)&here;
-        auto floor = current_thread().stack_begin() + config::StackGuardMargin;
+        auto floor = current_thread().stack_begin() + config::stack_guard_margin;
         auto limit = bytes < here ? here - bytes : 0;
         limit = limit < floor ? floor : limit;
         auto touched = os::lowest_touched(limit, here);

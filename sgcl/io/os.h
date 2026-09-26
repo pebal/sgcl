@@ -6,9 +6,11 @@
 #pragma once
 
 #include "file.h"
-#include "../containers/vector.h"
+#include "../core/root_ptr.h"
+#include "../core/vector.h"
 #include "../core/aliases.h"
 
+#include <atomic>
 #include <cstdio>
 #include <cstdlib>
 #include <pwd.h>
@@ -35,7 +37,7 @@ namespace sgcl::io {
             out.push_back(string(argv[i]));
         }
 #else
-        if (auto r = read_file("/proc/self/cmdline")) {
+        if (auto r = detail::_block_read_file("/proc/self/cmdline")) {
             auto text = detail::chars_of(as_bytes(r->as_slice()));
             size_t pos = 0;
             while (pos < text.size()) {
@@ -61,14 +63,14 @@ namespace sgcl::io {
         return string(v);
     }
 
-    inline result<void> setenv(const string& name, const string& value) {
+    inline expected<void, error> setenv(const string& name, const string& value) {
         if (::setenv(name.c_str(), value.c_str(), 1) != 0) {
             return detail::fail(last_error("setenv", name));
         }
         return {};
     }
 
-    inline result<void> unsetenv(const string& name) {
+    inline expected<void, error> unsetenv(const string& name) {
         if (::unsetenv(name.c_str()) != 0) {
             return detail::fail(last_error("unsetenv", name));
         }
@@ -135,7 +137,7 @@ namespace sgcl::io {
         return string(out);
     }
 
-    inline result<string> working_dir() {
+    inline expected<string, error> working_dir() {
         char buf[4096];
         if (!::getcwd(buf, sizeof buf)) {
             return detail::fail(last_error("getcwd"));
@@ -143,7 +145,7 @@ namespace sgcl::io {
         return string(buf);
     }
 
-    inline result<void> chdir(const string& path) {
+    inline expected<void, error> chdir(const string& path) {
         if (::chdir(path.c_str()) != 0) {
             return detail::fail(last_error("chdir", path));
         }
@@ -155,7 +157,7 @@ namespace sgcl::io {
     // (~/Library/Caches and ~/Library/Application Support on macOS,
     // $XDG_CACHE_HOME or ~/.cache and $XDG_CONFIG_HOME or ~/.config
     // elsewhere); the temporary directory ($TMPDIR, else /tmp)
-    inline result<string> home_dir() {
+    inline expected<string, error> home_dir() {
         if (auto h = getenv("HOME"); h && !h->empty()) {
             return *h;
         }
@@ -165,7 +167,7 @@ namespace sgcl::io {
         return detail::fail(error(std::make_error_code(std::errc::no_such_file_or_directory), "home_dir"));
     }
 
-    inline result<string> cache_dir() {
+    inline expected<string, error> cache_dir() {
 #if defined(__APPLE__)
         auto h = home_dir();
         if (!h) {
@@ -184,7 +186,7 @@ namespace sgcl::io {
 #endif
     }
 
-    inline result<string> config_dir() {
+    inline expected<string, error> config_dir() {
 #if defined(__APPLE__)
         auto h = home_dir();
         if (!h) {
@@ -203,13 +205,13 @@ namespace sgcl::io {
 #endif
     }
 
-    inline string temp_path() {
+    inline string temp_dir() {
         return detail::temp_root();
     }
 
     // The running executable's path, symlinks resolved; the host's
     // name; the process id
-    inline result<string> executable() {
+    inline expected<string, error> executable() {
         char buf[4096];
 #if defined(__APPLE__)
         uint32_t size = sizeof buf;
@@ -230,7 +232,7 @@ namespace sgcl::io {
 #endif
     }
 
-    inline result<string> hostname() {
+    inline expected<string, error> hostname() {
         char buf[256];
         if (::gethostname(buf, sizeof buf) != 0) {
             return detail::fail(last_error("hostname"));
@@ -243,8 +245,10 @@ namespace sgcl::io {
         return static_cast<int>(::getpid());
     }
 
-    // The standard streams as files over descriptors 0, 1 and 2, a new
-    // object per call, the descriptor never closed by it; a descriptor
+    // The standard streams, io::stdin, io::stdout and io::stderr: three
+    // objects, constant-initialized, each over a file of descriptor 0, 1
+    // or 2 made the first time the stream is used and kept for the life
+    // of the process, the descriptor never closed by it; a descriptor
     // that is non-blocking already is served by the reactor, any other
     // (a terminal, a redirected file, a pipe from the shell) by the
     // blocking pool, its flags left as they are.
@@ -252,7 +256,7 @@ namespace sgcl::io {
     // <cstdio> defines stdin, stdout and stderr as macros (on macOS for
     // the variables __stdinp, __stdoutp, __stderrp; on glibc for
     // variables of the same names). The macros go, the framework's
-    // streams take the names as functions, and the C streams stay
+    // streams take the names, and the C streams stay
     // reachable under the same names as references in the global
     // scope, so that code written for <stdio.h> compiles on. Where the
     // variable already carries the name (glibc), the #undef alone does
@@ -278,17 +282,79 @@ namespace sgcl::io {
 #undef stderr
 #endif
 
-    inline tracked_ptr<file> stdin() {
-        return detail::std_stream(0, "stdin");
-    }
+    class standard_stream final
+    : public mixin::reader<standard_stream>
+    , public mixin::writer<standard_stream> {
+    public:
+        using mixin::writer<standard_stream>::write;
+        using mixin::writer<standard_stream>::async_write;
 
-    inline tracked_ptr<file> stdout() {
-        return detail::std_stream(1, "stdout");
-    }
+        constexpr standard_stream(int fd, const char* name) noexcept
+        : _fd(fd), _name(name) {
+        }
 
-    inline tracked_ptr<file> stderr() {
-        return detail::std_stream(2, "stderr");
-    }
+        standard_stream(const standard_stream&) = delete;
+        standard_stream& operator=(const standard_stream&) = delete;
+
+        expected<size_t, error> read(const slice<byte>& buffer) {
+            return _get().read(buffer);
+        }
+
+        async::task<expected<size_t, error>> async_read(const slice<byte>& buffer) {
+            return _get().async_read(buffer);
+        }
+
+        expected<size_t, error> write(const slice<const byte>& data) {
+            return _get().write(data);
+        }
+
+        async::task<expected<size_t, error>> async_write(const slice<const byte>& data) {
+            return _get().async_write(data);
+        }
+
+        // The file over the descriptor, for what takes a file (a child's
+        // standard stream shared with the program's: cmd.out = io::stdout.file())
+        tracked_ptr<io::file> file() const {
+            return _held().ptr();
+        }
+
+        int fd() const noexcept {
+            return _fd;
+        }
+
+        bool is_terminal() const noexcept {
+            return ::isatty(_fd) == 1;
+        }
+
+    private:
+        io::file& _get() const {
+            return *_held();
+        }
+
+        // Made once, on the first use, by whichever thread comes first;
+        // never destroyed: a root whose cell outlives the static
+        // destructors that may still write to the stream
+        root_ptr<io::file>& _held() const {
+            root_ptr<io::file>* p = _file.load(std::memory_order_acquire);
+            if (!p) {
+                auto made = new root_ptr<io::file>(detail::std_stream(_fd, _name));
+                if (_file.compare_exchange_strong(p, made, std::memory_order_acq_rel, std::memory_order_acquire)) {
+                    p = made;
+                } else {
+                    delete made;
+                }
+            }
+            return *p;
+        }
+
+        int _fd;
+        const char* _name;
+        mutable std::atomic<root_ptr<io::file>*> _file = {nullptr};
+    };
+
+    inline standard_stream stdin(0, "stdin");
+    inline standard_stream stdout(1, "stdout");
+    inline standard_stream stderr(2, "stderr");
 
     // Whether the descriptor is a terminal
     inline bool is_terminal(int fd) noexcept {

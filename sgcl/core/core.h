@@ -3,21 +3,48 @@
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
-// The core module: the collector and the pointers.
+// The core module: the collector and the pointers, the value types, the
+// containers, atomic and atomic_ref, the clock, the managed coroutine frame
+// and the generator; everything in sgcl:: itself.
 #pragma once
 
 #include "aliases.h"
 #include "any.h"
+#include "array.h"
+#include "atomic.h"
+#include "atomic_ref.h"
+#include "clock.h"
 #include "collector.h"
 #include "config.h"
+#include "coroutine.h"
+#include "deque.h"
+#include "duration.h"
+#include "dynamic_array.h"
 #include "expected.h"
+#include "expiry_queue.h"
+#include "forward_list.h"
 #include "function.h"
+#include "generator.h"
+#include "list.h"
 #include "make_tracked.h"
+#include "map.h"
 #include "mixin/mixin.h"
+#include "multimap.h"
+#include "multiset.h"
+#include "ordered_map.h"
+#include "ordered_set.h"
+#include "queue.h"
 #include "range.h"
+#include "req.h"
 #include "root_ptr.h"
 #include "rooted.h"
+#include "set.h"
 #include "slice.h"
+#include "sorted_map.h"
+#include "sorted_multimap.h"
+#include "sorted_multiset.h"
+#include "sorted_set.h"
+#include "stack.h"
 #include "string.h"
 #include "thread.h"
 #include "tracked_ptr.h"
@@ -26,4 +53,7 @@
 #include "unique_ptr.h"
 #include "utf8.h"
 #include "variant.h"
+#include "vector.h"
+#include "weak_map.h"
 #include "weak_ptr.h"
+#include "weak_set.h"

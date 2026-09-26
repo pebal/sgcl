@@ -5,26 +5,23 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "../../async/coroutine.h"
-#include "../error.h"
+#include "../req.h"
 
 #include <cstdint>
 
 namespace sgcl::io {
-    enum class seek_from { begin, current, end };
-
     namespace mixin {
-        // The mixin over Derived::seek(offset, from) -> result<uint64_t>: the
+        // The mixin over Derived::seek(offset, from) -> expected<uint64_t, error>: the
         // position after the seek
         template<class Derived>
         class seeker {
         public:
-            result<uint64_t> tell() {
+            expected<uint64_t, error> tell() {
                 return _self().seek(0, seek_from::current);
             }
 
             // The size, the position kept
-            result<uint64_t> size() {
+            expected<uint64_t, error> size() {
                 auto here = _self().seek(0, seek_from::current);
                 if (!here) {
                     return here;
@@ -40,7 +37,7 @@ namespace sgcl::io {
                 return end;
             }
 
-            result<void> rewind() {
+            expected<void, error> rewind() {
                 auto r = _self().seek(0, seek_from::begin);
                 if (!r) {
                     return detail::fail(r);

@@ -1,4 +1,4 @@
-# sgcl::mutex
+# sgcl::async::mutex
 
 ```cpp
 #include "sgcl/async/mutex.h"   // or "sgcl/sgcl.h"
@@ -13,24 +13,24 @@ One holder at a time: `lock()` is a receive on a channel holding one signal and 
 ## Rules
 
 - It lives where a `tracked_ptr` may: on a stack or inside a managed object ([The rules](../core/README.md#the-rules), 1); not copyable, not movable.
-- Not recursive and no owner: whoever holds the signal holds the lock, and `unlock()` from another thread or task is a valid hand-over. `std::lock_guard<sgcl::mutex>` works for a thread; `auto guard = co_await m.async_scoped_lock();` for a task.
+- Not recursive and no owner: whoever holds the signal holds the lock, and `unlock()` from another thread or task is a valid hand-over. `std::lock_guard<sgcl::async::mutex>` works for a thread; `auto guard = co_await m.scoped_lock();` for a task.
 - An `unlock()` without a matching `lock()` is lost: the channel is full.
 
 ## Members
 
 ```cpp
 void lock();  bool try_lock();  void unlock();
-auto async_lock() noexcept;                    // co_await: locked
-auto async_scoped_lock() noexcept;             // co_await: a guard that unlocks when destroyed
+auto scoped_lock() noexcept;                    // co_await: locked
+auto scoped_lock() noexcept;             // co_await: a guard that unlocks when destroyed
 template<class F> auto on_lock(F f);           // a case of a select: f() with the lock held
 class guard;                                   // the lock held for a scope; owner() is the mutex
 ```
 
 ```cpp
-mutex m;
+async::mutex m;
 int counter = 0;                                // guarded by m
-auto add = [](mutex& m, int& counter) -> task<> {
-    auto guard = co_await m.async_scoped_lock();
+auto add = [](async::mutex& m, int& counter) -> async::task<> {
+    auto guard = co_await m.scoped_lock();
     ++counter;
 };
 std::lock_guard lock(m);                        // a thread

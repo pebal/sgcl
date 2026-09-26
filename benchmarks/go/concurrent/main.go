@@ -106,7 +106,7 @@ func (q *queue) pop() int64 {
 	}
 }
 
-// Treiber, with the backoff of sgcl/detail/backoff.h: a wait that doubles
+// Treiber, with the backoff of sgcl/core/detail/backoff.h: a wait that doubles
 // after every lost exchange, up to backoffMax pauses: an isb on arm64
 // (isb_arm64.s, the pause of the C++ variants), the loop alone elsewhere
 const backoffMax = 4096
@@ -158,7 +158,7 @@ func (s *stack) pop() int64 {
 	}
 }
 
-// The skip list of sgcl/concurrent_map.h: the bottom link in the node,
+// The skip list of sgcl/map.h: the bottom link in the node,
 // the upper links in a slice made only for a node of height above one
 // (a quarter of them), a marker a node of its own linked after the node
 // it marks at one level.

@@ -10,6 +10,8 @@
 #include <algorithm>
 #include <map>
 #include <ranges>
+#include <cstdlib>
+#include <cstring>
 #include <set>
 #include <sstream>
 #include <string>
@@ -490,4 +492,74 @@ TEST(String_Tests, StringsInManagedObjectsAreSharedAndCollected) {
     list = nullptr;
     settle();
     EXPECT_EQ(live_string_objects(), before);
+}
+
+TEST(String_Tests, ALengthPastTheMaximumIsALengthError) {
+    // a view longer than a string can be (its length is 32 bits): refused
+    // before a byte of it is read, where the length would have been cut
+    // short and another string made
+    const char c = 'x';
+    std::string_view past(&c, size_t(sgcl::string::max_size()) + 2);
+    EXPECT_THROW(sgcl::string{past}, sgcl::length_error);
+    std::u16string_view past16(u"x", size_t(sgcl::u16string::max_size()) + 1);
+    EXPECT_THROW(sgcl::u16string{past16}, sgcl::length_error);
+}
+
+TEST(String_Tests, TheHashIsKeyedAndReadsEveryByte) {
+    // every byte of every length up to 200 changes the hash, and the
+    // length itself does ("a" and "a\0")
+    std::string buf(200, '\0');
+    for (size_t i = 0; i < buf.size(); ++i) {
+        buf[i] = char(i * 31 + 7);
+    }
+    std::set<uint64_t> seen;
+    for (size_t n = 0; n <= buf.size(); ++n) {
+        auto h = sgcl::detail::hash_bytes(buf.data(), n);
+        EXPECT_TRUE(seen.insert(h).second) << "length " << n;
+        for (size_t at = 0; at < n; at += (n > 64 ? 7 : 1)) {
+            std::string changed = buf.substr(0, n);
+            changed[at] ^= 1;
+            EXPECT_NE(sgcl::detail::hash_bytes(changed.data(), n), h) << "length " << n << ", byte " << at;
+        }
+    }
+    // the string's hash and a view's are the one keyed hash
+    sgcl::string s = "content-type";
+    EXPECT_EQ(s.hash(), sgcl::string::hash_of("content-type"));
+    EXPECT_EQ(std::hash<sgcl::string>()(s), std::hash<sgcl::string>()(std::string_view("content-type")));
+    // the key: drawn per process, fixed by SGCL_HASH_SEED
+    auto saved = std::getenv("SGCL_HASH_SEED") ? std::string(std::getenv("SGCL_HASH_SEED")) : std::string();
+    ::setenv("SGCL_HASH_SEED", "12345", 1);
+    auto a = sgcl::detail::make_hash_key(), b = sgcl::detail::make_hash_key();
+    ::setenv("SGCL_HASH_SEED", "12346", 1);
+    auto c = sgcl::detail::make_hash_key();
+    ::unsetenv("SGCL_HASH_SEED");
+    auto d = sgcl::detail::make_hash_key(), e = sgcl::detail::make_hash_key();
+    if (!saved.empty()) {
+        ::setenv("SGCL_HASH_SEED", saved.c_str(), 1);
+    }
+    EXPECT_EQ(std::memcmp(&a, &b, sizeof(a)), 0);
+    EXPECT_NE(std::memcmp(&a, &c, sizeof(a)), 0);
+    EXPECT_NE(std::memcmp(&d, &e, sizeof(d)), 0);
+}
+
+// parse<T> gives the number or the reason it read none, and where it stopped
+TEST(String_Tests, ParseGivesTheNumberOrTheReason) {
+    EXPECT_EQ(sgcl::parse<int>("42"), 42);
+    EXPECT_EQ(sgcl::parse<int>("-ff", 16), -255);
+    EXPECT_EQ(sgcl::parse<double>("2.5"), 2.5);
+    EXPECT_EQ(sgcl::parse<bool>("true"), true);
+    auto trailing = sgcl::parse<int>("4x");
+    ASSERT_FALSE(trailing);
+    EXPECT_EQ(trailing.error().why(), sgcl::number_error::reason::trailing);
+    EXPECT_EQ(trailing.error().offset(), 1u);
+    EXPECT_EQ(trailing.error().code(), std::errc::invalid_argument);
+    EXPECT_EQ(trailing.error().message(), "more after the number");
+    auto wide = sgcl::parse<uint8_t>("300");
+    EXPECT_EQ(wide.error().why(), sgcl::number_error::reason::out_of_range);
+    EXPECT_EQ(wide.error().code(), std::errc::result_out_of_range);
+    EXPECT_EQ(wide.error().offset(), 3u);                  // where the number ends
+    EXPECT_EQ(sgcl::parse<int>("").error().why(), sgcl::number_error::reason::empty);
+    EXPECT_EQ(sgcl::parse<int>(" 1").error().why(), sgcl::number_error::reason::not_a_number);
+    EXPECT_EQ(sgcl::parse<unsigned>("-1").error().why(), sgcl::number_error::reason::not_a_number);
+    EXPECT_EQ(sgcl::parse<bool>("yes").error().message(), "not a number");
 }

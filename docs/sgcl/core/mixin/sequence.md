@@ -28,7 +28,7 @@ vector v = {1, 2, 3};
 v.reverse();                        // 3 2 1
 slice<int> tail = v.as_slice(1);
 tail.fill(0);                       // 3 0 0: the slice writes the vector's elements
-static_assert(req::sequence<vector<int>> && !req::sequence<slice<const int>> && !req::sequence<im::vector<int>>);
+static_assert(req::sequence<vector<int>> && !req::sequence<slice<const int>> && !req::sequence<immutable::vector<int>>);
 ```
 
 ## Example
@@ -91,5 +91,5 @@ The output:
 
 ## See also
 
-- [the mixins and the requirements](README.md); [vector](../../containers/vector.md), [array](../../containers/array.md), [deque](../../containers/deque.md), [list](../../containers/list.md), [forward_list](../../containers/forward_list.md): the sequences that carry it
+- [the mixins and the requirements](README.md); [vector](../vector.md), [array](../array.md), [deque](../deque.md), [list](../list.md), [forward_list](../forward_list.md): the sequences that carry it
 - `tests/containers/mixins.cpp`: the members of the sequences' mixins, checked on every sequence; `tests/core/mixin.cpp`

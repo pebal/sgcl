@@ -5,7 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "../concurrent/concurrent_queue.h"
+#include "operation.h"
+#include "../concurrent/queue.h"
 #include "../core/make_tracked.h"
 #include "../core/tracked_ptr.h"
 #include "channel.h"
@@ -14,7 +15,8 @@
 
 #include <utility>
 
-namespace sgcl {
+namespace sgcl::async {
+    namespace detail { using namespace sgcl::detail; }
     // A condition variable: Go's sync.Cond, std::condition_variable_any,
     // over the module's mutex, for tasks and threads alike. A wait lets
     // go of the mutex, waits for a notify and takes the mutex back; a
@@ -52,46 +54,48 @@ namespace sgcl {
 
         // A thread's wait: the guard's mutex let go of, the wait, the
         // mutex taken back; or any lock with unlock() and lock()
-        // (std::unique_lock<sgcl::mutex>)
-        void wait(mutex::guard& g) {
+        // (std::unique_lock<sgcl::async::mutex>)
+        // A wait with the guard of an async::mutex: `co_await cv.wait(g)` in
+        // a task, `cv.wait(g).wait()` on a thread
+        auto wait(mutex::guard& g) {
+            return detail::either([this, &g] { return _co_wait(g); }, [this, &g] { _wait(g); });
+        }
+
+        template<class Pred>
+        auto wait(mutex::guard& g, Pred pred) {
+            return detail::either([this, &g, pred] { return _co_wait(g, pred); }, [this, &g, pred] {
+                while (!pred()) {
+                    _wait(g);
+                }
+            });
+        }
+
+    private:
+        void _wait(mutex::guard& g) {
             auto& m = g.owner();
             tracked_ptr<channel<void>> w = _register();
             m.unlock();
-            w->receive();
+            (void)w->receive().wait();
             m.lock();
         }
 
+    public:
         template<class Lock>
+            requires (!std::is_same_v<Lock, mutex::guard>)
         void wait(Lock& lock) {
             tracked_ptr<channel<void>> w = _register();
             lock.unlock();
-            w->receive();
+            (void)w->receive().wait();
             lock.lock();
         }
 
         // The wait until the predicate holds, checked under the mutex
         // before every wait
         template<class Lock, class Pred>
+            requires (!std::is_same_v<Lock, mutex::guard>)
         void wait(Lock& lock, Pred pred) {
             while (!pred()) {
                 wait(lock);
-            }
-        }
-
-        // A task's wait: `co_await cv.async_wait(guard)`, the mutex taken
-        // back with a co_await too
-        task<> async_wait(mutex::guard& g) {
-            auto& m = g.owner();
-            tracked_ptr<channel<void>> w = _register();
-            m.unlock();
-            co_await w->async_receive();
-            co_await m.async_lock();
-        }
-
-        template<class Pred>
-        task<> async_wait(mutex::guard& g, Pred pred) {
-            while (!pred()) {
-                co_await async_wait(g);
             }
         }
 
@@ -102,6 +106,22 @@ namespace sgcl {
             return w;
         }
 
-        concurrent_queue<tracked_ptr<channel<void>>> _waiters;
+        concurrent::queue<tracked_ptr<channel<void>>> _waiters;
+
+        // the two halves of the operations above: a thread's and a task's
+        task<> _co_wait(mutex::guard& g) {
+            auto& m = g.owner();
+            tracked_ptr<channel<void>> w = _register();
+            m.unlock();
+            co_await w->receive();
+            co_await m._ch.receive();
+        }
+
+        template<class Pred>
+        task<> _co_wait(mutex::guard& g, Pred pred) {
+            while (!pred()) {
+                co_await _co_wait(g);
+            }
+        }
     };
 }

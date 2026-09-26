@@ -166,7 +166,7 @@ namespace sgcl::txt {
 
             // Not constexpr, these two: a slice and a string hold a
             // tracked pointer, so neither is a literal type
-            size_t operator()(slice<const char> text) const noexcept {
+            size_t operator()(const slice<const char>& text) const noexcept {
                 return _sum({text.data(), text.size()});
             }
 
@@ -221,9 +221,17 @@ namespace sgcl::txt {
     inline constexpr sgcl::detail::code_point_fn<detail::is_printable_fn> is_printable {};
     inline constexpr sgcl::detail::code_point_fn<detail::is_emoji_fn> is_emoji {};
 
+    // The three core answers (core/unicode.h) under this module's names,
+    // so that txt::is_space stands beside txt::is_alpha: the White_Space
+    // property, and whether a code point has a case form other than
+    // itself
+    inline constexpr auto is_space = unicode::is_space;
+    inline constexpr auto is_upper = unicode::is_upper;
+    inline constexpr auto is_lower = unicode::is_lower;
+
     // The value of a decimal digit, -1 when the code point is not one:
-    // numeric_value(U'٣') is 3 (the Arabic-Indic three)
-    inline constexpr sgcl::detail::code_point_fn<detail::numeric_value_fn> numeric_value {};
+    // numeric_value_of(U'٣') is 3 (the Arabic-Indic three)
+    inline constexpr sgcl::detail::code_point_fn<detail::numeric_value_fn> numeric_value_of {};
 
     // The columns of a code point or of a whole text on a terminal, for a
     // table of columns and for wrap() and truncate() of the segmentation.

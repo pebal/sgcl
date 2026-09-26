@@ -26,7 +26,7 @@ namespace {
 }
 
 TEST(SpscQueue_Test, PushPopOrder) {
-    sgcl::spsc_queue<int> q(4);
+    sgcl::concurrent::spsc_queue<int> q(4);
     EXPECT_TRUE(q.empty());
     EXPECT_FALSE(q.full());
     EXPECT_EQ(q.size(), 0u);
@@ -48,7 +48,7 @@ TEST(SpscQueue_Test, PushPopOrder) {
 }
 
 TEST(SpscQueue_Test, FullAndCapacityRounding) {
-    sgcl::spsc_queue<int> q(5);   // rounded up to 8
+    sgcl::concurrent::spsc_queue<int> q(5);   // rounded up to 8
     EXPECT_EQ(q.capacity(), 8u);
     for (int i = 0; i < 8; ++i) {
         EXPECT_TRUE(q.try_push(i));
@@ -64,10 +64,10 @@ TEST(SpscQueue_Test, FullAndCapacityRounding) {
         EXPECT_EQ(*q.try_pop(), i);
     }
     EXPECT_TRUE(q.empty());
-    EXPECT_EQ(sgcl::spsc_queue<int>(1).capacity(), 1u);
-    EXPECT_EQ(sgcl::spsc_queue<int>(0).capacity(), 1u);
-    EXPECT_EQ(sgcl::spsc_queue<int>(1000).capacity(), 1024u);
-    sgcl::spsc_queue<int> one(1);
+    EXPECT_EQ(sgcl::concurrent::spsc_queue<int>(1).capacity(), 1u);
+    EXPECT_EQ(sgcl::concurrent::spsc_queue<int>(0).capacity(), 1u);
+    EXPECT_EQ(sgcl::concurrent::spsc_queue<int>(1000).capacity(), 1024u);
+    sgcl::concurrent::spsc_queue<int> one(1);
     EXPECT_TRUE(one.try_push(1));
     EXPECT_FALSE(one.try_push(2));
     EXPECT_EQ(one.pop(), 1);
@@ -76,7 +76,7 @@ TEST(SpscQueue_Test, FullAndCapacityRounding) {
 }
 
 TEST(SpscQueue_Test, ManyLaps) {
-    sgcl::spsc_queue<int> q(4);
+    sgcl::concurrent::spsc_queue<int> q(4);
     for (int i = 0; i < 1000; ++i) {
         EXPECT_TRUE(q.try_push(i));
         if (i % 3 == 2) {
@@ -90,7 +90,7 @@ TEST(SpscQueue_Test, ManyLaps) {
 }
 
 TEST(SpscQueue_Test, MoveOnlyElements) {
-    sgcl::spsc_queue<std::unique_ptr<int>> q(2);
+    sgcl::concurrent::spsc_queue<std::unique_ptr<int>> q(2);
     EXPECT_TRUE(q.try_push(std::make_unique<int>(1)));
     EXPECT_TRUE(q.try_emplace(new int(2)));
     EXPECT_FALSE(q.try_push(std::make_unique<int>(3)));
@@ -103,7 +103,7 @@ TEST(SpscQueue_Test, MoveOnlyElements) {
 }
 
 TEST(SpscQueue_Test, StringsEmplaced) {
-    sgcl::spsc_queue<std::string> q(4);
+    sgcl::concurrent::spsc_queue<std::string> q(4);
     EXPECT_TRUE(q.try_emplace(3, 'x'));
     EXPECT_TRUE(q.try_emplace("abc"));
     std::string s = "def";
@@ -117,7 +117,7 @@ TEST(SpscQueue_Test, StringsEmplaced) {
 TEST(SpscQueue_Test, ElementDestroyedByPopAndByDestructor) {
     const size_t before = Int::counter;
     {
-        sgcl::spsc_queue<Int> q(4);
+        sgcl::concurrent::spsc_queue<Int> q(4);
         EXPECT_TRUE(q.try_push(Int(1)));
         EXPECT_TRUE(q.try_emplace(2));
         EXPECT_TRUE(q.try_push(Int(3)));
@@ -137,7 +137,7 @@ TEST(SpscQueue_Test, ElementDestroyedByPopAndByDestructor) {
 
 // A constructor that throws leaves the queue as it was
 TEST(SpscQueue_Test, ConstructorThrows) {
-    sgcl::spsc_queue<Throwing> q(4);
+    sgcl::concurrent::spsc_queue<Throwing> q(4);
     EXPECT_TRUE(q.try_emplace(1));
     EXPECT_THROW(q.try_emplace(13), std::runtime_error);
     EXPECT_EQ(q.size(), 1u);
@@ -150,7 +150,7 @@ TEST(SpscQueue_Test, ConstructorThrows) {
 TEST(SpscQueue_Test, ElementsHoldingTrackedPtrs) {
     const size_t before = collector::get_live_object_count();
     off_frame([&] {
-        sgcl::spsc_queue<tracked_ptr<Baz>> q(16);
+        sgcl::concurrent::spsc_queue<tracked_ptr<Baz>> q(16);
         const size_t with_buffer = collector::get_live_object_count();
         off_frame([&] {
             for (int i = 0; i < 10; ++i) {
@@ -183,7 +183,7 @@ TEST(SpscQueue_Test, ElementsHoldingTrackedPtrs) {
 
 TEST(SpscQueue_Test, QueueInsideManagedObject) {
     struct Holder {
-        sgcl::spsc_queue<tracked_ptr<Baz>> q{8};
+        sgcl::concurrent::spsc_queue<tracked_ptr<Baz>> q{8};
     };
     const size_t before = collector::get_live_object_count();
     off_frame([&] {
@@ -204,7 +204,7 @@ TEST(SpscQueue_Test, QueueInsideManagedObject) {
 TEST(SpscQueue_Test, BlockingPushAndPopBetweenThreads) {
     const int n = 50000;
     off_frame([&] {
-        sgcl::spsc_queue<int> q(8);
+        sgcl::concurrent::spsc_queue<int> q(8);
         std::thread producer([&] {
             for (int i = 0; i < n; ++i) {
                 q.push(i);   // waits while the ring is full
@@ -232,7 +232,7 @@ TEST(SpscQueue_Test, ProducerConsumerStress) {
     const int n = 200000;
     const size_t before = collector::get_live_object_count();
     off_frame([&] {
-        sgcl::spsc_queue<tracked_ptr<Value>> q(32);
+        sgcl::concurrent::spsc_queue<tracked_ptr<Value>> q(32);
         std::thread producer([&] {
             for (int i = 0; i < n; ++i) {
                 tracked_ptr<Value> v = make_tracked<Value>(i);

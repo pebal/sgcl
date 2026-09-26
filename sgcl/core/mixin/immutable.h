@@ -15,7 +15,7 @@ namespace sgcl::mixin {
     // structure, and a copy is one word. A function that takes
     // req::immutable auto can keep what it was given, hand it to another
     // thread or compare it with a later version without a copy and
-    // without a lock: im::vector, im::list, im::map, im::set carry it.
+    // without a lock: immutable::vector, immutable::list, immutable::map, immutable::set carry it.
     // What a container that is merely not written (slice<const T>, a
     // sorted_set) does not say: their object may change behind them.
     template<class Derived>

@@ -1,4 +1,4 @@
-# sgcl::promise
+# sgcl::async::promise
 
 ```cpp
 #include "sgcl/async/promise.h"   // or "sgcl/sgcl.h"
@@ -9,17 +9,17 @@ namespace sgcl {
 }
 ```
 
-The adapter between the callback APIs of a platform and `co_await`: an I/O completion port, a dispatch queue, JNI, a driver's completion routine, a C library that takes a callback and a `void*` context, all report on a thread of their own, and a task cannot wait for a callback. It waits for a promise: the callback calls `set_value(v)` (or `set_exception(e)`) and returns, and the task that wrote `co_await p` is made ready with the value, having held no thread meanwhile. A thread waits with `get()` and blocks; a select takes `p.on_ready(f)` as a case, so that the completion is bounded by a [timeout](timer.md) or cancelled by a [stop token](stop_token.md) like any other wait. What Java has as `CompletableFuture`, Kotlin as `CompletableDeferred`, Rust as a `oneshot` channel.
+The adapter between the callback APIs of a platform and `co_await`: an I/O completion port, a dispatch queue, JNI, a driver's completion routine, a C library that takes a callback and a `void*` context, all report on a thread of their own, and a task cannot wait for a callback. It waits for a promise: the callback calls `set_value(v)` (or `set_exception(e)`) and returns, and the task that wrote `co_await p` is made ready with the value, having held no thread meanwhile. A thread waits with `wait()` and blocks; a select takes `p.on_done(f)` as a case, so that the completion is bounded by a [timeout](timer.md) or cancelled by a [stop token](stop_token.md) like any other wait. What Java has as `CompletableFuture`, Kotlin as `CompletableDeferred`, Rust as a `oneshot` channel.
 
 Under it an [event](event.md) with a value: a channel of signals closed by the set, so that the three forms of the wait are the channel's, lock-free, the waiters reclaimed by the collector; the value lives in the promise's object next to the channel. The shape is one object and no shared state, not `std::promise` and `std::future` apart: a completion has one home, and whoever has a pointer to it may set it or wait for it, any number of times for the waiting. Exactly one setter wins, by a compare-exchange: a second `set_value` or `set_exception` is an error, asserted in debug builds and ignored in release, where the first value stands.
 
 ## Rules
 
-- A `promise` lives where a `tracked_ptr` may: on a stack, in a coroutine's frame, or inside a managed object, `make_tracked<promise<int>>()` included ([The rules](../core/README.md#the-rules), 1); it is neither copied nor moved. A callback from a foreign thread reaches it through a `root_ptr` in its context (the example below) or a `tracked_ptr` captured in a managed object; never through a raw pointer kept in unmanaged memory alone, which keeps nothing alive.
+- A `promise` lives where a `tracked_ptr` may: on a stack, in a coroutine's frame, or inside a managed object, `make_tracked<async::promise<int>>()` included ([The rules](../core/README.md#the-rules), 1); it is neither copied nor moved. A callback from a foreign thread reaches it through a `root_ptr` in its context (the example below) or a `tracked_ptr` captured in a managed object; never through a raw pointer kept in unmanaged memory alone, which keeps nothing alive.
 - The value is set once; `set_value` and `set_exception` from any thread, at any time, before or after the waits begin. A wait after the set does not wait. A value whose move into the promise throws sets the promise all the same, with that exception.
-- `co_await p` and `get()` give a reference to the value in the promise (`T&`), so every waiter reads the one value; a lone reader may move it out. Either rethrows what `set_exception` set, every time it is asked.
+- `co_await p`, `wait()` and `result()` give a reference to the value in the promise (`T&`), so every waiter reads the one value; a lone reader may move it out. Either rethrows what `set_exception` set, every time it is asked.
 - A `tracked_ptr` value keeps its object for as long as the promise lives, as any member of a managed object does: the promise is the value's home until whoever awaited it has copied it out.
-- `get()` blocks the calling thread: not from a task on a worker, which `co_await`s (debug builds assert).
+- `wait()` blocks the calling thread until the set, and so does `result()` on a promise not set yet: not from a task on a worker, which `co_await`s (debug builds assert).
 - A promise nobody sets is a wait that never ends: the setter's side owns the obligation, as with a channel nobody closes. A select with a `timeout` case bounds the wait.
 
 ## Members
@@ -29,34 +29,34 @@ promise();
 
 void set_value(const T& v);  void set_value(T&& v);   // promise<void>: set_value()
 void set_exception(std::exception_ptr e);             // the waiters get the exception instead
-bool ready() const noexcept;                          // set already
+bool done() const noexcept;                           // set already
 
-T& get();                                             // a thread: blocks until set; the value, or the exception rethrown
-T& result();                                          // the value of a ready promise, or the exception rethrown
+T& wait();                                            // a thread: blocks until set; the value, or the exception rethrown
+T& result();                                          // the same, without the wait when set already
 awaiter operator co_await() noexcept;                 // a task: co_await p, the same, no thread held
-template<class F> auto on_ready(F f);                 // a case of a select: f() once ready (the value from p.result())
+template<class F> auto on_done(F f);                  // a case of a select: f() once set (the value from p.result())
 ```
 
 ```cpp
-task<int> awaits(promise<int>& p) {
+async::task<int> awaits(async::promise<int>& p) {
     co_return co_await p;                             // the value, when it is set; no thread held
 }
-task<int> awaits_briefly(promise<int>& p) {
+async::task<int> awaits_briefly(async::promise<int>& p) {
     int v = -1;
-    co_await async_select(                      // a task waits, but not forever
-        p.on_ready([&] { v = p.result(); }),
-        timeout(1s, [] { /* gave up */ })
+    co_await async::select(                      // a task waits, but not forever
+        p.on_done([&] { v = p.result(); }),
+        async::timeout(1s, [] { /* gave up */ })
     );
     co_return v;
 }
 void setter_and_getter() {
-    promise<int> p;
+    async::promise<int> p;
     thread th([&] { p.set_value(42); });        // any thread sets it, once
-    int v = p.get();                                  // a thread waits instead: 42
+    int v = p.result();                               // a thread waits instead: 42
     th.join();
-    promise<> done;                             // a completion without a value
+    async::promise<> done;                             // a completion without a value
     done.set_value();
-    done.get();                                       // set already: no wait
+    done.wait();                                      // set already: no wait
 }
 ```
 
@@ -85,7 +85,7 @@ void c_read_async(const char* text, char* buffer, completion done, void* context
 }
 
 struct Context {
-    root_ptr<promise<int>> done;
+    root_ptr<async::promise<int>> done;
 };
 
 void on_read(void* context, int result) {
@@ -94,17 +94,17 @@ void on_read(void* context, int result) {
     delete ctx;
 }
 
-task<int> read_line(char* buffer) {
-    tracked_ptr done = make_tracked<promise<int>>();   // a managed object: the frame holds it, the context holds it too
+async::task<int> read_line(char* buffer) {
+    tracked_ptr done = make_tracked<async::promise<int>>();   // a managed object: the frame holds it, the context holds it too
     c_read_async("hello", buffer, on_read, new Context{done});
     co_return co_await *done;                                            // suspended until on_read, no thread held
 }
 
 int main() {
     char buffer[64];
-    int n = spawn(read_line(buffer)).join();
+    int n = async::spawn(read_line(buffer)).wait();
     std::cout << "read " << n << " bytes: " << buffer << "\n";
-    scheduler::stop();
+    async::scheduler::stop();
     return n == 5 ? 0 : 1;
 }
 ```

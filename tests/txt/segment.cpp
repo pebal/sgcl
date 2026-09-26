@@ -75,7 +75,7 @@ TEST(Segment_Tests, EveryCaseOfTheUcdWordTest) {
         auto [text, boundaries] = encoded(c);
         string s(text.data(), text.size());
         std::vector<size_t> found;
-        for (auto it = txt::words(s).begin(); it != txt::words(s).end(); ++it) {
+        for (auto it = txt::word_breaks(s).begin(); it != txt::word_breaks(s).end(); ++it) {
             found.push_back(it.pos());
         }
         boundaries.pop_back();
@@ -156,35 +156,50 @@ TEST(Segment_Tests, TheWordsOfATextAndWhatIsBetweenThem) {
     // UAX #29 defines, and what a double click selects
     string s = "Ala ma kota.";
     std::vector<std::string> segments;
-    for (auto w : txt::words(s)) {
+    for (auto w : txt::word_breaks(s)) {
         segments.emplace_back(w.data(), w.size());
     }
     EXPECT_EQ(segments, (std::vector<std::string>{"Ala", " ", "ma", " ", "kota", "."}));
 
     // The words themselves: the segments with something alphanumeric in them
     auto is_word = [](slice<const char> w) { return w.runes().exists(txt::is_alnum); };
-    EXPECT_EQ(txt::words(s).count_of(is_word), 3u);
+    EXPECT_EQ(txt::word_breaks(s).count_of(is_word), 3u);
 
     // What the rules keep inside a word
-    EXPECT_EQ(txt::words(string("don't")).count_of(is_word), 1u);        // the apostrophe
-    EXPECT_EQ(txt::words(string("3.14")).count_of(is_word), 1u);         // the decimal point
-    EXPECT_EQ(txt::words(string("192.168.0.1")).count_of(is_word), 1u);
-    EXPECT_EQ(txt::words(string("e-mail")).count_of(is_word), 2u);       // and what it does not
-    EXPECT_EQ(txt::words(string("\u0141\u00F3d\u017A nad Wis\u0142\u0105")).count_of(is_word), 3u);
-    EXPECT_EQ(txt::words(string("can't stop, won't stop")).count_of(is_word), 4u);
+    EXPECT_EQ(txt::word_breaks(string("don't")).count_of(is_word), 1u);        // the apostrophe
+    EXPECT_EQ(txt::word_breaks(string("3.14")).count_of(is_word), 1u);         // the decimal point
+    EXPECT_EQ(txt::word_breaks(string("192.168.0.1")).count_of(is_word), 1u);
+    EXPECT_EQ(txt::word_breaks(string("e-mail")).count_of(is_word), 2u);       // and what it does not
+    EXPECT_EQ(txt::word_breaks(string("\u0141\u00F3d\u017A nad Wis\u0142\u0105")).count_of(is_word), 3u);
+    EXPECT_EQ(txt::word_breaks(string("can't stop, won't stop")).count_of(is_word), 4u);
 
     // A text with no letters at all, and no text
-    EXPECT_EQ(txt::words(string("... ")).count_of(is_word), 0u);
-    EXPECT_EQ(txt::words(string("... ")).count(), 4u);                 // each stop its own, the spaces one (WB3d)
-    EXPECT_TRUE(txt::words(string()).empty());
+    EXPECT_EQ(txt::word_breaks(string("... ")).count_of(is_word), 0u);
+    EXPECT_EQ(txt::word_breaks(string("... ")).count(), 4u);                 // each stop its own, the spaces one (WB3d)
+    EXPECT_TRUE(txt::word_breaks(string()).empty());
 
     // An accent does not cut a word in two (rule WB4), and a flag is one
-    EXPECT_EQ(txt::words(string("e\u0301gal")).count(), 1u);
-    EXPECT_EQ(txt::words(string("\U0001F1F5\U0001F1F1")).count(), 1u);
+    EXPECT_EQ(txt::word_breaks(string("e\u0301gal")).count(), 1u);
+    EXPECT_EQ(txt::word_breaks(string("\U0001F1F5\U0001F1F1")).count(), 1u);
 
     // The same range machinery as the graphemes
+    static_assert(req::enumerable<txt::word_breaks>);
+    EXPECT_EQ((*txt::word_breaks(s).begin()).data(), s.data());
+
+    // words: the words alone, the same segments without the runs between
+    std::vector<std::string> only;
+    for (auto w : txt::words(s)) {
+        only.emplace_back(w.data(), w.size());
+    }
+    EXPECT_EQ(only, (std::vector<std::string>{"Ala", "ma", "kota"}));
+    EXPECT_EQ(txt::words(string("can't stop, won't stop")).count(), 4u);
+    EXPECT_EQ(txt::words(string("... ")).count(), 0u);
+    EXPECT_TRUE(txt::words(string("... ")).begin() == txt::words(string("... ")).end());
+    EXPECT_TRUE(txt::words(string(" . ")).empty());          // segments, none of them a word
+    EXPECT_FALSE(txt::word_breaks(string(" . ")).empty());
+    EXPECT_EQ(txt::words(string(" 3.14 ")).count(), 1u);
+    EXPECT_EQ((*txt::words(string("  x")).begin()).size(), 1u);   // the first word, past the spaces before it
     static_assert(req::enumerable<txt::words>);
-    EXPECT_EQ((*txt::words(s).begin()).data(), s.data());
 }
 
 TEST(Segment_Tests, WhatAHumanCountsAsACharacter) {

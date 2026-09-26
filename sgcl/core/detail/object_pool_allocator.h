@@ -54,7 +54,7 @@ namespace sgcl::detail {
             // a page of blocks of cells: every word its own address, the
             // free state of every slot of every block, once (cell_block.h)
             if constexpr(std::is_same_v<ValueType, CellBlock>) {
-                CellBlock::fill_page(data, config::PageSize);
+                CellBlock::fill_page(data, config::page_size);
             }
             return new(mem) Page((ValueType*)data);
         }

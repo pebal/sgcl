@@ -5,12 +5,12 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "../containers/detail/transparent.h"
+#include "../core/detail/transparent.h"
 #include "../core/string.h"
 #include "../core/make_tracked.h"
 #include "../core/root_ptr.h"
-#include "atomic.h"
-#include "concurrent_set.h"
+#include "../core/atomic.h"
+#include "set.h"
 #include "detail/concurrent_weak_table.h"
 
 #include <functional>
@@ -18,7 +18,8 @@
 #include <type_traits>
 #include <utility>
 
-namespace sgcl::detail {
+namespace sgcl::concurrent::detail {
+    using namespace sgcl::detail;
     // How a pool holds the values of a type: what the pool hands out (the
     // handle), what its entries address weakly (the object, without the
     // const the handle adds: a weak pointer locks through the hazard
@@ -158,7 +159,8 @@ namespace sgcl::detail {
     };
 }
 
-namespace sgcl {
+namespace sgcl::concurrent {
+    namespace detail { using namespace sgcl::detail; }
     // A pool where equal values share one managed object, Go's unique
     // package and Java's String.intern: make(value) is the canonical
     // object of the value, the one the pool holds when it is alive, or a
@@ -173,7 +175,7 @@ namespace sgcl {
     // concurrent weak containers, detail/concurrent_weak_table.h: by the
     // inserting thread, one at a time) and on sweep(), and the next
     // make of that value makes a new object. The table is the lock-free
-    // hash set of concurrent_set: find is wait-free and never
+    // hash set of set: find is wait-free and never
     // writes, get and make are lock-free, and two threads interning the
     // same new value at once both get the object of the one whose entry
     // won the table's compare-exchange, the other object being garbage.
@@ -185,12 +187,12 @@ namespace sgcl {
     // pointer to one, and intern_string(view) is intern<string>::make.
     // The pool holds tracked pointers and lives where a tracked_ptr may;
     // the default pool of a type, pool(), is a managed object under a
-    // root_ptr, made on first use, and make(value) is get on it.
+    // root_ptr, made on first use, and make(value) is of(value) on it.
     template<class T, class Hash = std::hash<T>, class KeyEqual = std::equal_to<T>>
-    class intern : detail::ConcurrentWeakTable<typename detail::InternTraits<T>::object, concurrent_set<detail::WeakKey<typename detail::InternTraits<T>::object>, detail::InternHash<T, Hash>, detail::InternEqual<T, KeyEqual>>> {
+    class intern : detail::ConcurrentWeakTable<typename detail::InternTraits<T>::object, set<detail::WeakKey<typename detail::InternTraits<T>::object>, detail::InternHash<T, Hash>, detail::InternEqual<T, KeyEqual>>> {
         using Traits = detail::InternTraits<T>;
         using Entry = detail::WeakKey<typename Traits::object>;
-        using Base = detail::ConcurrentWeakTable<typename Traits::object, concurrent_set<Entry, detail::InternHash<T, Hash>, detail::InternEqual<T, KeyEqual>>>;
+        using Base = detail::ConcurrentWeakTable<typename Traits::object, set<Entry, detail::InternHash<T, Hash>, detail::InternEqual<T, KeyEqual>>>;
         using Base::_table;
 
     public:
@@ -203,14 +205,15 @@ namespace sgcl {
         intern() = default;
 
         // The canonical object of the value: the pool's when one is alive,
-        // or a new one made from the value and entered. Lock-free.
-        handle get(const T& value) {
-            return _get(value);
+        // or a new one made from the value and entered (hash::of's name for
+        // what a value maps to; get would read, and this enters). Lock-free.
+        handle of(const T& value) {
+            return _of(value);
         }
 
         template<class K> requires detail::TransparentLookup<Hash, KeyEqual>
-        handle get(const K& value) {
-            return _get(value);
+        handle of(const K& value) {
+            return _of(value);
         }
 
         // The canonical object of the value when one is alive, or null (the
@@ -246,19 +249,19 @@ namespace sgcl {
             return *p;
         }
 
-        // get on the default pool: Go's unique.Make
+        // of on the default pool: Go's unique.Make
         static handle make(const T& value) {
-            return pool().get(value);
+            return pool().of(value);
         }
 
         template<class K> requires detail::TransparentLookup<Hash, KeyEqual>
         static handle make(const K& value) {
-            return pool().get(value);
+            return pool().of(value);
         }
 
     private:
         template<class K>
-        handle _get(const K& value) {
+        handle _of(const K& value) {
             if constexpr(requires { Traits::is_empty(value); }) {
                 if (Traits::is_empty(value)) {
                     return handle();

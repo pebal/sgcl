@@ -9,7 +9,7 @@ namespace sgcl {
 }
 ```
 
-`root_ptr<T>` is a root that lives anywhere: a pointer to a managed object held from unmanaged memory (a global, a `std::vector`, a handle table, a lambda on the heap, the frame of a plain coroutine), the object reachable for as long as the `root_ptr` exists. Under it is a cell: one word of a managed block of a cache line of them, taken from the thread's cell allocator in the constructor and given back by the destructor, and this `root_ptr`'s for the whole time between. A block is a root by state, traced by the collector like any object, and freed by the cycle that finds every cell of it given back once its allocator has moved on ([how it works: the cells](../../garbage_collector/how-it-works.md#the-cells-of-the-root_ptrs)). The cell is a `tracked_ptr` inside a managed object, so a `root_ptr` is a `tracked_ptr` held one step away: `ptr()` is that `tracked_ptr`, by reference, every read is its read and every store its store, with its barrier, and an [`atomic_ref`](../concurrent/atomic_ref.md) over it is the atomic of the root.
+`root_ptr<T>` is a root that lives anywhere: a pointer to a managed object held from unmanaged memory (a global, a `std::vector`, a handle table, a lambda on the heap, the frame of a plain coroutine), the object reachable for as long as the `root_ptr` exists. Under it is a cell: one word of a managed block of a cache line of them, taken from the thread's cell allocator in the constructor and given back by the destructor, and this `root_ptr`'s for the whole time between. A block is a root by state, traced by the collector like any object, and freed by the cycle that finds every cell of it given back once its allocator has moved on ([how it works: the cells](../../garbage_collector/how-it-works.md#the-cells-of-the-root_ptrs)). The cell is a `tracked_ptr` inside a managed object, so a `root_ptr` is a `tracked_ptr` held one step away: `ptr()` is that `tracked_ptr`, by reference, every read is its read and every store its store, with its barrier, and an [`atomic_ref`](atomic_ref.md) over it is the atomic of the root.
 
 `root_ptr` says in its type what it is, with no mode and no test: for code that knows it stands outside the managed heap and wants a root there, the way an interpreter keeps its handles or a program its globals. What it costs: a cell per `root_ptr`, one managed allocation per block of them (a null takes one too: the `root_ptr` may be assigned to later), one indirection per access, a cell of its own per copy. No store ever allocates, so two threads storing into the same `root_ptr` race on one atomic word, as they do on a `tracked_ptr`, and never on the making of a cell; no move ever takes a cell from another `root_ptr`, so a thread reading through the cell of a `root_ptr` another thread moves from reads a cell that lives as long as its `root_ptr`. The family, then: `unique_ptr` owns deterministically, `tracked_ptr` lives on a stack or in a managed object, `to_shared()` is a shared root, `root_ptr` a root of its own anywhere.
 
@@ -52,7 +52,7 @@ template<class U> bool is() const noexcept;
 template<class U> tracked_ptr<U> as() const noexcept;
 ```
 
-The free functions, in `sgcl`: `swap`, `==` with a `root_ptr`, a `tracked_ptr` and `nullptr`, `<=>` between `root_ptr`s (by address), `operator<<`, `std::hash<root_ptr<T>>` (of the address), the deduction guides from a `tracked_ptr` and a `unique_ptr`.
+The free functions, in `sgcl`: `swap`, `==` with a `root_ptr`, a `tracked_ptr` and `nullptr`, `<=>` between `root_ptr`s (by address), `operator<<`, `std::hash<root_ptr<T>>` (of the address), the deduction guides from a `tracked_ptr` and a `unique_ptr`. A `weak_ptr` and a `tracked_ptr` of a base class are made from a `root_ptr` directly (`weak_ptr w = root;`, `tracked_ptr<Base> b = derived_root;`): their constructors and guides from `root_ptr` ([weak_ptr](weak_ptr.md), [tracked_ptr](tracked_ptr.md)).
 
 ```cpp
 struct Node { int value; tracked_ptr<Node> next; };
@@ -110,6 +110,6 @@ The output:
 
 ## See also
 
-- [tracked_ptr](tracked_ptr.md), [unique_ptr](unique_ptr.md), [make_tracked](make_tracked.md), [atomic_ref](../concurrent/atomic_ref.md); [rooted](rooted.md): a value under a root of its own, never null, made by its constructor
+- [tracked_ptr](tracked_ptr.md), [unique_ptr](unique_ptr.md), [make_tracked](make_tracked.md), [atomic_ref](atomic_ref.md); [rooted](rooted.md): a value under a root of its own, never null, made by its constructor
 - README: [Stack roots](../../garbage_collector/overview.md#stack-roots), [The rules](README.md#the-rules)
 - `tests/core/root_ptr.cpp`: every behaviour above, checked.

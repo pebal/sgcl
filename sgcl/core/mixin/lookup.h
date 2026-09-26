@@ -13,10 +13,11 @@
 
 namespace sgcl::mixin {
     // lookup<Derived>: a map read by its key, as members over
-    // Derived::find(key) — an iterator, end() when absent, on the mutable
-    // maps; a pointer to the value, null when absent, on the immutable
-    // ones (the two conventions told apart on the result of find, in the
-    // method, where Derived is complete) — and the declaration that
+    // Derived::find(key) — an iterator, end() when absent, as every find
+    // of the library — or over Derived::_value_of(key), a pointer to the
+    // value, null when absent, where a map gives one because its iterator
+    // costs more than the pointer (immutable's carries a path of nodes;
+    // _value_of private, the mixin a friend) — and the declaration that
     // Derived is a map: req::lookup<R> is "R carries lookup". The value
     // comes back as a copy in an optional (get), as a pointer into the
     // map (try_get), or as a default (value_or), one search each and no
@@ -94,24 +95,24 @@ namespace sgcl::mixin {
         Derived& _self() noexcept { return static_cast<Derived&>(*this); }
         const Derived& _self() const noexcept { return static_cast<const Derived&>(*this); }
 
-        // The value under the key as a pointer, null when absent, whichever
-        // convention the map's find follows
+        // The value under the key as a pointer, null when absent: through
+        // the map's _value_of where it has one, else through find
         template<class K>
         auto _found(const K& key) noexcept {
-            auto found = _self().find(key);
-            if constexpr(std::is_pointer_v<decltype(found)>) {
-                return found;
+            if constexpr (requires(Derived& d) { d._value_of(key); }) {
+                return _self()._value_of(key);
             } else {
+                auto found = _self().find(key);
                 return found == _self().end() ? nullptr : &found->second;
             }
         }
 
         template<class K>
         auto _found(const K& key) const noexcept {
-            auto found = _self().find(key);
-            if constexpr(std::is_pointer_v<decltype(found)>) {
-                return found;
+            if constexpr (requires(const Derived& d) { d._value_of(key); }) {
+                return _self()._value_of(key);
             } else {
+                auto found = _self().find(key);
                 return found == _self().end() ? nullptr : &found->second;
             }
         }

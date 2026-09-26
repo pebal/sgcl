@@ -20,8 +20,8 @@ The object comes from [`make_tracked`](make_tracked.md) as a `unique_ptr`; movin
 - It does not share its storage with data: no `union` with a value, no `std::variant`, no small-buffer `std::function` or `std::any` holding one; [variant](variant.md), [any](any.md), [function](function.md) and [expected](expected.md) are the ones that keep it apart. A union of two `tracked_ptr`s and `std::optional<tracked_ptr<T>>` are fine ([Pointer maps](../../garbage_collector/overview.md#pointer-maps)).
 - It addresses a managed object or a part of it, a member or a base ([Pointer aliases](README.md#pointer-aliases)); never an element of a container's buffer (`sgcl::vector`, `sgcl::dynamic_array<T>`), and never an object a `unique_ptr` owns. Debug builds assert both.
 - A destructor reads the `tracked_ptr` members of its object only through `if_alive()`: the object dies with everything reachable only from it, in no particular order, on a collector thread ([Pointer maps](../../garbage_collector/overview.md#pointer-maps), [Threads](../async/README.md#threads)).
-- A `tracked_ptr` written by one thread and read by another needs [`atomic`](../concurrent/atomic.md) or [`atomic_ref`](../concurrent/atomic_ref.md), or the program's own synchronization. The word itself is atomic: a race is never a torn pointer, and the collector is correct under any interleaving ([The rules](README.md#the-rules), 6).
-- `tracked_ptr<T[]>` is declared but not defined: managed arrays belong to the containers ([vector](../containers/vector.md), [array](../containers/array.md)).
+- A `tracked_ptr` written by one thread and read by another needs [`atomic`](atomic.md) or [`atomic_ref`](atomic_ref.md), or the program's own synchronization. The word itself is atomic: a race is never a torn pointer, and the collector is correct under any interleaving ([The rules](README.md#the-rules), 6).
+- `tracked_ptr<T[]>` is declared but not defined: managed arrays belong to the containers ([vector](vector.md), [array](array.md)).
 
 ## Members
 
@@ -53,6 +53,9 @@ tracked_ptr(tracked_ptr<U>&& p) noexcept;
 
 template<class U, std::enable_if_t<std::is_convertible_v<typename unique_ptr<U>::element_type*, element_type*>, int> = 0>
 tracked_ptr(unique_ptr<U>&& u) noexcept;
+
+template<class U, std::enable_if_t<!std::is_same_v<U, T> && std::is_convertible_v<U*, element_type*>, int> = 0>
+tracked_ptr(const root_ptr<U>& r) noexcept;   // a root_ptr of a derived class or of T made const; root_ptr<T> converts by its own operator
 ```
 
 The default and the `nullptr` constructors make a null pointer. The raw-pointer constructor is explicit and takes the address of a managed object or of a part of it, a member or a base subobject: the alias keeps the whole object alive. Copies and moves from a `tracked_ptr<U>` with `U*` convertible to `T*` convert to the base class (or to `void`); a move is a copy, the source keeps its value. The constructor from a `unique_ptr<U>&&` releases the object from its owner: from then on the collector destroys it, when nothing reaches it any more.
@@ -223,7 +226,7 @@ void store(const tracked_ptr& p, barrier::off_t) noexcept;       // the word alo
 tracked_ptr(const tracked_ptr& p, barrier::off_t) noexcept;      // the same as a constructor
 ```
 
-For an immutable structure copying one of its nodes ([im](../containers/im/README.md)). The write barrier's promise is that whatever a pointer is stored to is reachable in the current cycle; a node that never changes holds exactly the words its copy holds, so the copy may take the words without the barrier — `dst.store(src, barrier::off)`, a relaxed store of the word, one word at a time (the collector may read the copy meanwhile: a word, never a torn vector store) — and then, the copy complete, one `shade()` of a pointer to the source makes the source reachable in this cycle, and the marking, visiting it, marks every child the copy holds: one barrier for the node in place of one per word. Two rules: the source is held by the caller through the copy and the shade (the version being copied holds it), and the shade comes **after** the copy is complete, never before (the copies of `im` made with a shade of the root ahead of them lost nodes). `shade()` is `_update` of the pointer's target: the state and the card, as a store of the pointer would leave them; on a pointer just made from a raw address it is the barrier that construction ran, once more.
+For an immutable structure copying one of its nodes ([im](../immutable/README.md)). The write barrier's promise is that whatever a pointer is stored to is reachable in the current cycle; a node that never changes holds exactly the words its copy holds, so the copy may take the words without the barrier — `dst.store(src, barrier::off)`, a relaxed store of the word, one word at a time (the collector may read the copy meanwhile: a word, never a torn vector store) — and then, the copy complete, one `shade()` of a pointer to the source makes the source reachable in this cycle, and the marking, visiting it, marks every child the copy holds: one barrier for the node in place of one per word. Two rules: the source is held by the caller through the copy and the shade (the version being copied holds it), and the shade comes **after** the copy is complete, never before (the copies of `im` made with a shade of the root ahead of them lost nodes). `shade()` is `_update` of the pointer's target: the state and the card, as a store of the pointer would leave them; on a pointer just made from a raw address it is the barrier that construction ran, once more.
 
 ```cpp
 struct branch {
@@ -297,6 +300,7 @@ assert(radius.as<Circle>() == shape);                   // back to the whole obj
 template<typename T> tracked_ptr(T*) -> tracked_ptr<T>;
 template<typename T> tracked_ptr(tracked_ptr<T>) -> tracked_ptr<T>;
 template<typename T> tracked_ptr(unique_ptr<T>&&) -> tracked_ptr<T>;
+template<class T> tracked_ptr(const root_ptr<T>&) -> tracked_ptr<T>;
 ```
 
 `sgcl::tracked_ptr p = sgcl::make_tracked<T>(...)` is a `tracked_ptr<T>`; the explicit argument is needed only where the deduction would pick another type, a base class or a null initializer, or for a member declaration.
@@ -445,7 +449,7 @@ id 2
 ## See also
 
 - [unique_ptr](unique_ptr.md), [make_tracked](make_tracked.md), [weak_ptr](weak_ptr.md)
-- [atomic](../concurrent/atomic.md), [atomic_ref](../concurrent/atomic_ref.md) for a `tracked_ptr` shared between threads
+- [atomic](atomic.md), [atomic_ref](atomic_ref.md) for a `tracked_ptr` shared between threads
 - [collector](collector.md) for `force_collect` and the counting functions
 - README: [The classes](README.md#the-classes), [Pointer aliases](README.md#pointer-aliases), [The rules](README.md#the-rules), [Pointer maps](../../garbage_collector/overview.md#pointer-maps), [Stack roots](../../garbage_collector/overview.md#stack-roots), [Threads](../async/README.md#threads)
 - `examples/example.cpp`, `examples/threads.cpp`

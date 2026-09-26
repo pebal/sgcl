@@ -91,7 +91,7 @@ class runes : public mixin::enumerable<runes> {
     using value_type = char32_t;
     class iterator;                              // forward: char32_t operator*(), size_t pos() (the byte position), size_t width()
     runes() noexcept;                            // empty
-    explicit runes(slice<const char> text) noexcept;
+    explicit runes(const slice<const char>& text) noexcept;
     iterator begin() const noexcept;  iterator end() const noexcept;
     bool empty() const noexcept;
     size_t count() const noexcept;               // walked, not stored

@@ -105,7 +105,7 @@ TEST(Marking_Tests, GraphIntactUnderAllocationChurn) {
 // -DSGCL_HELPERS_GROWTH_THRESHOLD=0); with the defaults the policy decides
 // and the pass is not guaranteed to run here.
 TEST(Marking_Tests, ParallelMarkingKeepsTheGraph) {
-    if (sgcl::config::HelpersGrowthThreshold != 0 || sgcl::config::MarkObjectThreshold > Count) {
+    if (sgcl::config::helpers_growth_threshold != 0 || sgcl::config::mark_object_threshold > Count) {
         GTEST_SKIP() << "parallel marking not forced in this build";
     }
     const auto runs_before = sgcl::detail::collector_instance().parallel_mark_runs();

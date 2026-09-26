@@ -1,0 +1,118 @@
+//------------------------------------------------------------------------------
+// SGCL: a C++20 application framework
+// Copyright (c) 2022-2026 Sebastian Nibisz
+// SPDX-License-Identifier: Apache-2.0
+//------------------------------------------------------------------------------
+#pragma once
+
+#include "weak_table.h"
+
+#include <iterator>
+#include <type_traits>
+#include <utility>
+
+namespace sgcl::detail {
+    // The iterator of a weak container: over the table's nodes, passing
+    // over the entries whose objects are gone, up to its own bound (the
+    // table's end, or the end of an equal_range). Where it stands it
+    // holds the object as a strong pointer, so the entry cannot die under
+    // it; the reference it gives out carries that pointer (the pointer
+    // itself for a set). It is a tracked object then, and lives where
+    // the container's pointers may.
+    template<class Inner, class Key, class Reference>
+    class WeakIterator {
+    public:
+        using iterator_category = std::forward_iterator_tag;
+        using difference_type = ptrdiff_t;
+        using value_type = Reference;
+        using reference = Reference;
+        struct pointer {
+            Reference ref;
+            const Reference* operator->() const noexcept { return &ref; }
+        };
+
+        WeakIterator() = default;
+
+        WeakIterator(Inner at, Inner end) noexcept
+        : _at(at)
+        , _end(end) {
+            _settle();
+        }
+
+        // An iterator to a const_iterator, as std's containers convert:
+        // the same place, the same object held
+        template<class I2, class R2>
+        requires (!std::is_same_v<I2, Inner> && std::is_convertible_v<I2, Inner>)
+        WeakIterator(const WeakIterator<I2, Key, R2>& o) noexcept
+        : _at(o._at)
+        , _end(o._end)
+        , _object(o._object) {
+        }
+
+        reference operator*() const noexcept {
+            if constexpr(std::is_same_v<Reference, tracked_ptr<Key>>) {
+                return _object;
+            } else {
+                return Reference::of(_object, *_at);
+            }
+        }
+
+        pointer operator->() const noexcept {
+            return {**this};
+        }
+
+        WeakIterator& operator++() noexcept {
+            ++_at;
+            _settle();
+            return *this;
+        }
+
+        WeakIterator operator++(int) noexcept {
+            auto it = *this;
+            ++*this;
+            return it;
+        }
+
+        bool operator==(const WeakIterator& o) const noexcept {
+            return _at == o._at;
+        }
+
+        Inner inner() const noexcept {
+            return _at;
+        }
+
+        // The bound: what an erase through the iterator keeps, so that a
+        // walk of an equal_range stops where the range does
+        Inner bound() const noexcept {
+            return _end;
+        }
+
+    private:
+        template<class, class, class> friend class WeakIterator;
+
+        // the first live entry from here on, held; or the bound, or the
+        // chain's end (a bound erased from under the walk is never reached)
+        void _settle() noexcept {
+            for (; _at != _end && _at != Inner(); ++_at) {
+                _object = key_of(*_at).lock();
+                if (_object) {
+                    return;
+                }
+            }
+            _object = nullptr;
+        }
+
+        template<class V>
+        static auto& key_of(V& value) noexcept {
+            if constexpr(requires { value.first; }) {
+                return value.first;
+            } else {
+                return value;
+            }
+        }
+
+        Inner _at;
+        Inner _end;
+        tracked_ptr<Key> _object;
+    };
+}

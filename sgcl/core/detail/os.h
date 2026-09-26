@@ -457,10 +457,10 @@ namespace sgcl::detail::os {
     }
 #else
     // Other platforms: the frames below this one are zeroed by a buffer of
-    // StackClearSize on a frame of its own, the callee then runs above it
-    // (config.h: StackClearSize; the limit is not used).
+    // config::stack_clear_size on a frame of its own, the callee then runs
+    // above it (the limit is not used).
     SGCL_NOINLINE inline void _clear_stack_buffer() noexcept {
-        volatile uintptr_t buffer[config::StackClearSize / sizeof(uintptr_t)];
+        volatile uintptr_t buffer[config::stack_clear_size / sizeof(uintptr_t)];
         for (auto& w : buffer) {
             w = 0;
         }

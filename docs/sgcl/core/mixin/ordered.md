@@ -9,7 +9,7 @@ namespace sgcl::mixin {
 }
 ```
 
-`mixin::ordered<Derived>` gives a class the order of the whole range as members — whether it is sorted, the searches that assume it is, and the sorting that makes it so — and declares that the range has one: `req::ordered<R>` is "R carries `mixin::ordered` and its elements are comparable" ([the mixins](README.md)). The sequences, `slice`, `range` and the immutable `im::vector` and `im::list` carry it; the sets and maps do not (their order is the container's, `lower_bound` their own).
+`mixin::ordered<Derived>` gives a class the order of the whole range as members — whether it is sorted, the searches that assume it is, and the sorting that makes it so — and declares that the range has one: `req::ordered<R>` is "R carries `mixin::ordered` and its elements are comparable" ([the mixins](README.md)). The sequences, `slice`, `range` and the immutable `immutable::vector` and `immutable::list` carry it; the sets and maps do not (their order is the container's, `lower_bound` their own).
 
 ## Rules
 
@@ -41,7 +41,7 @@ struct item { string name; int price; };
 vector<item> items = {{"tea", 3}, {"bread", 2}};
 items.sort_by(&item::price);                     // no < on item needed
 items.stable_sort([](const item& a, const item& b) { return a.name < b.name; });
-im::vector<int> iv = im::vector<int>().push_back(1).push_back(2);
+immutable::vector<int> iv = immutable::vector<int>().push_back(1).push_back(2);
 assert(iv.is_sorted() && iv.binary_search(2));   // ordered; no sort(): nothing is written in place
 ```
 

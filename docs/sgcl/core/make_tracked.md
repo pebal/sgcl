@@ -15,11 +15,11 @@ The allocation is a slot from a thread-local pool of the object's size class: no
 
 ## Rules
 
-- `T` is an object type: not an array (`make_tracked<T[]>` is a compile error: managed arrays are not a public type, `sgcl::vector` and `sgcl::dynamic_array<T>` own theirs), not `void`, and not larger than a page (`config::PageSize`, 64 KB, less a 16-byte header; a compile error past that). Large data goes into a container.
+- `T` is an object type: not an array (`make_tracked<T[]>` is a compile error: managed arrays are not a public type, `sgcl::vector` and `sgcl::dynamic_array<T>` own theirs), not `void`, and not larger than a page (`config::page_size`, 64 KB, less a 16-byte header; a compile error past that). Large data goes into a container.
 - `T` may be `const`; it may hold `tracked_ptr`s, `weak_ptr`s, `unique_ptr`s, containers and atomics, since a managed object is where all of those may live. It may be a `tracked_ptr` itself: `make_tracked<tracked_ptr<T>>()` is the managed word a root from outside the managed world holds ([Stack roots](../../garbage_collector/overview.md#stack-roots)).
 - The constructor of `T` runs on the calling thread, at once; the destructor runs when the owner destroys the object (a `unique_ptr`, on its thread) or when the collector does (a `tracked_ptr`, on a collector thread, under the rules of destructors: [The rules](README.md#the-rules), 5).
 - Any thread may call it; the first managed object a thread creates registers the thread with the collector, and the first one in the program starts the collector ([Threads](../async/README.md#threads)).
-- When the committed memory would cross the ceiling (`collector::get_memory_limit()`), the call first forces a full collection and throws `std::bad_alloc` if that does not free enough ([Memory](../../garbage_collector/overview.md#memory)).
+- When the committed memory would cross the ceiling (`collector::get_memory_limit()`), the call first forces a full collection and throws `bad_alloc` if that does not free enough ([Memory](../../garbage_collector/overview.md#memory)).
 
 ## Members
 
@@ -102,7 +102,7 @@ big: area 12.5664
 ## See also
 
 - [unique_ptr](unique_ptr.md), [tracked_ptr](tracked_ptr.md), [weak_ptr](weak_ptr.md)
-- [vector](../containers/vector.md), [array](../containers/array.md) for managed sequences, which take the place of managed arrays
+- [vector](vector.md), [array](array.md) for managed sequences, which take the place of managed arrays
 - [collector](collector.md), [config](config.md) for the memory ceiling and the page size
 - README: [make_tracked](README.md#make_tracked), [The classes](README.md#the-classes), [The rules](README.md#the-rules), [Memory](../../garbage_collector/overview.md#memory)
 - `examples/example.cpp`

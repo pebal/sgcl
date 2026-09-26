@@ -8,7 +8,7 @@
 #include <atomic>
 
 // Enough garbage for the sweep to run on the helper threads
-// (config::SweepPageThreshold pages): every object is destroyed exactly once,
+// (config::sweep_page_threshold pages): every object is destroyed exactly once,
 // a destructor sees its pointer to a peer dying in the same sweep as null and
 // its pointer to a survivor intact, whichever thread sweeps which page.
 namespace {

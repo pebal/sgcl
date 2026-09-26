@@ -6,16 +6,18 @@
 #pragma once
 
 #include "channel.h"
+#include "operation.h"
 #include "coroutine.h"
 
 #include <coroutine>
 #include <utility>
 
-namespace sgcl {
+namespace sgcl::async {
+    namespace detail { using namespace sgcl::detail; }
     // The synchronization of tasks, and of threads with them: this mutex,
     // a semaphore, an event, a wait group and a once (their own headers),
     // each with the three forms of a wait a channel has: blocking
-    // (`lock()`, for a thread), awaitable (`co_await m.async_lock()`, for
+    // (`lock()`, for a thread), awaitable (`co_await m.scoped_lock()`, for
     // a task, which holds no thread while it waits), and as a case of a
     // select (`m.on_lock(f)`), because each is a channel of signals under
     // the name of what it does: a mutex is a channel holding one signal
@@ -37,8 +39,10 @@ namespace sgcl {
         mutex(const mutex&) = delete;
         mutex& operator=(const mutex&) = delete;
 
+        // The standard's Lockable, blocking (std::lock_guard, std::unique_lock);
+        // a task takes the mutex with `co_await m.scoped_lock()`
         void lock() {
-            _ch.receive();
+            (void)_ch.receive().wait();
         }
 
         bool try_lock() {
@@ -49,19 +53,14 @@ namespace sgcl {
             _ch.try_send();
         }
 
-        // `co_await m.async_lock()`: locked when the task resumes
-        auto async_lock() noexcept {
-            return _ch.async_receive();
-        }
-
         // A case of a select: f() with the mutex locked
         template<class F>
         auto on_lock(F f) {
             return _ch.on_receive(std::move(f));
         }
 
-        // The lock held for a scope: `auto guard = co_await m.async_scoped_lock();`
-        // (std::lock_guard<sgcl::mutex> does the same for a thread)
+        // The lock held for a scope: `auto guard = co_await m.scoped_lock();`
+        // (std::lock_guard<sgcl::async::mutex> does the same for a thread)
         class guard {
         public:
             explicit guard(mutex& m) noexcept
@@ -87,11 +86,17 @@ namespace sgcl {
                 return *_m;
             }
 
+            // The mutex let go of by the guard, still locked: the caller
+            // unlocks it (std::unique_lock::release)
+            mutex* release() noexcept {
+                return std::exchange(_m, nullptr);
+            }
+
         private:
             mutex* _m;
         };
 
-        class async_scoped_lock_op {
+        class scoped_lock_op {
         public:
             bool await_ready() {
                 return _op.await_ready();
@@ -110,20 +115,32 @@ namespace sgcl {
         private:
             friend class mutex;
 
-            explicit async_scoped_lock_op(mutex& m) noexcept
+            explicit scoped_lock_op(mutex& m) noexcept
             : _m(&m)
-            , _op(m._ch.async_receive()) {
+            , _op(m._ch.receive()) {
             }
 
             mutex* _m;
-            decltype(std::declval<channel<void>&>().async_receive()) _op;
+            decltype(std::declval<channel<void>&>().receive()) _op;
         };
 
-        async_scoped_lock_op async_scoped_lock() noexcept {
-            return async_scoped_lock_op(*this);
+        // The lock held for a scope: `auto g = co_await m.scoped_lock();` in
+        // a task, `auto g = m.scoped_lock().wait();` on a thread
+        auto scoped_lock() {
+            return operation([this](auto how) {
+                if constexpr (std::is_same_v<decltype(how), detail::awaited_t>) {
+                    return scoped_lock_op(*this);
+                } else {
+                    lock();
+                    return guard(*this);
+                }
+            });
         }
 
     private:
+        friend class condition_variable;
+        friend class shared_mutex;
+
         channel<void> _ch;
     };
 }

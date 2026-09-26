@@ -1,4 +1,4 @@
-# sgcl::spsc_queue
+# sgcl::concurrent::spsc_queue
 
 ```cpp
 #include "sgcl/concurrent/spsc_queue.h"   // or "sgcl/sgcl.h"
@@ -9,12 +9,12 @@ namespace sgcl {
 }
 ```
 
-`sgcl::spsc_queue<T>` is a bounded wait-free FIFO queue for exactly one producer thread and one consumer thread: a ring of cells, a power of two of them, fixed at construction, with a sequence number per cell, the way the [concurrent_bounded_queue](concurrent_bounded_queue.md) numbers its cells, and without its compare-exchange, since the producer alone moves the tail and the consumer alone the head. A head and a tail count up forever, a cell being the position masked; a cell's sequence says whose the cell is: the position, once the cell is free for a push at it, or the position with a published bit, once the element at it is in. A push looks at the sequence of the cell at the tail, constructs the element there and publishes the cell; a pop looks at the sequence of the cell at the head, moves the element out, destroys it, and frees the cell for the next lap. Each side reads its own index only, which the other never touches: what the two sides share is the cell, its sequence and its element on one line, so an element costs one line crossing between the cores and no more, and a push and a pop between two threads cost what the pair costs on one. Lamport's ring, with each side caching the other's index, shares the indices instead, and a consumer running right behind the producer reloads the producer's tail at nearly every pop, two lines crossing per element and both taken back by the producer for its next push: measured, that ring took twice this one's time per element with the consumer at the producer's heels, and no less with room to run (the table at the end). The buffer is raw storage the queue constructs elements in and destroys them in, at push and pop time, as the [vector](../containers/vector.md) does in its buffer: the collector traces every cell (an unconstructed or destroyed element holds null pointers only) and never destroys one, so an element holding a `tracked_ptr` keeps its object alive for exactly as long as it sits in the ring ([README: Lock-free containers](README.md#lock-free-containers)). The interface is that of the [concurrent_bounded_queue](concurrent_bounded_queue.md): `try_push`, `try_emplace`, `try_pop`, a blocking `push` and `pop`, `size`, `capacity`, `empty`, `full`. The element type is any movable `T`, a `tracked_ptr` included.
+`sgcl::concurrent::spsc_queue<T>` is a bounded wait-free FIFO queue for exactly one producer thread and one consumer thread: a ring of cells, a power of two of them, fixed at construction, with a sequence number per cell, the way the [concurrent::bounded_queue](bounded_queue.md) numbers its cells, and without its compare-exchange, since the producer alone moves the tail and the consumer alone the head. A head and a tail count up forever, a cell being the position masked; a cell's sequence says whose the cell is: the position, once the cell is free for a push at it, or the position with a published bit, once the element at it is in. A push looks at the sequence of the cell at the tail, constructs the element there and publishes the cell; a pop looks at the sequence of the cell at the head, moves the element out, destroys it, and frees the cell for the next lap. Each side reads its own index only, which the other never touches: what the two sides share is the cell, its sequence and its element on one line, so an element costs one line crossing between the cores and no more, and a push and a pop between two threads cost what the pair costs on one. Lamport's ring, with each side caching the other's index, shares the indices instead, and a consumer running right behind the producer reloads the producer's tail at nearly every pop, two lines crossing per element and both taken back by the producer for its next push: measured, that ring took twice this one's time per element with the consumer at the producer's heels, and no less with room to run (the table at the end). The buffer is raw storage the queue constructs elements in and destroys them in, at push and pop time, as the [vector](../core/vector.md) does in its buffer: the collector traces every cell (an unconstructed or destroyed element holds null pointers only) and never destroys one, so an element holding a `tracked_ptr` keeps its object alive for exactly as long as it sits in the ring ([README: Lock-free containers](README.md#lock-free-containers)). The interface is that of the [concurrent::bounded_queue](bounded_queue.md): `try_push`, `try_emplace`, `try_pop`, a blocking `push` and `pop`, `size`, `capacity`, `empty`, `full`. The element type is any movable `T`, a `tracked_ptr` included.
 
 ## Rules
 
-- One producer and one consumer, and no more: the producer's side of the queue may be used by one thread at a time and the consumer's side by one thread at a time (the same thread may be both). A second thread on either side is a data race on that side's index; several producers or consumers take a [concurrent_bounded_queue](concurrent_bounded_queue.md).
-- The container is three cache lines (`config::CacheLineSize`): the buffer, the mask and the count of waiters, read by both sides and written by neither but a side about to wait; the head, the consumer's line; the tail, the producer's. The queue holds its buffer by a `tracked_ptr`, so it lives where one may: on a thread's stack or inside a managed object ([The rules](../core/README.md#the-rules), 1).
+- One producer and one consumer, and no more: the producer's side of the queue may be used by one thread at a time and the consumer's side by one thread at a time (the same thread may be both). A second thread on either side is a data race on that side's index; several producers or consumers take a [concurrent::bounded_queue](bounded_queue.md).
+- The container is three cache lines (`config::cache_line_size`): the buffer, the mask and the count of waiters, read by both sides and written by neither but a side about to wait; the head, the consumer's line; the tail, the producer's. The queue holds its buffer by a `tracked_ptr`, so it lives where one may: on a thread's stack or inside a managed object ([The rules](../core/README.md#the-rules), 1).
 - The capacity is rounded up to a power of two, at least one; `capacity()` is what the ring holds.
 - `try_push`, `try_emplace` and `try_pop` are wait-free: a load, a store, no compare-exchange. The queue is FIFO. `push` waits while the queue is full, on the cell at the tail, which the pop that frees it notifies; `pop` waits while it is empty, on the cell at the head, which the push that publishes it notifies: a spin of a few microseconds first (a side that has just caught up with the other is nanoseconds from its next element), then a wait in the kernel.
 - An element is constructed in its cell by the producer and moved out of the cell by the consumer, into the `optional` returned, and destroyed in the cell there and then, on the consumer's thread. A constructor that throws leaves the queue as it was: the tail moves only once the element is there. An element whose move constructor throws on the way out stays in its cell, the head unmoved, the exception the consumer's.
@@ -42,7 +42,7 @@ spsc_queue(const spsc_queue&) = delete;
 A queue of `capacity` rounded up to a power of two, at least one: one managed buffer of that many cells.
 
 ```cpp
-spsc_queue<tracked_ptr<Sample>> samples(1000);   // a ring of 1024
+concurrent::spsc_queue<tracked_ptr<Sample>> samples(1000);   // a ring of 1024
 ```
 
 ### try_push, try_emplace
@@ -65,7 +65,8 @@ samples.try_emplace(make_tracked<Sample>(2));
 ### push
 
 ```cpp
-void push(T value);
+void push(const T& value);
+void push(T&& value);
 ```
 
 The producer's: the element appended, waiting for room while the ring is full, on the cell at the tail, which the pop that frees it notifies.
@@ -119,7 +120,7 @@ struct Sample {
 };
 
 struct Pipeline {
-    spsc_queue<tracked_ptr<Sample>> samples{16};   // inside a managed object: 
+    concurrent::spsc_queue<tracked_ptr<Sample>> samples{16};   // inside a managed object: 
 };
 
 int main() {
@@ -152,9 +153,9 @@ sum 2.49975e+07, 0 out of order, 0 left in a ring of 16
 
 ## Measured
 
-Nanoseconds per push and pop of an `int` through a ring of 1024, on the machine of [the benchmarks](benchmarks.md), `-O2`, 20 M elements: one thread pushing and popping in turn, and a producer and a consumer with the blocking `push` and `pop`, against the [concurrent_bounded_queue](concurrent_bounded_queue.md) and the unbounded [concurrent_queue](concurrent_queue.md), and against the ring this one replaced (September 2026), Lamport's with each side caching the other's index, built the same day from the same probe:
+Nanoseconds per push and pop of an `int` through a ring of 1024, on the machine of [the benchmarks](benchmarks.md), `-O2`, 20 M elements: one thread pushing and popping in turn, and a producer and a consumer with the blocking `push` and `pop`, against the [concurrent::bounded_queue](bounded_queue.md) and the unbounded [concurrent::queue](queue.md), and against the ring this one replaced (September 2026), Lamport's with each side caching the other's index, built the same day from the same probe:
 
-| threads | `spsc_queue` | Lamport's ring | `concurrent_bounded_queue` | `concurrent_queue` |
+| threads | `spsc_queue` | Lamport's ring | `concurrent::bounded_queue` | `concurrent::queue` |
 |---|---|---|---|---|
 | 1 | 5.1 | 4.9 | 7.5 | 56 |
 | 1 + 1 | 5.7 | 21 to 27 | 30 | 72 |
@@ -163,8 +164,8 @@ Between two threads an element is one line crossing between the cores, the cell'
 
 ## See also
 
-- [concurrent_bounded_queue](concurrent_bounded_queue.md) for any number of producers and consumers; [concurrent_queue](concurrent_queue.md), the unbounded queue
+- [concurrent::bounded_queue](bounded_queue.md) for any number of producers and consumers; [concurrent::queue](queue.md), the unbounded queue
 - [channel](../async/channel.md), a ring with the synchronization of both ends and coroutines waiting on it
-- [atomic](atomic.md), what the sequences, the head and the tail are
+- [atomic](../core/atomic.md), what the sequences, the head and the tail are
 - [Benchmarks](benchmarks.md#the-single-producer-queue-and-the-cache): the ring on the channel's harness, an object allocated per item
 - [README: Lock-free containers](README.md#lock-free-containers), [README: The rules](../core/README.md#the-rules)

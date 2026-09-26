@@ -19,7 +19,7 @@ Against `root_ptr`, which it holds inside, `rooted` behaves the same and guarant
 - The value is reachable while any `rooted` holding it exists; the last one dropped and every other reference gone, the next cycle collects it. `T` is one object, made by `make_tracked<T>`: not an array, not a reference.
 - A copy shares the value, a copy of the value is `rooted<T>(*r)`. A `rooted` moved from holds nothing: it is destroyed or assigned to, and reading it is an assertion in debug builds.
 - Threads share a `rooted` the way they share a `root_ptr` ([The rules](README.md#the-rules), 6); it may be destroyed on any thread.
-- An exception that carries a value with tracked pointers keeps it in a `rooted` member, or is thrown as a `rooted<E>` whole; `bad_expected_access<E>` carries its error this way ([expected](expected.md)). An exception whose only payload is a message needs none: `std::runtime_error(msg.c_str())` copies the text.
+- An exception that carries a value with tracked pointers keeps it in a `rooted` member, or is thrown as a `rooted<E>` whole; `bad_expected_access<E>` carries its error this way ([expected](expected.md)). An exception whose only payload is a message needs none: `runtime_error(msg.c_str())` copies the text.
 
 ## Members
 
@@ -59,9 +59,9 @@ struct Context {
     size_t column;
 };
 
-struct parse_error : std::runtime_error {
+struct parse_error : runtime_error {
     parse_error(const string& what, Context c)
-    : std::runtime_error(what.c_str())
+    : runtime_error(what.c_str())
     , context(std::move(c)) {
     }
     rooted<Context> context;                       // in a managed object, alive as long as the exception

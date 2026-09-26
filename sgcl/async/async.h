@@ -3,13 +3,10 @@
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
-// The async module: coroutines, the scheduler, channels, select, timers, stop tokens, the synchronization of tasks, promises, the blocking pool, the reactor.
-// The async module: coroutines, the scheduler, executors and strands, task-local values, channels, select, timers, stop tokens, the synchronization of tasks, the reactor.
-// The async module: coroutines, the scheduler, channels, select, timers, stop tokens, the synchronization of tasks, task groups, timeouts, the reactor.
-// The async module: coroutines, the scheduler, channels, select, timers and the clock, the signals of the process, stop tokens, the synchronization of tasks, the reactor.
+// The async module: coroutines and generators, the scheduler, executors and strands, task-local values, channels, broadcasts and select, timers and the clock, timeouts, the signals of the process, stop tokens, the synchronization of tasks, task groups, promises, the blocking pool, the reactor.
 #pragma once
 
-#include "async_generator.h"
+#include "generator.h"
 #include "blocking.h"
 #include "broadcast.h"
 #include "channel.h"

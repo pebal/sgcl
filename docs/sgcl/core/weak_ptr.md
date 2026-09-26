@@ -40,6 +40,9 @@ weak_ptr(const tracked_ptr<U>& p);
 template<class U, std::enable_if_t<std::is_convertible_v<typename tracked_ptr<U>::element_type*, element_type*>, int> = 0>
 weak_ptr(const tracked_ptr<U>& p);
 
+template<class U, std::enable_if_t<std::is_convertible_v<U*, element_type*>, int> = 0>
+weak_ptr(const root_ptr<U>& r);          // from a root_ptr: weak_ptr w = root;
+
 weak_ptr(const weak_ptr&) noexcept = default;
 weak_ptr(weak_ptr&&) noexcept = default;
 template<class U, template<class> class P, std::enable_if_t<std::is_convertible_v<typename weak_ptr<U, P>::element_type*, element_type*>, int> = 0>
@@ -150,6 +153,7 @@ assert(w.expired() && *empty.lock() == 1);
 
 ```cpp
 template<class T> weak_ptr(const tracked_ptr<T>&) -> weak_ptr<T>;
+template<class T> weak_ptr(const root_ptr<T>&) -> weak_ptr<T>;
 template<class T> weak_ptr(const tracked_ptr<T>&) -> weak_ptr<T, tracked_ptr>;
 ```
 
@@ -217,7 +221,7 @@ The output:
 ## See also
 
 - [tracked_ptr](tracked_ptr.md), [unique_ptr](unique_ptr.md), [make_tracked](make_tracked.md)
-- [weak_map](../containers/weak_map.md), [weak_set](../containers/weak_set.md): containers keyed by objects they do not keep alive
-- [expiry_queue](../containers/expiry_queue.md): a `weak_ptr` plus a function called with the object, alive one last time, when it is found unreachable
+- [weak_map](weak_map.md), [weak_set](weak_set.md): containers keyed by objects they do not keep alive
+- [expiry_queue](expiry_queue.md): a `weak_ptr` plus a function called with the object, alive one last time, when it is found unreachable
 - [collector](collector.md) for `force_collect`
 - README: [Weak pointers](README.md#weak-pointers), [The classes](README.md#the-classes), [The rules](README.md#the-rules)

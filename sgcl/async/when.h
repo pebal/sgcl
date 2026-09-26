@@ -5,7 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "../containers/vector.h"
+#include "../core/aliases.h"
+#include "../core/vector.h"
 #include "channel.h"
 #include "coroutine.h"
 #include "scheduler.h"
@@ -16,7 +17,8 @@
 #include <tuple>
 #include <utility>
 
-namespace sgcl {
+namespace sgcl::async {
+    namespace detail { using namespace sgcl::detail; }
     // The composition of tasks: `co_await when_all(a, b, c)` waits for
     // every task and gives their results as a tuple (a vector for a range
     // of tasks of one type; nothing for tasks of nothing), what any of
@@ -35,7 +37,7 @@ namespace sgcl {
         template<class T>
         class await_into {
         public:
-            await_into(task<T>& t, std::optional<T>& out, std::exception_ptr& error) noexcept
+            await_into(task<T>& t, optional<T>& out, std::exception_ptr& error) noexcept
             : _a(t.operator co_await())
             , _out(out)
             , _error(error) {
@@ -62,7 +64,7 @@ namespace sgcl {
 
         private:
             decltype(std::declval<task<T>&>().operator co_await()) _a;
-            std::optional<T>& _out;
+            optional<T>& _out;
             std::exception_ptr& _error;
         };
 
@@ -99,17 +101,17 @@ namespace sgcl {
     }
 
     template<class... T>
-    task<std::tuple<T...>> when_all(task<T>... ts) {
-        std::tuple<std::optional<T>...> results;
+    task<tuple<T...>> when_all(task<T>... ts) {
+        tuple<optional<T>...> results;
         std::exception_ptr error;
         co_await [&]<size_t... Is>(std::index_sequence<Is...>) -> task<> {
-            (co_await detail::await_into(std::get<Is>(std::tie(ts...)), std::get<Is>(results), error), ...);
+            (co_await detail::await_into(std::get<Is>(tie(ts...)), std::get<Is>(results), error), ...);
         }(std::index_sequence_for<T...>());
         if (error) {
             std::rethrow_exception(error);
         }
         co_return [&]<size_t... Is>(std::index_sequence<Is...>) {
-            return std::tuple<T...>{std::move(*std::get<Is>(results))...};
+            return tuple<T...>{std::move(*std::get<Is>(results))...};
         }(std::index_sequence_for<T...>());
     }
 
@@ -125,7 +127,7 @@ namespace sgcl {
 
     template<class T>
     task<vector<T>> when_all(vector<task<T>> ts) {
-        vector<std::optional<T>> results(ts.size());
+        vector<optional<T>> results(ts.size());
         std::exception_ptr error;
         for (size_t i = 0; i < ts.size(); ++i) {
             co_await detail::await_into(ts[i], results[i], error);
@@ -169,7 +171,7 @@ namespace sgcl {
         }
 
         inline task<size_t> first_finished(tracked_ptr<channel<Finished>> done) {
-            auto [index, error] = *co_await done->async_receive();
+            auto [index, error] = *co_await done->receive();
             if (error) {
                 std::rethrow_exception(error);
             }

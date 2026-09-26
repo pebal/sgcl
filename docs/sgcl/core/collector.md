@@ -18,6 +18,7 @@ Three of the functions (`get_live_object_count`, `get_live_objects`, `get_type_s
 - `force_collect(true)`, `get_live_object_count()`, `get_live_objects()` and `get_type_statistics()` block the calling thread until a full cycle after the call has completed; they must not be called from a destructor of a managed object (a destructor runs on the collector's threads, inside the cycle they would wait for).
 - `force_collect()` is optional in every program: the collector runs its cycles by itself. The examples and tests call it only to show or check a result at once.
 - In the child of a `fork()` the collector does not run (the child has no thread but the one that forked): the child may read managed objects and `exec` or exit; `force_collect`, `terminate` and a managed allocation that needs a page terminate the child with a message ([Threads](../async/README.md#threads)).
+- The lists come back in `std::vector` and `std::tuple`, not in the library's containers, and that is deliberate: they are made while the collector is paused (and `get_live_objects` hands back the pause with them), when an allocation on the managed heap could wait for the very cycle the pause holds back, and the raw pointers of `get_live_objects` must not become objects the next cycle traces. They are the only std containers the library's interface returns.
 - `get_live_object_count`, `get_live_objects`, `get_type_statistics`, `force_collect` and `clear_stack` are declared always-inline, so that no frame of their own lies between the caller and the area they zero.
 
 ## Members
@@ -93,10 +94,10 @@ assert(weak.expired());
 ### clear_stack
 
 ```cpp
-static void clear_stack(size_t bytes = config::StackClearSize) noexcept;
+static void clear_stack(size_t bytes = config::stack_clear_size) noexcept;
 ```
 
-Zeroes `bytes` of the unused stack below the caller's frame (`SIZE_MAX` for the whole unused stack), never closer than `config::StackGuardMargin` to the end of the thread's stack and never pages the stack has not touched. Objects referenced only by words left behind in dead frames become collectable. Called by `force_collect()` and the counting functions; on its own it is for a long-lived loop that wants a stale root gone before the next cycle rather than before the next count.
+Zeroes `bytes` of the unused stack below the caller's frame (`SIZE_MAX` for the whole unused stack), never closer than `config::stack_guard_margin` to the end of the thread's stack and never pages the stack has not touched. Objects referenced only by words left behind in dead frames become collectable. Called by `force_collect()` and the counting functions; on its own it is for a long-lived loop that wants a stale root gone before the next cycle rather than before the next count.
 
 ```cpp
 process_batch();                           // deep frames, now dead, may hold stale pointers
@@ -201,14 +202,14 @@ static size_t get_memory_limit() noexcept;
 static void set_memory_limit(size_t bytes) noexcept;
 ```
 
-The ceiling on committed managed memory, in bytes: by default 90% of the cgroup memory limit on Linux, or of the physical memory elsewhere (`config::HeapLimitPercent`). Above 75% of it (`config::HeapPressurePercent`) the collector cycles every 100 ms and returns every free chunk to the system at once. When an allocation would cross it, the allocation first forces a full collection and waits for it (not on a thread that is sweeping: a destructor run by the sweep gets the `std::bad_alloc` at once, since the cycle it would wait for is the one it is part of); if that does not free enough, it throws `std::bad_alloc` instead of letting the process run into the OOM killer. `set_memory_limit(0)` disables the ceiling. The setting takes effect for the next chunk committed; it does not shrink what is committed already.
+The ceiling on committed managed memory, in bytes: by default 90% of the cgroup memory limit on Linux, or of the physical memory elsewhere (`config::heap_limit_percent`). Above 75% of it (`config::heap_pressure_percent`) the collector cycles every 100 ms and returns every free chunk to the system at once. When an allocation would cross it, the allocation first forces a full collection and waits for it (not on a thread that is sweeping: a destructor run by the sweep gets the `bad_alloc` at once, since the cycle it would wait for is the one it is part of); if that does not free enough, it throws `bad_alloc` instead of letting the process run into the OOM killer. `set_memory_limit(0)` disables the ceiling. The setting takes effect for the next chunk committed; it does not shrink what is committed already.
 
 ```cpp
 auto limit = collector::get_memory_limit();             // the default ceiling
 collector::set_memory_limit(size_t(4) << 30);            // 4 GB
 try {
     vector<int> huge(size_t(2) << 30);                   // 8 GB of int: over the ceiling
-} catch (const std::bad_alloc&) {
+} catch (const bad_alloc&) {
     // a full collection ran first; not enough was free
 }
 collector::set_memory_limit(limit);                      // back to the default
@@ -358,6 +359,6 @@ buffers of A_N4sgcl11tracked_ptrI4NodeEE: 1 x 8 B
 ## See also
 
 - [config](config.md): the constants behind the stack clearing, the memory ceiling, the generations and the helpers.
-- [tracked_ptr](tracked_ptr.md), [unique_ptr](unique_ptr.md), [weak_ptr](weak_ptr.md), [expiry_queue](../containers/expiry_queue.md).
+- [tracked_ptr](tracked_ptr.md), [unique_ptr](unique_ptr.md), [weak_ptr](weak_ptr.md), [expiry_queue](expiry_queue.md).
 - README: [Methods useful for state analysis](../../garbage_collector/diagnostics.md#methods-useful-for-state-analysis), [Memory](../../garbage_collector/overview.md#memory), [Generations](../../garbage_collector/overview.md#generations), [Stack roots](../../garbage_collector/overview.md#stack-roots), [Threads](../async/README.md#threads), [The rules](README.md#the-rules).
 - `tests/core/statistics.cpp`, `tests/core/heap.cpp`: the counters and the memory ceiling exercised.

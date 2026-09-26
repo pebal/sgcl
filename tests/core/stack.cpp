@@ -114,11 +114,11 @@ TEST(Stack_Tests, ArbitraryWordsAreHarmless) {
     std::mt19937_64 rng(11);
     tracked_ptr<Payload> keep = make_tracked<Payload>(5);
     volatile uintptr_t words[4096];
-    auto first = (uintptr_t)keep.get() & ~(uintptr_t)(sgcl::config::PageSize - 1);
+    auto first = (uintptr_t)keep.get() & ~(uintptr_t)(sgcl::config::page_size - 1);
     for (auto& w : words) {
         switch (rng() % 4) {
-        case 0: w = first + rng() % sgcl::config::PageSize; break;                    // somewhere in a live page
-        case 1: w = first + sgcl::config::PageSize - 1 - rng() % 16; break;          // the page's last bytes
+        case 0: w = first + rng() % sgcl::config::page_size; break;                    // somewhere in a live page
+        case 1: w = first + sgcl::config::page_size - 1 - rng() % 16; break;          // the page's last bytes
         case 2: w = first + (rng() % heap.reserved_bytes()); break;                  // anywhere in the reservation
         default: w = rng(); break;                                                   // noise
         }
@@ -199,7 +199,7 @@ TEST(Stack_Tests, YoungObjectKeepsItsChildAcrossCycles) {
 }
 
 // Big stacks: threads deep in recursion, each holding roots several megabytes
-// down its stack, together above config::StackScanThreshold. The scan then
+// down its stack, together above config::stack_scan_threshold. The scan then
 // runs on the helper threads (reading only), and every root must still be
 // found.
 namespace {
@@ -224,7 +224,7 @@ namespace {
 }
 
 TEST(Stack_Tests, BigStacksAreScannedOnHelpers) {
-    constexpr int Threads = 20;   // 20 x ~300 KB used: above config::StackScanThreshold (4 MB)
+    constexpr int Threads = 20;   // 20 x ~300 KB used: above config::stack_scan_threshold (4 MB)
     constexpr int Depth = 64;
     const auto scans_before = sgcl::detail::collector_instance().parallel_stack_scans();
     sgcl::atomic<int> ready = {0};

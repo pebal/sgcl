@@ -77,7 +77,8 @@ namespace sgcl::io {
     // message() reads "open log.txt: no such file or directory", as
     // Go's *PathError. A value: copied, compared by code, held in an
     // expected. The predicates ask the question that the code answers
-    // whatever its category (is_not_found: ENOENT; is_exists: EEXIST;
+    // whatever its category (is_not_found: ENOENT or errc::not_found,
+    // look_path's; is_exists: EEXIST;
     // is_permission: EACCES or EPERM; is_closed: errc::closed or EBADF;
     // is_eof: errc::unexpected_eof; is_interrupted: EINTR; is_timeout:
     // ETIMEDOUT or EAGAIN).
@@ -119,7 +120,7 @@ namespace sgcl::io {
         }
 
         bool is_not_found() const noexcept {
-            return _is(std::errc::no_such_file_or_directory);
+            return _is(std::errc::no_such_file_or_directory) || _code == errc::not_found;
         }
 
         bool is_exists() const noexcept {
@@ -164,11 +165,6 @@ namespace sgcl::io {
         string _path;
     };
 
-    // The result of every operation of io: the value or the error.
-    // result<void> for an operation that returns nothing.
-    template<class T = void>
-    using result = expected<T, error>;
-
     // An error from errno after a failed call: error(errno, op, path)
     inline error last_error(const string& op, const string& path = {}) noexcept {
         return error(error_code(errno, std::system_category()), op, path);
@@ -177,7 +173,7 @@ namespace sgcl::io {
     namespace detail {
         // The error of a failed result, to hand on: `return fail(r);`
         template<class T>
-        unexpected<error> fail(const result<T>& r) {
+        unexpected<error> fail(const expected<T, error>& r) {
             return unexpected<error>(r.error());
         }
 

@@ -3,9 +3,9 @@
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
-#include "sgcl/containers/deque.h"
-#include "sgcl/containers/queue.h"
-#include "sgcl/containers/stack.h"
+#include "sgcl/core/deque.h"
+#include "sgcl/core/queue.h"
+#include "sgcl/core/stack.h"
 #include "tests/types.h"
 
 #include <functional>

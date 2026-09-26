@@ -15,7 +15,7 @@
 #include "../async/select.h"
 #include "../async/stop_token.h"
 #include "../async/timeout.h"
-#include "../containers/vector.h"
+#include "../core/vector.h"
 #include "../core/aliases.h"
 #include "../core/string.h"
 
@@ -52,7 +52,7 @@ namespace sgcl::io {
     // process with the collector's threads would hold their locks in a
     // child that has none of them. Its exit is waited for on the
     // reactor (exited(pid): kqueue's EVFILT_PROC here, a pidfd on Linux),
-    // so async_wait() holds no thread while the child runs, as Go 1.23
+    // so wait() holds no thread while the child runs, as Go 1.23
     // waits on Linux; wait() from a thread is waitpid.
     class process;
     class command;
@@ -122,9 +122,9 @@ namespace sgcl::io {
         }
 
         // "exit status 1", "signal: killed": what Go's String says
-        string str() const {
+        string to_string() const {
             if (exited()) {
-                return string("exit status ") + to_string(exit_code());
+                return string("exit status ") + sgcl::to_string(exit_code());
             }
             if (signaled()) {
                 std::string s = "signal: ";
@@ -158,6 +158,7 @@ namespace sgcl::io {
     // zombie until the program ends, as everywhere.
     class process final {
         friend class sgcl::detail::MakerBase;   // make_tracked constructs a process, in command::start
+        friend class command;                   // its wait waits for the process as a thread does
 
         explicit process(int pid) noexcept
         : _pid(pid) {
@@ -171,7 +172,7 @@ namespace sgcl::io {
         // A signal to the process: errc::process_done once it was waited
         // for or released (its id may be another process's by then); a
         // signal while a wait is in progress is what ends the wait
-        result<void> signal(int sig) {
+        expected<void, error> signal(int sig) {
             if (_done.load(std::memory_order_acquire)) {
                 return detail::fail(error(errc::process_done, "signal"));
             }
@@ -182,37 +183,24 @@ namespace sgcl::io {
         }
 
         // SIGKILL: the process ends, now
-        result<void> kill() {
+        expected<void, error> kill() {
             return signal(SIGKILL);
         }
 
-        // The process's end and how it ended, waited for on the calling
-        // thread (waitpid); a second wait, or one after release(), is
-        // errc::process_done
-        result<process_state> wait() {
-            if (_waited.exchange(true, std::memory_order_acq_rel)) {
-                return detail::fail(error(errc::process_done, "wait"));
-            }
-            auto r = _reap(0);
-            _done.store(true, std::memory_order_release);
-            return r;
+        // The process's end and how it ended (waitpid); a second wait, or
+        // one after release(), is errc::process_done. `p.wait()` on this
+        // thread, `co_await p.async_wait()` in a task
+        expected<process_state, error> wait() {
+            return _block_wait();
         }
 
-        // The same from a task: the end waited for on the reactor, no
-        // thread held meanwhile, the status collected once it came
-        task<result<process_state>> async_wait() {
-            if (_waited.exchange(true, std::memory_order_acq_rel)) {
-                co_return detail::fail(error(errc::process_done, "wait"));
-            }
-            co_await exited(_pid)->async_receive();
-            auto r = _reap(0);
-            _done.store(true, std::memory_order_release);
-            co_return r;
+        async::task<expected<process_state, error>> async_wait() {
+            return _co_wait();
         }
 
         // The process let go of without a wait: its resources are the
         // system's once it ends, and this object answers nothing more
-        result<void> release() {
+        expected<void, error> release() {
             if (_waited.exchange(true, std::memory_order_acq_rel)) {
                 return detail::fail(error(errc::process_done, "release"));
             }
@@ -221,7 +209,7 @@ namespace sgcl::io {
         }
 
     private:
-        result<process_state> _reap(int options) {
+        expected<process_state, error> _reap(int options) {
             for (;;) {
                 int status = 0;
                 rusage usage{};
@@ -239,13 +227,35 @@ namespace sgcl::io {
         int _pid;
         std::atomic<bool> _waited{false};   // a wait or a release begun: no second one
         std::atomic<bool> _done{false};     // the wait or the release complete: the id is no longer this process's
+
+        // the two halves of the operations above: a thread's and a task's
+        expected<process_state, error> _block_wait()  {
+            if (_waited.exchange(true, std::memory_order_acq_rel)) {
+                return detail::fail(error(errc::process_done, "wait"));
+            }
+            auto r = _reap(0);
+            _done.store(true, std::memory_order_release);
+            return r;
+        }
+
+        // The same from a task: the end waited for on the reactor, no
+        // thread held meanwhile, the status collected once it came
+        async::task<expected<process_state, error>> _co_wait()  {
+            if (_waited.exchange(true, std::memory_order_acq_rel)) {
+                co_return detail::fail(error(errc::process_done, "wait"));
+            }
+            co_await async::exited(_pid)->receive();
+            auto r = _reap(0);
+            _done.store(true, std::memory_order_release);
+            co_return r;
+        }
     };
 
     // The executable a name stands for: the name itself when it holds a
     // separator and names an executable file, else the first executable
     // file of that name in the directories of PATH (an empty entry is the
     // current directory); errc::not_found for none. Go's exec.LookPath.
-    inline result<string> look_path(const string& file) {
+    inline expected<string, error> look_path(const string& file) {
         auto executable = [](const std::string& p) {
             struct stat st;
             return ::stat(p.c_str(), &st) == 0 && S_ISREG(st.st_mode) && ::access(p.c_str(), X_OK) == 0;
@@ -313,11 +323,11 @@ namespace sgcl::io {
         optional<string> argv0;                    // argv[0] when not the name as given
         optional<vector<pair<string, string>>> env;   // the environment: nullopt is the program's own, inherited; a list is the child's whole environment
         string dir;                                // the working directory; empty is the program's own
-        tracked_ptr<reader> in;                    // standard input: a file inherited as a descriptor, another reader copied through a pipe by a task, null the null device
-        tracked_ptr<writer> out;                   // standard output: the same; the same object in out and err gets one pipe
-        tracked_ptr<writer> err;                   // standard error
+        io::reader in;                    // standard input: a file inherited as a descriptor, another reader copied through a pipe by a task, null the null device
+        io::writer out;                   // standard output: the same; the same object in out and err gets one pipe
+        io::writer err;                   // standard error
         bool set_pgid = false;                     // the child a process group of its own (Setpgid): a signal to -pid reaches it and its children
-        stop_token stop;                           // the child killed when the stop is requested (Go's CommandContext with the default Cancel)
+        async::stop_token stop;                           // the child killed when the stop is requested (Go's CommandContext with the default Cancel)
         duration wait_delay = duration::zero();    // wait() gives the copying tasks this long after the child ended (or the stop came) before closing the pipes; zero waits for them (Go's WaitDelay)
 
         tracked_ptr<io::process> process;          // the child, once started
@@ -326,7 +336,7 @@ namespace sgcl::io {
 
         // The child started: the program found, the streams arranged, the
         // process made with posix_spawn. Once: a second start is an error.
-        result<void> start() {
+        expected<void, error> start() {
             if (process) {
                 return detail::fail(error(errc::process_done, "start", path));
             }
@@ -356,15 +366,15 @@ namespace sgcl::io {
             }
             _child_ends.clear();
             process = make_tracked<io::process>(pid);
-            _done = make_tracked<channel<void>>();
+            _done = make_tracked<async::channel<void>>();
             for (auto& c : spawn.copies) {   // the copying tasks run from now, as Go's goroutines do
-                _copies.push_back(sgcl::spawn(std::move(c)));
+                _copies.push_back(async::spawn(std::move(c)));
             }
             for (auto& f : spawn.parent_ends) {
                 _pipes.push_back(f);
             }
             if (stop.stop_possible()) {
-                go(_watch_stop(process, stop, _done));
+                async::go(_watch_stop(process, stop, _done));
             }
             return {};
         }
@@ -373,79 +383,46 @@ namespace sgcl::io {
         // `state`, the copying tasks joined (within wait_delay when set),
         // the pipes closed. A child that ended with a failure status is
         // errc::exit_status (the code in state), as Go's ExitError.
-        result<void> wait() {
-            if (!process) {
-                return detail::fail(error(errc::process_done, "wait", path));
-            }
-            auto ended = process->wait();
-            if (_copies.empty()) {
-                return _finish(std::move(ended), {});
-            }
-            return _finish(std::move(ended), spawn(_await_copies()).join());
+        // `c.wait()` on this thread, `co_await c.async_wait()` in a task
+        expected<void, error> wait() {
+            return _block_wait();
         }
 
-        task<result<void>> async_wait() {
-            if (!process) {
-                co_return detail::fail(error(errc::process_done, "wait", path));
-            }
-            auto ended = co_await process->async_wait();
-            co_return _finish(std::move(ended), co_await _await_copies());
+        async::task<expected<void, error>> async_wait() {
+            return _co_wait();
         }
 
         // start() and wait()
-        result<void> run() {
-            if (auto s = start(); !s) {
-                return s;
-            }
-            return wait();
+        // `run(...)` on this thread, `co_await async_run(...)` in a task
+        expected<void, error> run() {
+            return _block_run();
         }
 
-        task<result<void>> async_run() {
-            if (auto s = start(); !s) {
-                co_return s;
-            }
-            co_return co_await async_wait();
+        async::task<expected<void, error>> async_run() {
+            return _co_run();
         }
 
         // run() with the standard output captured and returned; when err
         // is null, the standard error is captured too, into captured_err,
         // for the message of a failure. out must be null.
-        result<string> output() {
-            auto captured = _capture_output();
-            if (!captured) {
-                return detail::fail(captured);
-            }
-            auto r = run();
-            return _captured(std::move(r), *captured);
+        // `output(...)` on this thread, `co_await async_output(...)` in a task
+        expected<string, error> output() {
+            return _block_output();
         }
 
-        task<result<string>> async_output() {
-            auto captured = _capture_output();
-            if (!captured) {
-                co_return detail::fail(captured);
-            }
-            auto r = co_await async_run();
-            co_return _captured(std::move(r), *captured);
+        async::task<expected<string, error>> async_output() {
+            return _co_output();
         }
 
         // run() with the standard output and error captured together, in
         // the order the child wrote them. out and err must be null.
-        result<string> combined_output() {
-            auto captured = _capture_combined();
-            if (!captured) {
-                return detail::fail(captured);
-            }
-            auto r = run();
-            return _captured(std::move(r), *captured);
+        // `combined_output(...)` on this thread, `co_await async_combined_output(...)` in a task
+        expected<string, error> combined_output() {
+            return _block_combined_output();
         }
 
-        task<result<string>> async_combined_output() {
-            auto captured = _capture_combined();
-            if (!captured) {
-                co_return detail::fail(captured);
-            }
-            auto r = co_await async_run();
-            co_return _captured(std::move(r), *captured);
+        async::task<expected<string, error>> async_combined_output() {
+            return _co_combined_output();
         }
 
         // A pipe to the child's standard input (output, error), the
@@ -454,7 +431,7 @@ namespace sgcl::io {
         // pipe once the child ended; the output pipes are read to their
         // end before wait() (a wait first may block the child on a full
         // pipe). Go's StdinPipe, StdoutPipe, StderrPipe.
-        result<tracked_ptr<file>> stdin_pipe() {
+        expected<tracked_ptr<file>, error> stdin_pipe() {
             if (in || process) {
                 return detail::fail(error(std::make_error_code(std::errc::invalid_argument), "stdin_pipe", path));
             }
@@ -462,14 +439,14 @@ namespace sgcl::io {
             if (!p) {
                 return detail::fail(p);
             }
-            _child_end(p->first);
-            _child_ends.push_back(p->first);
-            in = p->first;
-            _pipes.push_back(p->second);
-            return p->second;
+            _child_end(*p->read);
+            _child_ends.push_back(p->read);
+            in = p->read;
+            _pipes.push_back(p->write);
+            return p->write;
         }
 
-        result<tracked_ptr<file>> stdout_pipe() {
+        expected<tracked_ptr<file>, error> stdout_pipe() {
             if (out || process) {
                 return detail::fail(error(std::make_error_code(std::errc::invalid_argument), "stdout_pipe", path));
             }
@@ -477,14 +454,14 @@ namespace sgcl::io {
             if (!p) {
                 return detail::fail(p);
             }
-            _child_end(p->second);
-            _child_ends.push_back(p->second);
-            out = p->second;
-            _pipes.push_back(p->first);
-            return p->first;
+            _child_end(*p->write);
+            _child_ends.push_back(p->write);
+            out = p->write;
+            _pipes.push_back(p->read);
+            return p->read;
         }
 
-        result<tracked_ptr<file>> stderr_pipe() {
+        expected<tracked_ptr<file>, error> stderr_pipe() {
             if (err || process) {
                 return detail::fail(error(std::make_error_code(std::errc::invalid_argument), "stderr_pipe", path));
             }
@@ -492,11 +469,11 @@ namespace sgcl::io {
             if (!p) {
                 return detail::fail(p);
             }
-            _child_end(p->second);
-            _child_ends.push_back(p->second);
-            err = p->second;
-            _pipes.push_back(p->first);
-            return p->first;
+            _child_end(*p->write);
+            _child_ends.push_back(p->write);
+            err = p->write;
+            _pipes.push_back(p->read);
+            return p->read;
         }
 
     private:
@@ -521,7 +498,7 @@ namespace sgcl::io {
                 close_child_ends();
             }
 
-            result<void> arrange() {
+            expected<void, error> arrange() {
                 argv_storage.push_back(cmd.argv0 ? cmd.argv0->str() : cmd.path.str());
                 for (auto& a : cmd.args) {
                     argv_storage.push_back(a.str());
@@ -593,7 +570,7 @@ namespace sgcl::io {
             int null_fd = -1;
             vector<tracked_ptr<file>> child_ends;       // the child's ends of the pipes, closed here after the spawn
             vector<tracked_ptr<file>> parent_ends;      // the program's ends, closed by wait
-            vector<task<void>> copies;                  // the tasks copying between a stream and a pipe
+            vector<async::task<void>> copies;                  // the tasks copying between a stream and a pipe
 
         private:
             int _null() {
@@ -606,47 +583,47 @@ namespace sgcl::io {
             // The child's descriptor `target` from a reader: the null
             // device, a file's own descriptor, or the read end of a pipe
             // whose write end a task feeds from the reader
-            result<void> _input(const tracked_ptr<reader>& r, int target) {
+            expected<void, error> _input(const io::reader& r, int target) {
                 if (!r) {
                     return _dup(_null(), target);
                 }
-                if (auto* f = dynamic_cast<file*>(r.get())) {
-                    return _dup(f->fd(), target);
+                if (int fd = r.fd(); fd >= 0) {   // a file, a standard stream: its descriptor as it is
+                    return _dup(fd, target);
                 }
                 auto p = pipe();
                 if (!p) {
                     return detail::fail(p);
                 }
-                command::_child_end(p->first);
-                if (auto d = _dup(p->first->fd(), target); !d) {
+                command::_child_end(*p->read);
+                if (auto d = _dup(p->read->fd(), target); !d) {
                     return d;
                 }
-                child_ends.push_back(p->first);
-                parent_ends.push_back(p->second);
-                copies.push_back(_copy_in(r, p->second));
+                child_ends.push_back(p->read);
+                parent_ends.push_back(p->write);
+                copies.push_back(_copy_in(r, p->write));
                 return {};
             }
 
             // The same from a writer: the write end of a pipe whose read
             // end a task drains into the writer
-            result<void> _output(const tracked_ptr<writer>& w, int target) {
+            expected<void, error> _output(const io::writer& w, int target) {
                 if (!w) {
                     return _dup(_null(), target);
                 }
-                if (auto* f = dynamic_cast<file*>(w.get())) {
-                    return _dup(f->fd(), target);
+                if (int fd = w.fd(); fd >= 0) {
+                    return _dup(fd, target);
                 }
                 auto p = pipe();
                 if (!p) {
                     return detail::fail(p);
                 }
-                command::_child_end(p->second);
-                if (auto d = _dup(p->second->fd(), target); !d) {
+                command::_child_end(*p->write);
+                if (auto d = _dup(p->write->fd(), target); !d) {
                     return d;
                 }
-                child_ends.push_back(p->second);
-                parent_ends.push_back(p->first);
-                copies.push_back(_copy_out(w, p->first));
+                child_ends.push_back(p->write);
+                parent_ends.push_back(p->read);
+                copies.push_back(_copy_out(w, p->read));
                 return {};
             }
 
@@ -672,7 +649,7 @@ namespace sgcl::io {
 #endif
             }
 
-            result<void> _dup(int fd, int target) {
+            expected<void, error> _dup(int fd, int target) {
                 if (fd < 0) {
                     return detail::fail(last_error("start", cmd.path));
                 }
@@ -688,20 +665,20 @@ namespace sgcl::io {
                 return {};
             }
 
-            static task<void> _copy_in(tracked_ptr<reader> from, tracked_ptr<file> to) {
-                (void)co_await async_copy(*to, *from);
+            static async::task<void> _copy_in(io::reader from, tracked_ptr<file> to) {
+                (void)co_await io::async_copy(to, from);
                 (void)to->close();   // the child sees the end of its input
             }
 
-            static task<void> _copy_out(tracked_ptr<writer> to, tracked_ptr<file> from) {
-                (void)co_await async_copy(*to, *from);
+            static async::task<void> _copy_out(io::writer to, tracked_ptr<file> from) {
+                (void)co_await io::async_copy(to, from);
             }
         };
 
         // The stop requested: the child killed, unless it ended first
-        static task<void> _watch_stop(tracked_ptr<io::process> p, stop_token stop, tracked_ptr<channel<void>> done) {
+        static async::task<void> _watch_stop(tracked_ptr<io::process> p, async::stop_token stop, tracked_ptr<async::channel<void>> done) {
             bool stopped = false;
-            co_await async_select(stop.on_stop([&] { stopped = true; }), done->on_receive([] {}));
+            co_await async::select(stop.on_stop([&] { stopped = true; }), done->on_receive([] {}));
             if (stopped) {
                 (void)p->kill();
             }
@@ -710,8 +687,8 @@ namespace sgcl::io {
         // The copying tasks awaited, within wait_delay when set: past
         // it the program's pipe ends are closed, which ends them, and
         // the wait reports errc::wait_delay
-        task<result<void>> _await_copies() {
-            result<void> r;
+        async::task<expected<void, error>> _await_copies() {
+            expected<void, error> r;
             if (wait_delay == duration::zero()) {
                 for (auto& c : _copies) {
                     co_await c;
@@ -720,7 +697,7 @@ namespace sgcl::io {
                 auto deadline = clock::now() + wait_delay;
                 for (auto& c : _copies) {
                     auto left = deadline - clock::now();
-                    if (left <= duration::zero() || !co_await timeout(std::move(c), left)) {
+                    if (left <= duration::zero() || !co_await async::with_timeout(std::move(c), left)) {
                         for (auto& p : _pipes) {
                             (void)p->close();
                         }
@@ -733,7 +710,7 @@ namespace sgcl::io {
             co_return r;
         }
 
-        result<void> _finish(result<process_state> ended, result<void> copies) {
+        expected<void, error> _finish(expected<process_state, error> ended, expected<void, error> copies) {
             if (_done) {
                 _done->close();
             }
@@ -754,7 +731,7 @@ namespace sgcl::io {
             return {};
         }
 
-        result<tracked_ptr<buffer>> _capture_output() {
+        expected<tracked_ptr<buffer>, error> _capture_output() {
             if (out || process) {
                 return detail::fail(error(std::make_error_code(std::errc::invalid_argument), "output", path));
             }
@@ -767,7 +744,7 @@ namespace sgcl::io {
             return captured;
         }
 
-        result<tracked_ptr<buffer>> _capture_combined() {
+        expected<tracked_ptr<buffer>, error> _capture_combined() {
             if (out || err || process) {
                 return detail::fail(error(std::make_error_code(std::errc::invalid_argument), "combined_output", path));
             }
@@ -777,7 +754,7 @@ namespace sgcl::io {
             return captured;
         }
 
-        result<string> _captured(result<void> r, const tracked_ptr<buffer>& captured) {
+        expected<string, error> _captured(expected<void, error> r, const buffer& captured) {
             if (_err_capture) {
                 captured_err = _err_capture->text();
                 _err_capture = nullptr;
@@ -785,24 +762,94 @@ namespace sgcl::io {
             if (!r) {
                 return detail::fail(r);
             }
-            return captured->text();
+            return captured.text();
         }
 
         // A pipe end the child will read or write: blocking, as a
         // program expects its standard streams (pipe() makes both ends
         // non-blocking for the reactor; the flag is the end's own, the
         // program's end keeps it)
-        static void _child_end(const tracked_ptr<file>& f) {
-            int flags = ::fcntl(f->fd(), F_GETFL);
+        static void _child_end(const file& f) {
+            int flags = ::fcntl(f.fd(), F_GETFL);
             if (flags >= 0) {
-                ::fcntl(f->fd(), F_SETFL, flags & ~O_NONBLOCK);
+                ::fcntl(f.fd(), F_SETFL, flags & ~O_NONBLOCK);
             }
         }
 
         vector<tracked_ptr<file>> _child_ends;    // the child's ends of the pipes made by stdin_pipe and the others, closed by start() after the spawn
         vector<tracked_ptr<file>> _pipes;         // the program's ends of the pipes start() made
-        vector<task<void>> _copies;               // the tasks copying to and from them
-        tracked_ptr<channel<void>> _done;         // closed by wait: the stop watcher ends
+        vector<async::task<void>> _copies;               // the tasks copying to and from them
+        tracked_ptr<async::channel<void>> _done;         // closed by wait: the stop watcher ends
         tracked_ptr<buffer> _err_capture;         // output(): the standard error, when not given
+
+        // the two halves of the operations above: a thread's and a task's
+        expected<void, error> _block_wait() {
+            if (!process) {
+                return detail::fail(error(errc::process_done, "wait", path));
+            }
+            auto ended = process->_block_wait();
+            if (_copies.empty()) {
+                return _finish(std::move(ended), {});
+            }
+            return _finish(std::move(ended), async::spawn(_await_copies()).wait());
+        }
+
+        async::task<expected<void, error>> _co_wait()  {
+            if (!process) {
+                co_return detail::fail(error(errc::process_done, "wait", path));
+            }
+            auto ended = co_await process->async_wait();
+            co_return _finish(std::move(ended), co_await _await_copies());
+        }
+
+        expected<void, error> _block_run()  {
+            if (auto s = start(); !s) {
+                return s;
+            }
+            return _block_wait();
+        }
+
+        async::task<expected<void, error>> _co_run()  {
+            if (auto s = start(); !s) {
+                co_return s;
+            }
+            co_return co_await async_wait();
+        }
+
+        expected<string, error> _block_output()  {
+            auto captured = _capture_output();
+            if (!captured) {
+                return detail::fail(captured);
+            }
+            auto r = _block_run();
+            return _captured(std::move(r), **captured);
+        }
+
+        async::task<expected<string, error>> _co_output()  {
+            auto captured = _capture_output();
+            if (!captured) {
+                co_return detail::fail(captured);
+            }
+            auto r = co_await async_run();
+            co_return _captured(std::move(r), **captured);
+        }
+
+        expected<string, error> _block_combined_output()  {
+            auto captured = _capture_combined();
+            if (!captured) {
+                return detail::fail(captured);
+            }
+            auto r = _block_run();
+            return _captured(std::move(r), **captured);
+        }
+
+        async::task<expected<string, error>> _co_combined_output()  {
+            auto captured = _capture_combined();
+            if (!captured) {
+                co_return detail::fail(captured);
+            }
+            auto r = co_await async_run();
+            co_return _captured(std::move(r), **captured);
+        }
     };
 }

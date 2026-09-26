@@ -10,11 +10,11 @@
 // same against a std::vector oracle under random operations.
 #include "tests/types.h"
 
-#include "sgcl/containers/ordered_map.h"
-#include "sgcl/containers/ordered_set.h"
-#include "sgcl/containers/map.h"
-#include "sgcl/containers/multimap.h"
-#include "sgcl/containers/set.h"
+#include "sgcl/core/ordered_map.h"
+#include "sgcl/core/ordered_set.h"
+#include "sgcl/core/map.h"
+#include "sgcl/core/multimap.h"
+#include "sgcl/core/set.h"
 #include "sgcl/core/string.h"
 
 #include <algorithm>

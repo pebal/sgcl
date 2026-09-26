@@ -14,7 +14,8 @@
 #include <exception>
 #include <utility>
 
-namespace sgcl {
+namespace sgcl::async {
+    namespace detail { using namespace sgcl::detail; }
     // A one-shot completion: a value (or an exception) that one side sets
     // once and any number of others wait for, the adapter between the
     // callback APIs of a platform (an I/O completion port, a dispatch
@@ -22,7 +23,7 @@ namespace sgcl {
     // `void*` context) and `co_await`. The thread that has the result
     // calls set_value(v) or set_exception(e) and returns at once; a task
     // that waits writes `co_await p` and holds no thread until then; a
-    // thread writes p.get() and blocks; a select takes p.on_ready(f) as a
+    // thread writes p.wait() and blocks; a select takes p.on_done(f) as a
     // case (select.h). Under it an event (event.h) with a value: a channel
     // of signals closed by the set, so that the three forms of the wait
     // are the channel's, lock-free, the waiters reclaimed by the
@@ -49,13 +50,13 @@ namespace sgcl {
             PromiseBase& operator=(const PromiseBase&) = delete;
 
             // Whether the value or the exception is in
-            bool ready() const noexcept {
+            bool done() const noexcept {
                 return _done.closed();
             }
 
-            // A case of a select: f() once the promise is ready
+            // A case of a select: f() once the promise is done
             template<class F>
-            auto on_ready(F f) {
+            auto on_done(F f) {
                 return _done.on_receive(std::move(f));
             }
 
@@ -73,8 +74,10 @@ namespace sgcl {
                 _done.close();
             }
 
-            void _wait() {
-                _done.receive();
+            // The thread's wait of wait() and result()
+            void _block() {
+                assert(!detail::on_worker() && "wait() blocks the worker: co_await the promise from a task");
+                (void)_done.receive().wait();
             }
 
             // The awaitable's wait: the channel's, with nothing returned
@@ -97,10 +100,10 @@ namespace sgcl {
                 friend class PromiseBase;
 
                 explicit await_op(channel<void>& ch) noexcept
-                : _op(ch.async_receive()) {
+                : _op(ch.receive()) {
                 }
 
-                decltype(std::declval<channel<void>&>().async_receive()) _op;
+                decltype(std::declval<channel<void>&>().receive()) _op;
             };
 
             await_op _await() noexcept {
@@ -141,25 +144,29 @@ namespace sgcl {
             }
         }
 
-        // The value, once it is in, or what was set as the exception,
-        // rethrown; a reference into the promise, so that the value has
-        // one home whoever reads it (a lone reader may move it out)
+        // The value, or what was set as the exception, rethrown: waited
+        // for first, on this thread, when the promise is not done yet (as
+        // wait() does); a reference into the promise, so that the value
+        // has one home whoever reads it (a lone reader may move it out)
         T& result() {
+            if (!done()) {
+                _block();
+            }
             if (_error) {
                 std::rethrow_exception(_error);
             }
             return *_value;
         }
 
-        // Waits for the value, on this thread; not from a task on a
+        // Waits for the set, on this thread, and gives the value, or
+        // rethrows what was set as the exception. Not from a task on a
         // worker (co_await it there)
-        T& get() {
-            assert(!detail::on_worker() && "get() blocks the worker: co_await the promise from a task");
-            _wait();
+        T& wait() {
+            _block();
             return result();
         }
 
-        // `co_await p`: the task suspended until the promise is ready, no
+        // `co_await p`: the task suspended until the promise is done, no
         // thread held, then the value or the exception
         class awaiter {
         public:
@@ -230,16 +237,21 @@ namespace sgcl {
             }
         }
 
-        // Rethrows what was set as the exception, if anything
+        // Rethrows what was set as the exception, if anything: waited for
+        // first, on this thread, when the promise is not done yet
         void result() {
+            if (!done()) {
+                _block();
+            }
             if (_error) {
                 std::rethrow_exception(_error);
             }
         }
 
-        void get() {
-            assert(!detail::on_worker() && "get() blocks the worker: co_await the promise from a task");
-            _wait();
+        // Waits for the set, on this thread, and rethrows what was set as
+        // the exception; not from a task on a worker
+        void wait() {
+            _block();
             result();
         }
 

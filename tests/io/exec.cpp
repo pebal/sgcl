@@ -8,6 +8,8 @@
 // reactor.
 #include "tests/types.h"
 
+using namespace sgcl::async;
+
 #include <chrono>
 #include <csignal>
 #include <string>
@@ -22,7 +24,7 @@ namespace {
         std::string _dir;
 
         void SetUp() override {
-            auto d = temp_dir({}, "sgcl-exec-*");
+            auto d = make_temp_dir({}, "sgcl-exec-*");
             ASSERT_TRUE(d) << d.error().message();
             _dir = d->str();
         }
@@ -49,6 +51,7 @@ TEST_F(IoExec_Tests, LookPath) {
     auto none = look_path("no-such-program-sgcl");
     ASSERT_FALSE(none);
     EXPECT_EQ(none.error().code(), errc::not_found);
+    EXPECT_TRUE(none.error().is_not_found());                       // the predicate answers the module's own code too
     EXPECT_FALSE(look_path("/no/such/dir/sh"));
     EXPECT_FALSE(look_path(dir()));                                 // a directory is not executable
 }
@@ -61,7 +64,7 @@ TEST_F(IoExec_Tests, RunOutputAndTheExitStatus) {
     EXPECT_TRUE(echo.path.starts_with("/") && echo.path.ends_with("/echo"));   // found in PATH
     ASSERT_TRUE(echo.state);
     EXPECT_TRUE(echo.state->success() && echo.state->exited() && echo.state->exit_code() == 0 && !echo.state->signaled());
-    EXPECT_EQ(echo.state->str(), "exit status 0");
+    EXPECT_EQ(echo.state->to_string(), "exit status 0");
     EXPECT_EQ(echo.state->pid(), echo.process->pid());
 
     // A failure status is an error, the code in the state, the standard
@@ -73,7 +76,7 @@ TEST_F(IoExec_Tests, RunOutputAndTheExitStatus) {
     EXPECT_EQ(r.error().code(), errc::exit_status);
     ASSERT_TRUE(failing.state);
     EXPECT_EQ(failing.state->exit_code(), 3);
-    EXPECT_EQ(failing.state->str(), "exit status 3");
+    EXPECT_EQ(failing.state->to_string(), "exit status 3");
     EXPECT_EQ(failing.captured_err, "oops\n");
 
     // run: no capture, the null device for every stream
@@ -187,7 +190,7 @@ TEST_F(IoExec_Tests, ThePipesOfTheProgramsOwn) {
     tracked_ptr<buffer> out = make_tracked<buffer>();
     wc.out = out;
     ASSERT_TRUE(wc.start());
-    ASSERT_TRUE((*in)->write_text("twelve chars"));
+    ASSERT_TRUE((*in)->write("twelve chars"));
     ASSERT_TRUE((*in)->close());                    // the end of the input
     ASSERT_TRUE(wc.wait());
     EXPECT_EQ(out->text().trim(), "12");
@@ -236,7 +239,7 @@ TEST_F(IoExec_Tests, TheProcessItsSignalsAndTheStop) {
     EXPECT_TRUE(sleeping.state->signaled() && !sleeping.state->exited());
     EXPECT_EQ(sleeping.state->signal(), SIGTERM);
     EXPECT_EQ(sleeping.state->exit_code(), -1);
-    EXPECT_TRUE(sleeping.state->str().starts_with("signal: "));
+    EXPECT_TRUE(sleeping.state->to_string().starts_with("signal: "));
     EXPECT_EQ(sleeping.process->kill().error().code(), errc::process_done);   // waited for: no signal to it
 
     // kill
@@ -331,7 +334,7 @@ namespace {
     }
 
     task<size_t> many_at_once(int n) {
-        vector<task<result<string>>> outputs;
+        vector<task<expected<string, io::error>>> outputs;
         vector<io::command> commands;
         for (int i : range(n)) {
             commands.push_back(io::command("sh", "-c", "sleep 0.05; echo " + to_string(i)));
@@ -349,13 +352,13 @@ namespace {
 }
 
 TEST_F(IoExec_Tests, FromATask) {
-    auto t = sgcl::spawn(async_case());
-    EXPECT_EQ(t.join(), "from a task|PIPED|7|err|15");
+    auto t = sgcl::async::spawn(async_case());
+    EXPECT_EQ(t.wait(), "from a task|PIPED|7|err|15");
 
     // Twenty children at once, waited for on the reactor: a burst of
     // 50 ms sleeps ends in well under twenty times that
     auto started = clock::now();
-    auto ok = sgcl::spawn(many_at_once(20));
-    EXPECT_EQ(ok.join(), 20u);
+    auto ok = sgcl::async::spawn(many_at_once(20));
+    EXPECT_EQ(ok.wait(), 20u);
     EXPECT_LT(clock::now() - started, 2s);
 }

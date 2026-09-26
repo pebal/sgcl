@@ -23,7 +23,7 @@ type node struct {
 
 var head atomic.Pointer[node]
 
-// The backoff of sgcl/detail/backoff.h: a spin that doubles after every
+// The backoff of sgcl/core/detail/backoff.h: a spin that doubles after every
 // lost exchange, up to backoffMax pauses: an isb on arm64 (isb_arm64.s,
 // the pause of the C++ variants), the loop alone elsewhere
 const backoffMax = 4096

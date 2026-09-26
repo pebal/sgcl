@@ -5,8 +5,8 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "../concurrent/concurrent_queue.h"
-#include "../concurrent/detail/backoff.h"
+#include "../concurrent/queue.h"
+#include "../core/detail/backoff.h"
 #include "../core/collector.h"
 #include "../core/config.h"
 #include "../core/unique_ptr.h"
@@ -20,13 +20,16 @@
 #include <chrono>
 #include <coroutine>
 #include <mutex>
+#include <new>
 #include <thread>
 #include <utility>
 #include <vector>
 
-namespace sgcl {
+namespace sgcl::async {
+    namespace detail { using namespace sgcl::detail; }
     namespace detail {
         class Scheduler;
+        class WakeBatch;
         inline Scheduler& scheduler_instance();
         void resume_frame(const tracked_ptr<FrameWord>& frame);
 
@@ -35,12 +38,11 @@ namespace sgcl {
         // through its header (coroutine.h: FrameHeader), and what
         // Scheduler::enqueue routes such a frame to. An executor's queue is
         // run by the thread that runs the executor and by no other: run()
-        // pops and resumes, and parks on the queue's last link when it is
-        // empty, which every push notifies (concurrent_queue: pop), after
-        // a spin of config::WorkerSpinMicroseconds through try_pop, as a
-        // worker spins before it sleeps; stop() pushes a null frame, the
-        // wake that carries no work. A strand's queue is run by the
-        // workers, one frame at a time, in the order of the pushes:
+        // pops and resumes, and parks on the queue's own word when it is
+        // empty, after a spin of config::worker_spin_microseconds, as a
+        // worker spins before it sleeps; a push wakes it, and so does
+        // stop(), a wake that carries no work. A strand's queue is run by
+        // the workers, one frame at a time, in the order of the pushes:
         // `pending` counts the frames queued and the one running, the
         // push that takes it from zero hands the head of the queue to the
         // workers, and the worker whose run of a strand's frame ended
@@ -50,29 +52,70 @@ namespace sgcl {
         // suspension, so a task that waits leaves the strand to the next
         // task and, woken, comes back through the queue, behind whoever
         // is queued by then.
+        //
+        // The queue is Vyukov's intrusive one for many producers and one
+        // consumer, linked through the frames themselves (FrameHeader::
+        // next), so a push allocates nothing: a producer nulls its frame's
+        // link, exchanges the tail for it and links the frame it got
+        // after the one it got; the consumer walks from the head. A queue
+        // that goes empty keeps a frame of its own, the stub (a buffer of
+        // a header and nothing else), so that the last frame can be taken
+        // with a successor behind it: the consumer that reaches the last
+        // frame pushes the stub after it and takes the frame, and steps
+        // over the stub when it meets it at the head. Every frame queued
+        // is held by the link before it (the first one by the head), each
+        // a tracked word stored through the barrier; the tail is a raw
+        // word, which holds nothing and need not, as whatever it names is
+        // held otherwise: the stub by the queue, a frame linked by the
+        // link before it, and a frame between the exchange and its link
+        // by the producer's own pointer, which it holds through the push.
+        // The frame a producer got from the exchange is safe to write to
+        // for the same reason: it is still queued, since the consumer takes
+        // a frame only when it has a successor or is the tail, and it has
+        // neither until that producer links it. The consumer takes a frame
+        // and nulls its link, so a frame off the queue holds nothing of it
+        // and is ready to be pushed again, here or elsewhere.
+        // One consumer at a time: an executor's is the thread of its run()
+        // or poll(), one at a time (`running`), and a strand's is whoever
+        // holds its turn, the push that took `pending` from zero or the
+        // worker whose run ended with more queued, each after the last
+        // (the hand-off of the frame to the workers orders one turn before
+        // the next, and `pending` orders a turn after the one that took it
+        // to zero). The price of the shape is one window where it is not
+        // lock-free: a producer between its exchange and its link has cut
+        // the list, and the frames linked behind it wait for its store;
+        // the consumer waits for it (a strand's turn, which knows there is
+        // a frame), or looks again later (an executor's thread, whose park
+        // does not sleep on a list that is not empty). Two instructions,
+        // unless the producer is preempted between them.
         struct ExecutorQueue {
             using Frame = tracked_ptr<FrameWord>;
 
-            explicit ExecutorQueue(bool strand) noexcept
-            : strand(strand) {
+            explicit ExecutorQueue(bool strand)
+            : _stub(_make_stub())
+            , _head(_stub)
+            , strand(strand)
+            , _tail(_stub.get()) {
             }
 
             // A frame made ready on this executor
             void push(Frame frame, bool next) {
-                ready.push(std::move(frame));
+                _push(frame.get());
                 if (strand) {
                     if (pending.fetch_add(1, std::memory_order_acq_rel) == 0) {
                         _dispatch(next);   // idle until now: the head to the workers
                     }
                 } else {
                     pushes.fetch_add(1, std::memory_order_release);
+                    _wake();
                 }
             }
 
-            // An executor: stop() called; the null frame is the wake
+            // An executor: stop() called; the thread parked on the queue
+            // woken to see it
             void stop() {
-                stopping.store(true, std::memory_order_release);
-                push(nullptr, false);
+                stopping.store(true, std::memory_order_seq_cst);
+                _wake();
             }
 
             // A strand: the run of one of its frames ended; the next one
@@ -84,30 +127,134 @@ namespace sgcl {
             }
 
             // An executor's thread: the next frame, spinning a while on
-            // an empty queue and parking then; null for a stop
+            // an empty queue and parking then; null when a stop() came, or
+            // for a wake that found nothing (the caller asks again)
             Frame pop() {
-                auto until = std::chrono::steady_clock::now() + std::chrono::microseconds(config::WorkerSpinMicroseconds);
-                Backoff<32> backoff;
+                auto until = std::chrono::steady_clock::now() + std::chrono::microseconds(config::worker_spin_microseconds);
+                detail::Backoff<32> backoff;
                 do {
-                    if (auto f = ready.try_pop()) {
-                        ++taken;
-                        return std::move(*f);
+                    if (auto f = take()) {
+                        return f;
+                    }
+                    if (stopping.load(std::memory_order_acquire)) {
+                        return Frame();
                     }
                     backoff();
                 } while (std::chrono::steady_clock::now() < until);
-                ++taken;
-                return ready.pop();
+                for (;;) {
+                    if (auto f = take()) {
+                        return f;
+                    }
+                    if (stopping.load(std::memory_order_acquire)) {
+                        return Frame();
+                    }
+                    _park();
+                }
             }
 
-            concurrent_queue<Frame> ready;
-            std::atomic<size_t> pending = {0};     // a strand: the frames queued, plus the one running
-            std::atomic<uint32_t> pushes = {0};    // an executor: the pushes so far; with `taken`, what a poll has to run
-            uint32_t taken = 0;                    // an executor: the pops so far (the running thread's alone)
+            // The consumer's: the first frame, counted as taken, or null
+            // when none is linked (the queue empty, or a push under way)
+            Frame take() {
+                auto stub = _stub.get();
+                if (_head.get() == stub) {
+                    if (!_link(stub).load(std::memory_order_acquire)) {
+                        return Frame();
+                    }
+                    _head = _link(stub);    // the stub stepped over
+                    _link(stub) = nullptr;  // and holding nothing while it is off the list
+                }
+                auto head = _head.get();
+                if (!_link(head).load(std::memory_order_acquire)) {
+                    if (_tail.load(std::memory_order_acquire) != head) {
+                        return Frame();   // a push under way: the next link lands in a moment
+                    }
+                    _push(stub);          // the last frame: the stub behind it, so that it can go
+                    if (!_link(head).load(std::memory_order_acquire)) {
+                        return Frame();   // a push came in between, before the stub: its link lands in a moment
+                    }
+                }
+                Frame f = _head;
+                _head = _link(head);
+                _link(head) = nullptr;
+                ++taken;
+                return f;
+            }
+
+        private:
+            Frame _stub;                           // the queue's own frame, on the list whenever the list has no other
+            Frame _head;                           // the consumer's: the first frame, or the stub
+
+        public:
+            uint32_t taken = 0;                    // the pops so far (the consumer's alone)
             std::atomic<bool> stopping = {false};  // an executor: stop() called, the run in progress or the next one returns
             std::atomic<bool> running = {false};   // an executor: a run() or a poll() in progress
             const bool strand;
 
         private:
+            // The consumer's words above, the producers' below, a cache
+            // line apart (concurrent::queue: padding, not alignas)
+            unsigned char _pad[config::cache_line_size - 2 * sizeof(Frame) - sizeof(uint32_t) - 3 * sizeof(bool)] = {};
+            std::atomic<FrameWord*> _tail;         // the producers': the last frame, or the stub (raw: whatever it names is held otherwise)
+            std::atomic<uint32_t> _parked = {0};   // an executor: its thread asleep in pop(), or about to be
+
+        public:
+            std::atomic<uint32_t> pushes = {0};    // an executor: the pushes so far; with `taken`, what a poll has to run
+            std::atomic<size_t> pending = {0};     // a strand: the frames queued, plus the one running
+
+        private:
+            static FrameLink& _link(FrameWord* frame) noexcept {
+                return frame_header(frame).next;
+            }
+
+            // A frame of the queue's own: a header and nothing else
+            static Frame _make_stub() {
+                auto words = Maker<FrameWord[]>::make_tracked_data(FrameHeaderWords).release();
+                return unique_ptr<FrameWord>(UniquePtr<FrameWord>(words));
+            }
+
+            // The frame at the tail. The exchange is seq_cst, as is the
+            // park's look at the tail after its store to `_parked`: one of
+            // the two sees the other (_wake)
+            void _push(FrameWord* frame) noexcept {
+                _link(frame) = nullptr;
+                auto prev = _tail.exchange(frame, std::memory_order_seq_cst);
+                _link(prev).store(frame, std::memory_order_release);
+            }
+
+            // Nothing queued, and no push under way: the stub alone, at
+            // both ends
+            bool _empty() const noexcept {
+                auto stub = _stub.get();
+                return _head.get() == stub && _tail.load(std::memory_order_seq_cst) == stub;
+            }
+
+            // The executor's thread asleep until a push or a stop: counted
+            // as parked before its last look at the queue and at the stop,
+            // so that a push or a stop after that look sees it (_wake).
+            // A queue that is not empty but has nothing to take has a push
+            // under way: the thread yields and looks again
+            void _park() {
+                _parked.store(1, std::memory_order_seq_cst);
+                if (!_empty()) {
+                    _parked.store(0, std::memory_order_relaxed);
+                    std::this_thread::yield();
+                    return;
+                }
+                if (!stopping.load(std::memory_order_seq_cst)) {
+                    _parked.wait(1, std::memory_order_seq_cst);
+                }
+                _parked.store(0, std::memory_order_relaxed);
+            }
+
+            // A push or a stop: the thread woken if it is parked. The load
+            // spares a push the exchange when nobody sleeps, which is the
+            // rule while the thread runs or spins
+            void _wake() noexcept {
+                if (_parked.load(std::memory_order_seq_cst) && _parked.exchange(0, std::memory_order_acq_rel)) {
+                    _parked.notify_one();
+                }
+            }
+
             void _dispatch(bool next);   // below Scheduler: the head of the queue to the pool's queues
         };
 
@@ -135,7 +282,7 @@ namespace sgcl {
         // a thread that is not a worker puts it on the global queue. A
         // worker with nothing of its own takes from the global queue,
         // then steals half of another worker's queue; one that finds
-        // nothing looks for config::WorkerSpinMicroseconds and sleeps.
+        // nothing looks for config::worker_spin_microseconds and sleeps.
         // A worker is woken by an enqueue only when none is looking
         // (spinning) and one sleeps, and a spinning worker that finds
         // work wakes the next sleeper, so that there is one looking
@@ -180,10 +327,10 @@ namespace sgcl {
 #ifndef SGCL_WORKER_STACK_CLEAR
 #define SGCL_WORKER_STACK_CLEAR 4096
 #endif
-            static constexpr size_t StackClearOnIdle = SGCL_WORKER_STACK_CLEAR;   // the dead stack a worker clears before looking for work: the frames of a task's last run, with what it called (a page; the tests clear 64 KB before their checks, config::StackClearSize)
+            static constexpr size_t StackClearOnIdle = SGCL_WORKER_STACK_CLEAR;   // the dead stack a worker clears before looking for work: the frames of a task's last run, with what it called (a page; the tests clear 64 KB before their checks, config::stack_clear_size)
 
             struct Global {
-                concurrent_queue<Frame> ready;
+                concurrent::queue<Frame> ready;
             };
 
             ~Scheduler() {
@@ -295,6 +442,42 @@ namespace sgcl {
             }
 
         private:
+            friend class WakeBatch;
+
+            void _gather(WakeBatch& batch, Frame& frame);   // below WakeBatch
+
+            // A batch of wakes (WakeBatch) handed over: what as many
+            // enqueues to the end of the queues would have left there,
+            // with one publication and one wake. On a worker the frames go
+            // to the end of the ring together, one look at the thieves'
+            // head and one store of the tail for all of them, where every
+            // enqueue made both on the line every spinning worker is
+            // stealing from (a full ring spills to the global queue, as
+            // _push_local's does); from any other thread the global queue
+            // takes them as one chain, one exchange on its tail
+            // (concurrent::queue: push_range)
+            void _enqueue_batch(Frame* frames, unsigned n) {
+                if (!_running.load(std::memory_order_acquire)) [[unlikely]] {
+                    _start();
+                }
+                if (auto local = _local) {
+                    auto t = local->tail.load(std::memory_order_relaxed);
+                    auto k = std::min<uint32_t>(n, Local::Size - (t - local->head.load(std::memory_order_acquire)));
+                    for (uint32_t i = 0; i < k; ++i) {
+                        local->slots[(t + i) % Local::Size] = std::move(frames[i]);
+                    }
+                    if (k) {
+                        local->tail.store(t + k, std::memory_order_release);
+                    }
+                    for (uint32_t i = k; i < n; ++i) {
+                        _global->ready.push(std::move(frames[i]));
+                    }
+                } else {
+                    _global->ready.push_range(frames, frames + n);
+                }
+                _wake_one_if_none_looking();
+            }
+
             void _start() {
                 std::lock_guard lock(_lifecycle);
                 if (_running.load(std::memory_order_acquire)) {
@@ -302,7 +485,7 @@ namespace sgcl {
                 }
                 _sleepers.store(0, std::memory_order_relaxed);
                 _spinning.store(0, std::memory_order_relaxed);
-                auto n = std::min(MaxWorkers, config::Workers ? config::Workers : std::max(1u, std::thread::hardware_concurrency()));
+                auto n = std::min(MaxWorkers, config::workers ? config::workers : std::max(1u, std::thread::hardware_concurrency()));
                 if (!_global) {   // the queues are made once and kept across stops (stop): what was pushed while the workers were away runs now
                     _global = make_tracked<Global>();
                     _locals.reserve(n);
@@ -330,7 +513,7 @@ namespace sgcl {
                 _local = _locals[index].get();
                 _index = index;
                 Local& local = *_local;
-                local.stack_floor = detail::current_thread().stack_begin() + config::StackGuardMargin;
+                local.stack_floor = detail::current_thread().stack_begin() + config::stack_guard_margin;
                 uint32_t tick = 0;
                 for (;;) {
                     if (local.next) {
@@ -463,8 +646,8 @@ namespace sgcl {
                     _spinning.fetch_add(1, std::memory_order_acq_rel);
                 }
                 Frame found;
-                auto until = std::chrono::steady_clock::now() + std::chrono::microseconds(config::WorkerSpinMicroseconds);
-                Backoff<32> backoff;
+                auto until = std::chrono::steady_clock::now() + std::chrono::microseconds(config::worker_spin_microseconds);
+                detail::Backoff<32> backoff;
                 do {
                     if (auto f = _global->ready.try_pop()) {
                         found = std::move(*f);
@@ -582,10 +765,159 @@ namespace sgcl {
             return scheduler;
         }
 
+        // The wakes of many tasks at once, gathered and handed to the
+        // scheduler together (Go's injectglist and runqputbatch): a waker
+        // that walks a list of waiters adds each frame it claims here
+        // instead of enqueueing it, and flush() hands them all over in one
+        // call (Scheduler::_enqueue_batch), where each enqueue was a look
+        // at the thieves' head and a store of the tail on the line every
+        // spinning worker steals from, or a node linked on the global
+        // queue's contended tail from a thread that is no worker, and a
+        // fence and a look at the sleepers after it. A frame whose header
+        // names an executor is not gathered: it goes on the executor's
+        // queue at once, as enqueue puts it. The waker does everything a
+        // wake does to its waiter before the frame is added (the claim,
+        // the words cleared), so a batch only moves the moment the frames
+        // reach the queues: the tasks stay suspended until then, and none
+        // of them can run and register again under the walk that is
+        // waking it (the hang the broadcast's walk once had, broadcast.h:
+        // _wake). A full batch hands its frames over and goes on
+        // gathering; the destructor hands over what is left, so a waker
+        // that ends in a throw loses none of the tasks it claimed, unless
+        // the handing over itself throws (the memory gone), which the
+        // destructor swallows. A batch lives on a thread's stack, for a
+        // walk that wakes and resumes nothing.
+        //
+        // A batch wakes one sleeper when none is looking, as one enqueue
+        // does, and the workers that find its frames wake the next ones
+        // as ever (Scheduler: _find_work); Go's injectglist wakes as many
+        // as the batch has frames, and for tasks that run for a few
+        // hundred nanoseconds that was the kernel's wakes paid for
+        // nothing: sixteen subscribers woken with the workers asleep 1.6
+        // us a round with one wake, 47 with sixteen, and with the workers
+        // busy 7.7 us against 13.7 (measured).
+        //
+        // Only the broadcast's walk gathers. A walk whose every step is
+        // itself the cost, a channel's close (a pop from the queue of its
+        // waiters and a claim, some hundreds of nanoseconds a waiter)
+        // and so a wait group's round and notify_all, lost by it: a task
+        // handed over at its step starts on another worker while the walk
+        // goes on, and one gathered waits for the end of the walk
+        // (sixteen tasks woken by a wait group's round 12.1 to 15.3 us a
+        // round from a task, 17.3 to 25.8 from a thread, notify_all 20.8
+        // to 21.8; at sixty-four they gained 11, 3 and 6 per cent,
+        // measured), where the broadcast's step is a compare-exchange and
+        // the enqueue was three quarters of it.
+        class WakeBatch {
+        public:
+            static constexpr unsigned Capacity = 32;
+
+            WakeBatch() noexcept = default;
+            WakeBatch(const WakeBatch&) = delete;
+            WakeBatch& operator=(const WakeBatch&) = delete;
+
+            ~WakeBatch() {
+                if (_n) {
+                    try {
+                        _flush();
+                    } catch (...) {
+                    }
+                }
+            }
+
+            // The frame made ready, as enqueue(frame, false) makes it (to
+            // the end of the queues): gathered, or on its executor's queue
+            // at once
+            void add(tracked_ptr<FrameWord> frame) {
+                scheduler_instance()._gather(*this, frame);
+            }
+
+            // What was gathered, to the scheduler; what follows is
+            // gathered anew
+            void flush() {
+                if (_n) {
+                    _flush();
+                }
+            }
+
+        private:
+            friend class Scheduler;
+            using Frame = tracked_ptr<FrameWord>;
+
+            static_assert(sizeof(Frame) == sizeof(uintptr_t));
+
+            // The frames live in raw storage, made one by one as they
+            // come: a tracked_ptr made is a check of the thread's
+            // registration and a store with the barrier, and thirty-two
+            // made and let go of at every walk, most of which wake nobody
+            // (a broadcast's commit with every subscriber busy), cost
+            // more than the batch saves on a small one
+            Frame* _frames() noexcept {
+                return std::launder(reinterpret_cast<Frame*>(_storage));
+            }
+
+            void _add(Frame& frame) {
+                if (_n == Capacity) {
+                    _flush();
+                }
+                new (&_storage[_n]) Frame(std::move(frame));
+                ++_n;
+            }
+
+            void _flush() {
+                struct Clear {   // the frames let go of, however the handing over ends: they are the queues' now, or lost with the memory
+                    WakeBatch& batch;
+                    ~Clear() {
+                        auto frames = batch._frames();
+                        for (unsigned i = 0; i < batch._n; ++i) {
+                            frames[i].~Frame();
+                        }
+                        batch._n = 0;
+                    }
+                } clear{*this};
+                scheduler_instance()._enqueue_batch(_frames(), _n);
+            }
+
+            alignas(Frame) uintptr_t _storage[Capacity];   // words, not bytes: an array of chars on the stack gets the stack protector's canary, a nanosecond at every walk (a broadcast's send, 27.1 to 28.4 ns with no subscriber waiting)
+            unsigned _n = 0;
+        };
+
+        // A frame gathered, or on its executor's queue at once (enqueue).
+        // The first of a batch wakes a sleeper when none is looking, as
+        // its enqueue would have, before the rest of the walk and the
+        // handing over: the wake through the kernel takes microseconds,
+        // and the worker it brings finds the frames on the queues when it
+        // looks, rather than being asked for only once the walk is done
+        inline void Scheduler::_gather(WakeBatch& batch, Frame& frame) {
+            if (auto executor = frame_header(frame.get()).executor.get()) {
+                executor->push(std::move(frame), false);
+                return;
+            }
+            if (!batch._n) {
+                _wake_one_if_none_looking();
+            }
+            batch._add(frame);
+        }
+
+        // The strand's turn: its count says a frame is queued, so one is
+        // or is about to be linked; a take that finds none met a push
+        // between its exchange and its link, and the turn waits for it
+        // (spinning, then yielding the core: a producer preempted there
+        // needs it back to finish)
         inline void ExecutorQueue::_dispatch(bool next) {
-            auto f = ready.try_pop();
-            assert(f && "a strand dispatches only what its count says is queued");
-            scheduler_instance().enqueue_on_workers(std::move(*f), next);
+            Frame f = take();
+            if (!f) [[unlikely]] {
+                detail::Backoff<32> backoff;
+                for (unsigned tries = 0; !f; ++tries) {
+                    if (tries < 64) {
+                        backoff();
+                    } else {
+                        std::this_thread::yield();
+                    }
+                    f = take();
+                }
+            }
+            scheduler_instance().enqueue_on_workers(std::move(f), next);
         }
 
         // A frame resumed on this thread (a worker, an executor's thread):
@@ -626,7 +958,7 @@ namespace sgcl {
 
     // The scheduler as the program sees it
     struct scheduler {
-        // The number of worker threads (config::Workers, or the hardware
+        // The number of worker threads (config::workers, or the hardware
         // concurrency); the first call makes the scheduler
         static unsigned workers() {
             return detail::scheduler_instance().workers();
@@ -661,9 +993,9 @@ namespace sgcl {
         }
     };
 
-    // `co_await sgcl::yield()`: the task goes to the back of the queue and
+    // `co_await sgcl::async::yield()`: the task goes to the back of the queue and
     // the worker takes the next ready one
-    struct yield {
+    struct [[nodiscard]] yield {
         bool await_ready() const noexcept {
             return false;
         }

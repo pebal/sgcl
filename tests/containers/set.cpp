@@ -5,10 +5,10 @@
 //------------------------------------------------------------------------------
 #include "tests/types.h"
 
-#include "sgcl/containers/map.h"
-#include "sgcl/containers/multimap.h"
-#include "sgcl/containers/multiset.h"
-#include "sgcl/containers/set.h"
+#include "sgcl/core/map.h"
+#include "sgcl/core/multimap.h"
+#include "sgcl/core/multiset.h"
+#include "sgcl/core/set.h"
 
 #include <algorithm>
 #include <random>

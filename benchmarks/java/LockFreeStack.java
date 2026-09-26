@@ -10,7 +10,7 @@ public final class LockFreeStack {
     static final class Node { Node next; long value; }
     static final AtomicReference<Node> head = new AtomicReference<>();
 
-    // the backoff of sgcl/detail/backoff.h: a wait that doubles after
+    // the backoff of sgcl/core/detail/backoff.h: a wait that doubles after
     // every lost exchange, in Thread.onSpinWait pauses, up to BACKOFF_MAX.
     // onSpinWait is a hint HotSpot compiles to yield on arm64, a no-op on
     // Apple silicon: compare.sh runs with -XX:OnSpinWaitInst=isb, the

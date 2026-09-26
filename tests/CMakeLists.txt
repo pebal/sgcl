@@ -6,7 +6,7 @@
 add_custom_target(tests)
 
 function(sgcl_test_module MODULE)
-    get_filename_component(NAME ${MODULE} NAME)   # containers/im -> tests_im
+    get_filename_component(NAME ${MODULE} NAME)
     set(TARGET tests_${NAME})
     file(GLOB SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${MODULE}/*.cpp")
     list(REMOVE_ITEM SOURCES ${ARGN})
@@ -25,12 +25,18 @@ sgcl_test_module(core
     "${CMAKE_CURRENT_SOURCE_DIR}/core/static_init_factory.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/teardown.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/limit_deadlock.cpp")
-sgcl_test_module(containers)
-sgcl_test_module(containers/im)   # the immutable family, a program of its own
+sgcl_test_module(containers)   # core's containers (sgcl/core), a program of their own
+sgcl_test_module(immutable)
 sgcl_test_module(concurrent)
 sgcl_test_module(async)
 sgcl_test_module(io)
 sgcl_test_module(txt)
+sgcl_test_module(math)
+sgcl_test_module(hash)
+sgcl_test_module(time)
+sgcl_test_module(encoding)
+sgcl_test_module(net)
+sgcl_test_module(net/http)
 
 add_executable(static_init_test core/static_init.cpp core/static_init_factory.cpp core/static_init.h)
 target_link_libraries(static_init_test gtest sgcl)

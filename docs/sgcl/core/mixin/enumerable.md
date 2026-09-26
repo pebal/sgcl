@@ -13,7 +13,7 @@ namespace sgcl {
 }
 ```
 
-`mixin::enumerable<Derived>` gives a class the questions asked of the elements of a range — is there one like this, where, how many, the smallest — as members, over the `begin()` and `end()` of `Derived`, and declares the class a range of the library: `req::enumerable<R>` is "R carries `mixin::enumerable`" ([the mixins](README.md)). Every container that iterates carries it, from `vector` to `sorted_map`, `im::list` and `slice`; a class of your own does by deriving from it and giving `begin()` and `end()`.
+`mixin::enumerable<Derived>` gives a class the questions asked of the elements of a range — is there one like this, where, how many, the smallest — as members, over the `begin()` and `end()` of `Derived`, and declares the class a range of the library: `req::enumerable<R>` is "R carries `mixin::enumerable`" ([the mixins](README.md)). Every container that iterates carries it, from `vector` to `sorted_map`, `immutable::list` and `slice`; a class of your own does by deriving from it and giving `begin()` and `end()`.
 
 ## Rules
 

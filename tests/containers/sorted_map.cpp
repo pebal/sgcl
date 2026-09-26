@@ -5,8 +5,8 @@
 //------------------------------------------------------------------------------
 #include "tests/types.h"
 
-#include "sgcl/containers/sorted_map.h"
-#include "sgcl/containers/sorted_multimap.h"
+#include "sgcl/core/sorted_map.h"
+#include "sgcl/core/sorted_multimap.h"
 
 #include <algorithm>
 #include <functional>
@@ -174,7 +174,7 @@ TEST(SortedMap_Test, DefaultConstructorEmpty) {
     EXPECT_TRUE(m.extract(1).empty());
     EXPECT_EQ(m.begin(), m.erase(m.begin(), m.end()));
     m.clear();
-    EXPECT_TRUE(m._check());
+    EXPECT_TRUE(tree_is_valid(m));
     EXPECT_GT(m.max_size(), 0u);
     static_assert(noexcept(sgcl::sorted_map<int, int>()));
 }
@@ -185,7 +185,7 @@ TEST(SortedMap_Test, ConstructorComparator) {
     EXPECT_EQ(keys_of(m), (std::vector<int>{3, 2, 1}));
     EXPECT_TRUE(m.key_comp()(2, 1));
     EXPECT_TRUE(m.value_comp()(*m.begin(), *std::next(m.begin())));
-    EXPECT_TRUE(m._check());
+    EXPECT_TRUE(tree_is_valid(m));
 }
 
 TEST(SortedMap_Test, ConstructorRange) {
@@ -208,7 +208,7 @@ TEST(SortedMap_Test, RangeOfAnotherType) {
     sgcl::sorted_map<std::string, int> m(src.begin(), src.end());
     EXPECT_EQ(keys_of(m), (std::vector<std::string>{"a", "b", "c"}));
     EXPECT_EQ(m["a"], 1);
-    EXPECT_TRUE(m._check());
+    EXPECT_TRUE(tree_is_valid(m));
     m.insert(src.begin(), src.end());
     EXPECT_EQ(m.size(), 3u);
     sgcl::sorted_multimap<std::string, int> mm(src.begin(), src.end());
@@ -225,7 +225,7 @@ TEST(SortedMap_Test, RangeOfAnotherType) {
     from_ints.insert(ints.begin(), ints.end());
     EXPECT_EQ(FromInt::conversions, 2 * ints.size());
     EXPECT_EQ(from_ints.size(), 5u);
-    EXPECT_TRUE(from_ints._check());
+    EXPECT_TRUE(tree_is_valid(from_ints));
 }
 
 TEST(SortedMap_Test, InitializerList) {
@@ -244,7 +244,7 @@ TEST(SortedMap_Test, CopyConstructor) {
     EXPECT_EQ(Int::counter, 6u);
     EXPECT_EQ(m.size(), 3u);
     EXPECT_EQ(m, other);
-    EXPECT_TRUE(m._check());
+    EXPECT_TRUE(tree_is_valid(m));
     m[4] = 4;
     EXPECT_EQ(other.size(), 3u);
 }
@@ -266,7 +266,7 @@ TEST(SortedMap_Test, CopyOfALargeTree) {
     });
     size_t before = Int::counter;
     sgcl::sorted_map<int, Int> m(other);
-    EXPECT_TRUE(m._check());
+    EXPECT_TRUE(tree_is_valid(m));
     EXPECT_EQ(m, other);
     EXPECT_EQ(m.size(), other.size());
     EXPECT_EQ(Int::counter, before + other.size());
@@ -276,7 +276,7 @@ TEST(SortedMap_Test, CopyOfALargeTree) {
         EXPECT_TRUE(std::equal(m.rbegin(), m.rend(), other.rbegin(), other.rend()));
     });
     sgcl::sorted_multimap<int, Int> ms = others;
-    EXPECT_TRUE(ms._check());
+    EXPECT_TRUE(tree_is_valid(ms));
     EXPECT_EQ(ms, others);
     off_frame([&] {
         auto it = others.begin();
@@ -289,7 +289,7 @@ TEST(SortedMap_Test, CopyOfALargeTree) {
     // assigned over a non-empty map: its elements die first
     sgcl::sorted_map<int, Int> assigned = {{-1, -1}, {-2, -2}};
     assigned = other;
-    EXPECT_TRUE(assigned._check());
+    EXPECT_TRUE(tree_is_valid(assigned));
     EXPECT_EQ(assigned, other);
     EXPECT_EQ(Int::counter, before + 2 * other.size() + others.size());
     // an element copy that throws: the copy holds nothing, the source is
@@ -307,14 +307,14 @@ TEST(SortedMap_Test, CopyOfALargeTree) {
             EXPECT_THROW(Throwing c(source), std::runtime_error);
             ThrowingCopy::countdown = -1;
             EXPECT_EQ(ThrowingCopy::live, 100u);
-            EXPECT_TRUE(source._check());
+            EXPECT_TRUE(tree_is_valid(source));
             Throwing target;
             target.try_emplace(-1, -1);
             ThrowingCopy::countdown = at;
             EXPECT_THROW(target = source, std::runtime_error);
             ThrowingCopy::countdown = -1;
             EXPECT_TRUE(target.empty());
-            EXPECT_TRUE(target._check());
+            EXPECT_TRUE(tree_is_valid(target));
             EXPECT_EQ(ThrowingCopy::live, 100u);
         }
     });
@@ -337,7 +337,7 @@ TEST(SortedMap_Test, MoveConstructor) {
     EXPECT_EQ(++it, m.find(3));
     other[7] = 7;
     EXPECT_EQ(other.size(), 1u);
-    EXPECT_TRUE(other._check());
+    EXPECT_TRUE(tree_is_valid(other));
 }
 
 TEST(SortedMap_Test, CopyAssignment) {
@@ -365,7 +365,7 @@ TEST(SortedMap_Test, MoveAssignment) {
     EXPECT_EQ(Int::counter, 3u);
     EXPECT_TRUE(other.empty());
     EXPECT_EQ(keys_of(m), (std::vector<int>{4, 5, 6}));
-    EXPECT_TRUE(m._check());
+    EXPECT_TRUE(tree_is_valid(m));
 }
 
 TEST(SortedMap_Test, ListAssignment) {
@@ -450,7 +450,7 @@ TEST(SortedMap_Test, Insert) {
     EXPECT_EQ(keys_of(m), (std::vector<int>{0, 1, 2, 3, 4, 5, 6, 7}));
     EXPECT_EQ(m[6], "six");
     EXPECT_EQ(m[5], "five");
-    EXPECT_TRUE(m._check());
+    EXPECT_TRUE(tree_is_valid(m));
     EXPECT_EQ(collector::get_live_object_count(), 9u);
 }
 
@@ -471,7 +471,7 @@ TEST(SortedMap_Test, Emplace) {
     EXPECT_EQ(it->second, 3);
     EXPECT_EQ(Int::counter, 3u);
     EXPECT_EQ(keys_of(m), (std::vector<std::string>{"a", "b", "c"}));
-    EXPECT_TRUE(m._check());
+    EXPECT_TRUE(tree_is_valid(m));
 }
 
 TEST(SortedMap_Test, TryEmplaceNonCopyable) {
@@ -493,7 +493,7 @@ TEST(SortedMap_Test, TryEmplaceNonCopyable) {
     EXPECT_EQ(*m.at(1), 10);
     m.erase(1);
     EXPECT_EQ(m.size(), 3u);
-    EXPECT_TRUE(m._check());
+    EXPECT_TRUE(tree_is_valid(m));
 }
 
 TEST(SortedMap_Test, TryEmplaceNonMovable) {
@@ -567,7 +567,7 @@ TEST(SortedMap_Test, Erase) {
         EXPECT_EQ(it->first, 8);
         EXPECT_EQ(keys_of(m), (std::vector<int>{0, 8, 9}));
         EXPECT_EQ(Int::counter, 3u);
-        EXPECT_TRUE(m._check());
+        EXPECT_TRUE(tree_is_valid(m));
         it = m.erase(std::prev(m.end()));
         EXPECT_EQ(it, m.end());
         it = m.erase(m.begin(), m.end());
@@ -578,7 +578,7 @@ TEST(SortedMap_Test, Erase) {
     EXPECT_EQ(collector::get_live_object_count(), 1u);
     m[1] = 1;
     EXPECT_EQ(m.size(), 1u);
-    EXPECT_TRUE(m._check());
+    EXPECT_TRUE(tree_is_valid(m));
 }
 
 TEST(SortedMap_Test, EraseIf) {
@@ -590,7 +590,7 @@ TEST(SortedMap_Test, EraseIf) {
     EXPECT_EQ(erased, 5u);
     EXPECT_EQ(keys_of(m), (std::vector<int>{1, 3, 5, 7, 9}));
     EXPECT_EQ(Int::counter, 5u);
-    EXPECT_TRUE(m._check());
+    EXPECT_TRUE(tree_is_valid(m));
     erased = erase_if(m, [](const auto&) { return true; });
     EXPECT_EQ(erased, 5u);
     EXPECT_TRUE(m.empty());
@@ -607,7 +607,7 @@ TEST(SortedMap_Test, ClearAndDestructorAreEager) {
         EXPECT_EQ(collector::get_live_object_count(), 1u);
         m[4] = 4;
         EXPECT_EQ(Int::counter, 1u);
-        EXPECT_TRUE(m._check());
+        EXPECT_TRUE(tree_is_valid(m));
     });
     EXPECT_EQ(Int::counter, 0u);
     EXPECT_EQ(collector::get_live_object_count(), 0u);
@@ -631,8 +631,8 @@ TEST(SortedMap_Test, Swap) {
     EXPECT_TRUE(a.empty());
     EXPECT_EQ(keys_of(empty), (std::vector<int>{3, 4, 5}));
     EXPECT_EQ(Int::counter, 5u);
-    EXPECT_TRUE(a._check());
-    EXPECT_TRUE(empty._check());
+    EXPECT_TRUE(tree_is_valid(a));
+    EXPECT_TRUE(tree_is_valid(empty));
 }
 
 TEST(SortedMap_Test, IteratorsSurviveOtherErasures) {
@@ -659,7 +659,7 @@ TEST(SortedMap_Test, IteratorsSurviveOtherErasures) {
     }
     EXPECT_EQ(it->first, 50);
     EXPECT_EQ(std::next(it)->first, 100);
-    EXPECT_TRUE(m._check());
+    EXPECT_TRUE(tree_is_valid(m));
 }
 
 TEST(SortedMap_Test, IteratorsInAVector) {
@@ -694,7 +694,7 @@ TEST(SortedMap_Test, IteratorsInAVector) {
     EXPECT_EQ(std::prev(m.end()), its[98]);
     its[4]->second = 4;
     EXPECT_EQ(m.at(4), 4);
-    EXPECT_TRUE(m._check());
+    EXPECT_TRUE(tree_is_valid(m));
 }
 
 TEST(SortedMap_Test, RawIteratorSurvivesCollection) {
@@ -744,7 +744,7 @@ TEST(SortedMap_Test, RawIteratorSurvivesCollection) {
                 EXPECT_EQ(std::next(it)->first, 26);
                 EXPECT_EQ(std::prev(it)->second.ptr->value, 24 + 100 * (round + 1));
             });
-            EXPECT_TRUE(m._check());
+            EXPECT_TRUE(tree_is_valid(m));
         }
         m.erase(it);
     });
@@ -765,7 +765,7 @@ TEST(SortedMap_Test, NodeHandles) {
         EXPECT_EQ(nh.mapped(), 2);
         EXPECT_EQ(m.size(), 2u);
         EXPECT_EQ(Int::counter, 3u);
-        EXPECT_TRUE(m._check());
+        EXPECT_TRUE(tree_is_valid(m));
 
         auto r = empty.insert(std::move(nh));
         EXPECT_TRUE(r.inserted);
@@ -773,7 +773,7 @@ TEST(SortedMap_Test, NodeHandles) {
         EXPECT_TRUE(r.node.empty());
         EXPECT_EQ(r.position, empty.begin());
         EXPECT_EQ(empty.size(), 1u);
-        EXPECT_TRUE(empty._check());
+        EXPECT_TRUE(tree_is_valid(empty));
 
         // the same handle again: it is empty now
         r = empty.insert(std::move(nh));
@@ -799,7 +799,7 @@ TEST(SortedMap_Test, NodeHandles) {
         EXPECT_TRUE(r.node.empty());
         EXPECT_EQ(keys_of(m), (std::vector<int>{1, 3, 7}));
         EXPECT_EQ(Int::counter, 4u);
-        EXPECT_TRUE(m._check());
+        EXPECT_TRUE(tree_is_valid(m));
 
         // a handle dropped unused destroys its element
         {
@@ -864,8 +864,8 @@ TEST(SortedMap_Test, Merge) {
     EXPECT_EQ(a[3], 3);
     EXPECT_EQ(three, b.begin());
     EXPECT_EQ(Int::counter, 6u);
-    EXPECT_TRUE(a._check());
-    EXPECT_TRUE(b._check());
+    EXPECT_TRUE(tree_is_valid(a));
+    EXPECT_TRUE(tree_is_valid(b));
     a.merge(a);
     EXPECT_EQ(a.size(), 5u);
 
@@ -884,8 +884,8 @@ TEST(SortedMap_Test, Merge) {
     empty.merge(a);
     EXPECT_TRUE(a.empty());
     EXPECT_EQ(empty.size(), 8u);
-    EXPECT_TRUE(empty._check());
-    EXPECT_TRUE(a._check());
+    EXPECT_TRUE(tree_is_valid(empty));
+    EXPECT_TRUE(tree_is_valid(a));
 }
 
 TEST(SortedMap_Test, Lookup) {
@@ -968,12 +968,12 @@ TEST(SortedMap_Test, HintedInsertion) {
         EXPECT_EQ(it->first, i);
     }
     EXPECT_EQ(m.size(), 1000u);
-    EXPECT_TRUE(m._check());
+    EXPECT_TRUE(tree_is_valid(m));
     for (int i = -1; i > -1000; --i) {
         auto it = m.insert(m.begin(), {i, i});
         EXPECT_EQ(it, m.begin());
     }
-    EXPECT_TRUE(m._check());
+    EXPECT_TRUE(tree_is_valid(m));
     EXPECT_TRUE(std::ranges::is_sorted(m));
     // wrong hints still land in order
     auto it = m.emplace_hint(m.begin(), 5000, 0);
@@ -986,7 +986,7 @@ TEST(SortedMap_Test, HintedInsertion) {
     EXPECT_EQ(it->second, 10);
     EXPECT_EQ(m.size(), 2001u);
     EXPECT_TRUE(std::ranges::is_sorted(m));
-    EXPECT_TRUE(m._check());
+    EXPECT_TRUE(tree_is_valid(m));
     // the hint right after the key's place
     sgcl::sorted_map<int, int> g = {{1, 1}, {3, 3}, {5, 5}};
     EXPECT_EQ(g.emplace_hint(g.find(3), 2, 2)->first, 2);
@@ -994,7 +994,7 @@ TEST(SortedMap_Test, HintedInsertion) {
     EXPECT_EQ(g.emplace_hint(g.find(5), 6, 6)->first, 6);
     EXPECT_EQ(g.emplace_hint(g.find(1), 0, 0)->first, 0);
     EXPECT_EQ(keys_of(g), (std::vector<int>{0, 1, 2, 3, 4, 5, 6}));
-    EXPECT_TRUE(g._check());
+    EXPECT_TRUE(tree_is_valid(g));
 }
 
 TEST(SortedMap_Test, ThrowingComparatorLeavesContainerUnchanged) {
@@ -1005,7 +1005,7 @@ TEST(SortedMap_Test, ThrowingComparatorLeavesContainerUnchanged) {
         oracle.emplace(i * 2, i);
     }
     auto check = [&] {
-        EXPECT_TRUE(m._check());
+        EXPECT_TRUE(tree_is_valid(m));
         EXPECT_EQ(m.size(), oracle.size());
         EXPECT_EQ(Int::counter, oracle.size());
         auto it = m.begin();
@@ -1049,13 +1049,13 @@ TEST(SortedMap_Test, ThrowingComparatorLeavesContainerUnchanged) {
     ThrowingLess::countdown = 3;
     EXPECT_THROW(m.insert(more.begin(), more.end()), std::runtime_error);
     ThrowingLess::countdown = -1;
-    EXPECT_TRUE(m._check());
+    EXPECT_TRUE(tree_is_valid(m));
     EXPECT_EQ(m.size(), oracle.size() + 3);
     EXPECT_TRUE(std::ranges::is_sorted(m | std::views::keys));
     EXPECT_EQ(Int::counter, m.size());
     m.insert(more.begin(), more.end());
     EXPECT_EQ(m.size(), oracle.size() + more.size());
-    EXPECT_TRUE(m._check());
+    EXPECT_TRUE(tree_is_valid(m));
 }
 
 TEST(SortedMap_Test, MappedTrackedPointer) {
@@ -1101,7 +1101,7 @@ TEST(SortedMap_Test, ContainerInsideManagedObject) {
         owner = nullptr;
         EXPECT_EQ(collector::get_live_object_count(), 52u);
         EXPECT_EQ(Int::counter, 50u);
-        EXPECT_TRUE(copy->values._check());
+        EXPECT_TRUE(tree_is_valid(copy->values));
     });
     EXPECT_EQ(collector::get_live_object_count(), 0u);
     EXPECT_EQ(Int::counter, 0u);
@@ -1172,14 +1172,14 @@ TEST(SortedMap_Test, StressAgainstStdMap) {
             collector::force_collect();
         }
         if (i % 5000 == 0) {
-            ASSERT_TRUE(m._check());
+            ASSERT_TRUE(tree_is_valid(m));
             ASSERT_TRUE(std::equal(m.begin(), m.end(), oracle.begin(), oracle.end()));
             ASSERT_TRUE(std::equal(m.rbegin(), m.rend(), oracle.rbegin(), oracle.rend()));
         }
     }
     });
     collector::force_collect(true);
-    EXPECT_TRUE(m._check());
+    EXPECT_TRUE(tree_is_valid(m));
     off_frame([&] {   // raw iterators: none may stay in this frame through clear()
         EXPECT_TRUE(std::equal(m.begin(), m.end(), oracle.begin(), oracle.end()));
     });

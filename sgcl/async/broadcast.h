@@ -5,14 +5,16 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "../concurrent/atomic.h"
-#include "../concurrent/detail/backoff.h"
-#include "../containers/dynamic_array.h"
+#include "../core/detail/backoff.h"
 #include "../core/aliases.h"
+#include "../core/atomic.h"
+#include "../core/dynamic_array.h"
 #include "../core/make_tracked.h"
 #include "../core/tracked_ptr.h"
 #include "channel.h"
+#include "operation.h"
 #include "coroutine.h"
+#include "scheduler.h"
 
 #include <algorithm>
 #include <atomic>
@@ -24,7 +26,8 @@
 #include <type_traits>
 #include <utility>
 
-namespace sgcl {
+namespace sgcl::async {
+    namespace detail { using namespace sgcl::detail; }
     // A broadcast channel: every subscriber receives every value sent
     // (tokio's broadcast, Kotlin's SharedFlow; an event bus). A channel
     // hands each element to one receiver; here `b.send(v)` goes to every
@@ -42,7 +45,7 @@ namespace sgcl {
     // off the values it has not passed. `close()` ends every
     // subscription: what was sent is still received, then nothing. A
     // subscription is received from the three ways of the module: a
-    // thread blocks (`s.receive()`), a task `co_await s.async_receive()`s,
+    // thread blocks (`s.receive()`), a task `co_await s.receive()`s,
     // a select takes `s.on_receive(f)` as a case; a send never waits.
     //
     // How it is made: one word holds the positions reserved so far and
@@ -200,8 +203,20 @@ namespace sgcl {
             }
 
             // The next value, waiting for one: nothing once the broadcast
-            // is closed and drained
-            optional<T> receive() {
+            // is closed and drained. `co_await s.receive()` in a task,
+            // `s.receive().wait()` on a thread
+            auto receive() {
+                return operation([this](auto how) -> decltype(auto) {
+                    if constexpr (std::is_same_v<decltype(how), detail::awaited_t>) {
+                        return receive_op(*this);
+                    } else {
+                        return _receive();
+                    }
+                });
+            }
+
+        private:
+            optional<T> _receive() {
                 for (;;) {
                     if (auto v = _take()) {
                         return v;
@@ -226,14 +241,15 @@ namespace sgcl {
                 }
             }
 
+        public:
             // The next value if one is there, waiting for nothing
             optional<T> try_receive() {
                 return _take();
             }
 
-            // `co_await s.async_receive()`: the next value, the task
+            // `co_await s.receive()`: the next value, the task
             // suspended until one is sent; the wait is the round channel's
-            class async_receive_op {
+            class receive_op {
             public:
                 bool await_ready() {
                     _value = _sub->_take();
@@ -273,7 +289,7 @@ namespace sgcl {
             private:
                 friend class subscription;
 
-                explicit async_receive_op(subscription& s) noexcept
+                explicit receive_op(subscription& s) noexcept
                 : _sub(&s) {
                 }
 
@@ -282,9 +298,6 @@ namespace sgcl {
                 bool _done = false;
             };
 
-            async_receive_op async_receive() noexcept {
-                return async_receive_op(*this);
-            }
 
             // A case of a select (select.h): served when a value comes,
             // and f gets it (f(T); or f(optional<T>), which is also
@@ -300,12 +313,12 @@ namespace sgcl {
 
             public:
                 receive_case(subscription& s, tracked_ptr<Round> round, F f)
-                : Base(_channel(s, round).on_receive(std::move(f)))
+                : Base(_channel(s, round.get()).on_receive(std::move(f)))
                 , _keep(std::move(round)) {
                 }
 
             private:
-                static channel<void>& _channel(subscription& s, const tracked_ptr<Round>& round) noexcept {
+                static channel<void>& _channel(subscription& s, Round* round) noexcept {   // read only, and may be null
                     return round ? round->ch : s._s->ready;
                 }
 
@@ -527,7 +540,7 @@ namespace sgcl {
             auto w = _s->word.load(std::memory_order_seq_cst);
             for (;;) {
                 if ((w >> PositionBits) >= MaxSubscriptions) {
-                    throw std::length_error("sgcl::broadcast::subscribe");
+                    throw length_error("sgcl::async::broadcast::subscribe");
                 }
                 if (_s->word.compare_exchange_weak(w, w + Subscriber, std::memory_order_seq_cst, std::memory_order_seq_cst)) {
                     break;
@@ -634,11 +647,25 @@ namespace sgcl {
             }
         }
 
-        // The round closed if its position is below the commit (the
+        // The subscribers waiting for a position now committed woken, and
+        // the round closed if its position is below the commit (the
         // readers on it wait for a position now committed); a round for
         // a later position stays. SIZE_MAX: every round (the close).
+        // The tasks among the subscribers are handed to the scheduler
+        // together at the end of the walk (scheduler.h: WakeBatch), not
+        // one enqueue each: an enqueue was three quarters of a step of
+        // this walk, 310 ns of 420 with sixteen subscribers, most of it
+        // the line of the worker's ring that every spinning worker was
+        // stealing from; together, a value sent by a task to four,
+        // sixteen and sixty-four subscribers that wait for it costs 2.5,
+        // 7.6 and 16.8 us where it cost 3.1, 8.7 and 29.9, and one sent
+        // by a thread that never waits 0.8, 4.0 and 3.3 where it cost
+        // 1.2, 6.5 and 23.9, the subscribers of a quicker sender finding
+        // more values there when they look and being woken less often
+        // (measured, bench_async bcast and bcastth).
         void _wake(size_t committed) {
             std::atomic_thread_fence(std::memory_order_seq_cst);   // the commit before the look at the registrations (_register: the registration before the look at the commit)
+            detail::WakeBatch batch;
             tracked_ptr<Sub> pred;
             tracked_ptr<Sub> sub = _s->subs.load(std::memory_order_acquire);
             while (sub) {
@@ -656,8 +683,8 @@ namespace sgcl {
                 auto w = sub->waiting.load(std::memory_order_seq_cst);
                 if (w < committed && sub->waiting.compare_exchange_strong(w, Sub::None, std::memory_order_seq_cst, std::memory_order_seq_cst)) {   // claimed: this wake is the one
                     if (tracked_ptr<detail::FrameWord> frame = sub->frame) {
-                        sub->frame = nullptr;   // before the enqueue, not after: the task resumed may register again, with its frame, while this walk is still here (a frame nulled after the enqueue once wiped that registration's, and the next claim woke nobody: a hang in one run of four)
-                        detail::enqueue(std::move(frame), false);
+                        sub->frame = nullptr;   // before the frame is handed over, not after: the task resumed may register again, with its frame, while this walk is still here (a frame nulled after the enqueue once wiped that registration's, and the next claim woke nobody: a hang in one run of four)
+                        batch.add(std::move(frame));
                     } else {
                         sub->park.store(1, std::memory_order_release);
                         sub->park.notify_one();
@@ -666,6 +693,7 @@ namespace sgcl {
                 pred = std::move(sub);
                 sub = std::move(next);
             }
+            batch.flush();
             for (;;) {
                 tracked_ptr<Round> round = _s->round.load(std::memory_order_seq_cst);
                 if (!round || round->position >= committed) {

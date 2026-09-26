@@ -5,7 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "../containers/vector.h"
+#include "../core/vector.h"
 #include "properties.h"
 #include "detail/normalize_tables.h"
 
@@ -57,6 +57,45 @@ namespace sgcl::txt {
 
         constexpr uint8_t ccc_fn(char32_t c) noexcept {
             return c < 0x300 ? 0 : uint8_t(value_of(c, normalize_tables::CombiningClass));
+        }
+
+        // A code point joins the sequence before it although its
+        // combining class is zero: three in the whole of Unicode, whose
+        // decomposition begins with a mark. The generator asserts that
+        // these three are the only ones.
+        constexpr bool joins_sequence(char32_t c) noexcept {
+            return c == 0x0F73 || c == 0x0F75 || c == 0x0F81;
+        }
+
+        // Whether a code point opens a combining sequence of its own —
+        // a letter and the marks that belong with it.
+        //
+        // It lives here, above both of them, because all three searches
+        // of this module ask it and they must not answer it differently:
+        // a match may neither begin nor end inside a combining
+        // sequence, and while collate.h reads that off the elements it
+        // has already gathered and search.h off the code points it
+        // mapped, the rule itself is one rule. When it was two, "cafe"
+        // was found inside a "café" written as a base and a mark and
+        // not inside one written as a single code point, which is the
+        // same text.
+        //
+        // And it is what makes the rule a rule about a set, although it
+        // is asked of the two ends of a match alone. The canonical
+        // ordering below moves marks and never one across a code point
+        // this answers true for, so a match that begins and ends at such
+        // code points holds the whole of every sequence it touches,
+        // whatever the ordering did inside them: every mark of the
+        // letters it took and none of any other. A "d" is therefore not
+        // found in a "ḋ" with a dot below it, although the ordering puts
+        // the dot below between the d and the dot above; and a match of
+        // the whole letter is reported by both searches as the bytes of
+        // the letter, from the first of them to the last, where before
+        // search.h answered with the position of the mark the ordering
+        // put first, which in a text that begins with marks is not the
+        // first byte.
+        constexpr bool opens_sequence(char32_t c) noexcept {
+            return ccc_fn(c) == 0 && !joins_sequence(c);
         }
 
         // Two bits a form, in the order nfc, nfd, nfkc, nfkd. Nothing
@@ -331,7 +370,7 @@ namespace sgcl::txt {
 
     // The canonical combining class: zero for a starter, and for a mark
     // the number that decides the order the marks are put in
-    inline constexpr sgcl::detail::code_point_fn<detail::ccc_fn> combining_class {};
+    inline constexpr sgcl::detail::code_point_fn<detail::ccc_fn> combining_class_of {};
 
     // What two code points compose to, or zero when they do not — the
     // Hangul syllables included, which compose by arithmetic
@@ -343,5 +382,54 @@ namespace sgcl::txt {
         detail::decompose_into<false>(out, c);
         detail::canonical_order(out);
         return detail::encoded(out);
+    }
+
+    // The text with its accents taken off: decomposed canonically, the
+    // nonspacing marks dropped, composed again. "café" becomes "cafe",
+    // "Grüße" becomes "Gruße" — the umlaut goes and the ß stays — and
+    // "ἄνθρωπος" loses its breathing and its accent.
+    //
+    // What it does not do is worth more than what it does, because the
+    // name of this operation promises more than any implementation of it
+    // can give:
+    //
+    //   It is not a transliteration. A letter whose mark is part of the
+    //   letter and not a mark at all comes through untouched, because it
+    //   has no canonical decomposition to take apart: Ł, ø, đ, ħ, ı and
+    //   ß are letters of their alphabets, and "Łódź" comes back as
+    //   "Łodz" with its Ł still an Ł. Turning those into Latin letters
+    //   is a mapping a language chooses, not one Unicode holds.
+    //
+    //   It is not a slug. It does not lower the case, it does not touch
+    //   the spaces or the punctuation, and it does not drop what is not
+    //   a letter. Compose it with to_lower_full and with whatever rule
+    //   the caller's URLs want.
+    //
+    //   It is not a way of comparing names. Two words that differ only
+    //   in an accent are different words in most languages that write
+    //   accents, and a comparison that ignores them will say Polish
+    //   "łasa" and "lasa" are one word. fold_case, nfkc_casefold and the
+    //   collator at its first strength are what compare text.
+    //
+    // The spacing marks (Mc) and the enclosing ones (Me) stay: an Indic
+    // vowel sign is spelling and not an accent, and dropping it would
+    // take the vowel out of the syllable rather than the accent off a
+    // letter.
+    inline string without_marks(const string& text) {
+        auto v = text.view();
+        if (utf8::all_ascii(v)) {
+            return text;
+        }
+        auto points = detail::normalized_points(v, nfd);
+        vector<char32_t> out;
+        out.reserve(points.size());
+        for (auto c : points) {
+            if (detail::category_of_fn(c) != category::nonspacing_mark) {
+                out.push_back(c);
+            }
+        }
+        detail::compose_buffer(out);
+        auto made = detail::encoded(out);
+        return made == text ? text : made;
     }
 }

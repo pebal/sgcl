@@ -17,12 +17,15 @@ string t = txt::format("{:>8.2f} | {:#06x} | {:^10}", 3.14159, 255, name);
 
 ```cpp
 template<class... A> string format(pattern, const A&... args);
-template<class... A> size_t format_to(slice<char> buffer, pattern, const A&... args);
+template<class... A> size_t format_to(const slice<char>& buffer, pattern, const A&... args);
 
 struct format_spec { char fill; char align; char sign; bool alternate; bool zero;
                      unsigned width; int precision; char type; };
 class format_sink { void put(char); void put(std::string_view); void fill(char, size_t);
                     size_t size() const; };
+class growing_sink { format_sink& out(); size_t capacity() const;
+                     size_t take_room(size_t want, size_t mark);
+                     size_t size() const; string text() const; };
 template<class T, class = void> struct formatter;
 ```
 
@@ -32,6 +35,25 @@ template<class T, class = void> struct formatter;
 char room[64];
 size_t needed = txt::format_to(slice<char>(room, room + sizeof room), "{} left", n);
 if (needed > sizeof room) { /* the text was cut; ask for that much */ }
+```
+
+`growing_sink` is the other half of that, for whoever writes a long text in steps rather than a message in one: it starts over room the caller lends, and when a step runs off the end `take_room` takes twice as much, carries over what stood before the step and hands back the new capacity, so that **one step** can be written again. Nothing here uses it — `format` writes a text that did not fit a second time instead, and that is measured and stays that way, because a pattern's second pass is `to_chars` and `memcpy`. [`stencil.h`](stencil.md) is what it is for, where a second pass is every branch, every row and every `upper()` walked over again.
+
+The capacity is asked for **once** and kept in a variable of the caller's, and the test is marked unlikely. Both matter and both were measured: a field of the sink has to be read back after every call a step makes, and a test whose other side calls is otherwise laid out with the common case jumping over the call, which cost fourteen per cent of a page that fitted and needed no growing at all.
+
+```cpp
+char room[1024];
+txt::growing_sink page(room, sizeof room);
+size_t cap = page.capacity();
+for (auto& step : steps) {
+    size_t mark = page.size();
+    write(page.out(), step);
+    if (page.size() > cap) [[unlikely]] {
+        cap = page.take_room(page.size(), mark);
+        write(page.out(), step);        // there is room for it now
+    }
+}
+return page.text();
 ```
 
 ## Why this is in txt and not in core
@@ -59,11 +81,172 @@ Everything `std::format` specifies for the types below, in the same order — `[
 | integers | `d` `b` `B` `o` `x` `X` `c`, the signs `+` `-` and space, `#`, `0`, a width |
 | floating point | `f` `F` `e` `E` `g` `G` `a` `A`, a precision (six when a form is named and none is given), the signs, `#`, `0`, a width |
 | `bool` | `s` (the default: `true`/`false`) and the integer forms |
-| `char`, `char32_t` | `c` (the default), the integer forms; a code point is written as UTF-8 |
-| text (`string`, `slice<const char>`, `const char*`, `std::string_view`) | `s`, a width and a precision **in columns** |
+| `char`, `char32_t` | `c` (the default), `?`, the integer forms; a code point is written as UTF-8 |
+| text (`string`, `slice<const char>`, `const char*`, `std::string_view`) | `s`, `?`, a width and a precision **in columns** |
+| enumerations | the integer forms over the underlying type; **not** `c` and **not** `s` |
 | pointers | `p` |
+| ranges, tables, pairs, tuples | `n` (no brackets), a width; and a second colon for the elements |
+| `optional` | whatever the value it holds takes |
+| [`duration`](../core/duration.md) | `s` (the default: `1h30m0.5s`, as `to_string` writes it), a width |
 
 `{{` and `}}` stand for a brace. A field may name its value by number — `{1} {0}` — or leave it out, and then the values are taken in order.
+
+**A width may go up to 65535**, which is what a step of a compiled pattern holds it in, and past that the pattern is refused: an error of the compiler on the one road, `nullopt` on the other. A precision may go up to 32767, and the number of a field may not be bigger than any call could have values for. None of those is a field anybody writes; the bounds are there so that sixteen characters of a pattern read from a file cannot ask for four gigabytes of padding.
+
+## `{:?}` — text as a program would write it
+
+`{}` writes text to be read. `{:?}` writes it to be **told apart**: in quotes, with what a terminal cannot show written as an escape.
+
+```cpp
+txt::format("{:?}", "a\tb");          // "a\tb"
+txt::format("{:?}", "a\"b");          // "a\"b"
+txt::format("{:?}", 'x');             // 'x'          — a character in single quotes
+txt::format("{:?}", "żółć");          // "żółć"       — a letter is shown, not escaped
+txt::format("{:?}", "\u00a0");    // "\u{a0}"     — a no-break space is not
+```
+
+`\t`, `\n`, `\r`, `\\` and the quote that surrounds it have escapes of their own; everything else that cannot be shown is `\u{...}`, in lower-case hexadecimal with no leading zeros. Which code points those are is the standard's list, and the categories are the ones [`properties`](properties.md) already answers: the controls (`Cc`), the format characters (`Cf`), the surrogates (`Cs`), the private use area (`Co`), the unassigned (`Cn`), the line and paragraph separators (`Zl`, `Zp`), and every space separator (`Zs`) **but the space itself**. A byte that is part of no sequence at all is not a character, so it goes out as `\x{ff}` — the byte it was, not the `U+FFFD` it would decode to.
+
+A width and a precision are over what comes out, escapes and quotes included, and the field is still measured in columns.
+
+### The elements of a range take this form by default
+
+This is the point of it, and it is the one change here that alters what an already-written program prints:
+
+```cpp
+vector<string> words = /* "a, b" and "c" */;
+txt::format("{}", words);             // ["a, b", "c"]
+txt::format("{::s}", words);          // [a, b, c]        — the same eight characters as
+                                      //                    a list of three words
+```
+
+Without the quotes those two are indistinguishable, which is why C++23 does the same (it is `set_debug_format` over there). It applies to the elements of a range, to the members of a pair or tuple, and to what an `optional` holds — so `optional<string>` holding the word `nullopt` is `"nullopt"` and an empty one is `nullopt`. Only text and characters have a debug form, so a list of numbers is untouched, and naming any type at all in the element specification — `{::s}` — takes it back.
+
+## Values made of other values
+
+A list goes in brackets, a table in braces, a pair in parentheses, and a value that may not be there is either itself or the word `nullopt`. The shapes are the ones C++23 settled on, because they are the ones people already read:
+
+```cpp
+using namespace sgcl;
+
+vector<int> v = {1, 42, 255};
+txt::format("{}", v);                          // [1, 42, 255]
+txt::format("{:n}", v);                        // 1, 42, 255        — 'n' drops the brackets
+txt::format("{::>5}", v);                      // [    1,    42,   255]
+txt::format("{::#x}", v);                      // [0x1, 0x2a, 0xff]
+
+sorted_map<int, string> m = /* 1 → one, 2 → two */;
+txt::format("{}", m);                          // {1: "one", 2: "two"}
+txt::format("{}", sorted_set<int>{1, 3});      // {1, 3}
+
+txt::format("{}", pair<int, int>(1, 2));       // (1, 2)
+txt::format("{:m}", pair<int, int>(1, 2));     // 1: 2
+txt::format("{}", optional<int>(42));          // 42
+txt::format("{}", optional<int>());            // nullopt
+```
+
+The elements of all of these are written in the debug form by default — see above.
+
+**Anything with a `begin` and an `end`** is a list: [`vector`](../core/vector.md), [`slice`](../core/slice.md), [`array`](../core/array.md), [`deque`](../core/deque.md), the [`im`](../immutable/README.md) containers, `std::vector`, an `initializer_list`, a range of your own. **Anything with a `key_type`** is a table and goes in braces; with a `mapped_type` beside it, its elements are written `k: v`. **Anything structured bindings see** is a pair. Nothing is listed anywhere and nothing is included for it: the questions are asked of the type, so a container written after this header still answers.
+
+Text is a range of characters and is not taken for one — a [`string`](../core/string.md), a `slice<const char>`, a `std::string`, a `const char*` all keep their own road.
+
+### What follows a second colon
+
+Everything after it belongs to the elements, and it goes down as many levels as the type has, one colon read at each:
+
+```cpp
+txt::format("{::>5}", v);                      // the elements padded to five
+txt::format("{:n:#06x}", v);                   // no brackets, each element 0x00ff
+txt::format("{:::>4}", deep);                  // a list of lists, the numbers padded
+```
+
+A colon is still an ordinary character to pad with for every value that holds nothing — `txt::format("{::>6}", 42)` is `::::42`, as it always was. Only a value made of other values reads it as theirs, which is the rule C++23 uses and for the same reason. One small thing did change with it: a **closing brace can no longer be the fill character** (`{:}<6}`), because a field now ends at the first `}`. C++23 forbids it too.
+
+A width applies to the whole:
+
+```cpp
+txt::format("[{:>16}]", v);                    // [    [1, 42, 255]]
+```
+
+and it is measured in columns like any other field, so a list of Polish or Japanese words sits in its field as a word does. That is the one road here that is not written straight into the caller's sink: the padding cannot be known until the whole is written, so the body goes first into room the thread keeps for the purpose and is padded where it lies. It is written **once**. It used to be written twice, once to be counted and once to be kept, and over a value made of values that stopped being a constant — every level doubled the level below it. After that it went into 256 bytes of the call's own stack, and a level that did not fit was written again with every level under it, so a nest whose every level passed 256 bytes still doubled: sixteen levels of three hundred bytes took 443 ms. The levels of one field share one room now and grow it for one another, and the same nest is 0.17 ms; a list of 400 numbers in `{:>2000}` is 3.7 µs through `format_to` against 6.7. The room is kept between calls up to 64 KB, so only the first large field on a thread is written a second time, and only its innermost level. A range without a width costs nothing extra either way.
+
+### A pattern of time
+
+A time reads the rest of its field as a pattern of its own, which is the grammar `std::format` gives the types of `<chrono>`: `[[fill]align][width]` and then everything from the first `%` to the brace, colons included, so `{:%H:%M}` is one field and not a nest.
+
+```cpp
+txt::format("{:%H:%M}", t);                    // 12:41
+txt::format("[{:>12%F}]", t.date());           // [  2026-09-24]
+txt::format("{::%d.%m}", dates);               // [02.01, 04.03]: a list hands the pattern on
+txt::format("{} {:%T}", sys_seconds, 90s);     // the types of <chrono> too
+```
+
+The module [`time`](../time/layout.md) brings the formatters — its own `datetime`, `date` and `weekday`, and `sys_time`, `local_time`, `year_month_day`, `weekday`, `hh_mm_ss` and `duration` of `<chrono>`, written as `std::format` writes them — and the pattern is checked where the program is compiled like any other specification (`{:%Q}` of a datetime is an error). A formatter of one's own reads such a field by having a `static constexpr bool takes_layout(std::string_view pattern)` (the pattern, or a view over nothing when none was written) and a `write(format_sink&, const T&, const format_spec&, std::string_view pattern)`; a sign, `#`, `0` and a type are not read for it. A [stencil](stencil.md)'s values are its own kinds (text, numbers, lists, tables), so a time goes into one as the text it was written to.
+
+## An enumeration
+
+Neither an `enum class` nor a plain `enum` is an integral type, so an enumeration used to have no formatter at all and did not compile. It is written as **the number it is**, with the whole numeric specification over it, taken from the underlying type — which is also what decides whether there is a sign:
+
+```cpp
+enum class colour : uint8_t { red = 0, green = 7, blue = 255 };
+
+txt::format("{}", colour::blue);        // 255
+txt::format("{:#04x}", colour::blue);   // 0xff
+txt::format("[{:>6}]", colour::green);  // [     7]
+txt::format("{:02x}", byte{10});   // 0a   — byte is one too
+```
+
+The number and not the name, because C++20 has no reflection and a table of names would have to be written by you in any case. `s` is deliberately left free: it is the shape you reach for when you do write them.
+
+**The names are yours to give**, the same way any other type of your own gives them — a `format_value` beside the enumeration, which wins over the formatter above:
+
+```cpp
+namespace cards {
+    enum class suit { hearts, spades, diamonds, clubs };
+
+    void format_value(txt::format_sink& out, suit s, const txt::format_spec& spec) {
+        static const char* names[] = {"hearts", "spades", "diamonds", "clubs"};
+        txt::detail::write_text(out, names[int(s)], spec);
+    }
+}
+
+txt::format("[{:>8}]", cards::suit::spades);    // [  spades]
+```
+
+Nothing here has to be opened or specialized for that, and the field still pads the name in columns. A `formatter<suit>` of your own works too and wins over both, if you want to say which specifications the names accept.
+
+## A pattern the compiler never saw
+
+A catalogue of translations is read from a file when the program starts, and the text of a message is then chosen by the language of whoever is reading it. No `consteval` can help there, so the asking moves to where the pattern arrives — and because it can now fail, what comes back is an [`optional`](../core/aliases.md):
+
+```cpp
+template<class... A> optional<string> format(runtime_pattern, const A&... args);
+template<class... A> optional<size_t> format_to(slice<char>, runtime_pattern, const A&... args);
+template<class... A> bool fits(const runtime_pattern&);
+
+runtime_pattern runtime(const string& text);
+```
+
+```cpp
+string entry = catalogue.at("items-left");                 // "pozostało: {}"
+string s = txt::format(txt::runtime(entry), n)
+               .value_or(txt::format("{} left", n));       // the built-in pattern if it does not fit
+```
+
+The pattern is walked once, and every field is weighed just before it is written; the first that does not fit stops the walk, and what was written by then is thrown away, so nothing half built is ever handed out. Everything the compiler refuses on the other road — a brace left open, a number with no value behind it, a precision asked of a whole number, `{:d}` over a name — is `nullopt` here.
+
+It is **not** an exception and **not** a reason: every reason has the same remedy, which is to fall back on the pattern the program was written with, and that one is a literal the compiler already checked. Whoever wants to know earlier asks `fits` where the catalogue is loaded, naming the types the program will pass:
+
+```cpp
+for (auto& [key, text] : catalogue) {
+    if (!txt::fits<int>(txt::runtime(text))) { /* this translation is broken */ }
+}
+```
+
+`runtime_pattern` keeps the [`string`](../core/string.md) rather than pointing into it, so a pattern looked up in a table and handed straight to `format` is safe; a string of this library is shared and immutable, so keeping it costs a pointer and no characters. Naming a value by number — `{1} {0}` — matters more here than anywhere, because word order is the first thing a translation changes.
+
+One thing is still not asked and cannot be: `{:c}` of a number no character holds is a fault of the value and not of the pattern, and it throws on this road exactly as it does on the other.
 
 ## A type of your own
 
@@ -88,6 +271,44 @@ Nothing here has to be opened for that, and a type that says nothing at all is a
 
 ## What it costs
 
+The benchmark is in the tree, so the next change has something to measure against rather than starting over:
+
+```sh
+cmake --build <build> --target bench_format
+<build>/benchmarks/bench_format sgcl padded      # and: std padded
+<build>/benchmarks/bench_format sgcl list
+```
+
+Both sides write into a buffer the caller lends, so nothing is allocated and the writing is what is measured — `std::format_to_n` against `txt::format_to`, which is the same contract. Over a **stream of a thousand different values**, not one repeated, because half of what writing a number costs is that its length cannot be predicted:
+
+| op | `txt::format` | `std::format` |
+|---|---|---|
+| `simple` `"{} left"` | **14.3 ns** | 27.8 |
+| `padded` `"{:>12}"` | **16.3** | 39.9 |
+| `centred` `"{:*^40}"` | **17.2** | 44.9 |
+| `mixed` `"{:>8.3f} {:#x}"` | **50.6** | 87.9 |
+| `whole` `"{}"` of a whole `double` | **17.2** | 60.6 |
+| `text` `"{}"` of a short text | **10.2** | 17.8 |
+| `five` five fields in one pattern | **66.6** | 115.0 |
+| `literal` forty-five characters, no field | **7.8** | 86.2 |
+| `alloc` into a string that is handed back | **23.6** | 35.1 |
+| `runtime` a pattern read where it runs | **17.2** | 29.3 |
+
+The `literal` row is the only one that flatters this side: `format_to_n` of a literal costs the standard 87.8 ns where the unbounded `format_to` costs 48.5, and over a number the two are the same. Everywhere else the bound is free.
+
+And the ones the standard cannot be asked, C++23 being where it grew them:
+
+| op | |
+|---|---|
+| `list` a list of five numbers | 52.5 ns, ten a number |
+| `list100` a hundred of them | 824, eight a number |
+| `elements` `"{::>5}"` | 74.5 |
+| `listwidth` `"{:>40}"` over the list | 75.0 — the one road that goes through room of its own |
+| `words` a list of text, escaped and quoted | 50.0 |
+| `pair` | 29.8 |
+
+Benchmarks are built at `-O2` whatever the configuration, which is what the numbers above are; the ones further down came from a harness at `-O3` and are not to be read against these.
+
 Measured against the standard's on the same machine:
 
 | | `txt::format` | `std::format` |
@@ -95,6 +316,8 @@ Measured against the standard's on the same machine:
 | `"{} left"` with a number | **23.2 ns** | 33.1 |
 | the same through `format_to`, nothing allocated | **14.0** | — |
 | `"{:>8.3f} {:#x}"` | **59.5** | 104.7 |
+
+A list of five numbers is 50.1 ns through `format_to`, which is ten a number and less than the 75.4 the same five numbers cost written out as five fields of a pattern — a pattern of more than four fields keeps no steps and is read where it runs, and a range has one field and one step. A list of a hundred is 791 ns, or 7.9 a number. A width over a list is the one road that goes through room of its own before it is padded: the same five numbers in `{:>40}` are 75.0 ns, against the 112.6 they cost while the body was written twice. A pair is 21.8 and an `optional` that holds a number costs the number.
 
 The floor of the work — `to_chars` and a copy — is 12.7 ns, of which a `string` of ours is 9.8; the standard does not pay that at this length, because it keeps a short string inside itself. Those three are one value repeated, which flatters the standard: over a stream of different ones the distance is wider, as the table above shows.
 

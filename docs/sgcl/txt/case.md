@@ -31,6 +31,9 @@ constexpr locale();                          // the root locale
 explicit locale(const string& tag);          // a BCP-47 tag: "tr", "tr-TR", "az-Latn-AZ"
 static constexpr locale root(), turkish(), azerbaijani(), lithuanian();
 constexpr bool operator==(const locale&) const;
+constexpr bool dotted_i() const;             // Turkish or Azerbaijani: an i written the Turkish way
+constexpr bool keeps_dot() const;            // Lithuanian: the dot above kept over i and j
+constexpr uint32_t subtag() const;           // the language subtag in four bytes: what a table keyed by language is looked up with
 ```
 
 Four bytes, trivially copyable, `constexpr`. Three languages change the case of a letter and the tables of Unicode name no others, but the type takes a tag all the same, so that a language out of an HTTP header or out of the system needs no table of its own at the caller — and so that a collator can take the same type when it comes. An unknown tag is the root locale and nothing throws; only the language subtag is read, so `"tr-TR"` and `"TR"` are Turkish.

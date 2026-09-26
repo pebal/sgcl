@@ -1099,6 +1099,8 @@ TEST(List_Test, StdErase) {
     EXPECT_EQ(std::erase_if(lst, [](int v) { return v > 2; }), 2u);
     EXPECT_EQ(to_vector(lst), (std::vector<int>{1}));
     EXPECT_EQ(std::erase(lst, 9), 0u);
+    EXPECT_EQ(erase_if(lst, [](int v) { return v == 1; }), 1u);   // unqualified: found in sgcl by argument-dependent lookup
+    EXPECT_EQ(erase(lst, 1), 0u);
     expect_consistent(lst);
 }
 

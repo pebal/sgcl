@@ -1,4 +1,4 @@
-# sgcl::broadcast
+# sgcl::async::broadcast
 
 ```cpp
 #include "sgcl/async/broadcast.h"   // or "sgcl/sgcl.h"
@@ -10,9 +10,9 @@ namespace sgcl {
 }
 ```
 
-`sgcl::broadcast<T>` is a channel every subscriber receives every value from: tokio's `broadcast`, Kotlin's `SharedFlow`, the event bus of a user interface. A [channel](channel.md) hands each element to one receiver; here `b.send(v)` goes to every `subscription` alive, each reading at its own pace from one ring shared by all, the sender's position and a cursor per subscription. A subscription made later starts at the position of its making and sees what is sent from then on. The ring holds `capacity` values (rounded up to a power of two): a subscription that falls further behind loses the oldest, its next receive is the oldest still there, and `lagged()` says how many were lost before it (tokio's `Lagged(n)`, as a count beside the value rather than an error in its place: `while (auto v = s.receive()) { if (s.lagged()) ...; use(*v); }`). A value stays in the ring until every subscription alive at its send has passed it, or until it is lapped, and is let go of then: a `tracked_ptr` value is held exactly that long, and a subscription dropped counts itself off the values it has not passed. `close()` ends every subscription: what was sent is still received, then nothing. A subscription is received from the three ways of the module: a thread blocks on `s.receive()`, a task `co_await s.async_receive()`s (no thread held), a [select](select.md) takes `s.on_receive(f)` as a case; a send never waits.
+`sgcl::async::broadcast<T>` is a channel every subscriber receives every value from: tokio's `broadcast`, Kotlin's `SharedFlow`, the event bus of a user interface. A [channel](channel.md) hands each element to one receiver; here `b.send(v)` goes to every `subscription` alive, each reading at its own pace from one ring shared by all, the sender's position and a cursor per subscription. A subscription made later starts at the position of its making and sees what is sent from then on. The ring holds `capacity` values (rounded up to a power of two): a subscription that falls further behind loses the oldest, its next receive is the oldest still there, and `lagged()` says how many were lost before it (tokio's `Lagged(n)`, as a count beside the value rather than an error in its place: `while (auto v = s.receive()) { if (s.lagged()) ...; use(*v); }`). A value stays in the ring until every subscription alive at its send has passed it, or until it is lapped, and is let go of then: a `tracked_ptr` value is held exactly that long, and a subscription dropped counts itself off the values it has not passed. `close()` ends every subscription: what was sent is still received, then nothing. A subscription is received from the three ways of the module: a thread blocks on `s.receive()`, a task `co_await s.receive()`s (no thread held), a [select](select.md) takes `s.on_receive(f)` as a case; a send never waits.
 
-How it is made: one word holds the positions reserved so far and the number of subscriptions, together, so that a send takes the next position and the count of the subscriptions that will read it in one atomic add, and a subscription takes its cursor and counts itself in with another: the count on a value is exact, and the value's node lets the value go when the count reaches zero. The slots of the ring hold the values' nodes by atomic tracked pointers: a reader loads the node, copies the value out of it and counts itself off, and a sender overwriting the slot meanwhile frees nothing (the node is the collector's when nothing holds it), which is what lets readers read a slot no lock protects ([README: Lock-free containers](../concurrent/README.md#lock-free-containers)). Senders publish in order: a second word counts the positions committed, advanced by whichever sender finds the next slot stored (a sender that stored ahead of a slower one leaves its commit to that one), so that a reader waits for a position by its commit alone. The wait of a receive is kept with the subscription (tokio's shape, the waker in the receiver): the position it waits for, its task's frame or its thread's park word, and a link in the list of subscriptions the senders walk. A receive that finds nothing registers the position and looks once more; the sender that commits past it walks the subscriptions, claims each registration behind the commit with a compare-exchange and wakes that one subscriber once, a task handed to the scheduler, a thread through its word; nothing is allocated and no list shared by every waiter is pushed on per value (it was a *round* before: a channel made by the first reader waiting for a position and closed by the sender that committed it, every reader registering on it anew for every value, and sixteen subscribers cost 40 µs per value between threads and 8.5 between tasks). A thread looks for the next commit for a few microseconds before it parks, as the queues do, since a sender at work is nanoseconds from it. A select case keeps a round of its own, since a case must be served with a value and a signal kept with a subscription could be a stale one. Measured with `benchmarks/compare.sh` (`bcast`, one sender thread of a million values, every subscriber receiving them all): 135 ns per value with one thread subscriber, 620 with four, 1.5 µs with sixteen, and 193 µs with sixty-four, more threads than the machine's cores, where the ones without a core park in the kernel and are woken one by one; with task subscribers 0.14, 1.0, 6.5 and 25 µs, a task's wake being a push on the scheduler's queue and a worker woken for it (Go's idiom, a channel per subscriber and a goroutine on each: 46 ns, 199, 1249 and 13.5 µs; the table with the three columns is on [the concurrent benchmarks page](../concurrent/benchmarks.md#the-single-producer-queue-and-the-cache)). A send costs the node's allocation, the words and the walk, a load per subscription; a subscriber that finds several values waiting takes them without a wake between, so a bus that sends in bursts pays the wake once per burst per subscriber.
+How it is made: one word holds the positions reserved so far and the number of subscriptions, together, so that a send takes the next position and the count of the subscriptions that will read it in one atomic add, and a subscription takes its cursor and counts itself in with another: the count on a value is exact, and the value's node lets the value go when the count reaches zero. The slots of the ring hold the values' nodes by atomic tracked pointers: a reader loads the node, copies the value out of it and counts itself off, and a sender overwriting the slot meanwhile frees nothing (the node is the collector's when nothing holds it), which is what lets readers read a slot no lock protects ([README: Lock-free containers](../concurrent/README.md#lock-free-containers)). Senders publish in order: a second word counts the positions committed, advanced by whichever sender finds the next slot stored (a sender that stored ahead of a slower one leaves its commit to that one), so that a reader waits for a position by its commit alone. The wait of a receive is kept with the subscription (tokio's shape, the waker in the receiver): the position it waits for, its task's frame or its thread's park word, and a link in the list of subscriptions the senders walk. A receive that finds nothing registers the position and looks once more; the sender that commits past it walks the subscriptions, claims each registration behind the commit with a compare-exchange and wakes that one subscriber once, a task handed to the scheduler, a thread through its word; nothing is allocated and no list shared by every waiter is pushed on per value (it was a *round* before: a channel made by the first reader waiting for a position and closed by the sender that committed it, every reader registering on it anew for every value, and sixteen subscribers cost 40 µs per value between threads and 8.5 between tasks). A thread looks for the next commit for a few microseconds before it parks, as the queues do, since a sender at work is nanoseconds from it. A select case keeps a round of its own, since a case must be served with a value and a signal kept with a subscription could be a stale one. Measured with `benchmarks/compare.sh` (`bcast`, one sender thread of a million values, every subscriber receiving them all): 127 ns per value with one thread subscriber, 692 with four, 1.6 µs with sixteen, and 186 µs with sixty-four, more threads than the machine's cores, where the ones without a core park in the kernel and are woken one by one; with task subscribers 0.14, 0.87, 4.0 and 2.6 µs, the sender's walk handing the tasks it wakes to the scheduler's queues together and one worker woken for them (Go's idiom, a channel per subscriber and a goroutine on each: 46 ns, 199, 1249 and 13.5 µs; the table with the three columns is on [the concurrent benchmarks page](../concurrent/benchmarks.md#the-single-producer-queue-and-the-cache)). A send costs the node's allocation, the words and the walk, a load per subscription; a subscriber that finds several values waiting takes them without a wake between, so a bus that sends in bursts pays the wake once per burst per subscriber.
 
 ## Rules
 
@@ -21,7 +21,7 @@ How it is made: one word holds the positions reserved so far and the number of s
 - A send never waits and never fails but for the close: a value nobody subscribes to is dropped; a subscription that does not read is lapped, never a brake on the sender (Go's channel and tokio's `mpsc` apply back-pressure, tokio's `broadcast` does not).
 - Each subscription is read by one thread or task at a time (its cursor is its own); many threads and tasks may send at once. A subscription dropped counts itself off the values still in the ring at most, whatever its lag. The positions are 52 bits: at a hundred million sends a second a bus runs for over a year.
 - The order is the order of the sends: each subscription sees every value it does not lose in that order.
-- `capacity` is rounded up to a power of two (at least 1). Up to 4095 subscriptions at once (`subscribe()` throws `std::length_error` beyond); up to 2<sup>52</sup> values over the life of a broadcast.
+- `capacity` is rounded up to a power of two (at least 1). Up to 4095 subscriptions at once (`subscribe()` throws `length_error` beyond); up to 2<sup>52</sup> values over the life of a broadcast.
 - A send between the reservation of its position and its store holds up the readers of that position and the senders a lap behind it for a few instructions (a spin): a slot is taken for the next lap only once the position it holds is committed, so the senders run at most a ring ahead of the commit point; nothing else in the broadcast waits for anything but a value.
 
 ## Members
@@ -43,7 +43,7 @@ size_type subscribers() const noexcept;       // the subscriptions alive
 ```cpp
 optional<T> receive();                         // the next value, waiting for one; nothing once closed and drained
 optional<T> try_receive();                     // the next value if one is there
-auto async_receive() noexcept;                 // co_await: the next value, no thread held
+auto receive() noexcept;                 // co_await: the next value, no thread held
 template<class F> auto on_receive(F f);        // a case of a select: f(T), or f(optional<T>) also called with nothing when closed and drained
 size_t lagged() const noexcept;                // the values lost before the last one received
 bool closed() const noexcept;
@@ -51,19 +51,19 @@ explicit operator bool() const noexcept;       // not a moved-from or default on
 ```
 
 ```cpp
-broadcast<int> b(64);
-broadcast<int>::subscription s = b.subscribe();
-b.send(1);                                      // to s, without waiting
-optional<int> v = s.receive();            // 1
-auto worker = [](broadcast<int>::subscription s) -> task<> {
-    while (auto v = co_await s.async_receive()) {   // every value until the close
+async::broadcast<int> b(64);
+async::broadcast<int>::subscription s = b.subscribe();
+b.send(1).wait();                                      // to s, without waiting
+optional<int> v = s.receive().wait();            // 1
+auto worker = [](async::broadcast<int>::subscription s) -> async::task<> {
+    while (auto v = co_await s.receive()) {   // every value until the close
         if (s.lagged()) { /* the ring lapped this subscriber: s.lagged() values lost before *v */ }
     }
 };
-channel<void> quit;
-auto loop = [](broadcast<int>::subscription s, channel<void>& quit) -> task<> {
+async::channel<void> quit;
+auto loop = [](async::broadcast<int>::subscription s, async::channel<void>& quit) -> async::task<> {
     for (bool on = true; on;) {
-        co_await async_select(
+        co_await async::select(
             s.on_receive([](int v) { /* a value */ }),
             quit.on_receive([&] { on = false; }));
     }
@@ -92,19 +92,19 @@ struct Message {
     int number;
 };
 
-using Bus = broadcast<tracked_ptr<Message>>;
+using Bus = async::broadcast<tracked_ptr<Message>>;
 
-task<int> count_all(Bus::subscription messages) {
+async::task<int> count_all(Bus::subscription messages) {
     int count = 0;
-    while (auto e = co_await messages.async_receive()) {   // no thread held between messages
+    while (auto e = co_await messages.receive()) {   // no thread held between messages
         ++count;
     }
     co_return count;
 }
 
-task<int> sum_all(Bus::subscription messages) {
+async::task<int> sum_all(Bus::subscription messages) {
     int sum = 0;
-    while (auto e = co_await messages.async_receive()) {
+    while (auto e = co_await messages.receive()) {
         sum += (*e)->number;
     }
     co_return sum;
@@ -112,29 +112,29 @@ task<int> sum_all(Bus::subscription messages) {
 
 int main() {
     Bus bus(4);                                          // the ring keeps the last four messages
-    task<int> counter = spawn(count_all(bus.subscribe()));
-    task<int> summer = spawn(sum_all(bus.subscribe()));
+    async::task<int> counter = async::spawn(count_all(bus.subscribe()));
+    async::task<int> summer = async::spawn(sum_all(bus.subscribe()));
     Bus::subscription slow = bus.subscribe();            // subscribed now, read at the end
     for (int n : range(1, 6)) {
-        bus.send(make_tracked<Message>(n));        // to the three, without waiting
+        bus.send(make_tracked<Message>(n));               // to the three, without waiting
         std::this_thread::sleep_for(1ms);                // the listeners keep up; the slow one does not read
     }
-    task<int> late = spawn(sum_all(bus.subscribe()));   // from message 6 on
+    async::task<int> late = async::spawn(sum_all(bus.subscribe()));   // from message 6 on
     for (int n : range(6, 11)) {
         bus.send(make_tracked<Message>(n));
         std::this_thread::sleep_for(1ms);
     }
     bus.close();                                         // what was sent is still received, then nothing
-    std::cout << "counter: " << counter.join() << " messages\n";
-    std::cout << "summer: " << summer.join() << "\n";
-    std::cout << "late: " << late.join() << " (6 + 7 + 8 + 9 + 10)\n";
-    optional<tracked_ptr<Message>> first = slow.receive();
+    std::cout << "counter: " << counter.wait() << " messages\n";
+    std::cout << "summer: " << summer.wait() << "\n";
+    std::cout << "late: " << late.wait() << " (6 + 7 + 8 + 9 + 10)\n";
+    optional<tracked_ptr<Message>> first = slow.receive().wait();
     std::cout << "slow: lost " << slow.lagged() << ", then message " << (*first)->number;
-    while (auto e = slow.receive()) {
+    while (auto e = slow.receive().wait()) {
         std::cout << ", " << (*e)->number;
     }
     std::cout << "\n";
-    scheduler::stop();
+    async::scheduler::stop();
 }
 ```
 

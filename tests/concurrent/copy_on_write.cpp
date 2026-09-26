@@ -24,8 +24,8 @@ namespace {
 }
 
 TEST(CopyOnWrite_Test, LoadStoreUpdate) {
-    sgcl::copy_on_write<Config> cfg(std::in_place, "a", 1);
-    sgcl::copy_on_write<Config>::snapshot s1 = cfg.load();
+    sgcl::concurrent::copy_on_write<Config> cfg(std::in_place, "a", 1);
+    sgcl::concurrent::copy_on_write<Config>::snapshot s1 = cfg.load();
     EXPECT_EQ(s1->host, "a");
     EXPECT_EQ(s1->port, 1);
     static_assert(std::is_same_v<decltype(s1), tracked_ptr<const Config>>);
@@ -50,7 +50,7 @@ TEST(CopyOnWrite_Test, LoadStoreUpdate) {
 }
 
 TEST(CopyOnWrite_Test, DefaultAndCompareExchange) {
-    sgcl::copy_on_write<int> n;
+    sgcl::concurrent::copy_on_write<int> n;
     EXPECT_EQ(*n.load(), 0);
     auto s = n.load();
     EXPECT_TRUE(n.compare_exchange(s, 5));
@@ -63,7 +63,7 @@ TEST(CopyOnWrite_Test, DefaultAndCompareExchange) {
 }
 
 TEST(CopyOnWrite_Test, ContainerValue) {
-    sgcl::copy_on_write<sgcl::vector<tracked_ptr<Baz>>> list;
+    sgcl::concurrent::copy_on_write<sgcl::vector<tracked_ptr<Baz>>> list;
     EXPECT_TRUE(list.load()->empty());
     list.update([](auto& v) { v.push_back(make_tracked<Baz>(1)); v.push_back(make_tracked<Baz>(2)); });
     auto two = list.load();
@@ -82,7 +82,7 @@ TEST(CopyOnWrite_Test, ContainerValue) {
 
 TEST(CopyOnWrite_Test, OldValuesReclaimed) {
     const size_t before = collector::get_live_object_count();
-    sgcl::copy_on_write<sgcl::vector<tracked_ptr<Baz>>> list;
+    sgcl::concurrent::copy_on_write<sgcl::vector<tracked_ptr<Baz>>> list;
     EXPECT_EQ(collector::get_live_object_count(), before + 1u);   // the empty vector's object, no buffer
     off_frame([&] {
         for (int i = 0; i < 10; ++i) {
@@ -103,7 +103,7 @@ TEST(CopyOnWrite_Test, OldValuesReclaimed) {
 
 TEST(CopyOnWrite_Test, InsideManagedObject) {
     struct Holder {
-        sgcl::copy_on_write<Config> cfg;
+        sgcl::concurrent::copy_on_write<Config> cfg;
     };
     tracked_ptr h = make_tracked<Holder>();
     h->cfg.update([](Config& c) { c.host = "x"; });
@@ -113,7 +113,7 @@ TEST(CopyOnWrite_Test, InsideManagedObject) {
 // Eight writers increment a counter through update: every increment
 // lands exactly once, whatever the retries
 TEST(CopyOnWrite_Test, UpdatesAreLinearizable) {
-    sgcl::copy_on_write<long> n(0);
+    sgcl::concurrent::copy_on_write<long> n(0);
     sgcl::atomic<long> retries = {0};
     off_frame([&] {
         std::vector<std::thread> ws;
@@ -137,7 +137,7 @@ TEST(CopyOnWrite_Test, UpdatesAreLinearizable) {
 // Readers see whole values while writers replace them: the two fields
 // of a Pair are always equal in a snapshot
 TEST(CopyOnWrite_Test, SnapshotsAreWhole) {
-    sgcl::copy_on_write<Pair> p;
+    sgcl::concurrent::copy_on_write<Pair> p;
     sgcl::atomic<bool> torn = {false};
     sgcl::atomic<bool> stop = {false};
     off_frame([&] {

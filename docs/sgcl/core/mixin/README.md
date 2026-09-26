@@ -28,7 +28,7 @@ void sort_in_place(req::sequence auto& r) requires req::ordered<decltype(r)> { r
 | [mixin::comparable](comparable.md) | `<=>` between two containers, lexicographic, by the elements' `<=>` or `<` | its values are ordered |
 | [mixin::ordered](ordered.md) | the order of the whole range: `is_sorted`, `binary_search`, `sorted_index_of`, `lower_bound`, `upper_bound`; `sort`, `sort_by`, `stable_sort` where the elements are written | the range has an order |
 | [mixin::sequence](sequence.md) | `fill`, `reverse` | the elements are written through the iterator |
-| [mixin::lookup](lookup.md) | a map by its key: `get`, `try_get`, `value_or`, `contains_key`, `keys`, `values`, `values_of`; over `find` as an iterator or as a pointer | a map |
+| [mixin::lookup](lookup.md) | a map by its key: `get`, `try_get`, `value_or`, `contains_key`, `keys`, `values`, `values_of`; over `find` (an iterator), or the map's `_value_of` where it has one | a map |
 | `mixin::bidirectional`, `mixin::random_access`, `mixin::contiguous` ([req](../req.md#the-requirements)) | nothing: a declaration of the iterator's category, where a concept can ask for it | walked backwards; reached by position; one block, `data()` |
 | [mixin::immutable](immutable.md) | nothing: a declaration | a value that never changes: every change a new container, a copy one word |
 | [mixin::text](text.md) | the read side of `std::string_view` over `data()` and `size()`: `find`, `starts_with`, `contains`, `compare`, `substr`… | text: `string`, `slice<const CharT>` |
@@ -58,20 +58,20 @@ The page: [req](../req.md).
 
 | | enumerable | category | equatable | comparable | ordered | sequence | lookup | immutable |
 |---|---|---|---|---|---|---|---|---|
-| [vector](../../containers/vector.md), [array](../../containers/array.md), [dynamic_array](../../containers/dynamic_array.md), [slice\<T\>](../slice.md) | ✓ | contiguous | ✓ | ✓ | ✓ | ✓ | | |
+| [vector](../vector.md), [array](../array.md), [dynamic_array](../dynamic_array.md), [slice\<T\>](../slice.md) | ✓ | contiguous | ✓ | ✓ | ✓ | ✓ | | |
 | [slice\<const T\>](../slice.md) | ✓ | contiguous | ✓ | ✓ | ✓ | | | |
-| [deque](../../containers/deque.md) | ✓ | random access | ✓ | ✓ | ✓ | ✓ | | |
-| [list](../../containers/list.md) | ✓ | bidirectional | ✓ | ✓ | ✓ (`sort` its own) | ✓ (`reverse` its own) | | |
-| [forward_list](../../containers/forward_list.md) | ✓ | — | ✓ | ✓ | ✓ (`sort` its own) | ✓ (`reverse` its own) | | |
+| [deque](../deque.md) | ✓ | random access | ✓ | ✓ | ✓ | ✓ | | |
+| [list](../list.md) | ✓ | bidirectional | ✓ | ✓ | ✓ (`sort` its own) | ✓ (`reverse` its own) | | |
+| [forward_list](../forward_list.md) | ✓ | — | ✓ | ✓ | ✓ (`sort` its own) | ✓ (`reverse` its own) | | |
 | [range](../range.md) | ✓ | the iterator's | ✓ | ✓ | ✓ | when the iterator writes | | |
-| [im::vector](../../containers/im/vector.md) | ✓ | random access | (its own `==`) | ✓ | ✓ (no `sort`) | | | ✓ |
-| [im::list](../../containers/im/list.md) | ✓ | — | (its own `==`) | ✓ | ✓ (no `sort`) | | | ✓ |
-| [sorted_set](../../containers/sorted_set.md), [sorted_multiset](../../containers/sorted_multiset.md) | ✓ (`contains`, `min`, `max` their own) | bidirectional | ✓ | ✓ | | | | |
-| [sorted_map](../../containers/sorted_map.md), [sorted_multimap](../../containers/sorted_multimap.md) | ✓ (the same) | bidirectional | ✓ | ✓ | | | ✓ | |
-| [set](../../containers/set.md), [multiset](../../containers/multiset.md), [ordered_set](../../containers/ordered_set.md) | ✓ (`contains` its own) | — | (its own `==`) | | | | | |
-| [im::set](../../containers/im/set.md) | ✓ (the same) | — | (its own `==`) | | | | | ✓ |
-| [map](../../containers/map.md), [multimap](../../containers/multimap.md), [ordered_map](../../containers/ordered_map.md) | ✓ (the same) | — | (its own `==`) | | | | ✓ | |
-| [im::map](../../containers/im/map.md) | ✓ (the same) | — | (its own `==`) | | | | ✓ | ✓ |
+| [immutable::vector](../../immutable/vector.md) | ✓ | random access | (its own `==`) | ✓ | ✓ (no `sort`) | | | ✓ |
+| [immutable::list](../../immutable/list.md) | ✓ | — | (its own `==`) | ✓ | ✓ (no `sort`) | | | ✓ |
+| [sorted_set](../sorted_set.md), [sorted_multiset](../sorted_multiset.md) | ✓ (`contains`, `min`, `max` their own) | bidirectional | ✓ | ✓ | | | | |
+| [sorted_map](../sorted_map.md), [sorted_multimap](../sorted_multimap.md) | ✓ (the same) | bidirectional | ✓ | ✓ | | | ✓ | |
+| [set](../set.md), [multiset](../multiset.md), [ordered_set](../ordered_set.md) | ✓ (`contains` its own) | — | (its own `==`) | | | | | |
+| [immutable::set](../../immutable/set.md) | ✓ (the same) | — | (its own `==`) | | | | | ✓ |
+| [map](../map.md), [multimap](../multimap.md), [ordered_map](../ordered_map.md) | ✓ (the same) | — | (its own `==`) | | | | ✓ | |
+| [immutable::map](../../immutable/map.md) | ✓ (the same) | — | (its own `==`) | | | | ✓ | ✓ |
 | [string](../string.md) | mixin::text only: a string enters as `as_slice()` | | | | | | | |
 
 Not carried: the adaptors (`stack`, `queue`, `priority_queue`), `expiry_queue`, the weak containers and the concurrent ones — none iterates as a range of values.

@@ -5,13 +5,14 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "../concurrent/concurrent_queue.h"
-#include "../concurrent/detail/backoff.h"
-#include "../containers/dynamic_array.h"
+#include "../concurrent/queue.h"
+#include "../core/detail/backoff.h"
 #include "../core/aliases.h"
+#include "../core/dynamic_array.h"
 #include "../core/make_tracked.h"
 #include "../core/tracked_ptr.h"
 #include "coroutine.h"
+#include "operation.h"
 #include "scheduler.h"
 
 #include <atomic>
@@ -21,7 +22,8 @@
 #include <iterator>
 #include <utility>
 
-namespace sgcl {
+namespace sgcl::async {
+    namespace detail { using namespace sgcl::detail; }
     namespace detail {
         // The state one select shares between its cases: each case is a
         // waiter on its channel, and every claim or cancel of any of them
@@ -54,8 +56,8 @@ namespace sgcl {
     // returns false; a range-for over the channel runs until then.
     //
     // The waiting is done either by a thread, on an atomic of its own, or
-    // by a coroutine: `co_await ch.async_receive()` and `co_await
-    // ch.async_send(v)` suspend the coroutine (a task<T>, or any coroutine
+    // by a coroutine: `co_await ch.receive()` and `co_await
+    // ch.send(v)` suspend the coroutine (a task<T>, or any coroutine
     // whose promise derives from managed_frame, so that the tracked
     // pointers of its frame stay roots while it waits) with its handle on
     // the channel's list of waiters, and the send or the receive that
@@ -246,7 +248,7 @@ namespace sgcl {
                 return counted ? count.load(std::memory_order_acquire) <= 0 : list.empty();
             }
 
-            concurrent_queue<WaiterPtr> list;
+            concurrent::queue<WaiterPtr> list;
             atomic<long> count = {0};
             const bool counted;
         };
@@ -292,13 +294,14 @@ namespace sgcl {
         channel& operator=(const channel&) = delete;
 
         // Sends the element: delivered, and true; or false when the
-        // channel is closed, before or while the send waits
-        bool send(const T& value) {
-            return _send(T(value));
+        // channel is closed, before or while the send waits. An operation:
+        // `co_await ch.send(v)` in a task, `ch.send(v).wait()` on a thread
+        auto send(const T& value) {
+            return _send_operation(T(value));
         }
 
-        bool send(T&& value) {
-            return _send(T(std::move(value)));
+        auto send(T&& value) {
+            return _send_operation(T(std::move(value)));
         }
 
         // Sends without waiting: false when the channel is closed or full
@@ -320,8 +323,23 @@ namespace sgcl {
         }
 
         // Receives the next element, waiting for one; nothing once the
-        // channel is closed and drained
-        optional<T> receive() {
+        // channel is closed and drained. An operation: `co_await
+        // ch.receive()` in a task, `ch.receive().wait()` on a thread
+        auto receive() {
+            return operation([this](auto how) -> decltype(auto) {
+                if constexpr (std::is_same_v<decltype(how), detail::awaited_t>) {
+                    return receive_op(*this);
+                } else {
+                    return _receive();
+                }
+            });
+        }
+
+    private:
+        friend class channel<void>;   // its signals are a channel of this kind
+
+        // The blocking receive, what receive().wait() does
+        optional<T> _receive() {
             for (;;) {
                 if (auto v = _try_receive()) {
                     return v;
@@ -342,16 +360,16 @@ namespace sgcl {
             }
         }
 
+    public:
         // Receives without waiting: nothing when the channel is empty
         optional<T> try_receive() {
             return _try_receive();
         }
 
-        // The awaitables: `co_await ch.async_receive()` is receive(), and
-        // `co_await ch.async_send(v)` is send(v), for a coroutine with a
+        // The awaiters of receive() and send(v), for a coroutine with a
         // managed frame; the coroutine is made ready by the thread that
         // serves it and runs on a worker of the scheduler
-        class async_receive_op {
+        class receive_op {
         public:
             bool await_ready() {
                 _value = _ch._try_receive();
@@ -408,9 +426,9 @@ namespace sgcl {
             }
 
         private:
-            friend class channel;
+            template<class> friend class channel;
 
-            explicit async_receive_op(channel& ch) noexcept
+            explicit receive_op(channel& ch) noexcept
             : _ch(ch) {
             }
 
@@ -419,7 +437,7 @@ namespace sgcl {
             WaiterPtr _me;
         };
 
-        class async_send_op {
+        class send_op {
         public:
             bool await_ready() {
                 if (_ch._closed.load(std::memory_order_acquire)) {
@@ -434,7 +452,7 @@ namespace sgcl {
             }
 
             template<class P>
-            bool await_suspend(std::coroutine_handle<P> h) {   // as for async_receive_op: Registering until the look, nothing of the frame touched past the publication
+            bool await_suspend(std::coroutine_handle<P> h) {   // as for receive_op: Registering until the look, nothing of the frame touched past the publication
                 for (;;) {
                     WaiterPtr me = make_tracked<Waiter>();
                     me->state.store(Waiter::Registering, std::memory_order_relaxed);
@@ -470,9 +488,9 @@ namespace sgcl {
             }
 
         private:
-            friend class channel;
+            template<class> friend class channel;
 
-            async_send_op(channel& ch, T value) noexcept
+            send_op(channel& ch, T value) noexcept
             : _ch(ch)
             , _value(std::move(value)) {
             }
@@ -483,18 +501,18 @@ namespace sgcl {
             bool _result = false;
         };
 
-        async_receive_op async_receive() noexcept {
-            return async_receive_op(*this);
+    private:
+        auto _send_operation(T value) {
+            return operation([this, value = std::move(value)](auto how) mutable -> decltype(auto) {
+                if constexpr (std::is_same_v<decltype(how), detail::awaited_t>) {
+                    return send_op(*this, std::move(value));
+                } else {
+                    return _send(std::move(value));
+                }
+            });
         }
 
-        async_send_op async_send(const T& value) {
-            return async_send_op(*this, T(value));
-        }
-
-        async_send_op async_send(T&& value) {
-            return async_send_op(*this, T(std::move(value)));
-        }
-
+    public:
         // Closes the channel: every waiting receiver gets nothing, every
         // waiting sender false, every later send false; what was sent is
         // received first
@@ -506,6 +524,7 @@ namespace sgcl {
             _close_list(_senders);
         }
 
+    private:
         // Every waiter of a list woken by the close, once: a waiter in a
         // taker's hand (claimed, not yet served or put back) is left to it,
         // and its requeue, which looks at the flag, closes it (_requeue)
@@ -528,6 +547,7 @@ namespace sgcl {
             }
         }
 
+    public:
         bool closed() const noexcept {
             return _closed.load(std::memory_order_acquire);
         }
@@ -567,7 +587,7 @@ namespace sgcl {
             }
 
             iterator& operator++() {
-                _value = _ch->receive();
+                _value = _ch->_receive();
                 if (!_value) {
                     _ch = nullptr;
                 }
@@ -583,7 +603,7 @@ namespace sgcl {
             }
 
         private:
-            friend class channel;
+            template<class> friend class channel;
 
             explicit iterator(channel* ch)
             : _ch(ch) {
@@ -984,13 +1004,13 @@ namespace sgcl {
         }
 
         static constexpr size_t MinSlots = 8;   // the ring of a rendezvous, or of a small capacity
-        static constexpr unsigned RingBackoffMax = 32;   // the cap of the backoff at the ring's head and tail: a long pause here leaves a slot others wait for (measured: 8, 32 and 128 alike at sixteen threads, config::BackoffMax an order worse on a loaded machine)
+        static constexpr unsigned RingBackoffMax = 32;   // the cap of the backoff at the ring's head and tail: a long pause here leaves a slot others wait for (measured: 8, 32 and 128 alike at sixteen threads, config::backoff_max an order worse on a loaded machine)
 
-        // The head and the tail a cache line apart (config::CacheLineSize):
+        // The head and the tail a cache line apart (config::cache_line_size):
         // the receivers' line and the senders' line
         dynamic_array<Slot> _ring;
         atomic<size_t> _head = {0};
-        unsigned char _pad[config::CacheLineSize - sizeof(atomic<size_t>)] = {};
+        unsigned char _pad[config::cache_line_size - sizeof(atomic<size_t>)] = {};
         atomic<size_t> _tail = {0};
         Waiters _receivers;
         Waiters _senders;
@@ -1012,7 +1032,8 @@ namespace sgcl {
         : _ch(capacity) {
         }
 
-        bool send() {
+        // An operation: co_await or wait() gives whether the signal went
+        auto send() {
             return _ch.send(Signal{});
         }
 
@@ -1020,20 +1041,23 @@ namespace sgcl {
             return _ch.try_send(Signal{});
         }
 
-        bool receive() {
-            return _ch.receive().has_value();
+        // An operation: co_await or wait() gives whether a signal came
+        auto receive() {
+            return operation([this](auto how) -> decltype(auto) {
+                if constexpr (std::is_same_v<decltype(how), detail::awaited_t>) {
+                    return receive_op(_ch);
+                } else {
+                    return _ch._receive().has_value();
+                }
+            });
         }
 
         bool try_receive() {
             return _ch.try_receive().has_value();
         }
 
-        auto async_send() {
-            return _ch.async_send(Signal{});
-        }
-
-        // co_await gives whether a signal came
-        class async_receive_op {
+        // The awaiter of receive(): whether a signal came
+        class receive_op {
         public:
             bool await_ready() {
                 return _op.await_ready();
@@ -1049,18 +1073,14 @@ namespace sgcl {
             }
 
         private:
-            friend class channel;
+            template<class> friend class channel;
 
-            explicit async_receive_op(channel<Signal>& ch) noexcept
-            : _op(ch.async_receive()) {
+            explicit receive_op(channel<Signal>& ch) noexcept
+            : _op(ch) {
             }
 
-            typename channel<Signal>::async_receive_op _op;
+            typename channel<Signal>::receive_op _op;
         };
-
-        async_receive_op async_receive() noexcept {
-            return async_receive_op(_ch);
-        }
 
         // The cases of a select: f() on a signal and on the close alike
         // (both end a wait for a signal); the send case as for any channel

@@ -6,15 +6,16 @@
 #pragma once
 
 #include "../core/aliases.h"
+#include "../core/atomic.h"
 #include "../core/make_tracked.h"
 #include "../core/tracked_ptr.h"
-#include "atomic.h"
-#include "detail/backoff.h"
+#include "../core/detail/backoff.h"
 
 #include <type_traits>
 #include <utility>
 
-namespace sgcl {
+namespace sgcl::concurrent {
+    namespace detail { using namespace sgcl::detail; }
     // A value read by many threads and replaced by few, whole: the
     // copy-on-write of Java's CopyOnWriteArrayList, for any copyable T. The
     // value lives in a managed object of its own and is never modified

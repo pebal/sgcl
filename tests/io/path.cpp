@@ -159,7 +159,7 @@ TEST(IoPath_Tests, Match) {
 }
 
 TEST(IoPath_Tests, Glob) {
-    auto d = temp_dir({}, "sgcl-glob-*");
+    auto d = make_temp_dir({}, "sgcl-glob-*");
     ASSERT_TRUE(d);
     string dir = *d;
     ASSERT_TRUE(io::mkdir_all(path::join(dir, "a/x")));

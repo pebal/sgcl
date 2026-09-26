@@ -18,6 +18,7 @@
 
 # Fortran module files
 *.mod
+*.sum
 *.smod
 
 # Compiled Static libraries
@@ -37,3 +38,8 @@ build*/
 # The UCD files tools/unicode_tables.py downloads; the generated headers
 # are committed, the data is not
 .ucd/
+
+# The hand-off notes agents leave for the merge: drafts, measurements,
+# open questions. They are folded into DESIGN.md and the pages; the
+# notes themselves are not part of the library.
+.agent/
