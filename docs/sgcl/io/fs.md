@@ -22,7 +22,8 @@ namespace sgcl::io {
     expected<void, error> chmod(const string& path, permissions p);   expected<void, error> set_modified(const string& path, file_time t);
     expected<vector<directory_entry>, error> read_dir(const string& path);   async::task<expected<vector<directory_entry>, error>> async_read_dir(const string& path);
     template<class F> expected<void, error> walk_dir(const string& root, F f);
-    // async_stat, async_lstat, async_mkdir_all, async_remove_all, async_copy_file, async_read_dir, async_walk_dir: the same for a task, on the blocking pool
+    // async_stat, async_lstat, async_mkdir, async_mkdir_all, async_remove, async_remove_all, async_rename, async_copy_file,
+    // async_symlink, async_chmod, async_read_dir, async_walk_dir: the same for a task, on the blocking pool
 }
 ```
 
@@ -62,7 +63,7 @@ struct directory_entry {
 ```cpp
 auto info = io::stat("photo.jpg");
 if (info && info->is_regular() && info->size > 10 << 20) ...
-if (static_cast<unsigned>(info->mode & io::permissions::others_write)) std::cerr << "world-writable\n";
+if (static_cast<unsigned>(info->mode & io::permissions::others_write)) eprintln("world-writable");
 ```
 
 ### stat, lstat, exists, is_directory, is_regular
@@ -88,11 +89,14 @@ expected<void, error> rename(const string& from, const string& to);
 expected<void, error> copy_file(const string& from, const string& to);   // the bytes and the permissions of a regular file
 async::task<expected<void, error>> async_mkdir_all(const string& path, permissions p = permissions(0777));   // on the blocking pool
 async::task<expected<void, error>> async_remove_all(const string& path);
+async::task<expected<void, error>> async_mkdir(const string& path, permissions p = permissions(0777));
+async::task<expected<void, error>> async_remove(const string& path);
+async::task<expected<void, error>> async_rename(const string& from, const string& to);
 async::task<expected<void, error>> async_copy_file(const string& from, const string& to);
 ```
 
 ```cpp
-auto cache = io::path::join(*io::cache_dir(), "myapp");
+auto cache = io::path::join(io::cache_dir(), "myapp");
 io::mkdir_all(cache);
 io::write_file(io::path::join(cache, "index.tmp"), data);
 io::rename(io::path::join(cache, "index.tmp"), io::path::join(cache, "index"));   // atomic replace
@@ -104,6 +108,8 @@ io::rename(io::path::join(cache, "index.tmp"), io::path::join(cache, "index")); 
 expected<void, error> symlink(const string& target, const string& link);
 expected<string, error> read_link(const string& link);
 expected<void, error> chmod(const string& path, permissions p);
+async::task<expected<void, error>> async_symlink(const string& target, const string& link);   // on the blocking pool
+async::task<expected<void, error>> async_chmod(const string& path, permissions p);
 expected<void, error> set_modified(const string& path, file_time t);   // utimensat; the access time untouched
 ```
 
@@ -121,7 +127,7 @@ template<class F> async::task<expected<void, error>> async_walk_dir(const string
 ```cpp
 uint64_t total = 0;
 io::walk_dir(".", [&](const io::directory_entry& e, const optional<io::error>& err) {
-    if (err) { std::cerr << err->message() << '\n'; return io::walk_action::next; }
+    if (err) { eprintln(err->message()); return io::walk_action::next; }
     if (e.is_directory() && e.name == ".git") return io::walk_action::skip_dir;
     if (auto i = e.info()) total += i->size;
     return io::walk_action::next;
@@ -132,7 +138,6 @@ io::walk_dir(".", [&](const io::directory_entry& e, const optional<io::error>& e
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -140,13 +145,13 @@ using namespace sgcl;
 int main(int argc, char** argv) {
     if (argc < 2) return 2;
     auto entries = io::read_dir(argv[1]);
-    if (!entries) { std::cerr << entries.error().message() << '\n'; return 1; }
+    if (!entries) { eprintln(entries.error().message()); return 1; }
     auto cutoff = std::chrono::system_clock::now() - std::chrono::hours(24 * 7);
     for (auto& e : *entries) {
         auto info = e.info();
         if (info && info->is_regular() && info->modified < cutoff) {
-            if (auto r = io::remove(e.path); !r) std::cerr << r.error().message() << '\n';
-            else std::cout << "removed " << e.name << '\n';
+            if (auto r = io::remove(e.path); !r) eprintln("{}", r.error().message());
+            else println("removed {}", e.name);
         }
     }
 }

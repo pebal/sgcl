@@ -67,16 +67,16 @@ namespace idna {
 ```cpp
 using namespace sgcl;
 
-auto host = txt::idna::to_ascii(string("bücher.example.de"));
+auto host = txt::idna::to_ascii("bücher.example.de");
 if (host) {
-    connect(*host);                                   // "xn--bcher-kva.example.de"
+    connect(host);                                    // "xn--bcher-kva.example.de"
 } else {
     auto why = host.error();
     log(why.message(), why.label);
 }
 
 // and back, for showing somebody
-txt::idna::to_unicode(string("xn--bcher-kva.example.de"));   // "bücher.example.de"
+txt::idna::to_unicode("xn--bcher-kva.example.de");   // "bücher.example.de"
 ```
 
 `to_ascii` and `to_unicode` are the two a program calls. `ascii_form` and `unicode_form` answer the same question and hand back the text as well as what was wrong with it: UTS #46 converts as far as it can even when it fails, and that text is worth having — a browser shows the user the name it would not look up, with the bad label marked.

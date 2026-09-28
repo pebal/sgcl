@@ -50,9 +50,9 @@ bool is_terminal(int fd) noexcept;   // isatty
 
 ```cpp
 auto level = io::getenv("LOG_LEVEL").value_or("info");
-auto dir = io::path::join(*io::config_dir(), "myapp");
+auto dir = io::path::join(io::config_dir(), "myapp");
 io::mkdir_all(dir);
-io::stdout.write(io::stdout.is_terminal() ? "\033[1mready\033[0m\n" : "ready\n");
+println(io::stdout.is_terminal() ? "\033[1mready\033[0m" : "ready");
 ```
 
 ## Example
@@ -66,14 +66,14 @@ using namespace sgcl;
 int main() {
     auto args = io::args();
     if (args.size() == 1) {
-        if (auto n = io::copy(io::stdout, io::stdin); !n) { io::stderr.write(n.error().message() + "\n"); io::exit(1); }
+        if (auto n = io::copy(io::stdout, io::stdin); !n) { eprintln(n.error().message()); io::exit(1); }
         return 0;
     }
     int status = 0;
     for (size_t i = 1; i < args.size(); ++i) {
         auto f = io::open(args[i]);
-        if (!f) { io::stderr.write("cat: " + f.error().message() + "\n"); status = 1; continue; }
-        if (auto n = io::copy(io::stdout, *f); !n) { io::stderr.write("cat: " + n.error().message() + "\n"); status = 1; }
+        if (!f) { eprintln("cat: {}", f.error().message()); status = 1; continue; }
+        if (auto n = io::copy(io::stdout, *f); !n) { eprintln("cat: {}", n.error().message()); status = 1; }
     }
     return status;
 }

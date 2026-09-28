@@ -102,6 +102,11 @@ public:
     optional<uint64_t> as_uint() const noexcept;
     optional<double> as_double() const noexcept;
     optional<string> as_string() const noexcept;
+    bool as_bool(bool fallback) const noexcept;               // the same with a value for when there is none:
+    int64_t as_int(int64_t fallback) const noexcept;          // doc["user"]["name"].as_string("?")
+    uint64_t as_uint(uint64_t fallback) const noexcept;
+    double as_double(double fallback) const noexcept;
+    string as_string(const string& fallback) const noexcept;
     optional<string> number_text() const;     // the literal of a number kept as text
 
     const json& operator[](const string& key) const noexcept;    // null when there is none
@@ -143,32 +148,32 @@ public:
 using namespace sgcl;
 
 int main() {
-    auto doc = encoding::json::parse(R"({"user": {"name": "Ala", "tags": ["a", "b"]}, "count": 3, "id": 123456789012345678901})").value();
+    encoding::json doc = encoding::json::parse(R"({"user": {"name": "Ala", "tags": ["a", "b"]}, "count": 3, "id": 123456789012345678901})");
 
-    string name = doc["user"]["name"].as_string().value_or("?");
-    int64_t count = doc["count"].as_int().value_or(0);
-    io::stdout.write(name + " " + to_string(count) + "\n");
+    string name = doc["user"]["name"].as_string("?");
+    int64_t count = doc["count"].as_int(0);
+    println("{} {}", name, count);
     for (auto& tag : doc["user"]["tags"].elements()) {
-        io::stdout.write(tag.as_string().value_or("") + "\n");
+        println(tag.as_string(""));
     }
     for (auto& [key, value] : doc.members()) {
-        io::stdout.write(key + " is " + value.to_string() + "\n");
+        println("{} is {}", key, value.to_string());
     }
-    io::stdout.write(doc["missing"]["deeper"].to_string() + "\n");
+    println(doc["missing"]["deeper"].to_string());
 
     // a new version; doc is as it was
     auto renamed = doc.set_path("/user/name", "Ola").set_path("/user/tags/-", "c");
-    io::stdout.write(renamed["user"].to_string(encoding::json::pretty) + "\n");
+    println(renamed["user"].to_string(encoding::json::pretty));
 
     encoding::json::builder squares;
     for (auto i : range(5)) {
         squares.push_back(i * i);
     }
     auto report = encoding::json::object({{"count", 5}, {"squares", squares.build()}, {"ratio", 0.1}});
-    io::stdout.write(report.to_string() + "\n");
+    println(report.to_string());
 
     auto bad = encoding::json::parse("{\"a\": [1, 2,]}");
-    io::stdout.write(bad.error().message() + "\n");
+    println(bad.error().message());
 }
 ```
 
@@ -196,7 +201,7 @@ null
 
 ## Memory
 
-24 bytes: a tracked pointer to what does not fit in a word, a word for a boolean or a number, and the kind. A string is its [`string`](../core/string.md)'s object; an array is its elements side by side in one managed buffer, an object its members side by side (with a table of `uint32_t` indexes past 16 members), so `elements()` and `members()` are slices of the buffer and walk it in order. A number costs nothing past the 24 bytes. The tree of a text in memory takes about the text's size to three times it: numbers in short arrays cost the most (a buffer each), objects of repeated keys the least (the keys shared).
+24 bytes: a tracked pointer to what does not fit in a word, a word for a boolean or a number, and the kind. A string is its [`string`](../core/string.md)'s object; an array is its elements side by side in one managed buffer, an object its members side by side (with a table of `uint32_t` indexes past 16 members), so `elements()` and `members()` are slices of the buffer and walk it in order. A number costs nothing past the 24 bytes. The tree of a text in memory takes about the text's size to three times it: numbers in short arrays cost the most (a buffer each), objects of repeated keys the least (the keys shared). The parser keeps, per thread and between calls, its stacks and a table of up to 256 keys of at most 32 bytes each, so that a key met in one document is shared with the next; a longer key is never kept.
 
 ## SGCL and Go
 

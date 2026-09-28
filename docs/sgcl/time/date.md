@@ -19,7 +19,7 @@ A date built from numbers never fails. A day or a month outside its range carrie
 
 The day of the week is numbered as ISO 8601 numbers it, Monday 1 to Sunday 7, not C's and Go's Sunday 0. The ISO week starts on Monday, and week 1 is the one with the year's first Thursday, so the few days around New Year may belong to a week of the year next to theirs: `date(2024, 12, 30).iso_week()` is week 1 of 2025, and 2026 has 53 weeks.
 
-The text is ISO 8601's. `to_string()` writes the extended calendar date as `std::format`'s `%F` does (`"2026-09-24"`, `"-0044-03-15"`, `"10000-01-01"`), and `parse` reads the three forms of a date, each extended or basic: the calendar date (`"2026-09-24"`, `"20260924"`), the week date (`"2026-W39-4"`, `"2026W394"`) and the ordinal date (`"2026-267"`, `"2026267"`), with a year of four digits, or five in the extended forms, and a sign or none (`"-0044-03-15"`, `"+10000-01-01"`). The date must exist and be the whole text: `"2026-02-29"` and `"2026-09-24T10:00"` are refused, each with a sentence and the byte at which it went wrong. Other shapes are read and written by a pattern of `%` as `std::format` and `std::chrono::parse` have them for `<chrono>` (`date::parse("24.09.2026", "%d.%m.%Y")`, `d.format("%A, %d %B %Y")`; the [text](layout.md) page says what each specifier does), and `txt::format("{:%d.%m}", d)` writes one in a field.
+The text is ISO 8601's. `to_string()` writes the extended calendar date as `std::format`'s `%F` does (`"2026-09-24"`, `"-0044-03-15"`, `"10000-01-01"`), and `parse` reads the three forms of a date, each extended or basic: the calendar date (`"2026-09-24"`, `"20260924"`), the week date (`"2026-W39-4"`, `"2026W394"`) and the ordinal date (`"2026-267"`, `"2026267"`), with a year of four digits, or five in the extended forms, and a sign or none (`"-0044-03-15"`, `"+10000-01-01"`). The date must exist and be the whole text: `"2026-02-29"` and `"2026-09-24T10:00"` are refused, each with a sentence and the byte at which it went wrong. A date the program itself writes is constructed from the same text, `time::date d("2026-09-24")`, and a wrong one throws `parse`'s error; a text from outside is parsed. Other shapes are read and written by a pattern of `%` as `std::format` and `std::chrono::parse` have them for `<chrono>` (`time::date("24.09.2026", "%d.%m.%Y")`, `date::parse(text, "%d.%m.%Y")`, `d.format("%A, %d %B %Y")`; the [text](layout.md) page says what each specifier does), and `txt::format("{:%d.%m}", d)` writes one in a field.
 
 A date becomes an instant at a time of the clock in a zone: `d.at(9, 30, zone)`, the [datetime](datetime.md) page says how a time of the clock that a change of the clock skipped or showed twice is read; `d.start_of_day(zone)` is the first instant of the date there.
 
@@ -47,6 +47,8 @@ constexpr explicit operator std::chrono::sys_days() const noexcept;
 static constexpr bool is_valid(int year, int month, int day) noexcept;
 static expected<date, error> parse(const string& text);    // ISO 8601: calendar, week and ordinal dates
 static expected<date, error> parse(const string& text, const string& pattern);   // "%d.%m.%Y" (layout.md)
+explicit date(const string& text);                         // a literal: parse(text), or bad_expected_access<time::error> with its message (DESIGN 234)
+explicit date(const string& text, const string& pattern);  // a literal: parse(text, pattern), the same
 
 constexpr int year() const noexcept;
 constexpr time::month month() const noexcept;              // january to december; int(...) 1 to 12
@@ -81,36 +83,32 @@ string to_string(weekday d);                               // a free function: "
 ```cpp
 #include "sgcl/sgcl.h"
 #include "sgcl/time/time.h"
-#include <iostream>
 
 using namespace sgcl;
 
 int main() {
     time::date d(2026, 9, 24);
     auto [year, week] = d.iso_week();
-    std::cout << d.to_string() << " is day " << d.year_day() << ", weekday " << static_cast<int>(d.weekday())
-              << ", week " << week << " of " << year << "\n";          // 2026-09-24 is day 267, weekday 4, week 39 of 2026
+    println("{} is day {}, weekday {}, week {} of {}", d.to_string(), d.year_day(), static_cast<int>(d.weekday()), week, year);          // 2026-09-24 is day 267, weekday 4, week 39 of 2026
 
-    std::cout << time::date(2026, 2, 30).to_string() << " "            // carried: 2026-03-02
-              << time::date::is_valid(2026, 2, 30) << "\n";            // 0
+    println("{} {}", time::date(2026, 2, 30).to_string(), time::date::is_valid(2026, 2, 30));   // 2026-03-02 (carried) false
 
     auto invoice = time::date(2026, 1, 31);
     for (int i : range(1, 4)) {
-        std::cout << invoice.add_months(i).to_string() << " ";          // the month's end when it is shorter
+        print("{} ", invoice.add_months(i).to_string());          // the month's end when it is shorter
     }
-    std::cout << "\n";
-    std::cout << time::date(2024, 2, 29).add_years(1).to_string() << " "
-              << time::date(2024, 12, 30).iso_week().year << "\n";      // 2025-02-28 2025
+    println();
+    println("{} {}", time::date(2024, 2, 29).add_years(1).to_string(), time::date(2024, 12, 30).iso_week().year);            // 2025-02-28 2025
 
     auto christmas = time::date(2026, 12, 25);
-    std::cout << d.days_until(christmas) << " days to " << christmas.to_string() << "\n";
+    println("{} days to {}", d.days_until(christmas), christmas.to_string());
 
     for (auto text : {"2026-W39-4", "2026-267", "20260924", "2026-02-29"}) {
         auto parsed = time::date::parse(text);
         if (parsed) {
-            std::cout << text << " -> " << parsed->to_string() << "\n";
+            println("{} -> {}", text, parsed->to_string());
         } else {
-            std::cout << text << ": " << parsed.error().message() << " (byte " << parsed.error().offset() << ")\n";
+            println("{}: {} (byte {})", text, parsed.error().message(), parsed.error().offset());
         }
     }
     return 0;

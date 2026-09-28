@@ -5,9 +5,8 @@
 # `tests` builds them all.
 add_custom_target(tests)
 
-function(sgcl_test_module MODULE)
-    get_filename_component(NAME ${MODULE} NAME)
-    set(TARGET tests_${NAME})
+# The program `TARGET` of a module's sources (less those given after it)
+function(sgcl_test_program TARGET MODULE)
     file(GLOB SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${MODULE}/*.cpp")
     list(REMOVE_ITEM SOURCES ${ARGN})
     add_executable(${TARGET} main.cpp types.h ${SOURCES})
@@ -15,6 +14,11 @@ function(sgcl_test_module MODULE)
     target_include_directories(${TARGET} PRIVATE ${CMAKE_SOURCE_DIR})
     add_test(NAME ${TARGET} COMMAND ${TARGET})
     add_dependencies(tests ${TARGET})
+endfunction()
+
+function(sgcl_test_module MODULE)
+    get_filename_component(NAME ${MODULE} NAME)
+    sgcl_test_program(tests_${NAME} ${MODULE} ${ARGN})
 endfunction()
 
 # static_init*.cpp create a managed object in a global's initializer, before
@@ -28,11 +32,32 @@ sgcl_test_module(core
 sgcl_test_module(containers)   # core's containers (sgcl/core), a program of their own
 sgcl_test_module(immutable)
 sgcl_test_module(concurrent)
-sgcl_test_module(async)
+sgcl_test_module(async "${CMAKE_CURRENT_SOURCE_DIR}/async/env_settings.cpp")   # env_settings.cpp: a program of its own, below
 sgcl_test_module(io)
 sgcl_test_module(txt)
 sgcl_test_module(math)
 sgcl_test_module(hash)
+# hash and crypto have a road on the processor's own instructions and one in
+# plain C++, chosen at compile time: the _portable programs are the same
+# sources built for the second road, so that every vector is checked on both
+sgcl_test_program(tests_hash_portable hash)
+target_compile_definitions(tests_hash_portable PRIVATE SGCL_HASH_PORTABLE)
+sgcl_test_module(compress)
+target_link_libraries(tests_compress z bz2)   # zlib and libbz2 of the system: oracles of the tests only
+if(SGCL_HAVE_LIBLZMA)   # liblzma, the LZMA tests' oracle (../CMakeLists.txt)
+    target_include_directories(tests_compress PRIVATE ${SGCL_XZ_ROOT}/include)
+    target_link_libraries(tests_compress ${SGCL_LIBLZMA})
+    target_compile_definitions(tests_compress PRIVATE SGCL_TEST_LIBLZMA=1)
+endif()
+if(SGCL_HAVE_OPENSSL)   # the crypto tests hold the module against OpenSSL (../CMakeLists.txt)
+    sgcl_test_module(crypto)
+    sgcl_test_program(tests_crypto_portable crypto)
+    target_compile_definitions(tests_crypto_portable PRIVATE SGCL_CRYPTO_PORTABLE)
+    foreach(T tests_crypto tests_crypto_portable)
+        target_include_directories(${T} PRIVATE ${SGCL_OPENSSL_ROOT}/include)
+        target_link_libraries(${T} ${SGCL_LIBCRYPTO})
+    endforeach()
+endif()
 sgcl_test_module(time)
 sgcl_test_module(encoding)
 sgcl_test_module(net)
@@ -68,3 +93,22 @@ target_include_directories(limit_deadlock_test PRIVATE ${CMAKE_SOURCE_DIR})
 add_test(NAME limit_deadlock_test COMMAND limit_deadlock_test)
 set_tests_properties(limit_deadlock_test PROPERTIES TIMEOUT 30)
 add_dependencies(tests limit_deadlock_test)
+
+# env_settings.cpp: the settings of the environment (SGCL_WORKERS,
+# SGCL_WORKER_SPIN_US, SGCL_BLOCKING_THREADS, SGCL_MEMORY_LIMIT), each read
+# once where it is first needed, so each case is a process of its own with
+# the variables set before it starts
+add_executable(env_settings_test async/env_settings.cpp)
+target_link_libraries(env_settings_test sgcl)
+target_include_directories(env_settings_test PRIVATE ${CMAKE_SOURCE_DIR})
+add_dependencies(tests env_settings_test)
+add_test(NAME env_settings_workers COMMAND env_settings_test workers)
+set_tests_properties(env_settings_workers PROPERTIES ENVIRONMENT "SGCL_WORKERS=3;SGCL_WORKER_SPIN_US=5;SGCL_BLOCKING_THREADS=7" TIMEOUT 60)
+add_test(NAME env_settings_explicit COMMAND env_settings_test explicit)
+set_tests_properties(env_settings_explicit PROPERTIES ENVIRONMENT "SGCL_WORKERS=3;SGCL_WORKER_SPIN_US=5;SGCL_BLOCKING_THREADS=7" TIMEOUT 60)
+add_test(NAME env_settings_memory COMMAND env_settings_test memory 67108864)
+set_tests_properties(env_settings_memory PROPERTIES ENVIRONMENT "SGCL_MEMORY_LIMIT=64M" TIMEOUT 60)
+add_test(NAME env_settings_percent COMMAND env_settings_test percent 50)
+set_tests_properties(env_settings_percent PROPERTIES ENVIRONMENT "SGCL_MEMORY_LIMIT=50%" TIMEOUT 60)
+add_test(NAME env_settings_invalid COMMAND env_settings_test invalid)
+set_tests_properties(env_settings_invalid PROPERTIES ENVIRONMENT "SGCL_WORKERS=abc;SGCL_MEMORY_LIMIT=12Q" TIMEOUT 60)

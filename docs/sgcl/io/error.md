@@ -25,10 +25,10 @@ What an operation of io reports when it fails, and the shape every operation ret
 ### errc
 
 ```cpp
-enum class errc { unexpected_eof = 1, closed, invalid_path, invalid_pattern, line_too_long, not_found, exit_status, process_done, wait_delay };
+enum class errc { unexpected_eof = 1, closed, invalid_path, invalid_pattern, line_too_long, not_found, exit_status, process_done, wait_delay, unsupported };
 ```
 
-The failures no `errno` names: the end of a stream where more was required (`read_full`), a stream closed by the program (a read after `close()`), a path `rel` cannot express or a pattern `match` cannot parse, a line past the bound a `buffered_reader` was given; and, of a child process ([exec](exec.md)), no executable of the name in PATH (`not_found`), a failure status (`exit_status`), a second wait or a signal after the wait (`process_done`), the copying tasks outlasting `wait_delay` (`wait_delay`). `make_error_code(errc)` puts one in a `error_code`; `std::is_error_code_enum` is specialized, so `code == errc::closed` compares directly.
+The failures no `errno` names: the end of a stream where more was required (`read_full`), a stream closed by the program (a read after `close()`), a path `rel` cannot express or a pattern `match` cannot parse, a line past the bound a `buffered_reader` was given; and, of a child process ([exec](exec.md)), no executable of the name in PATH (`not_found`), a failure status (`exit_status`), a second wait or a signal after the wait (`process_done`), the copying tasks outlasting `wait_delay` (`wait_delay`); and a wait on a descriptor whose number is past the reactor's table, four million numbers (`unsupported`: an operation that would wait fails rather than tries again forever). `make_error_code(errc)` puts one in a `error_code`; `std::is_error_code_enum` is specialized, so `code == errc::closed` compares directly.
 
 ### error
 
@@ -52,10 +52,10 @@ friend bool operator==(const error&, const error&) noexcept;   // by code
 ```
 
 ```cpp
-auto f = io::open("config.toml");
-if (!f) {
-    if (f.error().is_not_found()) return defaults();
-    std::cerr << f.error().message() << '\n';   // open config.toml: permission denied
+auto config = io::open("config.toml");
+if (!config) {
+    if (config.error().is_not_found()) return defaults();
+    eprintln(config.error().message());   // open config.toml: permission denied
     return {};
 }
 ```
@@ -66,12 +66,12 @@ What every operation returns (no alias: the same `expected<T, E>` as the whole l
 
 ```cpp
 expected<string, io::error> first_line(const string& path) {
-    auto f = io::open(path);
-    if (!f) return unexpected(f.error());
-    tracked_ptr lines = make_tracked<io::buffered_reader>(*f);
-    auto line = lines->read_line();
+    auto opened = io::open(path);
+    if (!opened) return unexpected(opened.error());
+    io::buffered_reader lines(opened);
+    auto line = lines.read_line();
     if (!line) return unexpected(line.error());
-    return line->value_or(string());
+    return *line ? string(**line) : string();   // a copy: the line is the reader's memory
 }
 ```
 
@@ -87,19 +87,18 @@ error last_error(const string& op, const string& path = {}) noexcept;
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
 int main() {
-    auto r = io::read_text("/etc/hosts");
-    if (!r) {
-        std::cerr << r.error().message() << '\n';
-        return r.error().is_permission() ? 2 : 1;
+    auto hosts = io::read_text("/etc/hosts");
+    if (!hosts) {
+        eprintln(hosts.error().message());
+        return hosts.error().is_permission() ? 2 : 1;
     }
-    std::cout << r->size() << " bytes\n";
+    println("{} bytes", hosts->size());
     auto bad = io::open("/nonexistent/file");
-    std::cout << bad.error().message() << ": not found? " << bad.error().is_not_found() << '\n';
+    println("{}: not found? {}", bad.error().message(), bad.error().is_not_found());
 }
 ```
 

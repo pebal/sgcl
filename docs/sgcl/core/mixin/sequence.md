@@ -35,7 +35,6 @@ static_assert(req::sequence<vector<int>> && !req::sequence<slice<const int>> && 
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -74,10 +73,10 @@ int main() {
     for (int x : {3, 9, 1, 7, 5}) {
         last.push(x);                                // 5 9 1 7: the 3 overwritten
     }
-    std::cout << last.max() << (last.contains(3) ? " with 3" : " without 3") << "\n";   // 9 without 3
+    println("{}{}", last.max(), (last.contains(3) ? " with 3" : " without 3"));   // 9 without 3
     last.sort();
-    last.for_each([](int x) { std::cout << x << " "; });   // 1 5 7 9
-    std::cout << "\n";
+    last.for_each([](int x) { print("{} ", x); });   // 1 5 7 9
+    println();
     return last.max() == 9 && !last.contains(3) ? 0 : 1;
 }
 ```

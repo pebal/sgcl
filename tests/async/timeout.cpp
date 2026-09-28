@@ -7,13 +7,27 @@
 
 using namespace sgcl::async;
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <vector>
 
 namespace {
+    // The won races' timers swept, shard by shard: each shard below
+    // max(66, 2 x what it held before + 3). A shard sweeps its cancelled
+    // once they outnumber its live timers past 64 (timer.h: _push), and its
+    // live ones are what it held before at most (other tests' deadlines an
+    // hour away, which a run of the whole program leaves behind: the fixed
+    // bound of 64 failed there, at 65 to 100) and the one race in flight
+    void expect_swept(const std::vector<size_t>& before) {
+        auto after = sgcl::async::detail::timers_instance().shard_sizes();
+        for (size_t i = 0; i < after.size(); ++i) {
+            EXPECT_LE(after[i], std::max<size_t>(66, 2 * before[i] + 3)) << "shard " << i << ", before " << before[i];
+        }
+    }
     using namespace std::chrono_literals;
     using Clock = std::chrono::steady_clock;
 
@@ -123,7 +137,9 @@ TEST(Timeout_Tests, TheLoserIsStoppedThroughItsSource) {
 
 TEST(Timeout_Tests, WithTimeoutGivesTimedOut) {
     EXPECT_EQ(sgcl::async::with_timeout(number(3, 5), 200ms).result(), 3);
-    EXPECT_EQ(sgcl::async::with_timeout(number(3, 500), 20ms).wait().error(), sgcl::async::timed_out());
+    auto lost = sgcl::async::with_timeout(number(3, 500), 20ms).wait();
+    ASSERT_FALSE(lost);   // before error(): of a value it throws, and it is noexcept
+    EXPECT_EQ(lost.error(), sgcl::async::timed_out());
     auto late = sgcl::async::with_timeout(text_task(500), 20ms).wait();
     ASSERT_FALSE(late);                                    // an error, not an exception (DESIGN 220)
     EXPECT_EQ(late.error().message(), "timed out");
@@ -132,7 +148,9 @@ TEST(Timeout_Tests, WithTimeoutGivesTimedOut) {
     EXPECT_THROW(sgcl::async::with_timeout(failing(), 200ms).wait(), std::runtime_error);
     // with the loser stopped
     sgcl::async::stop_source src;
-    EXPECT_EQ(sgcl::async::with_timeout(obedient(src.token(), 500), 20ms, src).wait().error(), sgcl::async::timed_out());
+    auto lost2 = sgcl::async::with_timeout(obedient(src.token(), 500), 20ms, src).wait();
+    ASSERT_FALSE(lost2);
+    EXPECT_EQ(lost2.error(), sgcl::async::timed_out());
     EXPECT_TRUE(src.stop_requested());
     // a task of nothing
     sgcl::atomic<int> finished = {0};
@@ -141,7 +159,9 @@ TEST(Timeout_Tests, WithTimeoutGivesTimedOut) {
     // the loser stopped through its source and waited for: a task left sleeping past the
     // test would write to `finished`, a word of this stack, from a later test
     sgcl::async::stop_source src2;
-    EXPECT_EQ(sgcl::async::with_timeout(obedient_nothing(src2.token(), 500, finished), 20ms, src2).wait().error(), sgcl::async::timed_out());
+    auto lost3 = sgcl::async::with_timeout(obedient_nothing(src2.token(), 500, finished), 20ms, src2).wait();
+    ASSERT_FALSE(lost3);
+    EXPECT_EQ(lost3.error(), sgcl::async::timed_out());
     EXPECT_TRUE(src2.stop_requested());
     for (int i = 0; i < 5000 && finished.load() < 2; ++i) {
         std::this_thread::sleep_for(1ms);
@@ -154,35 +174,55 @@ TEST(Timeout_Tests, WithTimeoutGivesTimedOut) {
 // takes it, beside with_timeout's time; and a source stopped at a point
 TEST(Timeout_Tests, ADeadlineAtAPoint) {
     auto t0 = Clock::now();
-    EXPECT_EQ(sgcl::async::with_deadline(number(3, 500), sgcl::clock::now() + 20ms).wait().error(), sgcl::async::timed_out());
+    auto lost = sgcl::async::with_deadline(number(3, 500), sgcl::clock::now() + 20ms).wait();
+    ASSERT_FALSE(lost);
+    EXPECT_EQ(lost.error(), sgcl::async::timed_out());
     EXPECT_GE(Clock::now() - t0, 20ms);
     EXPECT_EQ(sgcl::async::with_deadline(number(4, 5), sgcl::clock::now() + 200ms).result(), 4);
     sgcl::async::stop_source loser;
-    EXPECT_EQ(sgcl::async::with_deadline(obedient(loser.token(), 500), sgcl::clock::now() + 20ms, loser).wait().error(), sgcl::async::timed_out());
+    auto lost2 = sgcl::async::with_deadline(obedient(loser.token(), 500), sgcl::clock::now() + 20ms, loser).wait();
+    ASSERT_FALSE(lost2);
+    EXPECT_EQ(lost2.error(), sgcl::async::timed_out());
     EXPECT_TRUE(loser.token().stop_requested());
-    EXPECT_EQ(sgcl::async::with_deadline(number(1, 50), sgcl::clock::now() - 1s).wait().error(), sgcl::async::timed_out());   // a point past: at once
+    auto lost3 = sgcl::async::with_deadline(number(1, 50), sgcl::clock::now() - 1s).wait();   // a point past: at once
+    ASSERT_FALSE(lost3);
+    EXPECT_EQ(lost3.error(), sgcl::async::timed_out());
     sgcl::async::stop_source at;
     at.stop_at(sgcl::clock::now() + 20ms);
-    EXPECT_EQ(sgcl::async::with_deadline(number(3, 500), at.token()).wait().error(), sgcl::async::stopped());
+    auto lost4 = sgcl::async::with_deadline(number(3, 500), at.token()).wait();
+    ASSERT_FALSE(lost4);
+    EXPECT_EQ(lost4.error(), sgcl::async::stopped());
     EXPECT_TRUE(at.token().stop_requested());
     sgcl::async::scheduler::stop();
 }
 
 TEST(Timeout_Tests, ATokenAsTheDeadline) {
     sgcl::async::stop_source src;
+    auto t0 = Clock::now();                                // before the deadline is set: it counts from its own call (after t0, it measured 19.99 ms once)
     src.stop_after(20ms);                                  // the deadline on the source
-    auto t0 = Clock::now();
-    EXPECT_EQ(sgcl::async::with_deadline(number(3, 500), src.token()).wait().error(), sgcl::async::stopped());
+    auto late = sgcl::async::with_deadline(number(3, 500), src.token()).wait();
+    ASSERT_FALSE(late);
+    EXPECT_EQ(late.error(), sgcl::async::stopped());
     EXPECT_GE(Clock::now() - t0, 20ms);
     EXPECT_LT(Clock::now() - t0, 400ms);
-    // the task given the same token stops itself
+    // the task given the same token stops itself: the stop ends the race
+    // and the task at once, so either may come first, the race's stopped
+    // or the task's own answer (a value; its error() threw
+    // bad_variant_access here about once in a hundred runs)
     sgcl::async::stop_source src2;
     src2.stop_after(20ms);
-    EXPECT_EQ(sgcl::async::with_deadline(obedient(src2.token(), 500), src2.token()).wait().error(), sgcl::async::stopped());
+    auto self = sgcl::async::with_deadline(obedient(src2.token(), 500), src2.token()).wait();
+    if (self) {
+        EXPECT_EQ(*self, "stopped");
+    } else {
+        EXPECT_EQ(self.error(), sgcl::async::stopped());
+    }
     // in time
     sgcl::async::stop_source src3;
     src3.stop_after(200ms);
-    EXPECT_EQ(sgcl::async::with_deadline(number(4, 5), src3.token()).wait(), 4);
+    auto in_time = sgcl::async::with_deadline(number(4, 5), src3.token()).wait();
+    ASSERT_TRUE(in_time) << in_time.error().message();   // before the value: a conversion of an error throws
+    EXPECT_EQ(*in_time, 4);
     // a stop by hand, from another thread
     sgcl::async::stop_source src4;
     std::thread stopper([&] { std::this_thread::sleep_for(20ms); src4.request_stop(); });
@@ -191,7 +231,9 @@ TEST(Timeout_Tests, ATokenAsTheDeadline) {
     EXPECT_EQ(by_hand.error().message(), "stopped");        // a stop, not a timeout: the library cannot tell a deadline from a hand
     stopper.join();
     // an empty token: no deadline
-    EXPECT_EQ(sgcl::async::with_deadline(number(5, 5), sgcl::async::stop_token()).wait(), 5);
+    auto no_deadline = sgcl::async::with_deadline(number(5, 5), sgcl::async::stop_token()).wait();
+    ASSERT_TRUE(no_deadline);
+    EXPECT_EQ(*no_deadline, 5);
     sgcl::async::scheduler::stop();
 }
 
@@ -202,7 +244,9 @@ TEST(Timeout_Tests, ATimeoutOfZero) {
     auto r = sgcl::async::with_timeout(std::move(t), 0ms).wait();                     // a result that is there is a result
     ASSERT_TRUE(r.has_value());
     EXPECT_EQ(*r, 2);
-    EXPECT_EQ(sgcl::async::with_timeout(number(1, 50), 0ms).wait().error(), sgcl::async::timed_out());
+    auto lost = sgcl::async::with_timeout(number(1, 50), 0ms).wait();
+    ASSERT_FALSE(lost);
+    EXPECT_EQ(lost.error(), sgcl::async::timed_out());
     sgcl::async::scheduler::stop();
 }
 
@@ -240,15 +284,19 @@ TEST(Timeout_Tests, ManyAtOnce) {
 
 
 TEST(Timeout_Tests, AWonRaceCancelsItsTimer) {
+    const auto before = sgcl::async::detail::timers_instance().shard_sizes();
     // a race the task wins leaves no timer behind: cancelled, and swept
     // out of the heap once the cancelled are half of it
     auto t = sgcl::async::spawn([]() -> task<> {
         for (int i = 0; i < 5000; ++i) {
             auto r = co_await sgcl::async::with_timeout([](int v) -> task<int> { co_return v; }(i), 1h);
-            EXPECT_EQ(*r, i);
+            EXPECT_TRUE(r);   // a coroutine: no ASSERT (its return); the value read only when there
+            if (r) {
+                EXPECT_EQ(*r, i);
+            }
         }
     }());
     t.wait();
-    EXPECT_LT(sgcl::async::detail::timers_instance().size(), 200u);
+    expect_swept(before);
     sgcl::async::scheduler::stop();
 }

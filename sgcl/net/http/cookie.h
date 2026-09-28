@@ -52,6 +52,12 @@ namespace sgcl::net::http {
         : name(name), value(value) {
         }
 
+        // The cookie a Set-Cookie literal in the program spells: parse's
+        // value or its bad_expected_access<io::error> (DESIGN 234)
+        explicit cookie(const string& set_cookie)
+        : cookie(parse(set_cookie).value()) {
+        }
+
         // The value of a Set-Cookie field
         string to_string() const;
 
@@ -252,7 +258,7 @@ namespace sgcl::net::http {
             if (d.front() == '.') {
                 d.remove_prefix(1);
             }
-            bool ok = !d.empty();
+            bool ok = !d.empty() && d.front() != '.';   // "..x" is no host name, and a reader would take one dot off again
             for (char c : d) {
                 ok = ok && ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '_');
             }
@@ -353,9 +359,9 @@ namespace sgcl::net::http {
                 }
                 bool ok = !digits.empty() && digits.size() <= 18;
                 int64_t secs = 0;
-                for (char ch : digits) {
-                    ok = ok && ch >= '0' && ch <= '9';
-                    secs = secs * 10 + (ch - '0');
+                for (size_t i = 0; ok && i < digits.size(); ++i) {   // past 18 digits or a non-digit, no more: the sum would overflow
+                    ok = digits[i] >= '0' && digits[i] <= '9';
+                    secs = secs * 10 + (digits[i] - '0');
                 }
                 if (ok) {
                     c.max_age = negative || secs == 0 ? duration::zero() : duration(std::chrono::seconds(secs));

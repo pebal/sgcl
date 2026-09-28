@@ -1254,10 +1254,18 @@ namespace sgcl::detail {
             }
         }
 
+        // A unique table: found or not. A multi one: the run in the chain.
+        // (Not _equal_range's pair for a unique table: in an ordered one its
+        // `last` is the next in insertion order, which the chain that
+        // _run_length walks need not reach.)
         template<class K>
         size_type _count(const K& key) const {
-            auto [first, last] = _equal_range(key);
-            return _run_length(first, last);
+            if constexpr(unique) {
+                return _find(key) ? 1 : 0;
+            } else {
+                auto [first, last] = _equal_range(key);
+                return _run_length(first, last);
+            }
         }
 
         // Whether the key of what an insertion was given is read in place:

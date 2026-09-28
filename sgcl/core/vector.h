@@ -665,9 +665,10 @@ namespace sgcl {
         }
 
         // A fresh buffer for n elements (its capacity may be more: the size
-        // class), taken over from the maker's unique_ptr
+        // class, or past a page what the pages hold), taken over from the
+        // maker's unique_ptr
         T* _allocate(size_type n) {
-            _ptr = unique_ptr<T>(detail::Maker<T[]>::make_tracked_data(n));
+            _ptr = unique_ptr<T>(detail::Maker<T[]>::make_tracked_data_in_whole_pages(n));
             auto data = _data();
             _capacity = _header(data)->capacity;
             return data;

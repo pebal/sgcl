@@ -28,7 +28,7 @@ The state is a managed object; a source or a token is one word, copied freely, a
 stop_token() noexcept;                              // no source: never stops
 bool stop_requested() const noexcept;
 bool stop_possible() const noexcept;                // has a source
-async::channel<void>& channel() const noexcept;     // the channel closed by the stop
+async::channel<void> channel() const noexcept;      // the channel closed by the stop: a handle to it
 template<class F> auto on_stop(F f) const;          // a case of a select: f() when stopped
 auto stopped() const;                               // an operation of nothing: co_await token.stopped(), token.stopped().wait()
 bool operator==(const stop_token&, const stop_token&) noexcept;   // the same source
@@ -65,7 +65,6 @@ while (running) {
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -75,7 +74,7 @@ using namespace std::chrono_literals;
 // says stop; the server's source stops them all, a worker's own deadline
 // stops it alone. The tokens live in the tasks' frames, on the managed
 // heap, and the state they share is garbage once the last is gone.
-async::task<int> worker(async::channel<int>& requests, async::stop_token tok) {
+async::task<int> worker(async::channel<int> requests, async::stop_token tok) {
     int served = 0;
     bool running = true;
     while (running) {
@@ -99,7 +98,7 @@ int main() {
     }
     this_thread::sleep_for(50ms);                              // b's deadline passes
     server.request_stop();                                          // a stops; b already did
-    std::cout << a.wait() + b.wait() << " served\n";                // 10 served
+    println("{} served", a.wait() + b.wait());                // 10 served
     return a.result() + b.result() == 10 ? 0 : 1;
 }
 ```

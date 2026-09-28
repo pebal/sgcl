@@ -188,6 +188,29 @@ namespace {
     }
 }
 
+// A name written in the program constructs the zone; load's zone, or
+// load's error thrown, as std::chrono::locate_zone throws (DESIGN 234)
+TEST(Zone_Tests, LiteralsConstruct) {
+    zone warsaw("Europe/Warsaw");
+    EXPECT_EQ(warsaw, value_of(zone::load("Europe/Warsaw")));
+    EXPECT_EQ(warsaw.name(), "Europe/Warsaw");
+    EXPECT_EQ(zone("UTC"), zone::utc());
+    auto bad = zone::load("Europe/Atlantis");
+    ASSERT_FALSE(bad);
+    try {
+        zone("Europe/Atlantis");
+        FAIL() << "no such zone";
+    } catch (const bad_expected_access<time::error>& x) {
+        EXPECT_EQ(x.error(), bad.error());
+        EXPECT_EQ(string(x.what()), bad.error().message());
+        EXPECT_EQ(string(x.what()), "unknown time zone \"Europe/Atlantis\"");
+    }
+    EXPECT_THROW(zone("../etc/passwd"), bad_expected_access<time::error>);   // not a name
+    static_assert(!std::is_convertible_v<const string&, zone>, "explicit");
+    static_assert(!std::is_convertible_v<const char*, zone>, "explicit");
+    static_assert(!std::is_constructible_v<zone, int>);
+}
+
 TEST(Zone_Tests, EveryZoneOfTheDatabaseAsGoReadsIt) {
     if (system_version() != oracle::ZoneVersion) {
         GTEST_SKIP() << "the system's tz database is " << system_version() << ", the cases were made from " << oracle::ZoneVersion;
@@ -228,8 +251,8 @@ TEST(Zone_Tests, ARuleInAFileWithNoTransitionIsTheRuleForAllTime) {
         auto z = zone::from_tzif(bytes_of(f.bytes()), c.name);
         ASSERT_TRUE(z) << c.name << ": " << text(z.error().message());
         check_changes(*z, c, 0);
-        EXPECT_EQ(*z, *zone::from_tzif(bytes_of(f.bytes()), c.name));   // the same bytes, the same zone
-        EXPECT_NE(*z, *zone::from_posix(c.name));                          // made another way
+        EXPECT_EQ(*z, value_of(zone::from_tzif(bytes_of(f.bytes()), c.name)));   // the same bytes, the same zone
+        EXPECT_NE(*z, value_of(zone::from_posix(c.name)));                          // made another way
     }
 }
 
@@ -287,9 +310,9 @@ TEST(Zone_Tests, LoadedOnceAndNamed) {
     ASSERT_TRUE(poland);
     EXPECT_NE(*a, *poland);
     EXPECT_EQ(state(*a, 1790000000), state(*poland, 1790000000));
-    EXPECT_EQ(*zone::load("UTC"), zone::utc());
-    EXPECT_EQ(text(zone::load("Etc/GMT+5")->name()), "Etc/GMT+5");
-    EXPECT_EQ(state(*zone::load("Etc/GMT+5"), 0), (State{-18000, false, "-05"}));
+    EXPECT_EQ(value_of(zone::load("UTC")), zone::utc());
+    EXPECT_EQ(text(value_of(zone::load("Etc/GMT+5")).name()), "Etc/GMT+5");
+    EXPECT_EQ(state(value_of(zone::load("Etc/GMT+5")), 0), (State{-18000, false, "-05"}));
 }
 
 TEST(Zone_Tests, ANameThatIsNotOneIsRefused) {
@@ -356,7 +379,7 @@ TEST(Zone_Tests, ForeignZonesLiveWhileHeld) {
     EXPECT_EQ(text(kept.abbreviation()), "ABC");
     EXPECT_EQ(kept.offset(), 3h);
     EXPECT_EQ(kept.hour(), 3);
-    EXPECT_EQ(*zone::from_posix("<ABC>-3"), kept.zone()) << "the same zone while it lives";
+    EXPECT_EQ(value_of(zone::from_posix("<ABC>-3")), kept.zone()) << "the same zone while it lives";
     // the amortized sweep of the inserting threads keeps the table near
     // what lives, round after round
     for (int round = 0; round < 4; ++round) {
@@ -438,8 +461,8 @@ TEST(Zone_Tests, AvailableIsTheDatabase) {
 TEST(Zone_Tests, TheLocalZone) {
     using time::detail::zone_from_tz;
     EXPECT_EQ(zone_from_tz(""), optional<zone>(zone::utc()));
-    EXPECT_EQ(zone_from_tz(":Europe/Warsaw"), optional<zone>(*zone::load("Europe/Warsaw")));
-    EXPECT_EQ(zone_from_tz("Europe/Warsaw"), optional<zone>(*zone::load("Europe/Warsaw")));
+    EXPECT_EQ(zone_from_tz(":Europe/Warsaw"), optional<zone>(value_of(zone::load("Europe/Warsaw"))));
+    EXPECT_EQ(zone_from_tz("Europe/Warsaw"), optional<zone>(value_of(zone::load("Europe/Warsaw"))));
     auto tokyo = zone_from_tz(":/usr/share/zoneinfo/Asia/Tokyo");
     ASSERT_TRUE(tokyo);
     EXPECT_EQ(text(tokyo->name()), "Asia/Tokyo");

@@ -105,7 +105,6 @@ bool full() const noexcept;
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -117,7 +116,7 @@ struct Message {
 };
 
 struct Stage {
-    concurrent::bounded_queue<tracked_ptr<Message>> inbox{64};   // inside a managed object: 
+    concurrent::bounded_queue<tracked_ptr<Message>> inbox{64};               // inside a managed object: 
 };
 
 int main() {
@@ -143,8 +142,7 @@ int main() {
     for (auto& t : threads) {
         t.join();
     }
-    std::cout << received << " messages, " << out_of_order << " out of order, "
-              << stage->inbox.size() << " left in a ring of " << stage->inbox.capacity() << "\n";
+    println("{} messages, {} out of order, {} left in a ring of {}", received.load(), out_of_order.load(), stage->inbox.size(), stage->inbox.capacity());
     return received == 4000 && out_of_order == 0 ? 0 : 1;
 }
 ```

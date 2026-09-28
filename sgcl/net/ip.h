@@ -64,6 +64,14 @@ namespace sgcl::net {
         // nullopt for anything else (no surrounding spaces, no brackets)
         static expected<ip_address, io::error> parse(const string& text);
 
+        // The address a literal in the program spells: what parse gives,
+        // or bad_expected_access<io::error> with parse's message. Input
+        // is parsed; a text the program itself wrote is constructed
+        // (DESIGN 234).
+        explicit ip_address(const string& text)
+        : ip_address(parse(text).value()) {
+        }
+
         static ip_address v4(uint8_t a, uint8_t b, uint8_t c, uint8_t d) noexcept {
             ip_address r;
             r._kind = Kind4;
@@ -603,6 +611,12 @@ namespace sgcl::net {
         // without a zone; bits in decimal without a sign or a leading zero
         static expected<ip_network, io::error> parse(const string& text);
 
+        // The network a literal spells: parse's value or its
+        // bad_expected_access<io::error> (DESIGN 234)
+        explicit ip_network(const string& text)
+        : ip_network(parse(text).value()) {
+        }
+
         bool is_valid() const noexcept {
             return _address.is_valid() && _bits >= 0;
         }
@@ -721,6 +735,12 @@ namespace sgcl::net {
         // "address:port" with the port in decimal (0..65535, leading
         // zeros allowed, no sign); nullopt for anything else
         static expected<endpoint, io::error> parse(const string& text);
+
+        // The endpoint a literal spells: parse's value or its
+        // bad_expected_access<io::error> (DESIGN 234)
+        explicit endpoint(const string& text)
+        : endpoint(parse(text).value()) {
+        }
 
         ip_address address() const noexcept {
             return _address;

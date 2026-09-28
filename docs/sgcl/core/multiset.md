@@ -405,7 +405,6 @@ multiset from_list = {1, 1, 2};                   // multiset<int>
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -415,12 +414,14 @@ struct Sample {
 };
 
 int main() {
+    println("readings, each value as often as it came");
+    auto base = collector::get_live_object_count();   // after the first line: io's own objects are not the example's
     // A bag of readings keyed by value: several samples may read the same
     multiset<int> readings;
     for (int r : {3, 7, 3, 3, 9, 7}) {
         readings.insert(r);
     }
-    std::cout << "3 read " << readings.count(3) << " times, 7 read " << readings.count(7) << " times\n";
+    println("3 read {} times, 7 read {} times", readings.count(3), readings.count(7));
 
     // A bag of traced pointers inside a managed object: the samples live as
     // long as the bag's owner does
@@ -442,7 +443,7 @@ int main() {
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
     collector::force_collect(true);
-    std::cout << collector::get_live_object_count() << " live objects\n";     // the nodes, buckets and sentinel of `readings`
+    println("{} live objects", collector::get_live_object_count() - base);     // the nodes, buckets and sentinel of `readings`
     return readings.count(3) == 3 && duplicates == 2 ? 0 : 1;
 }
 ```
@@ -450,6 +451,7 @@ int main() {
 The output:
 
 ```
+readings, each value as often as it came
 3 read 3 times, 7 read 2 times
 8 live objects
 ```

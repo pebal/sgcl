@@ -1747,6 +1747,10 @@ namespace sgcl::time {
         }
     }
 
+    inline datetime::datetime(const string& text, layout format)
+    : datetime(parse(text, format).value()) {
+    }
+
     inline expected<datetime, error> datetime::parse(const string& text, layout format) {
         std::string_view s(text);
         switch (detail::layout_access::kind(format)) {

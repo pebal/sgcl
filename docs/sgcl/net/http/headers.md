@@ -15,7 +15,7 @@ The fields of a head: a list of names and values in the order of the wire, a nam
 - The fields of a received head are slices of the one string the head was copied into: nothing is allocated a field. `get` makes the string it returns (`""` when there is none; `contains` tells the two apart), and so does the iteration, a `pair<string, string>` for each field.
 - `set` puts the value in the place of the first field of the name and drops the others; `add` appends.
 - **Dates** (`Date`, `Last-Modified`, `If-Modified-Since`, `Expires`) are [`time::datetime`](../../time/README.md) values: `date(name)` reads the three forms of RFC 9110 §5.6.7 (IMF-fixdate, and the obsolete RFC 850 and asctime a recipient must take) into UTC, `nullopt` when there is none or it is not a date; `set_date(name, t)` writes IMF-fixdate, always GMT, whatever `t`'s zone. The format is the `time` module's (`time::http`), the only one in the library.
-- A name the program gives must be a token of RFC 9110 (`invalid_argument` otherwise); a value has CR, LF and NUL made spaces, since values often come from users and an exception in the path of a request would be worse than the change (Go does the same).
+- A name and a value are kept as the program gives them and checked where they are written: a name that is not a token of RFC 9110, or a value with CR, LF, NUL or another control, makes the client's send `std::errc::invalid_argument` before a byte is sent and a handler's response a 500 ([client](client.md), [server](server.md)): values often come from users, and neither a split message nor an exception in the path of a request will do.
 
 ## Members
 
@@ -39,19 +39,19 @@ iterator end() const noexcept;
 
 ```cpp
 #include "sgcl/net/http/headers.h"
-#include <iostream>
+#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
 int main() {
     net::http::headers h;
     h.add("Set-Cookie", "a=1").add("set-cookie", "b=2").set("Content-Type", "text/plain");
-    std::cout << h.get("SET-COOKIE") << ' ' << h.get_all("Set-Cookie").size() << '\n';
+    println("{} {}", h.get("SET-COOKIE"), h.get_all("Set-Cookie").size());
     h.set("X-Name", "line one\r\nInjected: yes");
     h.set_date("Last-Modified", time::datetime::from_unix(784111777));
-    std::cout << (h.date("last-modified") == time::datetime::from_unix(784111777)) << '\n';
+    println("{}", (h.date("last-modified") == time::datetime::from_unix(784111777)));
     for (auto [name, value] : h) {
-        std::cout << name << ": " << value << '\n';
+        println("{}: {}", name, value);
     }
 }
 ```

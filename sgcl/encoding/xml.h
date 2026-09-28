@@ -232,6 +232,12 @@ namespace sgcl::encoding {
         // "{http://www.w3.org/1999/xlink}href"); nullopt when there is none
         optional<string> attribute(const string& name) const;
 
+        // The same with a value for when there is none: e.attribute("lang", "en")
+        string attribute(const string& name, const string& fallback) const {
+            auto a = attribute(name);
+            return a ? *a : fallback;
+        }
+
         // In the order of the document; empty for a node that is not an element
         slice<const struct attribute> attributes() const noexcept;
 
@@ -374,6 +380,12 @@ namespace sgcl::encoding {
         // Of a start: in the order of the tag
         slice<const struct xml::attribute> attributes() const noexcept {
             return _attributes;
+        }
+
+        // The same with a value for when there is none
+        string attribute(const string& name, const string& fallback) const {
+            auto a = attribute(name);
+            return a ? *a : fallback;
         }
 
         // By name as written or {namespace}local; nullopt when absent

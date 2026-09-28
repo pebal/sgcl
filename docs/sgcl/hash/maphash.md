@@ -39,6 +39,7 @@ static uint64_t of(/* bytes or text */) noexcept;                   // the proce
 static uint64_t of(/* bytes or text */, uint64_t seed) noexcept;
 
 expected<size_t, io::error> copy_from(const io::reader& r);  async::task<expected<size_t, io::error>> async_copy_from(const io::reader& r);
+static expected<uint64_t, io::error> of_file(const string& path);  static async::task<expected<uint64_t, io::error>> async_of_file(const string& path);   // of() of the whole file, through copy_from
 ```
 
 ## Beside a string's own hash
@@ -51,8 +52,7 @@ expected<size_t, io::error> copy_from(const io::reader& r);  async::task<expecte
 #include "sgcl/core/map.h"
 #include "sgcl/core/string.h"
 #include "sgcl/hash/maphash.h"
-#include "sgcl/io/os.h"
-#include "sgcl/txt/format.h"
+#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
@@ -79,16 +79,16 @@ int main() {
     map<point, int, point_hash> heights;
     heights[point{3, 4, "hill"}] = 120;
     heights[point{3, 5, "peak"}] = 870;
-    io::stdout.write(txt::format("{}\n", heights[point{3, 5, "peak"}]));
+    println(heights[point{3, 5, "peak"}]);
 
     // every maphash of the process agrees, in pieces or in one call
     hash::maphash h;
     h.update("hel");
     h.update("lo");
-    io::stdout.write(txt::format("{}\n", h.value() == hash::maphash::of("hello")));
+    println(h.value() == hash::maphash::of("hello"));
 
     // an explicit seed: the same number in every run
-    io::stdout.write(txt::format("{:016x}\n", hash::maphash::of("hello", 42)));
+    println("{:016x}", hash::maphash::of("hello", 42));
 }
 ```
 

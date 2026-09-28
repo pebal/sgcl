@@ -261,8 +261,8 @@ TEST(ConcurrentMap_Test, ElementsDieWithTheirNodes) {
 TEST(ConcurrentMap_Test, NodesAndObjectsReclaimed) {
     const size_t before = collector::get_live_object_count();
     sgcl::concurrent::map<int, tracked_ptr<Baz>> m;
-    const size_t empty = collector::get_live_object_count();   // the head, the bucket array and its buffer, the counters
-    EXPECT_EQ(empty, before + 4u);
+    const size_t empty = collector::get_live_object_count();   // the head, the bucket array and its buffer (the counters are plain memory)
+    EXPECT_EQ(empty, before + 3u);
     off_frame([&] {
         for (int i = 0; i < 100; ++i) {
             m.try_emplace(i, make_tracked<Baz>(i));
@@ -505,4 +505,67 @@ TEST(ConcurrentSet_Test, ChurnManyThreads) {
         }
     });
     EXPECT_EQ(collector::get_live_object_count(), before);
+}
+
+namespace {
+    // A hash that looks at the heap once, while the map is built from a
+    // range: the managed objects then alive whose type is the order of
+    // the build
+    struct LookingHash {
+        inline static long trigger = -1;
+        inline static size_t seen = 0;
+
+        size_t operator()(long k) const {
+            if (k == trigger) {
+                trigger = -1;
+                seen = live_objects_named("6Placed");
+            }
+            return std::hash<long>()(k);
+        }
+    };
+}
+
+// The order of a build from a range is scratch of the constructor, plain
+// memory; the striped count is plain memory the map owns: neither a
+// managed object (the order 240 KB for 10 000 elements, the count 2 KB
+// for every map before)
+TEST(ConcurrentMap_Test, TheOrderOfABuildAndTheCountAreOffTheManagedHeap) {
+    std::vector<std::pair<long, long>> items;
+    for (long i = 0; i < 10000; ++i) {
+        items.emplace_back(i, i);
+    }
+    items.emplace_back(7, -1);   // a key again: the first stays
+    LookingHash::trigger = 5000;
+    LookingHash::seen = 0;
+    sgcl::concurrent::map<long, long, LookingHash> m(items.begin(), items.end());
+    EXPECT_EQ(LookingHash::trigger, -1);   // the hash looked
+    EXPECT_EQ(LookingHash::seen, 0u);
+    EXPECT_EQ(m.size(), 10000u);
+    EXPECT_EQ(m.find(7)->second, 7);
+    sgcl::concurrent::map<int, int> empty;
+    EXPECT_EQ(live_objects_named("8Counters"), 0u);
+    EXPECT_TRUE(empty.try_emplace(1, 1).second);
+    EXPECT_EQ(empty.size(), 1u);
+    EXPECT_EQ(m.erase(7), 1u);
+    EXPECT_EQ(m.size(), 9999u);
+}
+
+// value_or(key, fallback): the value under the key, or the fallback, by value;
+// a key of another type through the transparent lookup; a tracked value
+// comes back as the same object
+TEST(ConcurrentMap_Test, ValueOrWithAFallback) {
+    sgcl::concurrent::map<sgcl::string, int> m = {{"a", 1}, {"b", 2}};
+    EXPECT_EQ(m.value_or("a", 0), 1);
+    EXPECT_EQ(m.value_or("z", -1), -1);
+    EXPECT_EQ(m.value_or(std::string_view("b"), 0), 2);
+    EXPECT_EQ(m.value_or(std::string_view("zz"), 7), 7);
+    const auto& c = m;
+    EXPECT_EQ(c.value_or("b", 0), 2);
+    sgcl::concurrent::map<int, sgcl::tracked_ptr<int>> p;
+    sgcl::tracked_ptr<int> one = sgcl::make_tracked<int>(1);
+    sgcl::tracked_ptr<int> none = sgcl::make_tracked<int>(0);
+    p.try_emplace(1, one);
+    EXPECT_EQ(p.value_or(1, none), one);
+    EXPECT_EQ(p.value_or(2, none), none);
+    static_assert(std::is_same_v<decltype(m.value_or("a", 0)), int>);
 }

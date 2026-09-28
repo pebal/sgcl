@@ -13,11 +13,13 @@
 #include "slice.h"
 
 #include <algorithm>
+#include <concepts>
 #include <iterator>
 #include <limits>
 #include <span>
 #include <stdexcept>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 namespace sgcl {
@@ -27,26 +29,78 @@ namespace sgcl {
     // an aggregate: a class with the mixins of every range of the library
     // as its bases (mixin/), which an aggregate cannot carry (a base would
     // take the first brace of {1, 2, 3}), and a constructor with the
-    // braces' own syntax in place of them — N parameters of type T, one
-    // per element, generated from the index sequence that is the third,
-    // defaulted template parameter (array<T, N> is spelled as ever): so
-    // `array<int, 3> a = {1, 2, 3}` as before, each element constructed in
-    // place, a fourth an error at compile time, an element that only
-    // moves moved in, `array<P, 2> p = {{1, 2}, {3, 4}}` with one level of
-    // braces (a parameter of type P takes its brace). The default
-    // constructor is trivial, as an aggregate's: `array<int, 3> a;` leaves
-    // the elements uninitialized, `= {}` zeroes them. For a size known
-    // only at run time: dynamic_array<T>.
+    // braces' own syntax in place of them: `array<int, 3> a = {1, 2, 3}`
+    // as before, each element constructed in place from its argument, a
+    // fourth an error at compile time, an element that only moves moved
+    // in. The elements and that constructor are a base,
+    // detail::ArrayElements: up to 64 elements it takes N parameters of
+    // type T, one per element, from an index sequence in the base's type,
+    // so that the braces are exactly an aggregate's (`array<P, 2> p =
+    // {{1, 2}, {3, 4}}` with one level of braces, a parameter of type P
+    // taking its brace; `array<double, 2> d = {1, 2}`, constants that
+    // fit, as `array<uint8_t, 2> b = {1, 0xff}`, a narrowing one refused);
+    // past 64 a template of N arguments, each converting to T implicitly
+    // and converted as a parameter of type T would be: the same arguments
+    // but a brace without a type, and no narrowing check (the list
+    // initialization of a class checks its constructor's arguments, the
+    // template's conversion inside it is no longer one). Nothing of the
+    // sequence is in the type of array<T, N> itself, whose name and those
+    // of its members stay short: with the sequence as its third
+    // parameter, array<std::byte, 32768> was named in 250 KB. The default
+    // constructor is trivial, as an aggregate's: `array<int, 3> a;`
+    // leaves the elements uninitialized, `= {}` zeroes them. For a size
+    // known only at run time: dynamic_array<T>.
     namespace detail {
         template<class T, size_t>
         using Same = T;
+
+        // Up to this many elements the constructor takes N parameters of
+        // type T, from an index sequence in the name of the base alone;
+        // past it a template, so that a large N neither instantiates
+        // make_index_sequence<N> nor carries it in its debug information
+        inline constexpr size_t array_braces_limit = 64;
+
+        template<class T, size_t N, class Seq>
+        class ArrayElements;
+
+        // N parameters of type T, each copy-initialized from its argument
+        template<class T, size_t N, size_t... I>
+        class ArrayElements<T, N, std::index_sequence<I...>> {
+        public:
+            constexpr ArrayElements() = default;
+
+            constexpr ArrayElements(Same<T, I>... init)
+            : elems{std::move(init)...} {
+            }
+
+        protected:
+            T elems[N];
+        };
+
+        // N arguments of any types that convert to T implicitly, each
+        // converted as a parameter of type T would be: the same arguments
+        // as above, but a brace without a type
+        template<class T, size_t N>
+        class ArrayElements<T, N, void> {
+        public:
+            constexpr ArrayElements() = default;
+
+            template<class... U>
+            requires (sizeof...(U) == N && (std::convertible_to<U, T> && ...))
+            constexpr ArrayElements(U&&... init)
+            : elems{T(std::forward<U>(init))...} {
+            }
+
+        protected:
+            T elems[N];
+        };
+
+        template<size_t N>
+        using ArrayElementsSequence = std::conditional_t<(N <= array_braces_limit), std::make_index_sequence<(N <= array_braces_limit ? N : 0)>, void>;
     }
 
-    template<class T, size_t N, class Seq = std::make_index_sequence<N>>
-    class array;
-
-    template<class T, size_t N, size_t... I>
-    class array<T, N, std::index_sequence<I...>>
+    template<class T, size_t N>
+    class array
     : public mixin::bidirectional<array<T, N>>
     , public mixin::comparable<array<T, N>>
     , public mixin::contiguous<array<T, N>>
@@ -54,7 +108,11 @@ namespace sgcl {
     , public mixin::equatable<array<T, N>>
     , public mixin::ordered<array<T, N>>
     , public mixin::random_access<array<T, N>>
-    , public mixin::sequence<array<T, N>> {
+    , public mixin::sequence<array<T, N>>
+    , private detail::ArrayElements<T, N, detail::ArrayElementsSequence<N>> {
+        using Elements = detail::ArrayElements<T, N, detail::ArrayElementsSequence<N>>;
+        using Elements::elems;
+
     public:
         using value_type = T;
         using reference = T&;
@@ -70,10 +128,8 @@ namespace sgcl {
 
         constexpr array() = default;
 
-        // The elements, one parameter each: {1, 2, 3}
-        constexpr array(detail::Same<T, I>... init)
-        : elems{std::move(init)...} {
-        }
+        // The elements, one argument each: {1, 2, 3}
+        using Elements::Elements;
 
         constexpr reference at(size_type pos) {
             if (pos >= N) {
@@ -219,9 +275,6 @@ namespace sgcl {
         friend constexpr void swap(array& l, array& r) noexcept(noexcept(l.swap(r))) {
             l.swap(r);
         }
-
-    private:
-        T elems[N];
     };
 
     // slice s(a): the elements of an array as they are, const for a const one
@@ -233,7 +286,7 @@ namespace sgcl {
 
     // No elements: the same interface over nothing
     template<class T>
-    class array<T, 0, std::index_sequence<>>
+    class array<T, 0>
     : public mixin::bidirectional<array<T, 0>>
     , public mixin::comparable<array<T, 0>>
     , public mixin::contiguous<array<T, 0>>

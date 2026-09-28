@@ -92,7 +92,6 @@ Takes the whole stack off the head with a compare-exchange and destroys every el
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -122,7 +121,7 @@ int main() {
     for (auto& t : threads) {
         t.join();
     }
-    std::cout << done << " jobs, " << (jobs.empty() ? "stack empty" : "?") << "\n";
+    println("{} jobs, {}", done.load(), (jobs.empty() ? "stack empty" : "?"));
     return done == 4000 && jobs.empty() ? 0 : 1;
 }
 ```

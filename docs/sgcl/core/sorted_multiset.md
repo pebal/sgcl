@@ -375,7 +375,6 @@ From an iterator pair or an initializer list, as for `std::multiset`; an initial
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -394,6 +393,8 @@ struct ByPriority {
 };
 
 int main() {
+    println("tasks, by priority");
+    auto base = collector::get_live_object_count();   // after the first line: io's own objects are not the example's
     sorted_multiset<tracked_ptr<Task>, ByPriority> queue;
     tracked_ptr build = make_tracked<Task>("build", 1);
     queue.insert(build);
@@ -401,11 +402,11 @@ int main() {
     queue.insert(make_tracked<Task>("lint", 2));               // after "test": equal keys keep their order
     queue.insert(make_tracked<Task>("deploy", 3));
 
-    std::cout << "order:";
+    print("order:");
     for (const auto& task : queue) {
-        std::cout << ' ' << task->name;                             // build test lint deploy
+        print(" {}", task->name);                             // build test lint deploy
     }
-    std::cout << '\n';
+    println();
 
     // Everything at priority 2 goes: the two tracked_ptrs are destroyed now,
     // "test" and "lint" are collected, "build" stays through `build`
@@ -415,8 +416,7 @@ int main() {
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
     collector::force_collect(true);
-    std::cout << erased << " erased, " << queue.size() << " left, "
-              << collector::get_live_object_count() << " live objects\n";
+    println("{} erased, {} left, {} live objects", erased, queue.size(), collector::get_live_object_count() - base);
     return erased == 2 && queue.size() == 2 ? 0 : 1;
 }
 ```
@@ -424,6 +424,7 @@ int main() {
 The output:
 
 ```
+tasks, by priority
 order: build test lint deploy
 2 erased, 2 left, 8 live objects
 ```

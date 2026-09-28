@@ -181,8 +181,13 @@ namespace sgcl::math {
         // Not from a bool, which would otherwise arrive as a double, nor
         // from a long double, which would arrive as one rounded: on x86-64
         // it holds 64 bits of mantissa, and 2^64 - 1 would come out as 2^64.
-        // A float is exact as a double and is taken.
-        big_integer(bool) = delete;
+        // A float is exact as a double and is taken. The bool one is a
+        // template, so that it takes a bool alone: a plain big_integer(bool)
+        // would take a pointer as well, and big_integer("123") would reach
+        // it before the constructor from text below (a const char* to bool
+        // is a standard conversion, which beats the user-defined one to string)
+        template<std::same_as<bool> B>
+        big_integer(B) = delete;
         explicit big_integer(long double) = delete;
 
         // The number the text writes: an optional sign and the digits of
@@ -190,6 +195,14 @@ namespace sgcl::math {
         // prefix, no space, no separator. A base outside 2 to 36 is
         // invalid_argument.
         static expected<big_integer, parse_error> parse(const string& text, int base = 10);
+
+        // The number a literal in the program writes: parse's value, or
+        // bad_expected_access<parse_error> with parse's message. Input is
+        // parsed; a text the program itself wrote is constructed
+        // (DESIGN 234)
+        explicit big_integer(const string& text, int base = 10)
+        : big_integer(parse(text, base).value()) {
+        }
 
         // The unsigned number of the bytes, most significant first, as Go's
         // SetBytes; no bytes is zero
@@ -892,6 +905,22 @@ namespace sgcl::math {
         struct BigIntAccess {
             static const Limb* magnitude(const big_integer& a, Limb& room, size_t& n) noexcept {
                 return a._magnitude(room, n);
+            }
+
+            // The digits of the magnitude in the base (2 to 36), without
+            // a sign, appended to out: what the formatting of the value
+            // writes, taken straight from the limbs. Through abs() and
+            // to_string() it was a managed string made and dropped for
+            // every value formatted, and a negated copy of a negative one.
+            static void append_magnitude(std::string& out, const big_integer& a, int base) {
+                if (!a._limbs) {
+                    uint64_t m = a._value < 0 ? uint64_t(0) - uint64_t(a._value) : uint64_t(a._value);
+                    char buf[72];
+                    auto res = std::to_chars(buf, buf + sizeof buf, m, base);
+                    out.append(buf, res.ptr);
+                    return;
+                }
+                append_digits(out, a._data(), a._size(), unsigned(base));
             }
         };
 
@@ -1831,8 +1860,8 @@ namespace sgcl::math {
     // {:f} of a big_integer are errors of the compiler.
     inline void format_value(txt::format_sink& out, const big_integer& v, const txt::format_spec& spec) {
         int base = txt::detail::base_of(spec.type);
-        string text = v.abs().to_string(base);
-        std::string digits(text.data(), text.size());
+        std::string digits;
+        detail::BigIntAccess::append_magnitude(digits, v, base);
         if (spec.type == 'X') {
             for (char& c : digits) {
                 if (c >= 'a' && c <= 'z') {
@@ -1875,8 +1904,8 @@ namespace sgcl::math {
         auto flags = os.flags();
         auto field = flags & std::ios_base::basefield;
         int base = field == std::ios_base::hex ? 16 : field == std::ios_base::oct ? 8 : 10;
-        string text = v.abs().to_string(base);
-        std::string digits(text.data(), text.size());
+        std::string digits;
+        detail::BigIntAccess::append_magnitude(digits, v, base);
         if (base == 16 && (flags & std::ios_base::uppercase)) {
             for (char& c : digits) {
                 if (c >= 'a' && c <= 'f') {

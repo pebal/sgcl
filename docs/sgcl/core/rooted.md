@@ -13,9 +13,11 @@ namespace sgcl {
 
 Against `root_ptr`, which it holds inside, `rooted` behaves the same and guarantees two things more. It is never null: it has no default constructor, so a member `rooted<Context> context;` does not compile without an initializer, where `root_ptr<Context> context;` compiles and holds null (`const` does not help: a `const root_ptr` member is default-initialized to null as well), and a function taking a `rooted<T>` gets a value, not a pointer to check. And the value is made by the constructor, in place from its arguments or from a value moved in, so the type says what the member holds — `rooted<T> r(args...)` against `root_ptr<T> r = make_tracked<T>(args...)`, a pointer that a later assignment may empty. Where a null is a state of the program (a handle table's free entry, a global replaced at run time, a root made from a `tracked_ptr` that is null), `root_ptr` is the type.
 
+`rooted` is the root of every handle of the library: a value that holds its object by one tracked word (a `string`, an `io::file`, an `io::buffer`, an `io::buffered_reader`, a `net::connection`), which lies on a stack, in a task or in a managed object as itself and needs a root anywhere else. `rooted<io::file> log(io::open(p));` in a global or a `std` container keeps a copy of the handle, the same file, in a managed object of its own: `log->write(...)` writes to it, `*log` is the handle, to pass on as `const io::file&` or to test, `if (*log)`. An `expected` goes in through its value, as the conversion takes it (its error thrown as `bad_expected_access`); a handle made of arguments is made in place, `rooted<io::buffered_reader> in(std::in_place, f);`. A stream of io, `io::reader` or `io::writer` (three words, not one), takes the same form.
+
 ## Rules
 
-- A `rooted` lives anywhere, as a `root_ptr` does; in a managed object or on a stack it is pointless, since the value itself may lie there.
+- A `rooted` lives in memory the collector does not trace: a global, a `static`, a `std` container, an exception object, the closure a platform keeps. Never in a managed object or in a task's frame, which is one: a root is never part of a cycle, and an object that reaches back to the `rooted` holding it (a channel's waiting task, a reader's source) would hold its own root, never collected. There the value itself lies; on a stack a `rooted` is pointless for the same reason.
 - The value is reachable while any `rooted` holding it exists; the last one dropped and every other reference gone, the next cycle collects it. `T` is one object, made by `make_tracked<T>`: not an array, not a reference.
 - A copy shares the value, a copy of the value is `rooted<T>(*r)`. A `rooted` moved from holds nothing: it is destroyed or assigned to, and reading it is an assertion in debug builds.
 - Threads share a `rooted` the way they share a `root_ptr` ([The rules](README.md#the-rules), 6); it may be destroyed on any thread.
@@ -47,7 +49,6 @@ The free function `swap`.
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 #include <stdexcept>
 
 using namespace sgcl;
@@ -78,11 +79,11 @@ int parse(const string& line) {
 
 int main() {
     try {
-        std::cout << parse("12x4") << "\n";
+        println("{}", parse("12x4"));
     } catch (const parse_error& e) {
-        std::cout << e.what() << " at " << e.context->column << " in \"" << e.context->line << "\"\n";
+        println("{} at {} in \"{}\"", e.what(), e.context->column, e.context->line);
     }
-    std::cout << parse("1234") << "\n";
+    println("{}", parse("1234"));
     return 0;
 }
 ```
@@ -98,4 +99,4 @@ not a digit at 2 in "12x4"
 
 - [root_ptr](root_ptr.md): the root under it, for an object made elsewhere or none; [make_tracked](make_tracked.md); [expected](expected.md): `bad_expected_access<E>` over a `rooted<E>`; [thread](thread.md): the closure of a thread in a managed node the same way
 - [The rules](README.md#the-rules)
-- `tests/core/rooted.cpp`: every behaviour above, checked.
+- `tests/core/rooted.cpp`: every behaviour above, checked; `tests/io/rooted.cpp` and `NetSocket_Tests.ARootedConnection` in `tests/net/socket.cpp`: the handles of io and net in a root.

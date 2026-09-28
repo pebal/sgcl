@@ -58,26 +58,72 @@ namespace {
         std::string text;
         int writes = 0;
     };
+
+    // A writer that takes `room` bytes and then fails: EIO the first time,
+    // ENOSPC every time after, so that a failure handed on is told from a
+    // new one; `calls` counts the writes tried, `closes` the closes
+    class failing_after final : public io::mixin::writer<failing_after> {
+    public:
+        using io::mixin::writer<failing_after>::write;
+        using io::mixin::writer<failing_after>::async_write;
+
+        explicit failing_after(size_t room) : _room(room) {}
+
+        expected<size_t, io::error> write(slice<const byte> data) {
+            ++calls;
+            if (failures || text.size() + data.size() > _room) {
+                ++failures;
+                return sgcl::unexpected(io::error(sgcl::error_code(failures == 1 ? EIO : ENOSPC, std::system_category()), "write", "disk"));
+            }
+            text.append(reinterpret_cast<const char*>(data.data()), data.size());
+            return data.size();
+        }
+
+        task<expected<size_t, io::error>> async_write(slice<const byte> data) {
+            co_return write(data);
+        }
+
+        expected<void, io::error> close() {
+            ++closes;
+            return {};
+        }
+
+        task<expected<void, io::error>> async_close() {
+            co_return close();
+        }
+
+        std::string text;
+        int calls = 0;
+        int failures = 0;
+        int closes = 0;
+
+    private:
+        size_t _room;
+    };
+
+    bool is_eio(const io::error& e) {
+        return e.code() == sgcl::error_code(EIO, std::system_category());
+    }
 }
 
 TEST(IoBuffered_Tests, LinesWithAndWithoutTerminators) {
-    sgcl::tracked_ptr r = make_tracked<buffered_reader>(make_tracked<dribble>("one\ntwo\r\n\nlast", 4));
-    auto l = r->read_line();
+    buffered_reader r(make_tracked<dribble>("one\ntwo\r\n\nlast", 4));
+    auto l = r.read_line();
     ASSERT_TRUE(l && *l);
     EXPECT_EQ(**l, "one");
-    l = r->read_line();
+    l = r.read_line();
     ASSERT_TRUE(l && *l);
     EXPECT_EQ(**l, "two");   // the \r stripped
-    l = r->read_line();
+    l = r.read_line();
     ASSERT_TRUE(l && *l);
     EXPECT_EQ(**l, "");
-    l = r->read_line();
+    l = r.read_line();
     ASSERT_TRUE(l && *l);
     EXPECT_EQ(**l, "last");   // no terminator: a line still
-    l = r->read_line();
+    l = r.read_line();
     ASSERT_TRUE(l);
     EXPECT_FALSE(*l);         // the end
-    l = r->read_line();
+    l = r.read_line();
     ASSERT_TRUE(l);
     EXPECT_FALSE(*l);         // and stays the end
 }
@@ -88,126 +134,206 @@ TEST(IoBuffered_Tests, ReadsInBlocksNotBytes) {
         text += "line " + std::to_string(i) + "\n";
     }
     sgcl::tracked_ptr src = make_tracked<dribble>(text, 1 << 20);
-    sgcl::tracked_ptr r = make_tracked<buffered_reader>(src);
+    buffered_reader r(src);
     int n = 0;
-    for (auto line : r->lines()) {
+    for (auto line : r.lines()) {
         EXPECT_EQ(line, "line " + std::to_string(n));
         ++n;
     }
     EXPECT_EQ(n, 1000);
-    EXPECT_FALSE(r->last_error());
+    EXPECT_FALSE(r.last_error());
     EXPECT_LE(src->reads, 3);   // ~9 KB of text: two blocks and the read that sees the end
 }
 
 TEST(IoBuffered_Tests, ALineLongerThanTheBlock) {
     std::string longline(3 * sgcl::config::io_buffer_size + 100, 'L');
     std::string text = "short\n" + longline + "\nafter\n";
-    sgcl::tracked_ptr r = make_tracked<buffered_reader>(make_tracked<dribble>(text, 5000));
-    auto l = r->read_line();
+    buffered_reader r(make_tracked<dribble>(text, 5000));
+    auto l = r.read_line();
     ASSERT_TRUE(l && *l);
     EXPECT_EQ(**l, "short");
-    l = r->read_line();
+    l = r.read_line();
     ASSERT_TRUE(l && *l);
     EXPECT_EQ((*l)->size(), longline.size());
     EXPECT_EQ(**l, longline);
-    l = r->read_line();
+    l = r.read_line();
     ASSERT_TRUE(l && *l);
     EXPECT_EQ(**l, "after");
     // a long last line without a terminator
-    sgcl::tracked_ptr r2 = make_tracked<buffered_reader>(make_tracked<dribble>(longline, 3000));
-    l = r2->read_line();
+    buffered_reader r2(make_tracked<dribble>(longline, 3000));
+    l = r2.read_line();
     ASSERT_TRUE(l && *l);
     EXPECT_EQ(**l, longline);
 }
 
 TEST(IoBuffered_Tests, MaxLineBounds) {
     std::string text = "ok\n" + std::string(100, 'x') + "\nnext\n";
-    sgcl::tracked_ptr r = make_tracked<buffered_reader>(make_tracked<dribble>(text, 1 << 20));
-    r->set_max_line(50);
-    auto l = r->read_line();
+    buffered_reader r(make_tracked<dribble>(text, 1 << 20));
+    r.set_max_line(50);
+    auto l = r.read_line();
     ASSERT_TRUE(l && *l);
     EXPECT_EQ(**l, "ok");
-    l = r->read_line();
+    l = r.read_line();
     ASSERT_FALSE(l);
     EXPECT_EQ(l.error().code(), make_error_code(errc::line_too_long));
     // a bound longer than the block, and a line between the two
     std::string mid(sgcl::config::io_buffer_size + 10, 'm');
-    sgcl::tracked_ptr r2 = make_tracked<buffered_reader>(make_tracked<dribble>(mid + "\n" + mid + mid + "\n", 4000));
-    r2->set_max_line(2 * sgcl::config::io_buffer_size);
-    l = r2->read_line();
+    buffered_reader r2(make_tracked<dribble>(mid + "\n" + mid + mid + "\n", 4000));
+    r2.set_max_line(2 * sgcl::config::io_buffer_size);
+    l = r2.read_line();
     ASSERT_TRUE(l && *l);
     EXPECT_EQ((*l)->size(), mid.size());
-    l = r2->read_line();
+    l = r2.read_line();
     ASSERT_FALSE(l);
     EXPECT_EQ(l.error().code(), make_error_code(errc::line_too_long));
 }
 
 TEST(IoBuffered_Tests, ReadUntilPeekByteDiscard) {
-    sgcl::tracked_ptr r = make_tracked<buffered_reader>(make_tracked<dribble>("a,bb,,ccc", 2));
-    auto t = r->read_until(',');
+    buffered_reader r(make_tracked<dribble>("a,bb,,ccc", 2));
+    auto t = r.read_until(',');
     ASSERT_TRUE(t && *t);
     EXPECT_EQ(**t, "a,");                                   // with its delimiter, as Go's ReadString
-    auto p = r->peek(3);
+    auto p = r.peek(3);
     ASSERT_TRUE(p);
     EXPECT_EQ(std::string_view(reinterpret_cast<const char*>(p->data()), p->size()), "bb,");
-    EXPECT_GE(r->buffered(), 3u);
-    t = r->read_until(',');
+    EXPECT_GE(r.buffered(), 3u);
+    t = r.read_until(',');
     ASSERT_TRUE(t && *t);
     EXPECT_EQ(**t, "bb,");
-    t = r->read_until(',');
+    t = r.read_until(',');
     ASSERT_TRUE(t && *t);
     EXPECT_EQ(**t, ",");
-    auto b = r->read_byte();
+    auto b = r.read_byte();
     ASSERT_TRUE(b && *b);
     EXPECT_EQ(**b, byte('c'));
-    EXPECT_EQ(*r->discard(1), 1u);
-    t = r->read_until(',');
+    EXPECT_EQ(value_of(r.discard(1)), 1u);
+    t = r.read_until(',');
     ASSERT_TRUE(t && *t);
     EXPECT_EQ(**t, "c");                                    // the last token, with no delimiter after it
-    EXPECT_EQ(*r->discard(5), 0u);
-    b = r->read_byte();
+    EXPECT_EQ(value_of(r.discard(5)), 0u);
+    b = r.read_byte();
     ASSERT_TRUE(b);
     EXPECT_FALSE(*b);
 }
 
 TEST(IoBuffered_Tests, ReadMixedWithLines) {
-    sgcl::tracked_ptr r = make_tracked<buffered_reader>(make_tracked<dribble>("head\n" + std::string(20000, 'b') + "tail", 1 << 20));
-    EXPECT_EQ(**r->read_line(), "head");
+    buffered_reader r(make_tracked<dribble>("head\n" + std::string(20000, 'b') + "tail", 1 << 20));
+    EXPECT_EQ(*value_of(r.read_line()), "head");
     byte small[10];
-    EXPECT_EQ(*r->read(small), 10u);            // from the block
+    EXPECT_EQ(value_of(r.read(small)), 10u);            // from the block
     std::string rest(19990, '\0');
-    EXPECT_EQ(*r->read_full(std::as_writable_bytes(std::span(rest))), 19990u);   // larger than the block: through the block, then direct
+    EXPECT_EQ(value_of(r.read_full(std::as_writable_bytes(std::span(rest)))), 19990u);   // larger than the block: through the block, then direct
     EXPECT_EQ(rest, std::string(19990, 'b'));
-    EXPECT_EQ(**r->read_line(), "tail");
+    EXPECT_EQ(*value_of(r.read_line()), "tail");
 }
 
 TEST(IoBuffered_Tests, WriterBuffersAndFlushes) {
     sgcl::tracked_ptr sink = make_tracked<counting>();
-    sgcl::tracked_ptr w = make_tracked<buffered_writer>(sink);
+    buffered_writer w(sink);
     for (int i = 0; i < 100; ++i) {
-        ASSERT_TRUE(w->write("0123456789"));
+        ASSERT_TRUE(w.write("0123456789"));
     }
     EXPECT_EQ(sink->writes, 0);   // 1000 bytes: all in the block
-    EXPECT_EQ(w->buffered(), 1000u);
-    ASSERT_TRUE(w->flush());
+    EXPECT_EQ(w.buffered(), 1000u);
+    ASSERT_TRUE(w.flush());
     EXPECT_EQ(sink->writes, 1);
     EXPECT_EQ(sink->text.size(), 1000u);
     // more than the block in one write: the block first, then direct
     std::string big(3 * sgcl::config::io_buffer_size, 'z');
-    ASSERT_TRUE(w->write("abc"));
-    ASSERT_TRUE(w->write(string(big)));
-    EXPECT_EQ(w->buffered(), 0u);
+    ASSERT_TRUE(w.write("abc"));
+    ASSERT_TRUE(w.write(string(big)));
+    EXPECT_EQ(w.buffered(), 0u);
     EXPECT_EQ(sink->text.size(), 1003 + big.size());
     EXPECT_EQ(sink->text.substr(1000, 3), "abc");
     // exactly filling the block flushes it
     std::string fill(sgcl::config::io_buffer_size, 'f');
-    ASSERT_TRUE(w->write(string(fill)));
-    EXPECT_EQ(w->buffered(), 0u);
-    ASSERT_TRUE(w->close());
-    EXPECT_TRUE(w->is_closed());
-    auto after = w->write("x");
+    ASSERT_TRUE(w.write(string(fill)));
+    EXPECT_EQ(w.buffered(), 0u);
+    ASSERT_TRUE(w.close());
+    EXPECT_TRUE(w.is_closed());
+    auto after = w.write("x");
     ASSERT_FALSE(after);
     EXPECT_TRUE(after.error().is_closed());
+}
+
+// The first failure of the writer underneath is kept: every write and
+// flush after it gives that failure at once and writes nothing, close()
+// gives it (and still closes w), a second close too; last_error() holds it
+TEST(IoBuffered_Tests, AWriterKeepsItsFirstFailure) {
+    // the block's flush fails
+    sgcl::tracked_ptr sink = make_tracked<failing_after>(4);
+    buffered_writer w(sink);
+    ASSERT_TRUE(w.write("0123456789"));   // in the block
+    EXPECT_FALSE(w.last_error());
+    auto flushed = w.flush();
+    ASSERT_FALSE(flushed);
+    EXPECT_TRUE(is_eio(flushed.error()));
+    EXPECT_EQ(sink->calls, 1);
+    auto more = w.write("x");
+    ASSERT_FALSE(more);
+    EXPECT_TRUE(is_eio(more.error()));
+    auto big = w.write(string(std::string(2 * sgcl::config::io_buffer_size, 'z')));
+    ASSERT_FALSE(big);
+    EXPECT_TRUE(is_eio(big.error()));
+    auto again = w.flush();
+    ASSERT_FALSE(again);
+    EXPECT_TRUE(is_eio(again.error()));
+    auto closed = w.close();
+    ASSERT_FALSE(closed);
+    EXPECT_TRUE(is_eio(closed.error()));
+    EXPECT_EQ(sink->closes, 1);
+    auto second = w.close();
+    ASSERT_FALSE(second);
+    EXPECT_TRUE(is_eio(second.error()));
+    EXPECT_EQ(sink->closes, 1);
+    EXPECT_EQ(sink->calls, 1);   // nothing tried after the failure
+    ASSERT_TRUE(w.last_error());
+    EXPECT_TRUE(is_eio(*w.last_error()));
+
+    // a write past the block, straight to w, fails; the task's forms
+    auto t = sgcl::async::spawn([]() -> task<std::string> {
+        sgcl::tracked_ptr sink = make_tracked<failing_after>(100);
+        buffered_writer w(sink);
+        auto big = co_await w.async_write(string(std::string(sgcl::config::io_buffer_size, 'z')));
+        if (big || !is_eio(big.error())) co_return "big";
+        auto more = co_await w.async_write("x");
+        if (more || !is_eio(more.error())) co_return "write after";
+        auto flushed = co_await w.async_flush();
+        if (flushed || !is_eio(flushed.error())) co_return "flush after";
+        auto closed = co_await w.async_close();
+        if (closed || !is_eio(closed.error())) co_return "close";
+        if (sink->calls != 1 || sink->closes != 1 || sink->text.size() != 0) co_return "written after";
+        co_return "ok";
+    }());
+    EXPECT_EQ(t.wait(), "ok");
+    sgcl::async::scheduler::stop();
+}
+
+// A write after close is the caller's error, kept as a failure of w is:
+// a flush and every close after it give it, w closed once
+TEST(IoBuffered_Tests, AWriteAfterCloseIsKept) {
+    sgcl::tracked_ptr sink = make_tracked<failing_after>(100);
+    buffered_writer w(sink);
+    ASSERT_TRUE(w.write("abc"));
+    ASSERT_TRUE(w.close());
+    ASSERT_TRUE(w.close());   // a second close does nothing
+    EXPECT_FALSE(w.last_error());
+    auto late = w.write("x");
+    ASSERT_FALSE(late);
+    EXPECT_TRUE(late.error().is_closed());
+    auto more = w.write("y");
+    ASSERT_FALSE(more);
+    EXPECT_TRUE(more.error() == late.error());
+    auto flushed = w.flush();
+    ASSERT_FALSE(flushed);
+    EXPECT_TRUE(flushed.error() == late.error());
+    auto closed = w.close();
+    ASSERT_FALSE(closed);
+    EXPECT_TRUE(closed.error() == late.error());
+    ASSERT_TRUE(w.last_error());
+    EXPECT_TRUE(*w.last_error() == late.error());
+    EXPECT_EQ(sink->text, "abc");
+    EXPECT_EQ(sink->closes, 1);
 }
 
 TEST(IoBuffered_Tests, AsyncLines) {
@@ -216,10 +342,10 @@ TEST(IoBuffered_Tests, AsyncLines) {
         for (int i = 0; i < 300; ++i) {
             text += std::to_string(i) + "\n";
         }
-        sgcl::tracked_ptr r = make_tracked<buffered_reader>(make_tracked<dribble>(text, 77));
+        buffered_reader r(make_tracked<dribble>(text, 77));
         int n = 0;
         for (;;) {
-            auto l = co_await r->async_read_line();
+            auto l = co_await r.async_read_line();
             if (!l || !*l) {
                 break;
             }
@@ -229,9 +355,9 @@ TEST(IoBuffered_Tests, AsyncLines) {
             ++n;
         }
         sgcl::tracked_ptr sink = make_tracked<counting>();
-        sgcl::tracked_ptr w = make_tracked<buffered_writer>(sink);
-        co_await w->async_write("async");
-        co_await w->async_flush();
+        buffered_writer w(sink);
+        co_await w.async_write("async");
+        co_await w.async_flush();
         if (sink->text != "async") {
             co_return -2;
         }
@@ -249,14 +375,14 @@ TEST(IoBuffered_Tests, ALineIsASliceThatHoldsTheBlock) {
     for (int i = 0; i < 3000; ++i) {
         text += "line " + std::to_string(i) + "\n";           // several blocks' worth
     }
-    sgcl::tracked_ptr r = make_tracked<buffered_reader>(make_tracked<dribble>(text, 1 << 20));
-    auto first = r->read_line();
+    buffered_reader r(make_tracked<dribble>(text, 1 << 20));
+    auto first = r.read_line();
     ASSERT_TRUE(first && *first);
     slice<const char> kept = **first;
     EXPECT_TRUE(kept.owned());
     EXPECT_EQ(kept, "line 0");
     for (int i = 1; i < 3000; ++i) {                             // the block refilled many times over
-        auto l = r->read_line();
+        auto l = r.read_line();
         ASSERT_TRUE(l && *l);
     }
     collector::force_collect(true);
@@ -265,12 +391,50 @@ TEST(IoBuffered_Tests, ALineIsASliceThatHoldsTheBlock) {
     EXPECT_EQ(copy.size(), 6u);
     std::string own(kept.begin(), kept.end());
     EXPECT_TRUE(own.rfind("line ", 0) == 0);                    // the block is reused for later lines: a kept line is copied when its text matters
-    sgcl::tracked_ptr r2 = make_tracked<buffered_reader>(make_tracked<dribble>("short\n" + std::string(3 * sgcl::config::io_buffer_size, 'L') + "\n", 5000));
-    auto s0 = r2->read_line();
-    auto s1 = r2->read_line();                                  // the long line: a slice of the reader's vector
+    buffered_reader r2(make_tracked<dribble>("short\n" + std::string(3 * sgcl::config::io_buffer_size, 'L') + "\n", 5000));
+    auto s0 = r2.read_line();
+    auto s1 = r2.read_line();                                  // the long line: a slice of the reader's vector
     ASSERT_TRUE(s1 && *s1);
     EXPECT_TRUE((*s1)->owned());
+    ASSERT_TRUE(s0 && *s0);
     EXPECT_NE((*s1)->owner(), (*s0)->owner());                  // another object than the block
     EXPECT_EQ((*s1)->size(), 3u * sgcl::config::io_buffer_size);
+}
+
+// The buffered streams are handles: copies share one reader (one block,
+// one position) or one writer (one block, one kept error); a stream made
+// of a temporary handle keeps its state; an empty handle is an empty stream
+TEST(IoBuffered_Tests, TheBufferedStreamsAreHandles) {
+    static_assert(sizeof(buffered_reader) == sizeof(sgcl::tracked_ptr<void>));
+    static_assert(sizeof(buffered_writer) == sizeof(sgcl::tracked_ptr<void>));
+    buffered_reader r(make_tracked<dribble>("one\ntwo\nthree\n", 3));
+    buffered_reader copy = r;
+    EXPECT_TRUE(copy == r);
+    EXPECT_EQ(*value_of(r.read_line()), "one");
+    EXPECT_EQ(*value_of(copy.read_line()), "two");                       // the same position
+    EXPECT_EQ(r.buffered(), copy.buffered());
+
+    io::reader through(buffered_reader(make_tracked<dribble>("kept\n", 2)));
+    collector::force_collect(true);
+    EXPECT_EQ(std::string_view(value_of(through.read_all_text())), "kept\n");
+
+    sgcl::tracked_ptr sink = make_tracked<counting>();
+    buffered_writer w(sink);
+    buffered_writer other = w;
+    ASSERT_TRUE(w.write("ab"));
+    ASSERT_TRUE(other.write("cd"));
+    EXPECT_EQ(w.buffered(), 4u);                                // one block
+    ASSERT_TRUE(other.flush());
+    EXPECT_EQ(sink->text, "abcd");
+    io::writer out{buffered_writer(sink)};
+    collector::force_collect(true);
+    ASSERT_TRUE(out.write(std::string("ef")));
+    ASSERT_TRUE(out.close());                                   // flushed by its close
+    EXPECT_EQ(sink->text, "abcdef");
+
+    buffered_reader none;
+    EXPECT_FALSE(none);
+    EXPECT_FALSE(io::reader(none));
+    EXPECT_FALSE(io::writer(buffered_writer()));
 }
 

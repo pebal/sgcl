@@ -73,7 +73,6 @@ tracked_ptr<Node> seen = a.load();
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 #include <map>
 
 using namespace sgcl;
@@ -92,10 +91,10 @@ int main() {
     globals["list"] = make_tracked<Value>(Value{1});
     globals["list"]->next = make_tracked<Value>(Value{2});
     globals["alias"] = globals["list"];                       // a cell of its own, the same object
-    std::cout << globals["alias"]->next->number << "\n";      // 2
+    println("{}", globals["alias"]->next->number);      // 2
     globals.erase("list");                                     // the alias still roots the list
     collector::force_collect(true);                      // optional, for the demonstration only
-    std::cout << globals["alias"]->number << "\n";             // 1
+    println("{}", globals["alias"]->number);             // 1
     globals.clear();                                           // no root left: the list is collectable
     return 0;
 }

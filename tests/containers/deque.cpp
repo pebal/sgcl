@@ -1298,6 +1298,29 @@ TEST(Deque_Test, OperationsOnAnEmptyDeque) {
     EXPECT_TRUE(d.empty());
 }
 
+// `it += 0` and `it -= 0` on the begin() of a deque that never held
+// anything read no entry of the map it does not have (found by
+// tests/containers/fuzz/containers_fuzz.cpp: std::advance(begin(), 0)
+// read through a null map)
+TEST(Deque_Test, ArithmeticOnTheIteratorOfANeverAllocatedDeque) {
+    sgcl::deque<int> d;
+    auto it = d.begin();
+    it += 0;
+    EXPECT_EQ(it, d.end());
+    it -= 0;
+    EXPECT_EQ(it, d.end());
+    std::advance(it, 0);
+    EXPECT_EQ(d.begin() + 0, d.end());
+    EXPECT_EQ(d.end() - 0, d.begin());
+    d.insert(it, 1);
+    EXPECT_EQ(d.size(), 1u);
+    EXPECT_EQ(d.front(), 1);
+    const sgcl::deque<int> c;
+    auto ci = c.begin();
+    ci += 0;
+    EXPECT_EQ(ci, c.end());
+}
+
 TEST(Deque_Test, EraseEndWithOneElementPerBlock) {
     sgcl::deque<Page> big;
     EXPECT_EQ(big.erase(big.end()), big.end());

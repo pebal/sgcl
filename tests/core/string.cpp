@@ -281,6 +281,37 @@ TEST(String_Tests, ASliceIsTheOnlyHolderOfAStringOfAnySize) {
     EXPECT_EQ(live_string_objects(), base);
 }
 
+// split by a view keeps a separator of up to 16 bytes inside the range
+// rather than in a string of its own: walking the pieces allocates
+// nothing, whatever overload the separator comes through (a string made
+// of the view each call before); a longer one is still copied, and a
+// temporary separator never dangles
+TEST(String_Tests, SplitByAViewKeepsAShortSeparatorInside) {
+    string csv("alpha, beta, gamma, delta");
+    std::string sep(", ");
+    size_t total = 0;
+    EXPECT_EQ(managed_bytes_of(100000, [&] {
+        for (std::string_view piece : csv.split(std::string_view(sep))) {
+            total += piece.size();
+        }
+        for (std::string_view piece : csv.split(U'ß')) {   // a character of two bytes, as its encoding
+            total += piece.size();
+        }
+    }), 0u);
+    EXPECT_EQ(total, 200000u * (19 + 25));
+    auto pieces = csv.split(std::string(", "));                  // a temporary: the range keeps its own copy
+    EXPECT_EQ(std::ranges::distance(pieces), 4);
+    EXPECT_EQ(*pieces.begin(), "alpha");
+    auto copy = pieces;                                          // a copy walks its own separator
+    EXPECT_EQ(string::join(copy, "|"), "alpha|beta|gamma|delta");
+    string text("a<-- sixteen+ bytes -->b<-- sixteen+ bytes -->c");
+    EXPECT_EQ(string::join(text.split(std::string("<-- sixteen+ bytes -->")), ","), "a,b,c");
+    EXPECT_EQ(string::join(text.split(std::string_view("<-- sixteen+ bytes -->"), 2), ","), "a,b<-- sixteen+ bytes -->c");
+    EXPECT_EQ(string::join(string("x0123456789abcdefy").split("0123456789abcdef"), ","), "x,y");   // 16 bytes: inside
+    wstring w = L"a::b";
+    EXPECT_EQ(wstring::join(w.split(std::wstring_view(L"::")), L"-"), L"a-b");
+}
+
 TEST(String_Tests, SplitAndFieldsAreARangeOfViewsJoinTakesAnyRange) {
     string csv = "a,b,,c";
     static_assert(std::ranges::forward_range<string::pieces>);
@@ -555,11 +586,47 @@ TEST(String_Tests, ParseGivesTheNumberOrTheReason) {
     EXPECT_EQ(trailing.error().code(), std::errc::invalid_argument);
     EXPECT_EQ(trailing.error().message(), "more after the number");
     auto wide = sgcl::parse<uint8_t>("300");
+    ASSERT_FALSE(wide);
     EXPECT_EQ(wide.error().why(), sgcl::number_error::reason::out_of_range);
     EXPECT_EQ(wide.error().code(), std::errc::result_out_of_range);
     EXPECT_EQ(wide.error().offset(), 3u);                  // where the number ends
-    EXPECT_EQ(sgcl::parse<int>("").error().why(), sgcl::number_error::reason::empty);
-    EXPECT_EQ(sgcl::parse<int>(" 1").error().why(), sgcl::number_error::reason::not_a_number);
-    EXPECT_EQ(sgcl::parse<unsigned>("-1").error().why(), sgcl::number_error::reason::not_a_number);
-    EXPECT_EQ(sgcl::parse<bool>("yes").error().message(), "not a number");
+    EXPECT_EQ(error_of(sgcl::parse<int>("")).why(), sgcl::number_error::reason::empty);
+    EXPECT_EQ(error_of(sgcl::parse<int>(" 1")).why(), sgcl::number_error::reason::not_a_number);
+    EXPECT_EQ(error_of(sgcl::parse<unsigned>("-1")).why(), sgcl::number_error::reason::not_a_number);
+    EXPECT_EQ(error_of(sgcl::parse<bool>("yes")).message(), "not a number");
+}
+
+// Found by the fuzzer of the text primitives (tests/core/fuzz/text_fuzz.cpp):
+// a base outside 2 to 36 went to std::from_chars, whose precondition it
+// breaks (a read past libc++'s tables, UBSan's report; base 1 read "0" as
+// a number). No number is written in such a base
+TEST(String_Tests, ParseInABaseNoNumberIsWrittenIn) {
+    for (int base : {-1, 0, 1, 37, 100}) {
+        auto r = sgcl::parse<int>("0", base);
+        ASSERT_FALSE(r) << base;
+        EXPECT_EQ(r.error().why(), sgcl::number_error::reason::not_a_number);
+        EXPECT_EQ(r.error().offset(), 0u);
+    }
+    EXPECT_EQ(error_of(sgcl::parse<int>("", 1)).why(), sgcl::number_error::reason::empty);
+    EXPECT_EQ(sgcl::parse<int>("z", 36), 35);
+    EXPECT_EQ(sgcl::parse<int>("11", 2), 3);
+}
+
+// A string made of bytes, explicitly: the same bytes as characters, from a
+// slice of bytes, a vector<byte>, an array of bytes, an expected that holds
+// them; text stays text, and bytes never become a string by themselves
+TEST(String_Tests, AStringOfBytes) {
+    vector<byte> v = {byte('h'), byte('i')};
+    EXPECT_EQ(string(v), "hi");
+    EXPECT_EQ(string(v.as_slice()), "hi");
+    std::array<byte, 2> a{byte('o'), byte('k')};
+    EXPECT_EQ(string(a), "ok");
+    expected<vector<byte>, int> e = v;
+    EXPECT_EQ(string(e), "hi");
+    EXPECT_EQ(string(vector<byte>()), "");
+    vector<byte> binary = {byte(0), byte(0xff)};
+    EXPECT_EQ(string(binary).size(), 2u);   // not checked for UTF-8
+    static_assert(!std::is_convertible_v<vector<byte>, string>);
+    static_assert(!std::is_convertible_v<slice<const byte>, string>);
+    EXPECT_EQ(string(std::string("std")), "std");
 }

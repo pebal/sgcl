@@ -123,6 +123,6 @@ namespace sgcl::async {
 
         std::atomic<int> _state = {0};
         std::exception_ptr _error;
-        channel<void> _done;
+        detail::ChannelState<void> _done;
     };
 }

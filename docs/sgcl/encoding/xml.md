@@ -92,6 +92,7 @@ public:
 
     // inside
     optional<string> attribute(const string& name) const;   // "id", "xlink:href", "{uri}local"
+    string attribute(const string& name, const string& fallback) const;   // the same, fallback when there is none
     slice<const attribute> attributes() const noexcept;
     slice<const xml> children() const noexcept;
     xml child(const string& name) const;                    // the first, or xml()
@@ -134,7 +135,7 @@ public:
 ```cpp
 #include "sgcl/core/range.h"
 #include "sgcl/encoding/xml.h"
-#include "sgcl/io/os.h"
+#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
@@ -146,28 +147,28 @@ int main() {
 </catalog>)";
     auto doc = encoding::xml::parse(text);
     if (!doc) {
-        io::stdout.write(doc.error().message() + "\n");
+        println(doc.error().message());
         return 1;
     }
     for (auto book : doc->children("book")) {
-        string id = book.attribute("id").value_or("?");
+        string id = book.attribute("id", "?");
         string title = book.child("{http://purl.org/dc/elements/1.1/}title").text();
         string price = book.child("price").text();   // "" when there is none
-        io::stdout.write(id + ": " + title + " [" + price + "]\n");
+        println("{}: {} [{}]", id, title, price);
     }
 
     // a change is a new tree; the one read stays as it was
     encoding::xml added = doc->push_back(encoding::xml("book").set("id", "3").push_back(encoding::xml("dc:title", "Diuna")));
-    io::stdout.write(added.to_string(encoding::xml::pretty) + "\n");
+    println(added.to_string(encoding::xml::pretty));
 
     encoding::xml::builder list("list");
     for (auto i : range(3)) {
-        list.push_back(encoding::xml("item", string(std::to_string(i * i))));
+        list.push_back(encoding::xml("item", to_string(i * i)));
     }
-    io::stdout.write(list.build().to_string() + "\n");
+    println(list.build().to_string());
 
     auto bad = encoding::xml::parse("<a>\n  <b>&nbsp;</b>\n</a>");
-    io::stdout.write(bad.error().message() + "\n");
+    println(bad.error().message());
 
     // a program's own type, described once for every format
     struct book {
@@ -185,9 +186,9 @@ int main() {
     };
     auto dune = encoding::xml::parse<book>("<book id='7'><tag>sf</tag><title>Dune</title><tag>classic</tag></book>").value();
     dune.price = 45.5;
-    io::stdout.write(encoding::xml::stringify("book", dune).value() + "\n");
+    println(encoding::xml::stringify("book", dune).value());
     auto wrong = encoding::xml::parse<book>("<book id='8'>\n  <title>X</title>\n  <price>cheap</price>\n</book>");
-    io::stdout.write(wrong.error().message() + "\n");
+    println(wrong.error().message());
 }
 ```
 

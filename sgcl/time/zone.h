@@ -547,6 +547,15 @@ namespace sgcl::time {
         // ("../x"), or a file that is not a TZif file is an error
         static expected<zone, error> load(const string& name);
 
+        // The zone a name written in the program names: load's zone, or
+        // bad_expected_access<time::error> with load's message, as
+        // std::chrono::locate_zone throws for a name it does not know. A
+        // name that comes from outside (a setting, the user) is loaded;
+        // one the program itself wrote is constructed (DESIGN 234)
+        explicit zone(const string& name)
+        : zone(load(name).value()) {
+        }
+
         // A zone from the bytes of a TZif file (RFC 9636, versions 1 to
         // 4), which may come from anywhere: a database of one's own, the
         // network. The same bytes under the same name give the same zone

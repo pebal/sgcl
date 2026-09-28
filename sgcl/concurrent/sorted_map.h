@@ -81,6 +81,21 @@ namespace sgcl::concurrent {
             });
         }
 
+        // The value under the key, or fallback when the key is absent: a
+        // copy (one word for a tracked value), read lock-free as find is (mixin::lookup's
+        // value_or of the other maps);
+        // an element erased meanwhile is read as it was when found
+        V value_or(const Key& key, const V& fallback) const {
+            auto it = this->find(key);
+            return it != this->end() ? it->second : fallback;
+        }
+
+        template<class K> requires detail::TransparentCompare<Compare>
+        V value_or(const K& key, const V& fallback) const {
+            auto it = this->find(key);
+            return it != this->end() ? it->second : fallback;
+        }
+
         template<class P> requires std::is_constructible_v<value_type, P&&>
         pair<iterator, bool> insert(P&& value) {
             return this->emplace(std::forward<P>(value));

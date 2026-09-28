@@ -8,10 +8,12 @@ namespace sgcl {
     class atomic_ref;                    // std::atomic_ref<T> for every other T
     template<class T>
     class atomic_ref<tracked_ptr<T>>;
+    template<req::handle H>
+    class atomic_ref<H>;                 // over a handle of one word: a string, an io::file, an async::channel
 }
 ```
 
-`atomic_ref<tracked_ptr<T>>` is `std::atomic_ref` for a [`tracked_ptr`](tracked_ptr.md): the operations of [`atomic<tracked_ptr<T>>`](atomic.md) (`load`, `store`, `exchange`, `compare_exchange_weak`, `compare_exchange_strong`, `wait`, `notify`, with a `std::memory_order`) applied to a plain `tracked_ptr` that lives somewhere already: a member of a node, an element of an `sgcl::vector<tracked_ptr<T>>`, a local. The word of a `tracked_ptr` is a `std::atomic` of a pointer in any case, so nothing changes in the pointer's layout; the `atomic_ref` is a reference to it and the operations are the atomic ones, with the hazard pointer of `atomic::load` and the same freedom from ABA. A [`root_ptr`](root_ptr.md) converts to the `tracked_ptr` it holds its object by (the word of its cell, in a managed block), so `atomic_ref a(root)` (deduced, as from a `tracked_ptr`) is the atomic of a root that lives anywhere: a global holding an object that other threads share and that is replaced at run time is a `root_ptr` under an `atomic_ref`. The `tracked_ptr` (or the `root_ptr`) must not be moved or destroyed while a view of it exists, as with any `atomic_ref`. For every other `T`, `sgcl::atomic_ref<T>` is `std::atomic_ref<T>` (deduced: `atomic_ref a(counter)`), as [`atomic<T>`](atomic.md) is `std::atomic<T>`, so that a program names one `atomic_ref` for its counters and its pointers alike.
+`atomic_ref<tracked_ptr<T>>` is `std::atomic_ref` for a [`tracked_ptr`](tracked_ptr.md): the operations of [`atomic<tracked_ptr<T>>`](atomic.md) (`load`, `store`, `exchange`, `compare_exchange_weak`, `compare_exchange_strong`, `wait`, `notify`, with a `std::memory_order`) applied to a plain `tracked_ptr` that lives somewhere already: a member of a node, an element of an `sgcl::vector<tracked_ptr<T>>`, a local. The word of a `tracked_ptr` is a `std::atomic` of a pointer in any case, so nothing changes in the pointer's layout; the `atomic_ref` is a reference to it and the operations are the atomic ones, with the hazard pointer of `atomic::load` and the same freedom from ABA. A [`root_ptr`](root_ptr.md) converts to the `tracked_ptr` it holds its object by (the word of its cell, in a managed block), so `atomic_ref a(root)` (deduced, as from a `tracked_ptr`) is the atomic of a root that lives anywhere: a global holding an object that other threads share and that is replaced at run time is a `root_ptr` under an `atomic_ref`. The `tracked_ptr` (or the `root_ptr`) must not be moved or destroyed while a view of it exists, as with any `atomic_ref`. `atomic_ref<H>` for a handle (`req::handle`: a `string`, `io::file`, `net::connection`, `async::channel`... every public type that is one tracked word to the object inside) is the same view over the handle's word, with the handle on the outside and the operations of [`atomic<H>`](atomic.md#atomich-for-a-handle): a handle that is a member of a managed object, or the one a `rooted<H>` holds (`static rooted<io::file> log(...); atomic_ref a(*log);`), replaced by one thread while others read it; the compare-exchanges compare the object, not its contents. For every other `T`, `sgcl::atomic_ref<T>` is `std::atomic_ref<T>` (deduced: `atomic_ref a(counter)`), as [`atomic<T>`](atomic.md) is `std::atomic<T>`, so that a program names one `atomic_ref` for its counters and its pointers alike.
 
 ## Rules
 
@@ -175,18 +177,18 @@ producer.join();
 ### Deduction guides
 
 ```cpp
+template<class T> atomic_ref(T&) -> atomic_ref<T>;
 template<class T> atomic_ref(tracked_ptr<T>) -> atomic_ref<tracked_ptr<T>>;
 template<class T> atomic_ref(root_ptr<T>) -> atomic_ref<tracked_ptr<T>>;
 ```
 
-`sgcl::atomic_ref(p)` for a `tracked_ptr<T> p` is an `atomic_ref<tracked_ptr<T>>`; for a `root_ptr<T> r` the same, over the word `r` holds its object by.
+`sgcl::atomic_ref(p)` for a `tracked_ptr<T> p` is an `atomic_ref<tracked_ptr<T>>`; for a `root_ptr<T> r` the same, over the word `r` holds its object by; for a handle `h` (a `string`, an `io::file`) an `atomic_ref<H>` over its word.
 
 ## Example
 
 ```cpp
 #include "sgcl/sgcl.h"
 #include <cassert>
-#include <iostream>
 
 using namespace sgcl;
 
@@ -225,7 +227,7 @@ int main() {
         assert(s);                                      // every slot claimed exactly once
         ++counts[s->owner];
     }
-    std::cout << counts[0] << ' ' << counts[1] << ' ' << counts[2] << ' ' << counts[3] << '\n';
+    println("{} {} {} {}", counts[0], counts[1], counts[2], counts[3]);
 
     collector::force_collect(true);     // optional, for the demonstration only: the collector runs its cycles by itself
     return 0;

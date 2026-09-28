@@ -6,6 +6,7 @@
 #pragma once
 
 #include "sgcl/sgcl.h"
+#include "tests/expected_access.h"
 
 #include <gtest/gtest.h>
 
@@ -26,6 +27,55 @@ inline uintptr_t hide(const void* p) noexcept {
 
 inline char* unhide(uintptr_t h) noexcept {
     return (char*)~h;
+}
+
+// The managed bytes n calls of f allocate: the pages the allocators take
+// from the heap while the collector stands parked, so that nothing is
+// swept and no slot is handed out twice. n calls go first to fill the free
+// slots earlier sweeps left. A count of pages: n must make what one call
+// allocates add up to several of them.
+template<class F>
+SGCL_NOINLINE size_t managed_bytes_of(size_t n, F&& f) {
+    using sgcl::detail::MemoryCounters;
+    collector::force_collect(true);
+    collector::stepper parked(true);
+    parked.advance_to(collector::stepper::phase::start);
+    for (size_t i = 0; i < n; ++i) {
+        f();
+    }
+    auto before = MemoryCounters::alloc_since_cycle();
+    for (size_t i = 0; i < n; ++i) {
+        f();
+    }
+    auto pages = MemoryCounters::alloc_since_cycle() - before;
+    parked.finish_cycle();
+    return pages * config::page_size;
+}
+
+// The live objects and buffers, after a full cycle, whose type's name
+// holds `part` (a type the test cannot name: a private or local struct);
+// a buffer counts by its element type
+inline size_t live_objects_named(const char* part) {
+    size_t n = 0;
+    for (auto& s : collector::get_type_statistics()) {
+        if (std::string(s.type->name()).find(part) != std::string::npos) {
+            n += s.live_objects;
+        }
+    }
+    return n;
+}
+
+// The slot bytes of the live buffers of elements T after a full cycle (a
+// buffer past a page counts its pages whole)
+template<class T>
+size_t live_buffer_bytes() {
+    size_t bytes = 0;
+    for (auto& s : collector::get_type_statistics()) {
+        if (*s.type == typeid(T[]) && s.buffers) {
+            bytes += s.live_bytes;
+        }
+    }
+    return bytes;
 }
 
 // A sorted container's tree whole: the red-black invariants, the links,

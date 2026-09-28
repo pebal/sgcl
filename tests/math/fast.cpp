@@ -136,7 +136,7 @@ TEST(Fast_Tests, WrittenAgainstPython) {
         std::string whole(s.data(), s.size());
         ASSERT_EQ(whole.substr(0, 20), t.head);
         ASSERT_EQ(whole.substr(whole.size() - std::min<size_t>(20, whole.size())), t.tail);
-        ASSERT_EQ(*big_integer::parse(s, t.base), x) << t.n << " limbs in base " << t.base;
+        ASSERT_EQ(value_of(big_integer::parse(s, t.base)), x) << t.n << " limbs in base " << t.base;
     }
 }
 
@@ -202,7 +202,7 @@ TEST(Fast_Tests, EveryRoadAgreesWithTheSchoolbook) {
             ASSERT_EQ(fr2, r2) << i;
             ASSERT_EQ(a.to_string(base), written) << i << " in base " << base;
             ASSERT_EQ(product.to_string(base), long_written) << i << " in base " << base;
-            ASSERT_EQ(*big_integer::parse(long_written, base), product) << i << " in base " << base;
+            ASSERT_EQ(value_of(big_integer::parse(long_written, base)), product) << i << " in base " << base;
         }
     }
 }
@@ -240,6 +240,7 @@ TEST(Fast_Tests, AtEveryThreshold) {
             ASSERT_EQ(q, sq_) << an + bn << " / " << bn;
             ASSERT_EQ(r, sr_) << an + bn << " % " << bn;
             ASSERT_EQ(s, p.to_string()) << an + bn << " limbs in decimal";
+            ASSERT_TRUE(back);
             ASSERT_EQ(*back, p);
         }
     }

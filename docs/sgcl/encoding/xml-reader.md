@@ -63,6 +63,7 @@ public:
     const string& namespace_uri() const noexcept;
     slice<const xml::attribute> attributes() const noexcept;
     optional<string> attribute(const string& name) const;   // "id", "xlink:href", "{uri}local"
+    string attribute(const string& name, const string& fallback) const;   // the same, fallback when there is none
     const string& text() const noexcept;            // text, comment, instruction's data, the DOCTYPE after its keyword
     bool is_start(const string& name) const noexcept;
     bool is_end(const string& name) const noexcept;
@@ -73,7 +74,7 @@ public:
 
 ```cpp
 #include "sgcl/encoding/xml.h"
-#include "sgcl/io/os.h"
+#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
@@ -90,7 +91,7 @@ int main() {
     encoding::xml::reader tokens(feed);
     while (auto t = tokens.next()) {
         if (t->type() == encoding::xml::token::kind::start_element) {
-            io::stdout.write(string(tokens.depth(), ' ') + "<" + t->local_name() + "> in " + t->namespace_uri() + "\n");
+            println("{}<{}> in {}", string(tokens.depth(), ' '), t->local_name(), t->namespace_uri());
         }
     }
 
@@ -99,16 +100,16 @@ int main() {
     while (auto t = r.peek()) {
         if (t->is_start("{http://www.w3.org/2005/Atom}entry")) {
             encoding::xml entry = r.read().value();
-            io::stdout.write(entry.child("id").text() + ": " + entry.child("title").text() + "\n");
+            println("{}: {}", entry.child("id").text(), entry.child("title").text());
         } else {
             r.next();
         }
     }
 
-    encoding::xml::reader bad(string("<feed>\n  <entry>&nbsp;</entry>\n</feed>"));
+    encoding::xml::reader bad("<feed>\n  <entry>&nbsp;</entry>\n</feed>");
     while (bad.next()) {
     }
-    io::stdout.write(bad.last_error()->message() + "\n");
+    println(bad.last_error()->message());
 }
 ```
 

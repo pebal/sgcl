@@ -237,3 +237,118 @@ TEST(Slice_Tests, AnOwnedSliceOnAFreshThreadRegistersIt) {
     go = true;
     t.join();
 }
+
+namespace {
+    // An overload set of a text and of bytes, as the library's are: the
+    // string's overload, the bytes' overload, and the exact match that a
+    // literal and a std::string_view take (either converts to both)
+    int pick(const string&) { return 1; }
+    int pick(const slice<const byte>&) { return 2; }
+    template<sgcl::detail::TextArgument T>
+    int pick(const T&) { return 3; }
+
+    // the same set without the exact match
+    int pick_two(const string&) { return 1; }
+    int pick_two(const slice<const byte>&) { return 2; }
+
+    template<class A>
+    constexpr bool resolves = requires(A a) { pick_two(a); };
+
+    size_t size_of(const slice<const byte>& data) {
+        return data.size();
+    }
+}
+
+TEST(Slice_Tests, TextAndRawArraysAreBytes) {
+    string s = "hello world";
+    slice<const byte> b = s;                    // a string: its bytes, its owner
+    EXPECT_EQ(b.size(), 11u);
+    EXPECT_EQ(static_cast<const void*>(b.data()), static_cast<const void*>(s.data()));
+    EXPECT_TRUE(b.owned());
+    EXPECT_EQ(b.owner().get(), s.object());
+    slice<const char> t = s.as_slice(6);
+    slice<const byte> tb = t;                   // a text slice: the same, the owner carried over
+    EXPECT_EQ(tb.size(), 5u);
+    EXPECT_EQ(static_cast<const void*>(tb.data()), static_cast<const void*>(t.data()));
+    EXPECT_EQ(tb.owner(), t.owner());
+    char buffer[] = "abc";
+    slice<char> mutable_text(buffer, 3);
+    slice<const byte> mb = mutable_text;
+    EXPECT_EQ(mb.size(), 3u);
+    EXPECT_FALSE(mb.owned());
+    std::string_view v = "view";
+    slice<const byte> vb = v;                   // a std view: no owner
+    EXPECT_EQ(vb.size(), 4u);
+    EXPECT_FALSE(vb.owned());
+    EXPECT_EQ(static_cast<const void*>(vb.data()), static_cast<const void*>(v.data()));
+    slice<const byte> empty = string();
+    EXPECT_TRUE(empty.empty());
+    EXPECT_EQ(size_of(s), 11u);                 // a parameter of bytes takes a text
+    EXPECT_EQ(size_of(t), 5u);
+    EXPECT_EQ(size_of(v), 4u);
+}
+
+TEST(Slice_Tests, ACharacterArrayIsTextToItsFirstNul) {
+    slice<const byte> literal = "abc";
+    EXPECT_EQ(literal.size(), 3u);              // no terminator
+    EXPECT_EQ(literal[0], byte('a'));
+    EXPECT_FALSE(literal.owned());
+    EXPECT_EQ(size_of("ab\0cd"), 2u);           // cut at the NUL inside, as a std::string_view of it
+    EXPECT_EQ(size_of(""), 0u);
+    char full[3] = {'x', 'y', 'z'};             // no NUL: all of it, never past its end
+    EXPECT_EQ(size_of(full), 3u);
+    char padded[8] = "ab";
+    EXPECT_EQ(size_of(padded), 2u);
+    unsigned char raw[4] = {0, 1, 0, 2};        // bytes: all of them, NULs included
+    slice<const byte> rb = raw;
+    EXPECT_EQ(rb.size(), 4u);
+    EXPECT_EQ(rb[3], byte(2));
+    const uint8_t fixed[2] = {7, 8};
+    EXPECT_EQ(size_of(fixed), 2u);
+    std::array<uint8_t, 5> a = {1, 2, 3, 4, 5};
+    slice<const byte> ab = a;
+    EXPECT_EQ(ab.size(), 5u);
+    EXPECT_EQ(static_cast<const void*>(ab.data()), static_cast<const void*>(a.data()));
+    const std::array<uint8_t, 5>& ca = a;
+    EXPECT_EQ(size_of(ca), 5u);
+}
+
+TEST(Slice_Tests, BytesTakeTextWithoutAmbiguity) {
+    // what converts to bytes, and what does not
+    static_assert(std::is_convertible_v<const string&, slice<const byte>>);
+    static_assert(std::is_convertible_v<const slice<const char>&, slice<const byte>>);
+    static_assert(std::is_convertible_v<const slice<char>&, slice<const byte>>);
+    static_assert(std::is_convertible_v<std::string_view, slice<const byte>>);
+    static_assert(std::is_convertible_v<const char (&)[4], slice<const byte>>);
+    static_assert(std::is_convertible_v<char (&)[4], slice<const byte>>);
+    static_assert(std::is_convertible_v<const unsigned char (&)[4], slice<const byte>>);
+    static_assert(std::is_convertible_v<const std::array<uint8_t, 4>&, slice<const byte>>);
+    static_assert(!std::is_convertible_v<const char*, slice<const byte>>);          // a pointer has no length
+    static_assert(!std::is_convertible_v<const std::string&, slice<const byte>>);   // nor a std::string (a std::string_view of it does)
+    static_assert(!std::is_convertible_v<const std::array<char, 4>&, slice<const byte>>);
+    static_assert(!std::is_convertible_v<const slice<const byte>&, slice<const char>>);   // bytes are not text
+    static_assert(!std::is_constructible_v<slice<byte>, const string&>);            // nor a buffer to write into
+    static_assert(!std::is_constructible_v<slice<byte>, const char (&)[4]>);
+    static_assert(!std::is_convertible_v<const slice<const wchar_t>&, slice<const byte>>);
+    // a text and bytes in one overload set: a string picks the string's
+    // overload, a literal and a std::string_view are ambiguous without an
+    // exact match of their own and pick it with one
+    static_assert(resolves<const string&>);
+    static_assert(resolves<const slice<const byte>&>);
+    static_assert(resolves<const slice<const char>&>);
+    static_assert(resolves<const unsigned char (&)[4]>);
+    static_assert(!resolves<const char (&)[4]>);
+    static_assert(!resolves<std::string_view>);
+    string s = "text";
+    EXPECT_EQ(pick_two(s), 1);
+    EXPECT_EQ(pick(s), 1);
+    EXPECT_EQ(pick("text"), 3);
+    char buffer[8] = "text";
+    EXPECT_EQ(pick(buffer), 3);
+    EXPECT_EQ(pick(std::string_view("text")), 3);
+    EXPECT_EQ(pick(s.as_slice()), 2);           // a text slice converts to bytes alone
+    unsigned char raw[2] = {1, 2};
+    EXPECT_EQ(pick(raw), 2);
+    const char* c_string = "text";
+    EXPECT_EQ(pick(c_string), 1);               // a C string: to the string, as before
+}

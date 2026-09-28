@@ -86,6 +86,14 @@ namespace sgcl::encoding {
             return detail::encode_text(_radix, reinterpret_cast<const uint8_t*>(text.data()), text.size());
         }
 
+        // A literal, a character array, a std::string_view: as the
+        // string's overload (an exact match, else the conversions to a
+        // string and to bytes tie)
+        template<sgcl::detail::TextArgument T>
+        string encode(const T& text) const {
+            return encode(slice<const byte>(text));
+        }
+
         expected<vector<byte>, error> decode(const string& text) const {
             return detail::decode_text(_radix, text);
         }
@@ -115,8 +123,8 @@ namespace sgcl::encoding {
         // A writer that encodes what is written to it into out (close()
         // writes the last group and leaves out open), and a reader of the
         // bytes the text of in decodes to
-        tracked_ptr<encoder> encoder_to(const io::writer& out) const;
-        tracked_ptr<decoder> decoder_from(const io::reader& in) const;
+        encoder encoder_to(const io::writer& out) const;
+        decoder decoder_from(const io::reader& in) const;
 
     private:
         constexpr explicit base64(const detail::Radix<6>& r) noexcept
@@ -131,23 +139,34 @@ namespace sgcl::encoding {
     inline constexpr base64 base64::raw_standard = base64::standard.without_padding();
     inline constexpr base64 base64::raw_url = base64::url.without_padding();
 
+    // The streams: handles of one word, the state made by encoder_to and
+    // decoder_from (detail/codec.h: WriterHandle, ReaderHandle)
     class base64::encoder final
-    : public detail::CodecWriter<detail::Radix<6>> {
+    : public detail::WriterHandle<base64::encoder, detail::CodecWriter<detail::Radix<6>>> {
     public:
-        using CodecWriter::CodecWriter;
+        using WriterHandle::WriterHandle;
     };
 
     class base64::decoder final
-    : public detail::CodecReader<detail::Radix<6>> {
+    : public detail::ReaderHandle<base64::decoder, detail::CodecReader<detail::Radix<6>>> {
     public:
-        using CodecReader::CodecReader;
+        using ReaderHandle::ReaderHandle;
     };
 
-    inline tracked_ptr<base64::encoder> base64::encoder_to(const io::writer& out) const {
-        return make_tracked<encoder>(_radix, out);
+    inline base64::encoder base64::encoder_to(const io::writer& out) const {
+        return detail::CodecAccess::make<encoder>(make_tracked<detail::CodecWriter<detail::Radix<6>>>(_radix, out));
     }
 
-    inline tracked_ptr<base64::decoder> base64::decoder_from(const io::reader& in) const {
-        return make_tracked<decoder>(_radix, in);
+    inline base64::decoder base64::decoder_from(const io::reader& in) const {
+        return detail::CodecAccess::make<decoder>(make_tracked<detail::CodecReader<detail::Radix<6>>>(_radix, in));
     }
+}
+
+// The streams of the codec are handles: a stream made of one binds its state
+namespace sgcl::io::detail {
+    template<>
+    inline constexpr bool IsStreamHandle<encoding::base64::encoder> = true;
+
+    template<>
+    inline constexpr bool IsStreamHandle<encoding::base64::decoder> = true;
 }

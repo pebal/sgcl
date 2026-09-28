@@ -111,6 +111,34 @@ TEST(Sync_Test, AnEventReleasesEveryWaiter) {
     sgcl::async::scheduler::stop();
 }
 
+// on_done of a group at zero is served at once, a group that never counted
+// up included: its first round's channel is closed from the start (found by
+// tests/async/fuzz/channels_fuzz.cpp: select took otherwise instead)
+TEST(Sync_Test, AFreshWaitGroupIsDoneAsACase) {
+    sgcl::async::wait_group wg;
+    int done = 0, other = 0;
+    auto served = [&] {
+        return sgcl::async::select(wg.on_done([&] { ++done; }), sgcl::async::otherwise([&] { ++other; })).wait();
+    };
+    EXPECT_EQ(served(), 0u);                     // fresh
+    EXPECT_EQ(done, 1);
+    wg.wait();                                   // at zero: no wait
+    wg.add(2);
+    EXPECT_EQ(served(), 1u);                     // counting: otherwise
+    EXPECT_EQ(other, 1);
+    wg.done();
+    EXPECT_EQ(served(), 1u);
+    wg.done();
+    EXPECT_EQ(served(), 0u);                     // back at zero
+    EXPECT_EQ(done, 2);
+    wg.add();                                    // a new round
+    EXPECT_EQ(served(), 1u);
+    wg.add(-1);
+    EXPECT_EQ(served(), 0u);
+    EXPECT_EQ(done, 3);
+    EXPECT_EQ(other, 3);
+}
+
 TEST(Sync_Test, AWaitGroupCountsTheWork) {
     sgcl::async::wait_group wg;
     std::atomic<int> done = {0};

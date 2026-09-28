@@ -139,6 +139,33 @@ TEST(Blocking_Tests, TheClosureMayCaptureATrackedPtr) {
     EXPECT_EQ(Node::alive.load(), before);                   // the job gone, the closure and its node with it
 }
 
+// A thread of the pool that ran a job and parked holds nothing of it: the
+// dead frames of the job are cleared before the park, so its closure and
+// what the closure holds are the collector's at once — not at the thread's
+// next job, nor at its exit the idle time later. Found through
+// ZipHeap_Tests (tests/compress/heap.cpp): a 32 KB block a writer handed
+// the pool outlived its test, held by the parked thread's stack, and died
+// in the middle of the next one (12 blocks against 13)
+TEST(Blocking_Tests, AParkedThreadOfThePoolHoldsNoFinishedJob) {
+    settle();
+    const int before = Node::alive.load();
+    off_frame([&] {
+        sgcl::tracked_ptr node = sgcl::make_tracked<Node>(9);
+        auto job = sgcl::async::spawn_blocking([node] { return node->value; });
+        EXPECT_EQ(job.wait(), 9);
+    });
+    // the thread parked: idle, with nothing queued
+    for (int i = 0; i < 5000; ++i) {
+        auto st = sgcl::async::blocking_pool::get_statistics();
+        if (st.threads > 0 && st.idle == st.threads && st.queued == 0) {
+            break;
+        }
+        std::this_thread::sleep_for(1ms);
+    }
+    settle();
+    EXPECT_EQ(Node::alive.load(), before);   // no next job, no stop(): the node gone with its job
+}
+
 TEST(Blocking_Tests, TheWorkersAreNotTaken) {
     std::atomic<int> ticks = {0};
     std::atomic<bool> stop = {false};

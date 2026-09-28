@@ -12,6 +12,7 @@
 #endif
 
 #include "../config.h"
+#include "env.h"
 
 #include <algorithm>
 #include <atomic>
@@ -660,6 +661,22 @@ namespace sgcl::detail::os {
             return limit;
         }
         return physical;
+    }
+
+    // The heap's ceiling when the program sets none (collector.h:
+    // set_memory_limit): SGCL_MEMORY_LIMIT when the environment gives it
+    // (bytes, or a percentage of memory_limit() above), else
+    // config::heap_limit_percent of memory_limit(); 0 (no ceiling) when the
+    // system does not say how much memory there is. Read once, by the
+    // heap's constructor: nothing on the paths of allocation reads it
+    inline size_t default_memory_limit() noexcept {
+        const size_t base = memory_limit();
+        const auto env = env_size_or_percent("SGCL_MEMORY_LIMIT");
+        if (env.set && !env.percent) {
+            return env.value > size_t(-1) ? size_t(-1) : size_t(env.value);
+        }
+        const size_t percent = env.set ? size_t(env.value) : config::heap_limit_percent;
+        return base / 100 * percent;
     }
 
 }

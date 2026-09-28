@@ -192,25 +192,22 @@ namespace sgcl::encoding {
         // there), io::errc::unexpected_eof when the stream ends inside
         // one, out_of_range of the encoding category past 64 bits
         // `read(...)` on this thread, `co_await async_read(...)` in a task
-        static expected<optional<uint64_t>, io::error> read(io::buffered_reader& in) {
+        static expected<optional<uint64_t>, io::error> read(const io::buffered_reader& in) {
             return _block_read(in);
         }
 
-        // The reader by reference, as io's functions take a stream: the read
-        // moves its position on, and a copy would be another reader. A reader
-        // in a managed object is kept by the task's frame, which the
-        // collector traces conservatively (core/coroutine.h); one on the
-        // caller's stack must outlive the task
-        static async::task<expected<optional<uint64_t>, io::error>> async_read(io::buffered_reader& in) {
+        // The reader by value: a handle, the copy the same reader (one
+        // position), held by the task for as long as it runs
+        static async::task<expected<optional<uint64_t>, io::error>> async_read(const io::buffered_reader& in) {
             return _co_read(in);
         }
 
         // `read_signed(...)` on this thread, `co_await async_read_signed(...)` in a task
-        static expected<optional<int64_t>, io::error> read_signed(io::buffered_reader& in) {
+        static expected<optional<int64_t>, io::error> read_signed(const io::buffered_reader& in) {
             return _block_read_signed(in);
         }
 
-        static async::task<expected<optional<int64_t>, io::error>> async_read_signed(io::buffered_reader& in) {
+        static async::task<expected<optional<int64_t>, io::error>> async_read_signed(const io::buffered_reader& in) {
             return _co_read_signed(in);
         }
 
@@ -272,7 +269,7 @@ namespace sgcl::encoding {
         }
 
         // the two halves of the operations above: a thread's and a task's
-        static expected<optional<uint64_t>, io::error> _block_read(io::buffered_reader& in)  {
+        static expected<optional<uint64_t>, io::error> _block_read(const io::buffered_reader& in) {
             uint64_t v = 0;
             for (size_t i = 0;; ++i) {
                 byte b {};
@@ -282,11 +279,11 @@ namespace sgcl::encoding {
             }
         }
 
-        static expected<optional<int64_t>, io::error> _block_read_signed(io::buffered_reader& in)  {
+        static expected<optional<int64_t>, io::error> _block_read_signed(const io::buffered_reader& in) {
             return _signed(_block_read(in));
         }
 
-        static async::task<expected<optional<uint64_t>, io::error>> _co_read(io::buffered_reader& in)  {
+        static async::task<expected<optional<uint64_t>, io::error>> _co_read(io::buffered_reader in) {   // by value: the task holds the reader
             uint64_t v = 0;
             for (size_t i = 0;; ++i) {
                 byte b {};
@@ -296,7 +293,7 @@ namespace sgcl::encoding {
             }
         }
 
-        static async::task<expected<optional<int64_t>, io::error>> _co_read_signed(io::buffered_reader& in)  {
+        static async::task<expected<optional<int64_t>, io::error>> _co_read_signed(io::buffered_reader in) {
             co_return _signed(co_await _co_read(in));
         }
     };

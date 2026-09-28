@@ -51,6 +51,8 @@ inline constexpr read_case reads[] = {
     {"\\.,x\x0a""", ',', '\0', false, false, true, "<1:1>\\.\x1f""<1:4>x\x0a"""},
     {"a,b\x0d""\x0d""\x0a""c,d\x0a""", ',', '\0', false, false, true, "<1:1>a\x1f""<1:3>b\x0d""\x0a""<2:1>c\x1f""<2:3>d\x0a"""},
     {"\"a\x0d""\"\x0a""", ',', '\0', false, false, true, "<1:1>a\x0d""\x0a"""},
+    {"\"\"\x0a""", ',', '\0', false, false, true, "<1:1>\x0a"""},
+    {"a\x0a""\"\"\x0a""b\x0a""", ',', '\0', false, false, true, "<1:1>a\x0a""<2:1>\x0a""<3:1>b\x0a"""},
 };
 struct write_case { std::string_view fields; char separator; bool crlf; std::string_view text; };   // fields split by \x1f, records by \x1e
 inline constexpr write_case writes[] = {

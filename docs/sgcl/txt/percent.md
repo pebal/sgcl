@@ -36,10 +36,10 @@ namespace percent {
 ```cpp
 using namespace sgcl;
 
-txt::percent::encode(string("/a b/c"), txt::percent::path);   // "/a%20b/c"
-txt::percent::encode(string("/a b/c"));                       // "%2Fa%20b%2Fc"
-txt::percent::decode(string("%C3%BC"));                       // the two bytes of "ü"
-txt::percent::decode(string("a%"));                           // nothing
+txt::percent::encode("/a b/c", txt::percent::path);   // "/a%20b/c"
+txt::percent::encode("/a b/c");                       // "%2Fa%20b%2Fc"
+txt::percent::decode("%C3%BC");                       // the two bytes of "ü"
+txt::percent::decode("a%");                           // nothing
 ```
 
 ## The set is an argument, not a default buried in the function

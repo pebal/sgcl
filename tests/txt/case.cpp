@@ -109,6 +109,12 @@ TEST(Case_Tests, TheThreeLanguagesThatSpellAnIDifferently) {
     EXPECT_EQ(txt::to_lower_full(string("J\u0300"), lt), string("j\u0307\u0300"));
     EXPECT_EQ(txt::to_lower_full(string("I\u0300"), root), string("i\u0300"));
     EXPECT_EQ(txt::to_upper_full(string("i\u0307"), lt), string("I"));
+    // and of the three capitals that carry their accent precomposed,
+    // whatever follows them (found by the fuzzer against ICU,
+    // tests/txt/fuzz/txt_icu_fuzz.cpp: they were lowered as the root lowers)
+    EXPECT_EQ(txt::to_lower_full(string("\u00cc\u00cd\u0128"), lt), string("i\u0307\u0300i\u0307\u0301i\u0307\u0303"));
+    EXPECT_EQ(txt::to_lower_full(string("R\u00cdGA"), lt), string("ri\u0307\u0301ga"));
+    EXPECT_EQ(txt::to_lower_full(string("\u00cd"), root), string("\u00ed"));
 
     // A tag is read as BCP-47 and an unknown one is the root locale
     EXPECT_EQ(txt::locale(string("TR")), txt::locale::turkish());
@@ -149,4 +155,15 @@ TEST(Case_Tests, TitleCaseAndFolding) {
 
     // core's equal_fold is one code point to one, and says no here
     EXPECT_FALSE(string("straße").equal_fold("STRASSE"));
+}
+
+// Found by the fuzzer against ICU (tests/txt/fuzz/txt_icu_fuzz.cpp): a
+// letter whose title case is its full upper case of two or three code
+// points (the title table holds only where the two differ) kept itself,
+// the simple upper mapping, which it has none of, taken instead
+TEST(Case_Tests, TitleCaseThatIsTheFullUpperCase) {
+    EXPECT_EQ(txt::to_title(string("ΰab ΰ")), string("Ϋ́ab Ϋ́"));
+    EXPECT_EQ(txt::to_title(string("ǰob")), string("J̌ob"));
+    EXPECT_EQ(txt::to_title(string("ẖ")), string("H̱"));
+    EXPECT_EQ(txt::to_title(string("ŉ")), string("ʼN"));
 }

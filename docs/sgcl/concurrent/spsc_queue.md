@@ -106,7 +106,6 @@ bool full() const noexcept;
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -120,7 +119,7 @@ struct Sample {
 };
 
 struct Pipeline {
-    concurrent::spsc_queue<tracked_ptr<Sample>> samples{16};   // inside a managed object: 
+    concurrent::spsc_queue<tracked_ptr<Sample>> samples{16};               // inside a managed object: 
 };
 
 int main() {
@@ -139,8 +138,7 @@ int main() {
         sum += s->value;
     }
     reader.join();
-    std::cout << "sum " << sum << ", " << out_of_order << " out of order, "
-              << pipeline->samples.size() << " left in a ring of " << pipeline->samples.capacity() << "\n";
+    println("sum {}, {} out of order, {} left in a ring of {}", sum, out_of_order, pipeline->samples.size(), pipeline->samples.capacity());
     return sum == 24997500.0 && out_of_order == 0 ? 0 : 1;
 }
 ```
@@ -148,7 +146,7 @@ int main() {
 The output:
 
 ```
-sum 2.49975e+07, 0 out of order, 0 left in a ring of 16
+sum 24997500, 0 out of order, 0 left in a ring of 16
 ```
 
 ## Measured

@@ -9,7 +9,11 @@
 #include "thread.h"
 #include "type_info.h"
 #include "unique_ptr.h"
+
+#include <array>
+#include <bit>
 #include <type_traits>
+#include <utility>
 
 namespace sgcl::detail {
     // The construction of managed objects (make_tracked.h): a slot from
@@ -137,6 +141,101 @@ namespace sgcl::detail {
         }
     };
 
+    // The size classes of the buffers up to a page, in bytes of elements
+    // (past the 16-byte header, ArrayBase), each class the whole of its
+    // slot: the header and the class are a multiple of 16, the header's
+    // alignment, so that no padding of the slot is left out of the
+    // capacity. Up to 752 about 1.5 times the last (buffer_small_classes,
+    // a chain of comparisons, allocate_small below); above, the classes
+    // that fill a page: 64, 48, 32, 24, 16, 12, 8, 6, 4, 3, 2 and 1 slots
+    // of it, each the largest whose slot fits that many times (an octave
+    // table). A buffer past the last class is a range of pages.
+    inline constexpr std::array<size_t, 22> buffer_classes = {
+        16, 32, 48, 64, 96, 144, 224, 336, 496, 752,
+        1008, 1344, 2032, 2704, 4080, 5440, 8176, 10896, 16368, 21824, 32752, 65520};
+
+    // How many of the classes are the small ones, and the largest of them
+    inline constexpr size_t buffer_small_classes = 10;
+    inline constexpr size_t buffer_small_class_limit = buffer_classes[buffer_small_classes - 1];
+
+    // The index of the smallest class that holds `bytes`, for a size past
+    // the small classes and up to the last: the octave of the slot size,
+    // bit_width(bytes + 15), gives the first class that can hold a size of
+    // the octave, and one comparison the class after it, which holds the
+    // rest (checked with the classes, below)
+    inline constexpr size_t buffer_octaves = 17;
+
+    consteval std::array<unsigned char, buffer_octaves> buffer_octave_first() {
+        std::array<unsigned char, buffer_octaves> first = {};
+        for (size_t k = 0; k < buffer_octaves; ++k) {
+            // the least bytes of the octave: bytes + 15 >= 2^(k - 1)
+            size_t least = k ? (size_t(1) << (k - 1)) : 0;
+            least = least > sizeof(ArrayBase) - 1 ? least - (sizeof(ArrayBase) - 1) : 0;
+            size_t i = buffer_small_classes - 1;
+            while (i + 1 < buffer_classes.size() && buffer_classes[i] < least) {
+                ++i;
+            }
+            first[k] = (unsigned char)i;
+        }
+        return first;
+    }
+
+    inline constexpr auto buffer_octave_table = buffer_octave_first();
+
+    constexpr size_t buffer_large_class_index(size_t bytes) noexcept {
+        size_t i = buffer_octave_table[std::bit_width(bytes + sizeof(ArrayBase) - 1)];
+        return i + (buffer_classes[i] < bytes);
+    }
+
+    // The classes as the allocators see them: sorted, each with the header
+    // a multiple of 16 (the slot, sizeof(Array<class>), is then the header
+    // and the class exactly), the last a whole page, and past the small
+    // classes a page of slots of the class wastes at most 256 bytes; the
+    // octave table finds the smallest class for every size from the small
+    // classes' end up to the last
+    template<size_t... I>
+    consteval bool buffer_classes_valid(std::index_sequence<I...>) {
+        constexpr size_t slots[] = {sizeof(Array<buffer_classes[I]>)...};
+        for (size_t i = 0; i < buffer_classes.size(); ++i) {
+            auto c = buffer_classes[i];
+            if ((c + sizeof(ArrayBase)) % alignof(ArrayBase) || slots[i] != c + sizeof(ArrayBase) || (i && c <= buffer_classes[i - 1]) || slots[i] > PageDataSize) {
+                return false;
+            }
+            if (i >= buffer_small_classes && PageDataSize % slots[i] > 256) {
+                return false;
+            }
+        }
+        if (slots[buffer_classes.size() - 1] != PageDataSize) {
+            return false;
+        }
+        // the selection steps only where a class ends or an octave begins:
+        // both sides of each such size checked
+        auto finds_smallest = [](size_t bytes) {
+            if (bytes <= buffer_small_class_limit || bytes > buffer_classes.back()) {
+                return true;
+            }
+            size_t smallest = 0;
+            while (buffer_classes[smallest] < bytes) {
+                ++smallest;
+            }
+            return buffer_large_class_index(bytes) == smallest;
+        };
+        for (auto c : buffer_classes) {
+            if (!finds_smallest(c) || !finds_smallest(c + 1)) {
+                return false;
+            }
+        }
+        for (size_t k = 1; k < buffer_octaves; ++k) {
+            auto edge = size_t(1) << (k - 1);   // bytes + 15 == 2^(k - 1): the octave's first size
+            if (edge >= sizeof(ArrayBase) && (!finds_smallest(edge - sizeof(ArrayBase)) || !finds_smallest(edge - sizeof(ArrayBase) + 1))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static_assert(buffer_classes_valid(std::make_index_sequence<buffer_classes.size()>()), "the buffer size classes do not fill their slots and pages");
+
     class ArrayMaker : MakerBase {
     protected:
         // The header (the element type's metadata, the capacity) is written
@@ -163,35 +262,70 @@ namespace sgcl::detail {
         };
 
         // A buffer of the size class T (Array<N>, below) with `data_size`
-        // bytes past it, from the thread's allocator for that class
+        // bytes past it, from the thread's allocator for that class: the
+        // address of its first element, the slot kept by its state
+        // (UniqueLock, set by the allocator) until the caller hands it to a
+        // UniquePtr, which nothing between the two can prevent
         template<class T>
-        static UniquePtr<void> _make(size_t data_size, const Header& header) {
+        static void* _alloc(size_t data_size, const Header& header) {
             using Info = TypeInfo<T>;
             using Type = typename Info::Type;
             auto& thread = current_thread();
             auto& allocator = thread.alocator<Type>();
             auto mem = allocator.alloc(data_size, header);
-            return UniquePtr<void>(((Type*)mem)->data);
+            return ((Type*)mem)->data;
+        }
+
+        // A buffer of the size class Size for elements of ObjectSize bytes,
+        // its capacity what the class holds: the capacity and the zeroing
+        // are constants in it
+        template<size_t Size, size_t ObjectSize, bool Zero>
+        static void* _alloc_class(ArrayMetadata* metadata) {
+            return _alloc<Array<Size>>(0, Header{metadata, Size / ObjectSize, ObjectSize, Zero});
+        }
+
+        // The classes of a page: a table of their functions, indexed by
+        // buffer_large_class_index
+        using AllocClass = void* (*)(ArrayMetadata*);
+
+        template<size_t ObjectSize, bool Zero, size_t... I>
+        static constexpr std::array<AllocClass, sizeof...(I)> _class_entries(std::index_sequence<I...>) {
+            return {&_alloc_class<buffer_classes[I], ObjectSize, Zero>...};
         }
 
         // A buffer for at least `capacity` elements: from a pool of a size
         // class (the capacity rounded up to what the class holds) or, past
-        // a page, from a range of pages.
-        template<size_t N = sizeof(uintptr_t)>
-        static UniquePtr<void> _make_array(size_t capacity, size_t object_size, ArrayMetadata* metadata, bool zero) {
-            if (object_size * capacity <= N && sizeof(Array<N>) <= PageDataSize) {
-                return _make<Array<N>>(0, Header{metadata, N / object_size, object_size, zero});
-            } else {
-                if constexpr(sizeof(Array<N>) < PageDataSize) {
-                    static constexpr auto Size = (N * 3 / 2 + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1);
-                    return _make_array<Size>(capacity, object_size, metadata, zero);
-                } else {
-                    if (object_size * capacity <= PageDataSize - sizeof(ArrayBase)) {
-                        return _make<Array<PageDataSize - sizeof(ArrayBase)>>(0, Header{metadata, (PageDataSize - sizeof(ArrayBase)) / object_size, object_size, zero});
-                    } else {
-                        return _make<Array<>>(object_size * capacity + sizeof(ArrayBase) - sizeof(Array<>), Header{metadata, capacity, object_size, zero});
-                    }
+        // a page, from a range of pages; with `whole_pages`, the capacity
+        // of a range rounded up to what its pages hold next to the header.
+        // The range is whole pages anyway, and a container that grows by
+        // its capacity (vector) then doubles into whole pages again: made
+        // at a power of two of bytes past a page, which the header puts
+        // onto a page more, it took 3, 5, 9 pages, and takes 2, 4, 8. The
+        // others ask for what they index (a count of buckets, of blocks)
+        // and would only have more slots to zero and to trace.
+        // The small classes are a chain of comparisons, one class after
+        // another from the smallest, inlined whole into the caller (for the
+        // smallest buffers, the most frequent, a call through the table
+        // costs a nanosecond more); past them the table of the classes of a
+        // page, then the range.
+        template<size_t ObjectSize, bool Zero, size_t I = 0>
+        static UniquePtr<void> _make_array(size_t capacity, ArrayMetadata* metadata, bool whole_pages) {
+            const size_t bytes = ObjectSize * capacity;
+            if constexpr(I < buffer_small_classes) {
+                if (bytes <= buffer_classes[I]) {
+                    return UniquePtr<void>(_alloc_class<buffer_classes[I], ObjectSize, Zero>(metadata));
                 }
+                return _make_array<ObjectSize, Zero, I + 1>(capacity, metadata, whole_pages);
+            } else {
+                if (bytes <= buffer_classes.back()) {
+                    static constexpr auto table = _class_entries<ObjectSize, Zero>(std::make_index_sequence<buffer_classes.size()>());
+                    return UniquePtr<void>(table[buffer_large_class_index(bytes)](metadata));
+                }
+                if (whole_pages) {
+                    auto pages = (bytes + sizeof(ArrayBase) + config::page_size - 1) / config::page_size;
+                    capacity = (pages * config::page_size - sizeof(ArrayBase)) / ObjectSize;
+                }
+                return UniquePtr<void>(_alloc<Array<>>(ObjectSize * capacity + sizeof(ArrayBase) - sizeof(Array<>), Header{metadata, capacity, ObjectSize, Zero}));
             }
         }
     };
@@ -209,7 +343,15 @@ namespace sgcl::detail {
     public:
         // A buffer for `capacity` elements of T
         static UniquePtr<T> make_tracked_data(size_t capacity) {
-            auto p = _make_array<>(capacity, sizeof(T), &Info::array_metadata(), Info::MayContainTracked);
+            auto p = _make_array<sizeof(T), Info::MayContainTracked>(capacity, &Info::array_metadata(), false);
+            return UniquePtr<T>((T*)p.release());
+        }
+
+        // A buffer for at least `capacity` elements of T, past a page as
+        // many as its pages hold: for a container that reads the capacity
+        // back from the header and grows from it (vector)
+        static UniquePtr<T> make_tracked_data_in_whole_pages(size_t capacity) {
+            auto p = _make_array<sizeof(T), Info::MayContainTracked>(capacity, &Info::array_metadata(), true);
             return UniquePtr<T>((T*)p.release());
         }
 

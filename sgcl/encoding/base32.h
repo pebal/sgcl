@@ -78,6 +78,14 @@ namespace sgcl::encoding {
             return detail::encode_text(_radix, reinterpret_cast<const uint8_t*>(text.data()), text.size());
         }
 
+        // A literal, a character array, a std::string_view: as the
+        // string's overload (an exact match, else the conversions to a
+        // string and to bytes tie)
+        template<sgcl::detail::TextArgument T>
+        string encode(const T& text) const {
+            return encode(slice<const byte>(text));
+        }
+
         expected<vector<byte>, error> decode(const string& text) const {
             return detail::decode_text(_radix, text);
         }
@@ -107,8 +115,8 @@ namespace sgcl::encoding {
         // A writer that encodes what is written to it into out (close()
         // writes the last group and leaves out open), and a reader of the
         // bytes the text of in decodes to
-        tracked_ptr<encoder> encoder_to(const io::writer& out) const;
-        tracked_ptr<decoder> decoder_from(const io::reader& in) const;
+        encoder encoder_to(const io::writer& out) const;
+        decoder decoder_from(const io::reader& in) const;
 
     private:
         constexpr explicit base32(const detail::Radix<5>& r) noexcept
@@ -121,23 +129,34 @@ namespace sgcl::encoding {
     inline constexpr base32 base32::standard {"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"};
     inline constexpr base32 base32::hex {"0123456789ABCDEFGHIJKLMNOPQRSTUV"};
 
+    // The streams: handles of one word, the state made by encoder_to and
+    // decoder_from (detail/codec.h: WriterHandle, ReaderHandle)
     class base32::encoder final
-    : public detail::CodecWriter<detail::Radix<5>> {
+    : public detail::WriterHandle<base32::encoder, detail::CodecWriter<detail::Radix<5>>> {
     public:
-        using CodecWriter::CodecWriter;
+        using WriterHandle::WriterHandle;
     };
 
     class base32::decoder final
-    : public detail::CodecReader<detail::Radix<5>> {
+    : public detail::ReaderHandle<base32::decoder, detail::CodecReader<detail::Radix<5>>> {
     public:
-        using CodecReader::CodecReader;
+        using ReaderHandle::ReaderHandle;
     };
 
-    inline tracked_ptr<base32::encoder> base32::encoder_to(const io::writer& out) const {
-        return make_tracked<encoder>(_radix, out);
+    inline base32::encoder base32::encoder_to(const io::writer& out) const {
+        return detail::CodecAccess::make<encoder>(make_tracked<detail::CodecWriter<detail::Radix<5>>>(_radix, out));
     }
 
-    inline tracked_ptr<base32::decoder> base32::decoder_from(const io::reader& in) const {
-        return make_tracked<decoder>(_radix, in);
+    inline base32::decoder base32::decoder_from(const io::reader& in) const {
+        return detail::CodecAccess::make<decoder>(make_tracked<detail::CodecReader<detail::Radix<5>>>(_radix, in));
     }
+}
+
+// The streams of the codec are handles: a stream made of one binds its state
+namespace sgcl::io::detail {
+    template<>
+    inline constexpr bool IsStreamHandle<encoding::base32::encoder> = true;
+
+    template<>
+    inline constexpr bool IsStreamHandle<encoding::base32::decoder> = true;
 }

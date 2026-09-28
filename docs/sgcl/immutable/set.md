@@ -82,7 +82,6 @@ assert(s.contains(2) && s.count_of([](int x) { return x > 1; }) == 1);
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -96,7 +95,7 @@ int main() {
         at_step.push_back(seen);                      // two words: the version as it is now
     }
     for (int k : range(at_step.size())) {
-        std::cout << "step " << k << ": " << at_step[k].size() << " ids, 9 " << (at_step[k].contains(9) ? "seen" : "not yet") << '\n';
+        println("step {}: {} ids, 9 {}", k, at_step[k].size(), (at_step[k].contains(9) ? "seen" : "not yet"));
     }
     return seen.size() == 4 ? 0 : 1;
 }

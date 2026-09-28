@@ -117,6 +117,14 @@ namespace {
         char bytes[256] = {};
     };
 
+    // An owner and a raw word one past the end of what it owns (a slice's
+    // end): the word names the next slot, not the owned object
+    struct EndCovered {
+        EndCovered() {}
+        tracked_ptr<Blob> owner;
+        size_t end = 0;
+    };
+
     struct Packed {
         Packed() {}
         size_t word = 0;
@@ -305,6 +313,32 @@ TEST(Maps_Tests, ARawWordNoOwnerCoversIsReported) {
     }
     auto output = ::testing::internal::GetCapturedStderr();
     EXPECT_NE(output.find("Uncovered"), std::string::npos) << output;
+}
+
+// A raw word one past the end of an object a tracked word of the same
+// object holds is not reported, though the address is the start of the
+// next slot: a slice's end, which nothing reads through
+TEST(Maps_Tests, AnEndWordItsOwnerCoversIsNotReported) {
+    tracked_ptr<Blob> first = make_tracked<Blob>();
+    tracked_ptr<Blob> next;
+    for (int i = 0; i < 64 && !next; ++i) {   // a Blob in the slot right after first's
+        tracked_ptr<Blob> b = make_tracked<Blob>();
+        if ((char*)b.get() == (char*)first.get() + sizeof(Blob)) {
+            next = b;
+        }
+    }
+    ASSERT_TRUE(next);
+    tracked_ptr<EndCovered> data = make_tracked<EndCovered>();
+    tracked_ptr<EndCovered> covered = make_tracked<EndCovered>();
+    data->end = 12345;
+    covered->owner = first;
+    covered->end = (size_t)((char*)first.get() + sizeof(Blob));
+    ::testing::internal::CaptureStderr();
+    for (int i = 0; i < 4; ++i) {
+        collector::force_collect(true);
+    }
+    auto output = ::testing::internal::GetCapturedStderr();
+    EXPECT_EQ(output.find("EndCovered"), std::string::npos) << output;
 }
 
 // Data that lands inside a live object, not at its start, is not taken

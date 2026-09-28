@@ -5,17 +5,15 @@
 
 namespace sgcl {
     template<class T>
-    class atomic;   // std::atomic<T>, for every T but the three below
+    class atomic;   // std::atomic<T>, for every T but the two below
     template<class T>
     class atomic<tracked_ptr<T>>;
-    template<class T>
-    class atomic<sgcl::tracked_ptr<T>>;
-    template<class CharT, class Traits>
-    class atomic<basic_string<CharT, Traits>>;
+    template<req::handle H>
+    class atomic<H>;   // a string, an io::file, a net::connection, an async::channel: every handle of one word
 }
 ```
 
-`atomic<tracked_ptr<T>>` is `std::atomic` for a [`tracked_ptr`](tracked_ptr.md): a word that several threads read and write without a lock, with `load`, `store`, `exchange`, `compare_exchange_weak`, `compare_exchange_strong`, `wait` and `notify` taking a `std::memory_order`. It is the answer to rule 6: a `tracked_ptr` written by one thread and read by another needs `atomic`, `atomic_ref` or the program's own synchronization. A global shared pointer is a [`root_ptr`](root_ptr.md) with an [`atomic_ref`](atomic_ref.md) over it: the `root_ptr` holds its object by a `tracked_ptr` in a managed block, and `atomic_ref` binds that word (`static sgcl::root_ptr<Config> current; sgcl::atomic_ref a(current);`). The second specialization is the atomic of a [`string`](string.md) (below). For every other type, `sgcl::atomic<T>` is `std::atomic<T>`, derived from it with its constructors and assignments, so that a program names one atomic for its flags, its counters and its pointers alike; a value shared whole between threads, an object rather than a word, is a [`copy_on_write`](../concurrent/copy_on_write.md).
+`atomic<tracked_ptr<T>>` is `std::atomic` for a [`tracked_ptr`](tracked_ptr.md): a word that several threads read and write without a lock, with `load`, `store`, `exchange`, `compare_exchange_weak`, `compare_exchange_strong`, `wait` and `notify` taking a `std::memory_order`. It is the answer to rule 6: a `tracked_ptr` written by one thread and read by another needs `atomic`, `atomic_ref` or the program's own synchronization. A global shared pointer is a [`root_ptr`](root_ptr.md) with an [`atomic_ref`](atomic_ref.md) over it: the `root_ptr` holds its object by a `tracked_ptr` in a managed block, and `atomic_ref` binds that word (`static sgcl::root_ptr<Config> current; sgcl::atomic_ref a(current);`). The second specialization is the atomic of a handle (below): a [`string`](string.md), and every public type of the library that is one tracked word to the object inside — `io::file`, `io::buffer`, `net::connection`, `async::channel`, `async::mutex` — whose copies share that object. For every other type, `sgcl::atomic<T>` is `std::atomic<T>`, derived from it with its constructors and assignments, so that a program names one atomic for its flags, its counters and its pointers alike; a value shared whole between threads, an object rather than a word, is a [`copy_on_write`](../concurrent/copy_on_write.md).
 
 The difference from `std::atomic<std::shared_ptr<T>>` is that it is lock-free, one word, and safe against reuse: a `load()` publishes a hazard pointer for the length of the load, so that the collector cannot reclaim the object between the read of the word and the construction of the `tracked_ptr` that holds it, and once held the object cannot be reclaimed at all. A compare-exchange therefore has no ABA problem: a node is never freed and reused while any thread holds a `tracked_ptr` to it, so the address it compares against is the node it means. A lock-free stack or queue needs no hazard pointers or epochs of its own (`examples/lock_free_stack.cpp`, and "Lock-free stack" in the [Benchmarks](../concurrent/benchmarks.md#lock-free-stack)).
 
@@ -182,39 +180,41 @@ assert(*slot.load() == 1);
 producer.join();
 ```
 
-### atomic<basic_string>
+### atomic<H> for a handle
 
 ```cpp
-template<class CharT, class Traits>
-class atomic<basic_string<CharT, Traits>> {
+template<req::handle H>
+class atomic<H> {
 public:
-    using value_type = basic_string<CharT, Traits>;
-    atomic() noexcept;
-    atomic(const value_type& s) noexcept;
+    using value_type = H;
+    atomic();                                  // the handle's own default: H()
+    atomic(const value_type& h) noexcept;
     value_type load(std::memory_order m = std::memory_order_seq_cst) const noexcept;
     operator value_type() const noexcept;
-    void store(const value_type& s, std::memory_order m = std::memory_order_seq_cst) noexcept;
-    value_type operator=(const value_type& s) noexcept;
-    value_type exchange(const value_type& s, std::memory_order m = std::memory_order_seq_cst) noexcept;
+    void store(const value_type& h, std::memory_order m = std::memory_order_seq_cst) noexcept;
+    value_type operator=(const value_type& h) noexcept;
+    value_type exchange(const value_type& h, std::memory_order m = std::memory_order_seq_cst) noexcept;
     bool compare_exchange_strong(value_type& expected, const value_type& desired, std::memory_order m = std::memory_order_seq_cst) noexcept;
     bool compare_exchange_strong(value_type& expected, const value_type& desired, std::memory_order success, std::memory_order failure) noexcept;
     bool compare_exchange_weak(value_type& expected, const value_type& desired, std::memory_order m = std::memory_order_seq_cst) noexcept;
     bool compare_exchange_weak(value_type& expected, const value_type& desired, std::memory_order success, std::memory_order failure) noexcept;
-    void wait(const value_type& s, std::memory_order m = std::memory_order_seq_cst) const noexcept;
+    void wait(const value_type& h, std::memory_order m = std::memory_order_seq_cst) const noexcept;
     void notify_one() noexcept;
     void notify_all() noexcept;
 };
 ```
 
-A `string` is one word to an object never modified, so the atomic of a string is the atomic of that word: the operations above with a string on the outside, one word in size. A load is one atomic load (with the hazard pointer of every atomic load) and the string it returns is the object as it was, whatever is stored meanwhile; a store is the store of the object the caller has already made; nothing is copied and nothing allocated beyond the strings themselves. The compare-exchanges compare identity, the object, as a compare-exchange on a word does: two strings of the same characters made apart are two objects, and the expected one must be the one loaded or stored from here, not one equal to it (`sgcl::string("a")` is never the string that is there); an exchange for a change of contents loads, decides, and exchanges against what it loaded. `atomic<string>` lives where a `string` does, on a stack or inside a managed object.
+A handle (`req::handle`, [req](req.md)) is a public type that is one tracked word to the object inside, whose copies share that object: a `string`, `io::file`, `io::buffer`, `io::buffered_reader`, `io::process`, `net::connection`, `async::channel<T>`, `async::mutex`... The atomic of a handle is the atomic of that word: the operations above with the handle on the outside, one word in size, one specialization for every handle. A load is one atomic load (with the hazard pointer of every atomic load) and the handle it returns is the object as it was, whatever is stored meanwhile; a store is the store of the object the caller's handle holds; nothing is copied and nothing allocated beyond the objects themselves. The compare-exchanges compare identity, the object, as a compare-exchange on a word does: two strings of the same characters made apart are two objects, and the expected one must be the one loaded or stored from here, not one equal to it (`sgcl::string("a")` is never the string that is there); an exchange for a change of contents loads, decides, and exchanges against what it loaded. `atomic<H>` lives where the handle does, on a stack or inside a managed object; the default constructor makes what `H()` makes (an empty string, a file that is none, an unbuffered channel).
+
+A type of the program takes part the way the library's do: it befriends `detail::HandleWord`, names its word to it (`_handle_word()`, the `tracked_ptr` member by reference, `const` and not) and takes a constructor from a word, `H(detail::FromWord, const tracked_ptr<State>&)`, private like the rest; `tests/core/atomic_handle.cpp` shows one.
 
 ```cpp
 static atomic<string> current_host = string("localhost");   // a global, read by every thread
 
 string host = current_host.load();                 // one load: the string as it was
-current_host = string("db.internal");              // a store: the old one dies with its last reader
+current_host = "db.internal";                      // a store: the old one dies with its last reader
 string seen = current_host.load();
-if (!current_host.compare_exchange_strong(seen, string("db2.internal"))) {
+if (!current_host.compare_exchange_strong(seen, "db2.internal")) {
     // someone stored since: seen is what is there now
 }
 ```
@@ -224,7 +224,6 @@ if (!current_host.compare_exchange_strong(seen, string("db2.internal"))) {
 ```cpp
 #include "sgcl/sgcl.h"
 #include <cassert>
-#include <iostream>
 
 using namespace sgcl;
 
@@ -257,7 +256,7 @@ int main() {
     for (auto& r : readers) {
         r.join();
     }
-    std::cout << "final version " << current.load()->version << '\n';   // 100
+    println("final version {}", current.load()->version);   // 100
 
     collector::force_collect(true);     // optional, for the demonstration only: the collector runs its cycles by itself
     return 0;

@@ -9,12 +9,16 @@
 #include "response.h"
 #include "status.h"
 #include "detail/wire.h"
+#include "detail/h2/transport.h"
 #include "../connection.h"
+#include "../tls.h"
 #include "../error.h"
 #include "../socket.h"
 #include "../url.h"
 #include "../../async/coroutine.h"
+#include "../../async/event.h"
 #include "../../async/stop_token.h"
+#include "../../async/timeout.h"
 #include "../../async/timer.h"
 #include "../../core/aliases.h"
 #include "../../core/clock.h"
@@ -60,6 +64,91 @@ namespace sgcl::net::http {
             std::mutex lock;
             map<string, vector<IdleConnection>> idle;
             uint64_t next_id = 0;
+            // HTTP/2: the connections of an origin (one, a second only when
+            // the first has as many streams as its server allows), and the
+            // dial under way to an origin that others wait for
+            map<string, vector<tracked_ptr<h2::ClientH2>>> h2;
+            map<string, async::event> h2_dialing;
+
+            // A connection of the origin with room for one more stream, the
+            // room reserved (the pool's lock, then the connection's)
+            tracked_ptr<h2::ClientH2> take_h2(const string& key) {
+                std::lock_guard<std::mutex> g(lock);
+                auto it = h2.find(key);
+                if (it == h2.end()) {
+                    return tracked_ptr<h2::ClientH2>();
+                }
+                for (auto& h : it->second) {
+                    if (h->reserve()) {
+                        return h;
+                    }
+                }
+                return tracked_ptr<h2::ClientH2>();
+            }
+
+            // What the origin's server allows a connection, as one of its
+            // connections learned it (0: none knows yet)
+            uint32_t h2_limit(const string& key) {
+                vector<tracked_ptr<h2::ClientH2>> list;
+                {
+                    std::lock_guard<std::mutex> g(lock);
+                    auto it = h2.find(key);
+                    if (it == h2.end()) {
+                        return 0;
+                    }
+                    list = it->second;
+                }
+                uint32_t most = 0;
+                for (auto& h : list) {
+                    if (uint32_t n = h->learned_limit()) {
+                        most = most ? std::min(most, n) : n;
+                    }
+                }
+                return most;
+            }
+
+            void add_h2(const string& key, const tracked_ptr<h2::ClientH2>& h) {
+                std::lock_guard<std::mutex> g(lock);
+                h2[key].push_back(h);
+            }
+
+            void remove_h2(const string& key, const tracked_ptr<h2::ClientH2>& h) {
+                std::lock_guard<std::mutex> g(lock);
+                auto it = h2.find(key);
+                if (it == h2.end()) {
+                    return;
+                }
+                auto& list = it->second;
+                for (size_t i = 0; i < list.size(); ++i) {
+                    if (list[i] == h) {
+                        list.erase(list.begin() + i);
+                        break;
+                    }
+                }
+                if (list.empty()) {
+                    h2.erase(it);
+                }
+            }
+
+            // The dial to an origin: this request's (an event of its own
+            // set, the result in the pool, when it ends) or another's to wait for
+            optional<async::event> begin_dial(const string& key, const async::event& mine) {
+                std::lock_guard<std::mutex> g(lock);
+                auto it = h2_dialing.find(key);
+                if (it != h2_dialing.end()) {
+                    return it->second;
+                }
+                h2_dialing.insert_or_assign(key, mine);
+                return nullopt;
+            }
+
+            void end_dial(const string& key, const async::event& mine) {
+                {
+                    std::lock_guard<std::mutex> g(lock);
+                    h2_dialing.erase(key);
+                }
+                mine.set();
+            }
 
             // the timer's: the connection closed if it is still idle
             void expire(const string& key, uint64_t id) {
@@ -152,6 +241,7 @@ namespace sgcl::net::http {
 
             void close_all() {
                 vector<net::connection> all;
+                vector<tracked_ptr<h2::ClientH2>> multiplexed;
                 {
                     std::lock_guard<std::mutex> g(lock);
                     for (auto& kv : idle) {
@@ -160,9 +250,17 @@ namespace sgcl::net::http {
                         }
                     }
                     idle.clear();
+                    for (auto& kv : h2) {
+                        for (auto& h : kv.second) {
+                            multiplexed.push_back(h);
+                        }
+                    }
                 }
                 for (auto& c : all) {
                     (void)c.close();
+                }
+                for (auto& h : multiplexed) {
+                    h->close_if_idle();   // GOAWAY and closed when no stream is open
                 }
             }
         };
@@ -176,6 +274,9 @@ namespace sgcl::net::http {
             int max_redirects = 10;
             size_t max_response_header_bytes = 1 << 20;
             dial_function dial;
+            net::tls::config tls;
+            bool http2 = true;
+            bool h2c = false;
         };
 
         // What one attempt sends
@@ -209,6 +310,41 @@ namespace sgcl::net::http {
 
         inline io::error client_error(const io::error& e, const Outgoing& o) {
             return io::error(e.code(), o.method, o.target->to_string());
+        }
+
+        // What of the request cannot be written as it is (RFC 9110): a
+        // method that is not a token, a target or a host with a space, a
+        // control or a byte past ASCII, a field name that is not a token,
+        // a value with CR, LF, NUL or another control. Each would let the
+        // program's input end a line and start another (request
+        // splitting), so the send fails with std::errc::invalid_argument,
+        // the part named, before a connection is dialed
+        inline optional<io::error> unsendable(const Outgoing& o) {
+            auto fail = [](const std::string& what) {
+                return io::error(std::make_error_code(std::errc::invalid_argument), "send", string(what));
+            };
+            auto visible = [](std::string_view s) {
+                for (unsigned char c : s) {
+                    if (c <= 0x20 || c >= 0x7F) {
+                        return false;
+                    }
+                }
+                return true;
+            };
+            if (!is_token(o.method.view())) {
+                return fail("invalid method: " + printable(o.method.view()));
+            }
+            auto target = o.target->request_target();
+            if (target.empty() || !visible(target.view())) {
+                return fail("invalid target: " + printable(target.view()));
+            }
+            if (!HeadersAccess::count(o.fields, "host") && !visible(o.target->host().view())) {
+                return fail("invalid host: " + printable(o.target->host().view()));
+            }
+            if (auto e = invalid_field(o.fields)) {
+                return fail(std::string(e->view()));
+            }
+            return nullopt;
         }
 
         // The head of a request, and the body when it is in memory
@@ -278,10 +414,10 @@ namespace sgcl::net::http {
 
         // A stream body: its length's worth, or chunked to its end
         inline async::task<expected<void, io::error>> write_stream(net::connection c, io::reader stream, optional<uint64_t> length, bool chunked) {
-            tracked_ptr block = make_tracked<io::detail::CopyBlock>();
+            tracked_ptr block = make_tracked<io::detail::CopyBlock>();   // managed: the stream's read may run on the pool, its slice holds the block
             uint64_t sent = 0;
             for (;;) {
-                size_t room = block->size();
+                size_t room = config::io_copy_buffer_size;
                 if (length) {
                     if (sent == *length) {
                         break;
@@ -328,23 +464,314 @@ namespace sgcl::net::http {
         struct Attempt {
             optional<response> result;
             optional<io::error> error;
-            bool retry = false;           // failed before a byte of the response on a pooled connection
+            bool retry = false;             // failed before a byte of the response on a pooled connection
+            bool retry_any = false;         // HTTP/2: never processed (REFUSED_STREAM, a stream never opened): any method again (RFC 9113 §8.7)
+            bool retry_idempotent = false;  // HTTP/2: above the GOAWAY's last, or the connection lost before the head: an idempotent one again
         };
 
-        inline async::task<expected<net::connection, io::error>> default_dial(const net::url& u, duration timeout) {
+        // The TLS settings of a connection to u: the client's, the server
+        // name the URL's host (an address verified as one), the handshake
+        // within the connect's timeout when that is shorter
+        inline net::tls::config tls_for(const net::tls::config& base, const net::url& u, duration timeout) {
+            net::tls::config c = base;
+            if (c.server_name.empty()) {
+                std::string host(net::detail::UrlAccess::host_as_written(u).view());
+                if (host.size() > 1 && host.front() == '[' && host.back() == ']') {
+                    host = host.substr(1, host.size() - 2);   // an IPv6 address, verified by its bytes
+                }
+                c.server_name = string(std::string_view(host));
+            }
+            if (timeout > duration::zero() && timeout < c.handshake_timeout) {
+                c.handshake_timeout = timeout;
+            }
+            return c;
+        }
+
+        inline async::task<expected<net::connection, io::error>> default_dial(const net::url& u, duration timeout, net::tls::config tls) {
             std::string address(net::detail::UrlAccess::host_as_written(u).view());
             address += ':';
             address += std::to_string(u.effective_port());
+            if (u.scheme() == "https") {
+                co_return co_await net::tls::async_connect(string(std::string_view(address)), tls_for(tls, u, timeout));
+            }
             if (timeout > duration::zero()) {
                 co_return co_await net::tcp::async_connect(string(std::string_view(address)), timeout);
             }
             co_return co_await net::tcp::async_connect(string(std::string_view(address)));
         }
 
+        // A new connection to the target's origin, TLS for https, within
+        // the connect's timeout and the request's deadline
+        inline async::task<expected<net::connection, io::error>> dial_origin(tracked_ptr<ClientSettings> cfg, const Outgoing& o, time_point deadline) {
+            duration timeout = cfg->connect_timeout;
+            if (deadline != time_point()) {
+                auto left = duration(std::chrono::duration_cast<std::chrono::nanoseconds>(deadline - sgcl::clock::now()));
+                if (left <= duration::zero()) {
+                    co_return io::detail::fail(io::error(error_code(ETIMEDOUT, std::system_category()), "dial", ""));
+                }
+                if (timeout <= duration::zero() || left < timeout) {
+                    timeout = left;
+                }
+            }
+            if (cfg->dial) {
+                async::stop_source stop;
+                if (timeout > duration::zero()) {
+                    stop.stop_after(timeout);
+                }
+                auto dialed = co_await cfg->dial(*o.target, stop.token());
+                if (dialed && o.target->scheme() == "https") {
+                    // the dial gives the transport, TLS goes over it (Go's DialContext)
+                    dialed = co_await net::tls::async_client(*dialed, tls_for(cfg->tls, *o.target, timeout));
+                }
+                co_return dialed;
+            }
+            co_return co_await default_dial(*o.target, timeout, cfg->tls);
+        }
+
+        // A request's field block for HTTP/2 (RFC 9113 §8.3.1): the
+        // pseudo-fields, then its fields in lower case without HTTP/1.1's
+        // connection fields (§8.2.2), Host as :authority, the length when
+        // it is known
+        struct RequestBlock final : h2::FieldBlock {
+            const Outgoing& o;
+
+            explicit RequestBlock(const Outgoing& o)
+            : o(o) {
+            }
+
+            void encode(h2::Encoder& e, std::string& out) const override {
+                e.encode(out, ":method", o.method.view());
+                e.encode(out, ":scheme", o.target->scheme().view());
+                auto host = o.fields.get("Host");
+                e.encode(out, ":authority", host.empty() ? o.target->host().view() : host.view());
+                e.encode(out, ":path", o.target->request_target().view());
+                std::string name;
+                for (auto& f : HeadersAccess::fields(o.fields)) {
+                    auto n = f.first.view();
+                    if (iequal(n, "host") || iequal(n, "connection") || iequal(n, "keep-alive") || iequal(n, "proxy-connection")
+                        || iequal(n, "transfer-encoding") || iequal(n, "upgrade") || iequal(n, "content-length")) {
+                        continue;
+                    }
+                    if (iequal(n, "te") && f.second.view() != "trailers") {
+                        continue;
+                    }
+                    name.assign(n);
+                    for (auto& c : name) {
+                        if (c >= 'A' && c <= 'Z') {
+                            c = char(c - 'A' + 'a');
+                        }
+                    }
+                    e.encode(out, name, f.second.view());
+                }
+                auto m = o.method.view();
+                switch (o.body_kind) {
+                    case RequestImpl::BodyKind::none:
+                        if (m == "POST" || m == "PUT" || m == "PATCH") {
+                            e.encode(out, "content-length", "0");
+                        }
+                        break;
+                    case RequestImpl::BodyKind::text:
+                        e.encode(out, "content-length", std::to_string(o.text.size()));
+                        break;
+                    case RequestImpl::BodyKind::bytes:
+                        e.encode(out, "content-length", std::to_string(o.bytes.size()));
+                        break;
+                    case RequestImpl::BodyKind::stream:
+                        if (o.stream_length) {
+                            e.encode(out, "content-length", std::to_string(*o.stream_length));
+                        }
+                        break;
+                }
+            }
+        };
+
+        // A request's body as DATA within the windows; a stream's read a
+        // block at a time
+        inline async::task<expected<void, io::error>> send_body_h2(tracked_ptr<h2::ClientH2> h, uint32_t id, const Outgoing& o) {
+            switch (o.body_kind) {
+                case RequestImpl::BodyKind::none:
+                    co_return expected<void, io::error>();
+                case RequestImpl::BodyKind::text: {
+                    auto v = o.text.view();
+                    co_return co_await h->send_data(id, slice<const byte>(reinterpret_cast<const byte*>(v.data()), v.size()), true);
+                }
+                case RequestImpl::BodyKind::bytes:
+                    co_return co_await h->send_data(id, slice<const byte>(o.bytes.data(), o.bytes.size()), true);
+                case RequestImpl::BodyKind::stream:
+                    break;
+            }
+            tracked_ptr block = make_tracked<io::detail::CopyBlock>();   // managed: the stream's read may run on the pool, its slice holds the block
+            uint64_t sent = 0;
+            for (;;) {
+                size_t room = config::io_copy_buffer_size;
+                if (o.stream_length) {
+                    if (sent == *o.stream_length) {
+                        break;
+                    }
+                    room = size_t(std::min<uint64_t>(room, *o.stream_length - sent));
+                }
+                slice<byte> buf(block, block->data(), room);
+                auto n = co_await o.stream.async_read(buf);
+                if (!n) {
+                    h->reset(id, h2::ErrorCode::cancel);
+                    co_return io::detail::fail(n);
+                }
+                if (*n == 0) {
+                    if (o.stream_length) {
+                        h->reset(id, h2::ErrorCode::cancel);
+                        co_return io::detail::fail(io::error(io::errc::unexpected_eof, "write", "body"));
+                    }
+                    break;
+                }
+                auto w = co_await h->send_data(id, buf.first(*n), false);
+                if (!w) {
+                    co_return io::detail::fail(w);
+                }
+                sent += *n;
+            }
+            co_return co_await h->send_data(id, slice<const byte>(), true);
+        }
+
+        // One exchange on an HTTP/2 connection, its place reserved: a
+        // stream opened, the body sent, the head awaited
+        inline async::task<Attempt> round_trip_h2(tracked_ptr<ClientSettings> cfg, const Outgoing& o, time_point deadline, tracked_ptr<h2::ClientH2> h) {
+            using Fate = h2::ClientStream::Fate;
+            Attempt a;
+            tracked_ptr st = make_tracked<h2::ClientStream>(tracked_ptr<h2::StreamOwner>(h));
+            st->head_request = o.method.view() == "HEAD";
+            const bool has_body = o.body_kind == RequestImpl::BodyKind::stream || (o.body_kind == RequestImpl::BodyKind::text && !o.text.empty())
+                                  || (o.body_kind == RequestImpl::BodyKind::bytes && !o.bytes.empty());
+            RequestBlock block(o);
+            if (!h->open(st, block, !has_body)) {
+                a.error = client_error(h2::stream_reset_error("write", h2::ErrorCode::refused_stream), o);
+                a.retry_any = true;   // never sent
+                co_return a;
+            }
+            h->arm(st, deadline, time_point());
+            if (has_body) {
+                (void)co_await send_body_h2(h, st->id, o);   // a failure shows as the stream's fate; an early answer wins
+            }
+            if (cfg->response_header_timeout > duration::zero()) {
+                h->arm(st, time_point(), sgcl::clock::now() + cfg->response_header_timeout);
+            }
+            Fate fate = Fate::open;
+            for (;;) {
+                fate = h->fate_of(st);
+                if (fate != Fate::open) {
+                    break;
+                }
+                (void)co_await st->headed.receive();
+            }
+            if (fate == Fate::headed) {
+                tracked_ptr<ResponseImpl> impl = st->head;
+                impl->url = *o.target;
+                impl->body->set_on_end([st](bool) {
+                    st->cancel_timers();
+                });
+                a.result = ResponseAccess::make(impl);
+                co_return a;
+            }
+            st->cancel_timers();
+            switch (fate) {
+                case Fate::refused:
+                    a.retry_any = true;
+                    a.error = client_error(h2::stream_reset_error("read", h2::ErrorCode::refused_stream), o);
+                    break;
+                case Fate::unprocessed:
+                case Fate::lost:
+                    a.retry_idempotent = true;
+                    a.error = client_error(io::error(std::make_error_code(std::errc::connection_reset), "read", ""), o);
+                    break;
+                case Fate::timed_out:
+                    a.error = client_error(io::error(error_code(ETIMEDOUT, std::system_category()), "read", ""), o);
+                    break;
+                case Fate::too_large:
+                    a.error = client_error(net::errc::header_too_large, o);
+                    break;
+                case Fate::malformed:
+                    a.error = client_error(net::errc::malformed_response, o);
+                    break;
+                default:
+                    a.error = client_error(h2::stream_reset_error("read", h2::ErrorCode::cancel), o);
+                    break;
+            }
+            co_return a;
+        }
+
+        inline async::task<> await_event(async::event e) {
+            co_await e;
+        }
+
+        // The machine's settings of the client's HTTP/2 connections
+        inline h2::TransportSettings transport_settings(const ClientSettings& cfg, uint32_t known_limit) {
+            h2::TransportSettings t;
+            t.machine.max_header_list_size = uint32_t(std::min<size_t>(cfg.max_response_header_bytes, 0xFFFFFFFFu));
+            if (known_limit) {
+                t.machine.initial_concurrent_streams = known_limit;   // the origin's server already told another connection
+            }
+            t.idle_timeout = cfg.idle_timeout;
+            return t;
+        }
+
         inline async::task<Attempt> round_trip(tracked_ptr<ClientSettings> cfg, tracked_ptr<Pool> pool, const Outgoing& o, time_point deadline, bool may_reuse) {
             Attempt a;
             auto key = origin_key(*o.target);
+            const bool https = o.target->scheme() == "https";
             optional<IdleConnection> idle = may_reuse ? pool->take(key, cfg->idle_timeout) : optional<IdleConnection>();
+            optional<net::connection> fresh;
+            if (!idle && (https ? cfg->http2 : cfg->h2c)) {
+                // HTTP/2: a connection of the origin with room, or the one
+                // being dialed waited for, or a dial of this request's
+                for (;;) {
+                    if (auto h = pool->take_h2(key)) {
+                        co_return co_await round_trip_h2(cfg, o, deadline, h);
+                    }
+                    async::event mine;
+                    if (auto other = pool->begin_dial(key, mine)) {
+                        if (deadline == time_point()) {
+                            co_await *other;
+                        } else if (!co_await async::with_deadline(await_event(*other), deadline)) {
+                            a.error = client_error(io::error(error_code(ETIMEDOUT, std::system_category()), "dial", ""), o);
+                            co_return a;
+                        }
+                        if (may_reuse) {
+                            idle = pool->take(key, cfg->idle_timeout);   // the server chose HTTP/1.1
+                            if (idle) {
+                                break;
+                            }
+                        }
+                        continue;
+                    }
+                    const uint32_t known_limit = pool->h2_limit(key);
+                    auto dialed = co_await dial_origin(cfg, o, deadline);
+                    tracked_ptr<h2::ClientH2> h;
+                    if (dialed) {
+                        const bool h2 = !https || [&] {
+                            auto st = net::tls::state_of(*dialed);
+                            return st && st->alpn == "h2";
+                        }();
+                        if (h2) {
+                            h = make_tracked<h2::ClientH2>(*dialed, transport_settings(*cfg, known_limit));
+                            h->set_on_closed([pool, key, h] {
+                                pool->remove_h2(key, h);
+                            });
+                            h2::ClientH2::start(h);
+                            (void)h->reserve();
+                            pool->add_h2(key, h);
+                        }
+                    }
+                    pool->end_dial(key, mine);
+                    if (!dialed) {
+                        a.error = client_error(dialed.error(), o);
+                        co_return a;
+                    }
+                    if (h) {
+                        co_return co_await round_trip_h2(cfg, o, deadline, h);
+                    }
+                    fresh = *dialed;   // HTTP/1.1 (ALPN)
+                    break;
+                }
+            }
             bool reused = (bool)idle;
             net::connection c;
             tracked_ptr<Wire> wire;
@@ -352,32 +779,15 @@ namespace sgcl::net::http {
                 c = idle->c;
                 wire = idle->wire;
             } else {
-                duration timeout = cfg->connect_timeout;
-                if (deadline != time_point()) {
-                    auto left = duration(std::chrono::duration_cast<std::chrono::nanoseconds>(deadline - sgcl::clock::now()));
-                    if (left <= duration::zero()) {
-                        a.error = client_error(io::error(error_code(ETIMEDOUT, std::system_category()), "dial", ""), o);
+                if (!fresh) {
+                    auto dialed = co_await dial_origin(cfg, o, deadline);
+                    if (!dialed) {
+                        a.error = client_error(dialed.error(), o);
                         co_return a;
                     }
-                    if (timeout <= duration::zero() || left < timeout) {
-                        timeout = left;
-                    }
+                    fresh = *dialed;
                 }
-                expected<net::connection, io::error> dialed = io::detail::fail(io::error(io::errc::closed, "dial", ""));
-                if (cfg->dial) {
-                    async::stop_source stop;
-                    if (timeout > duration::zero()) {
-                        stop.stop_after(timeout);
-                    }
-                    dialed = co_await cfg->dial(*o.target, stop.token());
-                } else {
-                    dialed = co_await default_dial(*o.target, timeout);
-                }
-                if (!dialed) {
-                    a.error = client_error(dialed.error(), o);
-                    co_return a;
-                }
-                c = *dialed;
+                c = *fresh;
                 wire = make_tracked<Wire>(c);
             }
             c.set_write_deadline(deadline);
@@ -482,12 +892,22 @@ namespace sgcl::net::http {
             o.stream_length = req->stream_length;
             auto deadline = cfg->timeout > duration::zero() ? sgcl::clock::now() + cfg->timeout : time_point();
             for (int redirects = 0;; ++redirects) {
-                if (o.target->scheme() != "http") {
+                if (o.target->scheme() != "http" && o.target->scheme() != "https") {
                     co_return io::detail::fail(client_error(net::errc::unsupported_scheme, o));
+                }
+                if (auto e = unsendable(o)) {
+                    co_return io::detail::fail(*e);
                 }
                 auto a = co_await round_trip(cfg, pool, o, deadline, true);
                 if (a.error && a.retry && (o.idempotent() || o.replayable()) && o.body_kind != RequestImpl::BodyKind::stream) {
                     a = co_await round_trip(cfg, pool, o, deadline, false);
+                }
+                // HTTP/2: a stream never processed goes again (REFUSED_STREAM
+                // whatever the method, above a GOAWAY's last or lost with its
+                // connection only an idempotent one), twice at most
+                for (int again = 0; again < 2 && a.error && o.replayable()
+                                    && (a.retry_any || (a.retry_idempotent && o.idempotent())); ++again) {
+                    a = co_await round_trip(cfg, pool, o, deadline, true);
                 }
                 if (a.error) {
                     co_return io::detail::fail(*a.error);
@@ -551,8 +971,27 @@ namespace sgcl::net::http {
     // 307 and 308 with the method and the body, unless the body is a
     // stream (then the 307 is the response). Authorization, Cookie and
     // Proxy-Authorization do not follow to a host that is neither the same
-    // nor under it. https:// is net::errc::unsupported_scheme until TLS
-    // (the next stage of the module).
+    // nor under it; a redirect may go from http to https and back, as in
+    // Go.
+    //
+    // https:// is over TLS 1.3 (net/tls.h): the connection made by
+    // net::tls::connect with the `tls` settings (the system's roots), the
+    // server name the URL's host (an IP address is checked against the
+    // certificate's addresses), port 443 by default. A dial function given
+    // makes the transport and TLS goes over it.
+    //
+    // HTTP/2 (RFC 9113) is offered first by ALPN ("h2", then "http/1.1")
+    // while http2 is on, as Go does; a server that picks it gets one
+    // connection per origin shared by the requests, a stream each (a
+    // second connection only when the first has as many streams as its
+    // server allows), the others HTTP/1.1 as before. h2c sends http:// as
+    // HTTP/2 by prior knowledge (no Upgrade), for servers known to speak
+    // it. A request's timeouts hold for its stream alone: past one it is
+    // reset and the connection goes on. A stream the server never
+    // processed goes again on its own: REFUSED_STREAM for any method, one
+    // above a GOAWAY's last or lost with its connection for an idempotent
+    // one (a body in memory, never a stream's). response::proto() tells
+    // which protocol answered.
     class client {
     public:
         client()
@@ -612,8 +1051,20 @@ namespace sgcl::net::http {
         // How a connection is made; tcp::connect by default. A unix socket
         // (Docker's API), a test's connection in memory, TLS in stage 2
         dial_function dial;
+        // https://: the TLS settings (roots, groups, cipher suites,
+        // insecure_skip_verify, handshake_timeout); the server name is the
+        // URL's host when none is set
+        net::tls::config tls = _default_tls();
+        bool http2 = true;   // https: "h2" offered first by ALPN
+        bool h2c = false;    // http:// as HTTP/2 by prior knowledge
 
     private:
+        static net::tls::config _default_tls() {
+            net::tls::config c;
+            c.alpn = {string("http/1.1")};
+            return c;
+        }
+
         tracked_ptr<detail::ClientSettings> _settings() const {
             tracked_ptr cfg = make_tracked<detail::ClientSettings>();
             cfg->timeout = timeout;
@@ -624,6 +1075,20 @@ namespace sgcl::net::http {
             cfg->max_redirects = max_redirects;
             cfg->max_response_header_bytes = max_response_header_bytes ? max_response_header_bytes : 1;
             cfg->dial = dial;
+            cfg->tls = tls;
+            cfg->http2 = http2;
+            cfg->h2c = h2c;
+            // "h2" first in ALPN while http2 is on, out of it while off
+            vector<string> alpn;
+            if (http2) {
+                alpn.push_back(string("h2"));
+            }
+            for (auto& p : tls.alpn) {
+                if (p != "h2") {
+                    alpn.push_back(p);
+                }
+            }
+            cfg->tls.alpn = std::move(alpn);
             return cfg;
         }
 

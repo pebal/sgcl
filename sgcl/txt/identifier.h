@@ -238,8 +238,9 @@ namespace sgcl::txt {
         // in canonical order and composed — which is where the standard
         // draws the same line, its mapping being per code point with one
         // NFC at the end.
-        inline void nfkc_casefold_points(vector<char32_t>& out, std::string_view text) {
-            vector<char32_t> taken;
+        inline void nfkc_casefold_points(code_points& out, std::string_view text) {
+            lent<code_points> lent_taken;
+            auto& taken = *lent_taken;
             for (size_t i = 0; i < text.size();) {
                 auto [c, n] = utf8::decode(text, i);
                 i += n;
@@ -413,10 +414,10 @@ namespace sgcl::txt {
         if (detail::nfkc_casefold_quick(v, maybe) && !maybe) {
             return text;
         }
-        vector<char32_t> out;
-        out.reserve(v.size());
-        detail::nfkc_casefold_points(out, v);
-        auto made = detail::encoded(out);
+        detail::lent<detail::code_points> out;
+        out->reserve(v.size());
+        detail::nfkc_casefold_points(*out, v);
+        auto made = detail::encoded(*out);
         return made == text ? text : made;
     }
 
@@ -468,16 +469,20 @@ namespace sgcl::txt {
     // in a table of the names already taken; it is not to be shown, and
     // no reader should ever see one.
     inline string skeleton(const string& text) {
-        auto points = detail::normalized_points(text.view(), nfd);
+        detail::lent<detail::code_points> lent_points;
+        detail::normalized_points(text.view(), nfd, *lent_points);
+        auto& points = *lent_points;
         // The second decomposition of the three steps is folded into
         // the mapping: a code point the table does not name came out of
         // the first one decomposed already, and a prototype is taken
         // apart where it is written rather than on a pass of its own —
         // two buffers instead of three, and 210 ns over a short ASCII
         // name where the three passes cost 338
-        vector<char32_t> out;
+        detail::lent<detail::code_points> lent_out;
+        detail::lent<detail::code_points> lent_prototype;
+        auto& out = *lent_out;
+        auto& prototype = *lent_prototype;
         out.reserve(points.size());
-        vector<char32_t> prototype;
         for (auto c : points) {
             auto d = detail::decomposition_of(c, detail::identifier_tables::Confusables);
             if (!d) {

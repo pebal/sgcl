@@ -221,6 +221,14 @@ namespace sgcl::encoding {
             return detail::encode_text(detail::Ascii85{}, reinterpret_cast<const uint8_t*>(text.data()), text.size());
         }
 
+        // A literal, a character array, a std::string_view: as the
+        // string's overload (an exact match, else the conversions to a
+        // string and to bytes tie)
+        template<sgcl::detail::TextArgument T>
+        static string encode(const T& text) {
+            return encode(slice<const byte>(text));
+        }
+
         static expected<vector<byte>, error> decode(const string& text) {
             return detail::decode_text(detail::Ascii85{}, text);
         }
@@ -252,27 +260,38 @@ namespace sgcl::encoding {
         // A writer that encodes what is written to it into out (close()
         // writes the last group and leaves out open), and a reader of the
         // bytes the text of in decodes to
-        static tracked_ptr<encoder> encoder_to(const io::writer& out);
-        static tracked_ptr<decoder> decoder_from(const io::reader& in);
+        static encoder encoder_to(const io::writer& out);
+        static decoder decoder_from(const io::reader& in);
     };
 
+    // The streams: handles of one word, the state made by encoder_to and
+    // decoder_from (detail/codec.h: WriterHandle, ReaderHandle)
     class ascii85::encoder final
-    : public detail::CodecWriter<detail::Ascii85> {
+    : public detail::WriterHandle<ascii85::encoder, detail::CodecWriter<detail::Ascii85>> {
     public:
-        using CodecWriter::CodecWriter;
+        using WriterHandle::WriterHandle;
     };
 
     class ascii85::decoder final
-    : public detail::CodecReader<detail::Ascii85> {
+    : public detail::ReaderHandle<ascii85::decoder, detail::CodecReader<detail::Ascii85>> {
     public:
-        using CodecReader::CodecReader;
+        using ReaderHandle::ReaderHandle;
     };
 
-    inline tracked_ptr<ascii85::encoder> ascii85::encoder_to(const io::writer& out) {
-        return make_tracked<encoder>(detail::Ascii85{}, out);
+    inline ascii85::encoder ascii85::encoder_to(const io::writer& out) {
+        return detail::CodecAccess::make<encoder>(make_tracked<detail::CodecWriter<detail::Ascii85>>(detail::Ascii85{}, out));
     }
 
-    inline tracked_ptr<ascii85::decoder> ascii85::decoder_from(const io::reader& in) {
-        return make_tracked<decoder>(detail::Ascii85{}, in);
+    inline ascii85::decoder ascii85::decoder_from(const io::reader& in) {
+        return detail::CodecAccess::make<decoder>(make_tracked<detail::CodecReader<detail::Ascii85>>(detail::Ascii85{}, in));
     }
+}
+
+// The streams of the codec are handles: a stream made of one binds its state
+namespace sgcl::io::detail {
+    template<>
+    inline constexpr bool IsStreamHandle<encoding::ascii85::encoder> = true;
+
+    template<>
+    inline constexpr bool IsStreamHandle<encoding::ascii85::decoder> = true;
 }

@@ -396,3 +396,49 @@ TEST(OrderedMap_Test, ToBackOfTheNewestAndToFrontOfTheOldestChangeNothing) {
     EXPECT_EQ(*newest, 3);
     EXPECT_EQ(std::next(newest), s.end());
 }
+
+// value_or(key, fallback): the value under the key, or the fallback, by value;
+// a key of another type through the transparent lookup; a tracked value
+// comes back as the same object
+TEST(OrderedMap_Test, ValueOrWithAFallback) {
+    sgcl::ordered_map<sgcl::string, int> m = {{"a", 1}, {"b", 2}};
+    EXPECT_EQ(m.value_or("a", 0), 1);
+    EXPECT_EQ(m.value_or("z", -1), -1);
+    EXPECT_EQ(m.value_or(std::string_view("b"), 0), 2);
+    EXPECT_EQ(m.value_or(std::string_view("zz"), 7), 7);
+    const auto& c = m;
+    EXPECT_EQ(c.value_or("b", 0), 2);
+    sgcl::ordered_map<int, sgcl::tracked_ptr<int>> p;
+    sgcl::tracked_ptr<int> one = sgcl::make_tracked<int>(1);
+    sgcl::tracked_ptr<int> none = sgcl::make_tracked<int>(0);
+    p.try_emplace(1, one);
+    EXPECT_EQ(p.value_or(1, none), one);
+    EXPECT_EQ(p.value_or(2, none), none);
+    static_assert(std::is_same_v<decltype(m.value_or("a", 0)), int>);
+}
+
+// count() of a present key is 1 and of an absent one 0, whatever the
+// insertion order does to the chains: it walked from the node to the next
+// in insertion order along the bucket's chain, which need not reach it,
+// and ran off the chain's end (found by tests/containers/fuzz/containers_fuzz.cpp)
+TEST(OrderedMap_Test, CountFollowsNoOrderAlongTheChain) {
+    sgcl::ordered_map<int, int> m;
+    sgcl::ordered_set<int> s;
+    for (int k = 0; k < 200; ++k) {
+        const int key = (k * 37) % 211;
+        m.insert({key, k});
+        s.insert(key);
+    }
+    for (int k = 0; k < 211; k += 3) {
+        m.erase(k);
+        s.erase(k);
+    }
+    for (int k = 0; k < 250; ++k) {
+        const size_t want = m.find(k) != m.end() ? 1 : 0;
+        EXPECT_EQ(m.count(k), want) << k;
+        EXPECT_EQ(s.count(k), want) << k;
+        EXPECT_EQ(m.contains(k), want == 1) << k;
+        auto [first, last] = s.equal_range(k);
+        EXPECT_EQ(size_t(std::distance(first, last)), want) << k;
+    }
+}

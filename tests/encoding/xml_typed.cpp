@@ -143,7 +143,7 @@ TEST(XmlTyped_Tests, WrittenAndReadBack) {
     ASSERT_TRUE(e.has_value());
     EXPECT_EQ(std::string(e->view()), "<book id=\"e\" available=\"false\"><title>t</title><genre>novel</genre><rating>0</rating><weight>0</weight>"
                   "<dimension>0</dimension><dimension>0</dimension><dimension>0</dimension></book>");
-    EXPECT_TRUE(*xml::parse<book>(*e) == empty);
+    EXPECT_TRUE(value_of(xml::parse<book>(*e)) == empty);
 }
 
 // A document orders and repeats its elements as it pleases: the elements
@@ -183,7 +183,7 @@ TEST(XmlTyped_Tests, ReadFromWhatDocumentsWrite) {
     EXPECT_EQ(*b->note, "");
     // a node read from a tree
     auto tree = xml::parse(string("<author first='F' last='L'/>")).value();
-    EXPECT_EQ(tree.as<author>().value(), (author{"F", "L"}));
+    EXPECT_EQ(value_of(tree.as<author>()), (author{"F", "L"}));
     // namespaces: a field named {uri}local matches whatever the prefix
     struct entry {
         string title;
@@ -236,7 +236,7 @@ TEST(XmlTyped_Tests, Errors) {
     EXPECT_EQ(nested.error().line(), 2u);
     EXPECT_EQ(nested.error().message(), "2:1 /catalog/book[2]/rating: expected an integer, found \"x\"");
     // a document that is not well formed is that error, not the mapping's
-    EXPECT_EQ(xml::parse<book>(string("<book>")).error().code(), errc::unexpected_end);
+    EXPECT_EQ(error_of(xml::parse<book>(string("<book>"))).code(), errc::unexpected_end);
 }
 
 // What XML has no form for: a map, a tuple, a variant, a list of lists, a
@@ -254,7 +254,7 @@ TEST(XmlTyped_Tests, WhatHasNoForm) {
     ASSERT_FALSE(w.has_value());
     EXPECT_EQ(w.error().code(), errc::unsupported_value);
     EXPECT_EQ(w.error().path(), "/x/m");
-    EXPECT_EQ(xml::parse<with_map>(string("<x><m/></x>")).error().code(), errc::type_mismatch);
+    EXPECT_EQ(error_of(xml::parse<with_map>(string("<x><m/></x>"))).code(), errc::type_mismatch);
 
     struct nested_lists {
         vector<vector<int>> v;
@@ -264,7 +264,7 @@ TEST(XmlTyped_Tests, WhatHasNoForm) {
     };
     nested_lists nl;
     nl.v.push_back(vector<int>{1});
-    EXPECT_EQ(xml::stringify("x", nl).error().code(), errc::unsupported_value);
+    EXPECT_EQ(error_of(xml::stringify("x", nl)).code(), errc::unsupported_value);
 
     struct record_attribute {
         author a;
@@ -272,8 +272,8 @@ TEST(XmlTyped_Tests, WhatHasNoForm) {
             f.add("a", a).attribute();
         }
     };
-    EXPECT_EQ(xml::stringify("x", record_attribute{}).error().code(), errc::unsupported_value);
-    EXPECT_EQ(xml::stringify("1x", author{}).error().code(), errc::unsupported_value);
+    EXPECT_EQ(error_of(xml::stringify("x", record_attribute{})).code(), errc::unsupported_value);
+    EXPECT_EQ(error_of(xml::stringify("1x", author{})).code(), errc::unsupported_value);
 
     tracked_ptr<catalog> loop = make_tracked<catalog>();
     loop->next = loop;
@@ -305,9 +305,9 @@ TEST(XmlTyped_Tests, WhatHasNoForm) {
     };
     special s;
     s.d = -INFINITY;
-    EXPECT_EQ(*xml::stringify("s", s), "<s><d>-INF</d></s>");
-    EXPECT_TRUE(std::isnan(xml::parse<special>(string("<s><d>NaN</d></s>"))->d));
-    EXPECT_EQ(xml::parse<special>(string("<s><d>INF</d></s>"))->d, INFINITY);
+    EXPECT_EQ(value_of(xml::stringify("s", s)), "<s><d>-INF</d></s>");
+    EXPECT_TRUE(std::isnan(value_of(xml::parse<special>(string("<s><d>NaN</d></s>"))).d));
+    EXPECT_EQ(value_of(xml::parse<special>(string("<s><d>INF</d></s>"))).d, INFINITY);
 }
 
 // The reader a value at a time: a document of any length read in the

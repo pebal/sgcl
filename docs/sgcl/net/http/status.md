@@ -21,13 +21,13 @@ The codes of the IANA registry (RFC 9110 §15 and the RFCs it lists) as plain `i
 
 ```cpp
 #include "sgcl/net/http/status.h"
-#include <iostream>
+#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
 int main() {
     for (int code : {net::http::status::ok, net::http::status::not_found, 418, 599}) {
-        std::cout << code << " \"" << net::http::reason(code) << "\"\n";
+        println("{} \"{}\"", code, net::http::reason(code));
     }
 }
 ```

@@ -51,8 +51,7 @@ expected<size_t, io::error> copy_from(const io::reader& r);  async::task<expecte
 ```cpp
 #include "sgcl/core/range.h"
 #include "sgcl/hash/siphash.h"
-#include "sgcl/io/os.h"
-#include "sgcl/txt/format.h"
+#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
@@ -66,13 +65,13 @@ int main() {
     for (auto i : range(15)) {
         message[i] = byte(i);
     }
-    io::stdout.write(txt::format("{:016x}\n", hash::siphash::of(message, key)));
+    println("{:016x}", hash::siphash::of(message, key));
 
     // in pieces, the same value
     hash::siphash h(key);
     h.update("hello, ");
     h.update("world");
-    io::stdout.write(txt::format("{}\n", h.value() == hash::siphash::of("hello, world", key)));
+    println(h.value() == hash::siphash::of("hello, world", key));
 }
 ```
 

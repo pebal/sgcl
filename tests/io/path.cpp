@@ -104,16 +104,16 @@ TEST(IoPath_Tests, AbsAndRel) {
     ASSERT_TRUE(r);
     EXPECT_TRUE(path::is_abs(*r));
     EXPECT_TRUE(r->ends_with("/z"));
-    EXPECT_EQ(v(*path::rel("a/b", "a/b/c/d")), "c/d");
-    EXPECT_EQ(v(*path::rel("a/b/c", "a/b")), "..");
-    EXPECT_EQ(v(*path::rel("a/b", "a/b")), ".");
-    EXPECT_EQ(v(*path::rel("a", "b")), "../b");
-    EXPECT_EQ(v(*path::rel("/a/b", "/a/c/d")), "../c/d");
-    EXPECT_EQ(v(*path::rel("/", "/a")), "a");
-    EXPECT_EQ(v(*path::rel(".", "a/b")), "a/b");
-    EXPECT_EQ(v(*path::rel("a/b", ".")), "../..");
-    EXPECT_EQ(v(*path::rel("a/../b", "c")), "../c");
-    EXPECT_EQ(v(*path::rel("ab", "abc")), "../abc");   // not a prefix of elements
+    EXPECT_EQ(v(value_of(path::rel("a/b", "a/b/c/d"))), "c/d");
+    EXPECT_EQ(v(value_of(path::rel("a/b/c", "a/b"))), "..");
+    EXPECT_EQ(v(value_of(path::rel("a/b", "a/b"))), ".");
+    EXPECT_EQ(v(value_of(path::rel("a", "b"))), "../b");
+    EXPECT_EQ(v(value_of(path::rel("/a/b", "/a/c/d"))), "../c/d");
+    EXPECT_EQ(v(value_of(path::rel("/", "/a"))), "a");
+    EXPECT_EQ(v(value_of(path::rel(".", "a/b"))), "a/b");
+    EXPECT_EQ(v(value_of(path::rel("a/b", "."))), "../..");
+    EXPECT_EQ(v(value_of(path::rel("a/../b", "c"))), "../c");
+    EXPECT_EQ(v(value_of(path::rel("ab", "abc"))), "../abc");   // not a prefix of elements
     auto bad = path::rel("/a", "b");
     ASSERT_FALSE(bad);
     EXPECT_EQ(bad.error().code(), make_error_code(errc::invalid_path));
@@ -121,35 +121,50 @@ TEST(IoPath_Tests, AbsAndRel) {
     ASSERT_FALSE(up);
 }
 
+// Found by the fuzzer of the paths (tests/io/fuzz/path_fuzz.cpp): a base
+// with ".." left past the common part and more after it ("../z") gave an
+// answer — "../.." from "../z" to "." — that joined to the base is not the
+// target. As Go's Rel: an error; a ".." both share still walks
+TEST(IoPath_Tests, RelFromABaseThatClimbs) {
+    for (auto [base, target] : {std::pair{"../z", ""}, {"../z", "."}, {"../../x", "../y"}, {"../z", "a"}}) {
+        auto r = path::rel(base, target);
+        ASSERT_FALSE(r) << base << " to " << target;
+        EXPECT_EQ(r.error().code(), make_error_code(errc::invalid_path));
+    }
+    EXPECT_EQ(v(value_of(path::rel("../a", "../b"))), "../b");
+    EXPECT_EQ(v(value_of(path::rel("../z", "../z/q"))), "q");
+    EXPECT_EQ(v(value_of(path::rel("a", "../b"))), "../../b");
+}
+
 TEST(IoPath_Tests, Match) {
-    EXPECT_TRUE(*path::match("abc", "abc"));
-    EXPECT_TRUE(*path::match("*", "abc"));
-    EXPECT_TRUE(*path::match("*c", "abc"));
-    EXPECT_TRUE(*path::match("a*", "a"));
-    EXPECT_TRUE(*path::match("a*", "abc"));
-    EXPECT_FALSE(*path::match("a*", "ab/c"));   // '*' stops at the separator
-    EXPECT_TRUE(*path::match("a*/b", "abc/b"));
-    EXPECT_FALSE(*path::match("a*/b", "a/c/b"));
-    EXPECT_TRUE(*path::match("a*b*c*d*e*/f", "axbxcxdxe/f"));
-    EXPECT_TRUE(*path::match("a*b*c*d*e*/f", "axbxcxdxexxx/f"));
-    EXPECT_FALSE(*path::match("a*b*c*d*e*/f", "axbxcxdxe/xxx/f"));
-    EXPECT_TRUE(*path::match("a*b?c*x", "abxbbxdbxebxczzx"));
-    EXPECT_FALSE(*path::match("a*b?c*x", "abxbbxdbxebxczzy"));
-    EXPECT_TRUE(*path::match("ab[c]", "abc"));
-    EXPECT_TRUE(*path::match("ab[b-d]", "abc"));
-    EXPECT_FALSE(*path::match("ab[e-g]", "abc"));
-    EXPECT_FALSE(*path::match("ab[^c]", "abc"));
-    EXPECT_TRUE(*path::match("ab[^b-d]", "abz"));
-    EXPECT_TRUE(*path::match("a\\*b", "a*b"));
-    EXPECT_FALSE(*path::match("a\\*b", "ab"));
-    EXPECT_TRUE(*path::match("a?b", "a☺b"));   // a character is a code point
-    EXPECT_FALSE(*path::match("a?b", "a☺☺b"));
-    EXPECT_TRUE(*path::match("[a-ζ]*", "α"));
-    EXPECT_FALSE(*path::match("[a-ζ]", "ω"));
-    EXPECT_TRUE(*path::match("*ω", "αβω"));
-    EXPECT_FALSE(*path::match("*x", "xxx/"));
-    EXPECT_FALSE(*path::match("a", ""));
-    EXPECT_TRUE(*path::match("", ""));
+    EXPECT_TRUE(value_of(path::match("abc", "abc")));
+    EXPECT_TRUE(value_of(path::match("*", "abc")));
+    EXPECT_TRUE(value_of(path::match("*c", "abc")));
+    EXPECT_TRUE(value_of(path::match("a*", "a")));
+    EXPECT_TRUE(value_of(path::match("a*", "abc")));
+    EXPECT_FALSE(value_of(path::match("a*", "ab/c")));   // '*' stops at the separator
+    EXPECT_TRUE(value_of(path::match("a*/b", "abc/b")));
+    EXPECT_FALSE(value_of(path::match("a*/b", "a/c/b")));
+    EXPECT_TRUE(value_of(path::match("a*b*c*d*e*/f", "axbxcxdxe/f")));
+    EXPECT_TRUE(value_of(path::match("a*b*c*d*e*/f", "axbxcxdxexxx/f")));
+    EXPECT_FALSE(value_of(path::match("a*b*c*d*e*/f", "axbxcxdxe/xxx/f")));
+    EXPECT_TRUE(value_of(path::match("a*b?c*x", "abxbbxdbxebxczzx")));
+    EXPECT_FALSE(value_of(path::match("a*b?c*x", "abxbbxdbxebxczzy")));
+    EXPECT_TRUE(value_of(path::match("ab[c]", "abc")));
+    EXPECT_TRUE(value_of(path::match("ab[b-d]", "abc")));
+    EXPECT_FALSE(value_of(path::match("ab[e-g]", "abc")));
+    EXPECT_FALSE(value_of(path::match("ab[^c]", "abc")));
+    EXPECT_TRUE(value_of(path::match("ab[^b-d]", "abz")));
+    EXPECT_TRUE(value_of(path::match("a\\*b", "a*b")));
+    EXPECT_FALSE(value_of(path::match("a\\*b", "ab")));
+    EXPECT_TRUE(value_of(path::match("a?b", "a☺b")));   // a character is a code point
+    EXPECT_FALSE(value_of(path::match("a?b", "a☺☺b")));
+    EXPECT_TRUE(value_of(path::match("[a-ζ]*", "α")));
+    EXPECT_FALSE(value_of(path::match("[a-ζ]", "ω")));
+    EXPECT_TRUE(value_of(path::match("*ω", "αβω")));
+    EXPECT_FALSE(value_of(path::match("*x", "xxx/")));
+    EXPECT_FALSE(value_of(path::match("a", "")));
+    EXPECT_TRUE(value_of(path::match("", "")));
     auto bad = path::match("[", "a");
     ASSERT_FALSE(bad);
     EXPECT_EQ(bad.error().code(), make_error_code(errc::invalid_pattern));

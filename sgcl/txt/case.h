@@ -121,7 +121,8 @@ namespace sgcl::txt {
             return decomposition_of(c, table);
         }
 
-        inline void append(vector<char32_t>& out, Decomposition d) {
+        template<class Buffer>
+        void append(Buffer& out, Decomposition d) {
             for (size_t i = 0; i < d.size; ++i) {
                 char32_t x = d.units[i];
                 if (x >= 0xD800 && x < 0xDC00 && i + 1 < d.size) {
@@ -231,7 +232,7 @@ namespace sgcl::txt {
 
         // One code point into the buffer, with the rules that depend on
         // the language and on what stands around it
-        inline void case_one(vector<char32_t>& out, std::string_view text, size_t at, size_t after,
+        inline void case_one(code_points& out, std::string_view text, size_t at, size_t after,
                              char32_t c, casing to, locale where) {
             if (to == casing::lower) {
                 if (c == 0x03A3 && final_sigma(text, at, after)) {
@@ -250,6 +251,12 @@ namespace sgcl::txt {
                         out.push_back(before_dot(text, after) ? U'i' : 0x0131);
                         return;
                     }
+                }
+                if (where.keeps_dot() && (c == 0x00CC || c == 0x00CD || c == 0x0128)) {
+                    out.push_back(U'i');                       // Ì Í Ĩ: the dot kept under the accent, always
+                    out.push_back(0x0307);
+                    out.push_back(c == 0x00CC ? 0x0300 : c == 0x00CD ? 0x0301 : 0x0303);
+                    return;
                 }
                 if (where.keeps_dot() && (c == U'I' || c == U'J' || c == 0x012E) && more_above(text, after)) {
                     out.push_back(c == U'I' ? U'i' : c == U'J' ? U'j' : 0x012F);
@@ -270,7 +277,16 @@ namespace sgcl::txt {
             if (where.keeps_dot() && c == 0x0307 && after_soft_dotted(text, at)) {
                 return;
             }
-            if (auto d = full_of(c, to == casing::title ? case_tables::FullTitle : case_tables::FullUpper)) {
+            // the title table holds only where the title case is not the
+            // upper case: elsewhere a title is the full upper mapping
+            // ("ǰ" is "J̌" in both), and only then the simple one
+            if (to == casing::title) {
+                if (auto d = full_of(c, case_tables::FullTitle)) {
+                    append(out, d);
+                    return;
+                }
+            }
+            if (auto d = full_of(c, case_tables::FullUpper)) {
                 append(out, d);
                 return;
             }
@@ -302,10 +318,10 @@ namespace sgcl::txt {
         template<class F>
         string cased_text(const string& text, F&& each) {
             auto v = text.view();
-            vector<char32_t> out;
-            out.reserve(v.size());
-            each(v, out);
-            return encoded(out);
+            lent<code_points> out;
+            out->reserve(v.size());
+            each(v, *out);
+            return encoded(*out);
         }
     }
 
@@ -317,7 +333,7 @@ namespace sgcl::txt {
         if (where == locale() && utf8::all_ascii(text.view())) {
             return detail::ascii_cased<'A', 'Z', 32>(text);
         }
-        return detail::cased_text(text, [&](std::string_view v, vector<char32_t>& out) {
+        return detail::cased_text(text, [&](std::string_view v, detail::code_points& out) {
             for (size_t i = 0; i < v.size();) {
                 auto [c, n] = utf8::decode(v, i);
                 detail::case_one(out, v, i, i + n, c, detail::casing::lower, where);
@@ -330,7 +346,7 @@ namespace sgcl::txt {
         if (where == locale() && utf8::all_ascii(text.view())) {
             return detail::ascii_cased<'a', 'z', -32>(text);
         }
-        return detail::cased_text(text, [&](std::string_view v, vector<char32_t>& out) {
+        return detail::cased_text(text, [&](std::string_view v, detail::code_points& out) {
             for (size_t i = 0; i < v.size();) {
                 auto [c, n] = utf8::decode(v, i);
                 detail::case_one(out, v, i, i + n, c, detail::casing::upper, where);
@@ -343,7 +359,7 @@ namespace sgcl::txt {
     // lower case. The words are the ones UAX #29 finds ([segment]), so
     // "don't" is one word and its apostrophe does not start a new letter
     inline string to_title(const string& text, locale where = {}) {
-        return detail::cased_text(text, [&](std::string_view v, vector<char32_t>& out) {
+        return detail::cased_text(text, [&](std::string_view v, detail::code_points& out) {
             for (auto word : word_breaks(text)) {
                 size_t base = size_t(word.data() - text.data());
                 bool first = true;
@@ -366,7 +382,7 @@ namespace sgcl::txt {
         if (utf8::all_ascii(text.view())) {
             return detail::ascii_cased<'A', 'Z', 32>(text);
         }
-        return detail::cased_text(text, [&](std::string_view v, vector<char32_t>& out) {
+        return detail::cased_text(text, [&](std::string_view v, detail::code_points& out) {
             for (size_t i = 0; i < v.size();) {
                 auto [c, n] = utf8::decode(v, i);
                 i += n;

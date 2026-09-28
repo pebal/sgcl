@@ -1852,6 +1852,11 @@ namespace sgcl::txt::detail {{
         // test; a bit that is set says only that a search is worth
         // making.
         uint64_t starters;
+        // The same for the composed letters that are no key but whose
+        // decomposition begins with one and goes on (ǻ is å and an acute):
+        // asked of a letter past ASCII alone, so that their bits do not
+        // send the ASCII letters that share them down the slow road
+        uint64_t extending;
         // And what the language asks for beside the order of its
         // letters. CLDR writes these four as settings rather than as
         // relations, and a collator made for the language starts with
@@ -2365,6 +2370,35 @@ def canonical_forms(key):
     out.discard(tuple(key))
     return out
 
+def composed_letters():
+    # {code point: its full canonical decomposition}, for every code point
+    # that has one (a Hangul syllable, which comes apart by arithmetic and
+    # which no language moves, left out)
+    global _composed
+    if _composed is None:
+        _composed = {}
+        for c in range(0x110000):
+            if 0xAC00 <= c <= 0xD7A3 or 0xD800 <= c <= 0xDFFF:
+                continue
+            d = unicodedata.decomposition(chr(c))
+            if d and not d.startswith("<"):
+                _composed[c] = tuple(ord(x) for x in unicodedata.normalize("NFD", chr(c)))
+    return _composed
+
+_composed = None
+
+def extending_letters(entries):
+    # the composed letters whose decomposition is a key's and more
+    keys = {}
+    for key in entries:
+        k = tuple(ord(x) for x in unicodedata.normalize("NFD", "".join(chr(p) for p in key)))
+        keys.setdefault(k[0], set()).add(k)
+    out = []
+    for c, d in composed_letters().items():
+        if any(len(d) > len(k) and d[:len(k)] == k for k in keys.get(d[0], ())):
+            out.append(c)
+    return out
+
 def close_canonically(entries):
     # UTS #10's canonical closure. It changes no answer here — the slow
     # path decomposes every text before it looks anything up — but it is
@@ -2496,8 +2530,20 @@ def write_collate_tailorings(f, tailorings, settings):
         starters = 0
         for key in entries:
             starters |= 1 << (key[0] & 63)
+        # and every composed letter whose decomposition begins with a key
+        # and goes on with more marks: ǻ is å and an acute, and a language
+        # that moves å moves ǻ. It is no key of its own (the closure makes
+        # the forms of a key, not of what extends it), so its bit sends it
+        # past the fast path to the window, which decomposes it and meets
+        # the rule there. A mask of their own, asked of a letter past ASCII
+        # alone: in the mask above their bits would fall on ASCII letters
+        # too and send those down the slow road (+15 to +50 % in Finnish)
+        extending = 0
+        for c in extending_letters(entries):
+            assert c >= 0x80
+            extending |= 1 << (c & 63)
         index.append((packed_language(loc), p0, len(points) - p0, s0, len(sequences) - s0,
-                      e0, len(expansions) - e0, loc, starters, settings.get(loc, 0)))
+                      e0, len(expansions) - e0, loc, starters, extending, settings.get(loc, 0)))
     assert len(point_pool) < 0x10000 and len(element_pool) < 0x10000
     assert max(len(sequences), len(expansions), len(points)) < 0x10000
     assert all(n < 256 for _, n, *_ in sequences) and all(n < 256 for _, n, m, _ in expansions)
@@ -2533,9 +2579,9 @@ def write_collate_tailorings(f, tailorings, settings):
         f.write(f"            {{0x{p:08X}, 0x{s:04X}, 0x{t:04X}}},\n")
     f.write("        };\n\n        // the languages, by the subtag txt::locale holds\n")
     f.write("        inline constexpr Tailoring Tailorings[] = {\n")
-    for language, p0, pn, s0, sn, e0, en, loc, starters, bits in index:
+    for language, p0, pn, s0, sn, e0, en, loc, starters, extending, bits in index:
         f.write(f"            {{0x{language:08X}, {p0}, {pn}, {s0}, {sn}, {e0}, {en}, "
-                f"0x{starters:016X}ull, {bits}}},   // {loc}\n")
+                f"0x{starters:016X}ull, 0x{extending:016X}ull, {bits}}},   // {loc}\n")
     f.write("        };\n")
 
     bits = [bin(row[8]).count("1") for row in index]

@@ -78,7 +78,6 @@ assert(l.contains(2) && l.index_of(3) == 2 && l.is_sorted() && l.min() == 1);
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -113,7 +112,7 @@ int main() {
     auto snapshot = e.history;                          // every state, for as long as this is held
     e.undo();
     e.undo();
-    std::cout << e.current().lines.size() << " line, " << snapshot.size() - 1 << " states in the snapshot\n";   // 1 line, 3 states
+    println("{} line, {} states in the snapshot", e.current().lines.size(), snapshot.size() - 1);   // 1 line, 3 states
 }
 ```
 

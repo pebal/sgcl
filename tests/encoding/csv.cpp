@@ -140,6 +140,41 @@ TEST(Csv_Tests, WritesAsGoWrites) {
     }
 }
 
+// Found by the fuzzer of the codecs (tests/encoding/fuzz/codecs_fuzz.cpp):
+// a record of one empty field was written as an empty line, as Go writes
+// it, and every reader (this one and Go's) passes over an empty line — the
+// record was lost between the writing and the reading. It is written ""
+// now (a deliberate difference from Go's writer; RFC 4180 allows it,
+// Python writes it), which Go's reader reads as one empty field (the
+// oracle's case "\"\"\n" in ReadsAsGoReads)
+TEST(Csv_Tests, ARecordOfOneEmptyFieldSurvives) {
+    for (bool crlf : {false, true}) {
+        sgcl::tracked_ptr out = sgcl::make_tracked<sink>();
+        csv::writer w(out);
+        if (crlf) {
+            w.use_crlf();
+        }
+        w.write({string("")});
+        w.write({string("a"), string("")});
+        w.write({string(""), string("")});
+        w.write({string("")});
+        EXPECT_TRUE(w.flush());
+        EXPECT_EQ(out->text, crlf ? "\"\"\r\na,\r\n,\r\n\"\"\r\n" : "\"\"\na,\n,\n\"\"\n");
+        csv::options o;
+        o.same_field_count = false;
+        csv::reader r(string(out->text), o);
+        std::vector<size_t> sizes;
+        while (auto row = r.next()) {
+            sizes.push_back(row->size());
+            for (auto f : *row) {
+                EXPECT_TRUE(f.empty() || f.view() == "a");
+            }
+        }
+        EXPECT_FALSE(r.last_error());
+        EXPECT_EQ(sizes, (std::vector<size_t>{1, 2, 2, 1}));
+    }
+}
+
 // The header: rows asked by the column's name; a row kept stays valid
 TEST(Csv_Tests, HeaderAndRows) {
     csv::reader r(string("name,age,city\nAla,30,Kraków\nOla,25,\n"));
@@ -335,7 +370,7 @@ TEST(Csv_Tests, AsyncForms) {
 
 TEST(Csv_Tests, ARecordPastTheBoundIsAnError) {
     std::string text = "a,b\n" + std::string(100000, 'x') + ",y\n";
-    sgcl::tracked_ptr src = sgcl::make_tracked<sgcl::io::buffer>(sgcl::string(text));
+    sgcl::io::buffer src{sgcl::string(text)};
     sgcl::encoding::csv::options o;
     o.max_record_size = 20000;
     sgcl::encoding::csv::reader r(src, o);
@@ -343,4 +378,16 @@ TEST(Csv_Tests, ARecordPastTheBoundIsAnError) {
     }
     ASSERT_TRUE(r.last_error());
     EXPECT_EQ(r.last_error()->code(), sgcl::encoding::errc::out_of_range);
+}
+
+// A field by its column's name as a string of its own, or a value for when
+// the column is not there or the row is shorter
+TEST(Csv_Tests, GetWithAFallback) {
+    csv::reader r(string("name,city\nAla,Krakow\nOla\n"), csv::options{.same_field_count = false});
+    ASSERT_TRUE(r.read_header());
+    std::vector<std::string> got;
+    for (auto row : r.rows()) {
+        got.push_back(std::string(row.get("name", "?").view()) + "/" + std::string(row.get("city", "?").view()) + "/" + std::string(row.get("zip", "-").view()));
+    }
+    EXPECT_EQ(got, (std::vector<std::string>{"Ala/Krakow/-", "Ola/?/-"}));
 }

@@ -130,7 +130,6 @@ bool equal_fold(view_type s) const noexcept;         // the same letters in eith
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -151,10 +150,9 @@ int main() {
         ++by_letter[string(lower, n)];
     }
     for (auto& [letter, count] : by_letter) {
-        std::cout << letter << ' ' << count << '\n';
+        println("{} {}", letter, count);
     }
-    std::cout << line.rune_count() << " code points in " << line.size() << " bytes, "
-              << (line.to_lower().equal_fold(line.to_upper()) ? "one text in either case" : "?") << '\n';
+    println("{} code points in {} bytes, {}", line.rune_count(), line.size(), (line.to_lower().equal_fold(line.to_upper()) ? "one text in either case" : "?"));
     return by_letter.size() == 4 && by_letter["ł"] == 2 && by_letter["ż"] == 2 && by_letter["z"] == 2 && by_letter["i"] == 1 ? 0 : 1;
 }
 ```

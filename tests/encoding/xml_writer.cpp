@@ -155,7 +155,7 @@ TEST(XmlWriter_Tests, ManyAttributes) {
     auto t0 = std::chrono::steady_clock::now();
     auto tree = xml::parse(string(doc)).value();
     EXPECT_EQ(tree.to_string().size(), doc.size());   // the same but for the quotes, one for one
-    EXPECT_EQ(xml::parse(tree.to_string()).value(), tree);
+    EXPECT_EQ(value_of(xml::parse(tree.to_string())), tree);
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();
     EXPECT_LT(ms, 3000);
     sgcl::tracked_ptr out = make_tracked<sink>();

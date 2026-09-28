@@ -63,7 +63,6 @@ for (auto& p : *io::path::glob("tests/*/*.cpp")) ...
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -73,8 +72,8 @@ int main(int argc, char** argv) {
     io::walk_dir(root, [](const io::directory_entry& e, const optional<io::error>&) {
         if (io::path::ext(e.path) == ".jpeg") {
             auto to = io::path::join(io::path::dir(e.path), io::path::stem(e.path) + ".jpg");
-            if (auto r = io::rename(e.path, to)) std::cout << e.path << " -> " << io::path::base(to) << '\n';
-            else std::cerr << r.error().message() << '\n';
+            if (auto r = io::rename(e.path, to)) println("{} -> {}", e.path, io::path::base(to));
+            else eprintln("{}", r.error().message());
         }
         return io::walk_action::next;
     });

@@ -432,6 +432,15 @@ TEST(Format_Tests, TheCornersTheReviewFound) {
     EXPECT_EQ(txt::format("{:#.0e}", 1.0), "1.e+00");
     EXPECT_EQ(txt::format("{:#010}", 1.0), "000000001.");
     EXPECT_EQ(txt::format("{:#}", inf), "inf");
+    // with no form named, a precision is the general form's, zeros
+    // removed and the point kept: only g and G keep the zeros (found by
+    // the fuzzer against std::format, tests/txt/fuzz/layout_fuzz.cpp)
+    EXPECT_EQ(txt::format("{:#.3}", 0.0), "0.");
+    EXPECT_EQ(txt::format("{:#.3}", 1.0), "1.");
+    EXPECT_EQ(txt::format("{:#.3}", 0.5), "0.5");
+    EXPECT_EQ(txt::format("{:#.3}", 1e-5), "1.e-05");
+    EXPECT_EQ(txt::format("{:#.3}", 1e20), "1.e+20");
+    EXPECT_EQ(txt::format("{:#.3g}", 1.0), "1.00");
 
     // A precision the room on the stack cannot hold is not a reason to
     // write what the stack happened to contain
@@ -464,6 +473,37 @@ TEST(Format_Tests, TheCornersTheReviewFound) {
     EXPECT_FALSE(txt::format(at_run("{:65536}"), 1));
     EXPECT_FALSE(txt::format(at_run("{:4294967295}"), 1));
     EXPECT_FALSE(txt::fits<int>(at_run("{:4294967295}")));
+}
+
+// Found by the fuzzer against std::format (tests/txt/fuzz/layout_fuzz.cpp):
+// a field of text was measured in a terminal's columns, which give a
+// control, a format character and a mark that begins a cluster none, where
+// the standard's estimated width gives every grapheme cluster one (two
+// for the wide ones). The width and the precision count clusters now, as
+// std::format does; txt::columns keeps the terminal's count
+TEST(Format_Tests, AFieldOfTextIsMeasuredAsTheStandardMeasuresIt) {
+    const std::string texts[] = {
+        std::string("\0", 1), "\x01", "a\x01" "b", "\t", "\r", "\n", "x\ny",
+        "‍", "a‍" "b", "\U0001F468‍\U0001F469‍\U0001F467",
+        "́", "́" "a", "é", "ֲ", "­", "⁠x",
+        "日本", "Ａ", "\U0001F600", "\U0001F90D", "䷀", "가",
+        "क्ष", "กำ", "가", "​", "؀x",
+    };
+    for (auto& t : texts) {
+        for (const char* pat : {"[{:>12}]", "[{:<6}]", "[{:^9}]", "[{:*>3}]", "[{:.1}]", "[{:.2}]", "[{:.3}]", "[{:10.2}]"}) {
+            auto ours = txt::format(txt::runtime(string(pat)), string(t));
+            ASSERT_TRUE(ours) << pat;
+            EXPECT_EQ(ours->view(), std::vformat(pat, std::make_format_args(t))) << pat << " of " << testing::PrintToString(t);
+        }
+    }
+    // CR LF is one cluster (UAX #29, GB3), which libc++ counts as two:
+    // the standard's rule here, libc++'s difference named in format.md
+    EXPECT_EQ(txt::format("[{:>4}]", string("\r\n")), "[   \r\n]");
+    EXPECT_EQ(txt::format("[{:.1}]", string("x\r\ny")), "[x]");
+    EXPECT_EQ(txt::format("[{:.2}]", string("x\r\ny")), "[x\r\n]");
+    // the terminal's columns stay what they were
+    EXPECT_EQ(txt::columns(string("\x01")), 0u);
+    EXPECT_EQ(txt::columns(string("é")), 1u);
 }
 
 // The standard as the oracle, over the values and the specifications the

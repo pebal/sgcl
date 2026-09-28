@@ -13,7 +13,7 @@ namespace sgcl {
 
 ## Rules
 
-- The container holds its bucket array, its head node and its counters by `tracked_ptr`s, so it lives where one may: on a thread's stack or inside a managed object ([The rules](../core/README.md#the-rules), 1). Its iterators hold their node by a `tracked_ptr`.
+- The container holds its bucket array and its head node by `tracked_ptr`s (its counters are plain memory it owns), so it lives where one may: on a thread's stack or inside a managed object ([The rules](../core/README.md#the-rules), 1). Its iterators hold their node by a `tracked_ptr`.
 - `insert`, `emplace`, `try_emplace` and `erase` are lock-free and linearizable: an insertion takes effect at the compare-exchange that links the node into the list, an erasure at the one that marks it. `find`, `contains` and `count` are wait-free and never write. A key given by rvalue is looked up first and moved only into a node of its own; when another thread inserts the same key between that look and the link, the key has been moved into a node that is dropped: the one case where the standard's promise of no move for a key already there does not hold.
 - The count of the elements is striped over cache lines (Java's `LongAdder`): `size()` is the sum, a snapshot of no particular moment under concurrent modification, exact once the threads are quiet. The array doubles once the elements outnumber the buckets (a load factor of one), by the insertion that notices; `reserve(n)` doubles it up front.
 - Iteration is weakly consistent, as Java's: an iterator is valid whatever the other threads do, it skips the elements erased since it passed them and may or may not see the ones inserted meanwhile; the order is the list's, the bit reversal of the hashes, and it changes with nothing but the elements. The element an iterator addresses stays alive for as long as the iterator does, erased or not.
@@ -82,9 +82,11 @@ const_iterator find(const Key& key) const noexcept;
 bool contains(const Key& key) const noexcept;
 size_type count(const Key& key) const noexcept;
 template<class K> iterator find(const K& key) noexcept;        // when Hash and KeyEqual are transparent: and const, contains, count
+V value_or(const Key& key, const V& fallback) const;
+template<class K> V value_or(const K& key, const V& fallback) const;   // when Hash and KeyEqual are transparent
 ```
 
-The element under `key`, or `end()`; wait-free once the bucket has its dummy node, which the first lookup or insertion into the bucket after the array grew makes (an allocation and a compare-exchange, lock-free, once per bucket for the array's life): from the bucket's dummy along the list to the element. (A lookup walked from the nearest initialized ancestor's dummy before, writing nothing, and with the array doubled late in a run of insertions and then only looked up, that walk was a large part of the list: a find of 6 ns took 7000, measured with 200,000 keys inserted by 32 threads.) With a transparent hash and equality (`is_transparent`, as `std::hash` and `std::equal_to` of a [string](../core/string.md) are) the lookups take a key of another type and build none: a `string_view` or a literal finds a `string` key with no string made for the search.
+The element under `key`, or `end()`; wait-free once the bucket has its dummy node, which the first lookup or insertion into the bucket after the array grew makes (an allocation and a compare-exchange, lock-free, once per bucket for the array's life): from the bucket's dummy along the list to the element. (A lookup walked from the nearest initialized ancestor's dummy before, writing nothing, and with the array doubled late in a run of insertions and then only looked up, that walk was a large part of the list: a find of 6 ns took 7000, measured with 200,000 keys inserted by 32 threads.) With a transparent hash and equality (`is_transparent`, as `std::hash` and `std::equal_to` of a [string](../core/string.md) are) the lookups take a key of another type and build none: a `string_view` or a literal finds a `string` key with no string made for the search. `value_or(key, fallback)` returns a copy of the value under `key`, or `fallback` when it is absent (one word for a `tracked_ptr` value), as [`mixin::lookup`](../core/mixin/lookup.md)'s `value_or` of the other maps; an element erased by another thread after the search found it is read as it was.
 
 ### insert, emplace, try_emplace
 
@@ -120,7 +122,6 @@ Erases the element under `key` (1 or 0 erased), or the one `pos` addresses if it
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -149,7 +150,7 @@ int main() {
     for (auto& [word, count] : counts) {
         total += count->n;
     }
-    std::cout << counts.size() << " words, " << total << " occurrences, " << counts.bucket_count() << " buckets\n";
+    println("{} words, {} occurrences, {} buckets", counts.size(), total, counts.bucket_count());
     return counts.size() == 1000 && total == 80000 ? 0 : 1;
 }
 ```

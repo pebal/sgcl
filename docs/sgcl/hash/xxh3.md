@@ -40,6 +40,7 @@ static uint64_t of(/* bytes or text */) noexcept;                   // seed 0
 static uint64_t of(/* bytes or text */, uint64_t seed) noexcept;
 
 expected<size_t, io::error> copy_from(const io::reader& r);  async::task<expected<size_t, io::error>> async_copy_from(const io::reader& r);
+static expected</* the type of value() */, io::error> of_file(const string& path);  static async::task<expected</* the type of value() */, io::error>> async_of_file(const string& path);   // of() of the whole file, through copy_from
 ```
 
 `xxh3_128` has the same members, its value the digest.
@@ -53,24 +54,23 @@ Inputs up to 240 bytes take one of six paths by length, a multiplication or a fe
 ```cpp
 #include "sgcl/encoding/hex.h"
 #include "sgcl/hash/xxh3.h"
-#include "sgcl/io/os.h"
-#include "sgcl/txt/format.h"
+#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
 int main() {
-    io::stdout.write(txt::format("{:016x}\n", hash::xxh3_64::of("")));
-    io::stdout.write(txt::format("{:016x}\n", hash::xxh3_64::of("hello")));
-    io::stdout.write(txt::format("{:016x}\n", hash::xxh3_64::of("hello", 42)));
+    println("{:016x}", hash::xxh3_64::of(""));
+    println("{:016x}", hash::xxh3_64::of("hello"));
+    println("{:016x}", hash::xxh3_64::of("hello", 42));
 
     // in pieces, the same value
     hash::xxh3_64 h(42);
     h.update("hel");
     h.update("lo");
-    io::stdout.write(txt::format("{:016x}\n", h.value()));
+    println("{:016x}", h.value());
 
     // 128 bits: sixteen bytes, as xxhsum -H128 prints them
-    io::stdout.write(encoding::hex::encode(hash::xxh3_128::of("hello")) + "\n");
+    println(encoding::hex::encode(hash::xxh3_128::of("hello")));
 }
 ```
 

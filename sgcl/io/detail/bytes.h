@@ -10,7 +10,9 @@
 #include "../../core/slice.h"
 #include "../../core/string.h"
 
+#include <array>
 #include <cstddef>
+#include <memory>
 #include <string>
 #include <string_view>
 
@@ -48,8 +50,18 @@ namespace sgcl::io {
             return string(chars_of(b));
         }
 
-        // The block copy() moves data through: one managed array, no header,
-        // two to a page
+        // The block copy() moves data through. A call that does not wait
+        // keeps it on its stack (StackCopyBlock, 32 KB; a thread of the
+        // library has 512 KB at least): every read into it is over when the
+        // call returns. A task's is managed (CopyBlock): the read it hands
+        // the block to may run on the blocking pool and outlive the frame of
+        // a task let go of meanwhile, so the slice the read is given holds
+        // the block, and the pool never writes into freed memory.
         using CopyBlock = array<byte, config::io_copy_buffer_size>;
+
+        // io's block (8 KB): a buffered reader's, and the first of an
+        // async_read_all
+        using IoBlock = array<byte, config::io_buffer_size>;
+        using StackCopyBlock = std::array<byte, config::io_copy_buffer_size>;
     }
 }

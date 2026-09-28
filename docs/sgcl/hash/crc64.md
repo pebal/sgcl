@@ -30,18 +30,17 @@ There is no CRC-64 instruction. On arm64 an input of 128 bytes or more is folded
 
 ```cpp
 #include "sgcl/hash/crc64.h"
-#include "sgcl/io/os.h"
-#include "sgcl/txt/format.h"
+#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
 int main() {
-    io::stdout.write(txt::format("{:016x}\n", hash::crc64::of("123456789")));       // CRC-64/XZ's check
-    io::stdout.write(txt::format("{:016x}\n", hash::crc64_iso::of("123456789")));
+    println("{:016x}", hash::crc64::of("123456789"));             // CRC-64/XZ's check
+    println("{:016x}", hash::crc64_iso::of("123456789"));
     hash::crc64 h;
     h.update("1234");
     h.update("56789");
-    io::stdout.write(txt::format("{:016x}\n", h.value()));
+    println("{:016x}", h.value());
 }
 ```
 

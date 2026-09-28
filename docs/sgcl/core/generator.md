@@ -147,7 +147,6 @@ g.destroy();                                  // the other 99 never happen; g is
 ```cpp
 #include "sgcl/sgcl.h"
 
-#include <iostream>
 
 using namespace sgcl;
 
@@ -178,7 +177,7 @@ int main() {
         }
         sum += length;
     }
-    std::cout << sum << '\n';                       // 1 + 2 + 3 + 4
+    println("{}", sum);                       // 1 + 2 + 3 + 4
 }
 ```
 

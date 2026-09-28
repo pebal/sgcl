@@ -57,7 +57,6 @@ async::task<> validate(tracked_ptr<Request> r) {
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -69,13 +68,13 @@ async::task_local<int> request_id;
 async::task_local<string> user;
 
 void log(const char* what) {                         // a plain function: the values of the task that called it
-    std::cout << "[request " << request_id.get_or(0) << ", " << user.get_or("nobody") << "] " << what << "\n";
+    println("[request {}, {}] {}", request_id.get_or(0), user.get_or("nobody"), what);
 }
 
 async::task<> store(int value) {
     log("storing");
     co_await async::sleep(1ms);                       // the values survive a wait
-    std::cout << "  value " << value << "\n";
+    println("  value {}", value);
     log("stored");
 }
 
@@ -89,7 +88,7 @@ async::task<> handle(int id, string who, int value) {
     co_await user.set(who);
     log("handling");
     co_await store(value);                           // an awaited task inherits both
-    co_await async::spawn(audit());                   // a spawned one too, and sets one of its own
+    co_await async::spawn(audit());                          // a spawned one too, and sets one of its own
     co_await user.with("guest", store(value + 1));   // store runs as guest
     log("done");
 }

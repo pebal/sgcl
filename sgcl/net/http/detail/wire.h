@@ -6,6 +6,7 @@
 #pragma once
 
 #include "parser.h"
+#include "h2/stream.h"
 #include "../../connection.h"
 #include "../../error.h"
 #include "../../../async/coroutine.h"
@@ -20,43 +21,51 @@
 
 #include <algorithm>
 #include <cstring>
+#include <memory>
 #include <string>
 
 namespace sgcl::net::http::detail {
     using sgcl::io::detail::fail;
 
-    // The block a head grows into past the connection's 8 KB: 32 KB, the
-    // server's default limit in one object
-    using HeadBlock = array<byte, config::io_copy_buffer_size>;
-
     // The bytes of a connection as HTTP reads them: a buffer in front of
     // it, 8 KB (io's block) to begin with, grown for a head that does not
-    // fit (32 KB, then a vector for a limit past the size of an object).
-    // A head is copied out of it into a string of exactly its size, which
+    // fit (32 KB, the server's default limit, then the limit itself). A
+    // head is copied out of it into a string of exactly its size, which
     // the request or the response keeps and its fields are slices of; the
-    // body is read through it (what is buffered first). As an io::reader
-    // it is what is left of the connection after a head: what hijack hands
-    // over.
+    // body is read through it (what is buffered first, copied out). Nothing
+    // hands out a slice of the buffer, so it is unmanaged memory the Wire
+    // owns, freed with it. As an io::reader it is what is left of the
+    // connection after a head: what hijack hands over.
     class Wire final : public io::mixin::reader<Wire> {
     public:
         explicit Wire(const net::connection& c)
-        : _c(c) {
-            tracked_ptr block = make_tracked<io::detail::IoBlock>();
-            _data = block->data();
-            _cap = block->size();
-            _owner = tracked_ptr<const void>(block);
+        : _c(c), _data(std::make_unique_for_overwrite<byte[]>(config::io_buffer_size)), _cap(config::io_buffer_size) {
         }
 
         const net::connection& connection() const noexcept {
             return _c;
         }
 
+        // The bytes of the response going out (a head with what follows it
+        // in one send), kept from one exchange to the next with its
+        // capacity: a response's head costs the system's allocator nothing
+        // after the connection's first (WriterImpl: the one exchange that
+        // writes at a time, its send awaited before the next begins)
+        std::string out;
+
         size_t buffered() const noexcept {
             return _end - _begin;
         }
 
+        // Room for at least n bytes buffered (HTTP/2: a frame whole)
+        void reserve(size_t n) {
+            if (n > _cap) {
+                _grow(n);
+            }
+        }
+
         std::string_view view() const noexcept {
-            return std::string_view(reinterpret_cast<const char*>(_data) + _begin, _end - _begin);
+            return std::string_view(reinterpret_cast<const char*>(_data.get()) + _begin, _end - _begin);
         }
 
         void consume(size_t n) noexcept {
@@ -75,13 +84,67 @@ namespace sgcl::net::http::detail {
                 }
                 _compact();
             }
-            slice<byte> room(_owner, _data + _end, _cap - _end);
+            slice<byte> room(_data.get() + _end, _cap - _end);   // the frame holds this Wire, and so the buffer, until the read is done
             auto r = co_await _c.async_read(room);
             if (!r) {
                 co_return fail(r);
             }
             _end += *r;
             co_return *r;
+        }
+
+        // One step of fill() without a frame of its own, for a coroutine
+        // that loops over it: the connection tried (ConnImpl::try_read);
+        // done with the result (bytes read into the buffer, 0 at the end of
+        // the stream or with the buffer full, or the error); or `ready`,
+        // the connection's readiness, for the caller to await in its own
+        // frame and try again; or `slow`: the connection cannot be read
+        // so, and the caller awaits fill(). A server's wait for the next
+        // request and its head cost the frame of the coroutine that waits,
+        // where the waiting way was three more (fill's, the connection's,
+        // the transport's).
+        //
+        //     for (;;) {
+        //         auto step = wire->try_fill();
+        //         if (step.done) { r = step.result; break; }
+        //         if (step.slow) { r = co_await wire->fill(); break; }
+        //         if (auto ready = co_await step.ready; !ready) { r = fail(ready); break; }
+        //     }
+        struct FillStep {
+            expected<size_t, io::error> result = size_t(0);
+            bool done = false;
+            bool slow = false;
+            net::detail::readiness ready;
+        };
+
+        FillStep try_fill() {
+            FillStep step;
+            if (_end == _cap) {
+                if (_begin == 0) {
+                    step.done = true;   // full: the caller's limit decides
+                    return step;
+                }
+                _compact();
+            }
+            slice<byte> room(_data.get() + _end, _cap - _end);
+            auto& impl = net::detail::ConnectionAccess::impl(_c);
+            auto r = impl.try_read(room, step.slow);
+            if (step.slow) {
+                return step;
+            }
+            if (!r) {
+                step.result = fail(r);
+                step.done = true;
+                return step;
+            }
+            if (*r) {
+                _end += **r;
+                step.result = **r;
+                step.done = true;
+                return step;
+            }
+            step.ready = impl.raw_readable();
+            return step;
         }
 
         // A head: everything to the empty line that ends it, copied into a
@@ -91,7 +154,7 @@ namespace sgcl::net::http::detail {
         async::task<expected<optional<string>, io::error>> read_head(size_t max) {
             size_t searched = 0;
             for (;;) {
-                size_t skip = leading_empty_lines(reinterpret_cast<const char*>(_data) + _begin, buffered());
+                size_t skip = leading_empty_lines(reinterpret_cast<const char*>(_data.get()) + _begin, buffered());
                 if (skip) {
                     // at most a head's worth of them
                     _skipped += skip;
@@ -117,7 +180,22 @@ namespace sgcl::net::http::detail {
                     _grow(std::min(max, _cap * 4 > max ? max : _cap * 4));
                 }
                 bool was_empty = buffered() == 0;
-                auto r = co_await fill();
+                expected<size_t, io::error> r = size_t(0);
+                for (;;) {   // fill() in this frame (try_fill)
+                    auto step = try_fill();
+                    if (step.done) {
+                        r = std::move(step.result);
+                        break;
+                    }
+                    if (step.slow) {
+                        r = co_await fill();
+                        break;
+                    }
+                    if (auto ready = co_await step.ready; !ready) {
+                        r = fail(ready);
+                        break;
+                    }
+                }
                 if (!r) {
                     co_return fail(r);
                 }
@@ -141,7 +219,7 @@ namespace sgcl::net::http::detail {
             }
             if (buffered()) {
                 size_t n = std::min(out.size(), buffered());
-                std::memcpy(out.data(), _data + _begin, n);
+                std::memcpy(out.data(), _data.get() + _begin, n);
                 consume(n);
                 co_return n;
             }
@@ -152,7 +230,7 @@ namespace sgcl::net::http::detail {
         void _compact() noexcept {
             size_t n = buffered();
             if (_begin && n) {
-                std::memmove(_data, _data + _begin, n);
+                std::memmove(_data.get(), _data.get() + _begin, n);
             }
             _begin = 0;
             _end = n;
@@ -165,42 +243,50 @@ namespace sgcl::net::http::detail {
                 return;
             }
             size_t n = buffered();
-            if (want <= config::io_copy_buffer_size) {
-                tracked_ptr block = make_tracked<HeadBlock>();
-                std::memcpy(block->data(), _data + _begin, n);
-                _data = block->data();
-                _cap = block->size();
-                _owner = tracked_ptr<const void>(block);
-            } else {
-                // the old storage is held by _owner until the copy is made
-                vector<byte> big(want);
-                std::memcpy(big.data(), _data + _begin, n);
-                auto owner = big.as_slice().owner();
-                _big = std::move(big);
-                _data = _big.data();
-                _cap = _big.size();
-                _owner = std::move(owner);
-            }
+            auto bigger = std::make_unique_for_overwrite<byte[]>(want);
+            std::memcpy(bigger.get(), _data.get() + _begin, n);
+            _data = std::move(bigger);
+            _cap = want;
             _begin = 0;
             _end = n;
         }
 
         net::connection _c;
-        tracked_ptr<const void> _owner;   // the block _data is in
-        vector<byte> _big;           // a head past 32 KB
-        byte* _data = nullptr;
-        size_t _cap = 0;
+        std::unique_ptr<byte[]> _data;
+        size_t _cap;
         size_t _begin = 0;
         size_t _end = 0;
         size_t _skipped = 0;
     };
 
-    // A body as an io::reader: the framing over the wire, a limit, and
-    // what is done at its end (the client gives the connection back to the
-    // pool, the server goes on to the next request). A read past the limit
-    // is net::errc::body_too_large; the framing broken is
+    // The body of a request that has none, as a stream: at its end at
+    // once. One for the program, with no state and nothing managed in it,
+    // handed out by reference (an io::reader of it holds no owner), so
+    // that a request without a body makes no object for its body().
+    struct NoBody {
+        expected<size_t, io::error> read(const slice<byte>&) const noexcept {
+            return size_t(0);
+        }
+
+        async::task<expected<size_t, io::error>> async_read(slice<byte>) const {
+            co_return size_t(0);
+        }
+    };
+
+    inline NoBody no_body;
+
+    // A body as an io::reader: its source, a limit, and what is done at its
+    // end (the client gives the connection or the stream back, the server
+    // goes on to the next request or ends the handler's turn). The source
+    // is one of two, chosen when the body is made: the wire of HTTP/1.1
+    // with its framing, or an HTTP/2 stream (h2::StreamState: its DATA as
+    // it came, its trailers, its end or its reset), on either side. A read
+    // past the limit is net::errc::body_too_large; the framing broken is
     // malformed_response for a response and a 400 for a request (the
-    // status kept in error_status for the server).
+    // status kept in error_status for the server); a stream reset is
+    // connection_reset. Given up before its end (discard past its bound,
+    // abandon), an HTTP/2 body is reset with CANCEL, as Go does: HTTP/2 has
+    // no connection to drain.
     class Body : public io::mixin::reader<Body> {
     public:
         Body(tracked_ptr<Wire> wire, BodyFraming framing, uint64_t limit, bool response)
@@ -209,6 +295,14 @@ namespace sgcl::net::http::detail {
             if (framing.kind == Framing::none) {
                 _done = true;
             }
+        }
+
+        // The body of an HTTP/2 stream; its content-length, when the head
+        // gave one, lets read_everything read it straight into a vector
+        // of its size (as a body of HTTP/1.1 with a length)
+        Body(tracked_ptr<h2::StreamState> stream, uint64_t limit, bool response, optional<uint64_t> length = nullopt)
+        : _framing{length ? Framing::length : Framing::until_close, length ? *length : 0}, _limit(limit), _response(response), _h2(std::move(stream)) {
+            _remaining = _framing.length;
         }
 
         expected<size_t, io::error> read(const slice<byte>& out) {
@@ -245,20 +339,53 @@ namespace sgcl::net::http::detail {
             co_return *r;
         }
 
-        // Everything to the end, bounded by the limit
+        // Everything to the end, bounded by the limit. A length declared
+        // (up to ExactUpTo, since a peer's number is not to be trusted with
+        // more before its bytes come) is read straight into a vector of
+        // that size; any other body is gathered in unmanaged memory and
+        // copied once into a vector of its size. The reads are the wire's,
+        // a copy out of its buffer or a read of the connection in this
+        // task (the reactor, never the pool), so the gathered bytes are
+        // written by nothing that outlives the frame.
         async::task<expected<vector<byte>, io::error>> read_everything() {
-            vector<byte> all;
+            static constexpr uint64_t ExactUpTo = uint64_t(1) << 20;
+            if (_framing.kind == Framing::length && _read_total == 0 && !_done && _framing.length && _framing.length <= ExactUpTo) {
+                vector<byte> all(static_cast<size_t>(_framing.length));
+                size_t got = 0;
+                while (got < all.size()) {
+                    auto r = co_await async_read(all.as_slice(got, all.size() - got));
+                    if (!r) {
+                        co_return fail(r);
+                    }
+                    if (*r == 0) {
+                        break;
+                    }
+                    got += *r;
+                }
+                all.resize(got);
+                // HTTP/2: the length is met, but the stream may end later,
+                // with trailers (HEADERS and END_STREAM after the DATA):
+                // everything is its end, the trailers readable after it
+                if (_h2 && !_done && !_failed) {
+                    auto end = co_await _h2->wait_end();
+                    if (!end) {
+                        co_return fail(_fail(end.error()));
+                    }
+                    _done = true;
+                    _finish(true);
+                }
+                co_return all;
+            }
+            io::detail::Gathered all;
             for (;;) {
-                size_t was = all.size();
-                all.resize(was + 8192);
-                auto r = co_await async_read(all.as_slice(was, 8192));
+                auto r = co_await async_read(all.room());
                 if (!r) {
                     co_return fail(r);
                 }
-                all.resize(was + *r);
                 if (*r == 0) {
-                    co_return all;
+                    co_return all.take();
                 }
+                all.added(*r);
             }
         }
 
@@ -279,7 +406,14 @@ namespace sgcl::net::http::detail {
         }
 
         const headers& trailers() const noexcept {
+            if (_h2) {
+                return _done ? _h2->trailers_ref() : _no_trailers;
+            }
             return _chunked ? _chunked->trailers() : _no_trailers;
+        }
+
+        bool http2() const noexcept {
+            return (bool)_h2;
         }
 
         // Called once, before the first read: the server's 100 Continue
@@ -295,20 +429,56 @@ namespace sgcl::net::http::detail {
             }
         }
 
-        // Drops the rest of the body when it is at most `most` bytes and
-        // can be read without waiting past the buffer (a response's close),
-        // or reads it (a server between requests): true when the body came
-        // to its end
+        // Reads the rest of the body and drops it, up to about `most` bytes
+        // (a server between requests): true when the body came to its end.
+        // The bytes are dropped where they lie, in the wire's buffer, which
+        // is refilled when they are gone: no block of its own, nothing
+        // copied; counted against the limit as a read is.
         async::task<bool> discard(uint64_t most) {
-            tracked_ptr block = make_tracked<io::detail::IoBlock>();
+            if (_h2) {
+                co_return _h2_discard();
+            }
             uint64_t dropped = 0;
             while (!_done && !_failed) {
-                slice<byte> room(block, block->data(), block->size());
-                auto r = co_await async_read(room);
-                if (!r || *r == 0) {
+                if (_before) {
+                    auto hook = std::move(_before);
+                    _before = {};
+                    auto r = co_await hook();
+                    if (!r) {
+                        (void)_fail(r.error());
+                        break;
+                    }
+                }
+                if (!_wire->buffered()) {
+                    auto r = co_await _wire->fill();
+                    if (!r) {
+                        (void)_fail(r.error());
+                        break;
+                    }
+                    if (*r == 0) {
+                        if (_framing.kind != Framing::until_close) {
+                            (void)_fail(io::error(io::errc::unexpected_eof, "read", "body"));
+                            break;
+                        }
+                        _done = true;
+                    }
+                }
+                auto n = _drop_buffered();
+                if (!n) {
+                    (void)_fail(n.error());
                     break;
                 }
-                dropped += *r;
+                _read_total += *n;
+                if (_limit && _read_total > _limit) {
+                    _error_status = 413;
+                    (void)_fail(net::detail::net_error(net::errc::body_too_large, "read", "body"));
+                    break;
+                }
+                if (_done) {
+                    _finish(true);
+                    break;
+                }
+                dropped += *n;
                 if (dropped > most) {
                     break;
                 }
@@ -319,6 +489,9 @@ namespace sgcl::net::http::detail {
         // What the buffer holds of the rest, read without waiting: whether
         // the body could be finished from it (a response's close())
         bool discard_buffered() {
+            if (_h2) {
+                return _h2_discard();
+            }
             while (!_done && !_failed && _wire->buffered()) {
                 if (_framing.kind == Framing::chunked) {
                     auto s = _chunked_step(size_t(-1));
@@ -343,11 +516,37 @@ namespace sgcl::net::http::detail {
         }
 
         void abandon() {
+            if (_h2 && !_done && !_failed) {
+                _h2->owner->reset(_h2->id, h2::ErrorCode::cancel);
+            }
             _finish(false);
         }
 
     private:
+        // HTTP/2: what came is dropped; before the end the stream is reset
+        // (CANCEL): true when the body had ended
+        bool _h2_discard() {
+            if (_done) {
+                return !_failed;
+            }
+            if (_h2->drop_buffered()) {
+                _done = true;
+                _finish(true);
+                return true;
+            }
+            _h2->owner->reset(_h2->id, h2::ErrorCode::cancel);
+            _finish(false);
+            return false;
+        }
+
         async::task<expected<size_t, io::error>> _read(slice<byte> out) {
+            if (_h2) {
+                auto r = co_await _h2->read(out);
+                if (r && (*r == 0 || _h2->ended())) {
+                    _done = true;   // the last bytes read: the end known without another read
+                }
+                co_return r;
+            }
             switch (_framing.kind) {
                 case Framing::none:
                     _done = true;
@@ -405,6 +604,38 @@ namespace sgcl::net::http::detail {
             co_return size_t(0);
         }
 
+        // The body's bytes in the wire's buffer dropped, as far as they go
+        // (to its end at most): how many of the body's own there were, the
+        // framing's left out; the framing broken is an error
+        expected<size_t, io::error> _drop_buffered() {
+            size_t n = 0;
+            while (!_done && _wire->buffered()) {
+                if (_framing.kind == Framing::chunked) {
+                    size_t was = _wire->buffered();
+                    auto s = _chunked_step(size_t(-1));
+                    if (s.error) {
+                        return fail(_framing_error());
+                    }
+                    n += s.data_size;
+                    if (_wire->buffered() == was) {
+                        break;   // a step that takes nothing waits for more bytes
+                    }
+                } else {
+                    size_t k = _wire->buffered();
+                    if (_framing.kind == Framing::length) {
+                        k = size_t(std::min<uint64_t>(_remaining, k));
+                        _remaining -= k;
+                        if (_remaining == 0) {
+                            _done = true;
+                        }
+                    }
+                    _wire->consume(k);
+                    n += k;
+                }
+            }
+            return n;
+        }
+
         struct Chunk {
             const byte* data = nullptr;
             size_t data_size = 0;
@@ -417,7 +648,7 @@ namespace sgcl::net::http::detail {
         // before the copy)
         Chunk _chunked_step(size_t room) {
             if (!_chunked) {
-                _chunked = make_tracked<ChunkedDecoder>();
+                _chunked.emplace();
             }
             auto v = _wire->view();
             auto s = _chunked->step(v, room);
@@ -465,7 +696,7 @@ namespace sgcl::net::http::detail {
         uint64_t _limit;
         uint64_t _remaining = 0;
         uint64_t _read_total = 0;
-        tracked_ptr<ChunkedDecoder> _chunked;
+        optional<ChunkedDecoder> _chunked;   // a chunked body's, made by its first step
         headers _no_trailers;
         optional<io::error> _failed;
         function<async::task<expected<void, io::error>>()> _before;
@@ -473,5 +704,6 @@ namespace sgcl::net::http::detail {
         int _error_status = 0;
         bool _done = false;
         bool _response;
+        tracked_ptr<h2::StreamState> _h2;
     };
 }

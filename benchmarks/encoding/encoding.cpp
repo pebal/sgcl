@@ -48,6 +48,18 @@ namespace {
 
     volatile size_t sink = 0;
 
+    // The object of a stream the codec gives, whatever form it has: a
+    // handle is the object, a pointer is dereferenced (the benchmark
+    // builds over both, before and after the codecs' streams became handles)
+    template<class T>
+    decltype(auto) object_of(T& s) {
+        if constexpr (requires { s.operator->(); }) {
+            return *s;
+        } else {
+            return (s);
+        }
+    }
+
     // The first case in a process reads about twice high: the road is
     // walked before it is timed
     template<class F>
@@ -94,6 +106,39 @@ namespace {
         if (!std::strcmp(op, "hexenc")) {
             return timed(count, [&] { sink += hex::encode(data).size(); });
         }
+        if (!std::strcmp(op, "b64stream")) {
+            // the encoder as a stream: made over a buffer, written in pieces
+            // of 4 KB, closed; the buffer emptied for the next
+            io::buffer out;
+            out.reserve(base64::standard.encoded_size(size));
+            return timed(count, [&] {
+                auto armor = base64::standard.encoder_to(out);
+                auto& w = object_of(armor);
+                for (size_t at = 0; at < size; at += 4096) {
+                    (void)w.write(data.subslice(at, std::min<size_t>(4096, size - at)));
+                }
+                (void)w.close();
+                sink += out.size();
+                out.clear();
+            });
+        }
+        if (!std::strcmp(op, "b64dstream")) {
+            // the decoder as a stream: made over the text, read in pieces of 4 KB
+            string text = base64::standard.encode(data);
+            std::vector<byte> room(4096);
+            auto piece = slice<byte>(room.data(), room.size());
+            return timed(count, [&] {
+                auto plain = base64::standard.decoder_from(io::buffer(text));
+                auto& r = object_of(plain);
+                for (;;) {
+                    auto n = r.read(piece);
+                    if (!n || *n == 0) {
+                        break;
+                    }
+                    sink += *n;
+                }
+            });
+        }
         string text = hex::encode(data);
         return timed(count, [&] { sink += hex::decode(text)->size(); });
     }
@@ -102,11 +147,11 @@ namespace {
 int main(int argc, char** argv) {
     const char* variant = argc > 1 ? argv[1] : "sgcl";
     if (!bench::has_variant(variant, {"sgcl"})) {
-        std::fprintf(stderr, "usage: encoding sgcl [b64enc|b64dec|b64to|b64decto|b32enc|b32dec|hexenc|hexdec] [size] [count]\n");
+        std::fprintf(stderr, "usage: encoding sgcl [b64enc|b64dec|b64to|b64decto|b64stream|b64dstream|b32enc|b32dec|hexenc|hexdec] [size] [count]\n");
         return 2;
     }
     const char* op = argc > 2 ? argv[2] : "b64enc";
-    if (!bench::has_variant(op, {"b64enc", "b64dec", "b64to", "b64decto", "b32enc", "b32dec", "hexenc", "hexdec"})) {
+    if (!bench::has_variant(op, {"b64enc", "b64dec", "b64to", "b64decto", "b64stream", "b64dstream", "b32enc", "b32dec", "hexenc", "hexdec"})) {
         std::fprintf(stderr, "encoding: no op called %s\n", op);
         return 2;
     }

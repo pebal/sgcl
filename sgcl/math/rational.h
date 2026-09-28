@@ -76,8 +76,12 @@ namespace sgcl::math {
         explicit rational(double value);
 
         // Not from a bool (which would arrive as a whole number), nor from
-        // a long double (which would arrive rounded to a double)
-        rational(bool) = delete;
+        // a long double (which would arrive rounded to a double); the bool
+        // one a template taking a bool alone, not a pointer ("3/4" goes to
+        // the constructor from text: a const char* to bool is a standard
+        // conversion, which beats the user-defined one to string), as big_integer's
+        template<std::same_as<bool> B>
+        rational(B) = delete;
         explicit rational(long double) = delete;
 
         // A fraction "3/4", "-5", "+0/7", or a decimal "-0.125", "1.5e-3",
@@ -88,6 +92,14 @@ namespace sgcl::math {
         // — the second because a few bytes would ask for megabytes — at the
         // offset of the denominator or the exponent.
         static expected<rational, parse_error> parse(const string& text);
+
+        // The number a literal in the program writes: parse's value, or
+        // bad_expected_access<parse_error> with parse's message. Input is
+        // parsed; a text the program itself wrote is constructed
+        // (DESIGN 234)
+        explicit rational(const string& text)
+        : rational(parse(text).value()) {
+        }
 
         rational(const rational&) noexcept = default;
         rational(rational&&) noexcept = default;

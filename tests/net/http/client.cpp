@@ -29,6 +29,17 @@ namespace {
         return std::string(s.data(), s.size());
     }
 
+    // The body of an answer as text, or its error in angle brackets: each
+    // expected looked at before its value, so that a failure compares
+    // unequal rather than throwing out of the assertion
+    std::string body_of(const expected<net::http::response, io::error>& r) {
+        if (!r) {
+            return "<" + text(r.error().message()) + ">";
+        }
+        auto t = r->text();
+        return t ? text(*t) : "<" + text(t.error().message()) + ">";
+    }
+
     // The server's side of the script: what it received, and how it answers
     struct Script {
         std::vector<std::string> received;   // each request, head and body
@@ -137,7 +148,7 @@ TEST(HttpClient_Tests, ThePool) {
     for (int i : range(3)) {
         auto r = c.get("http://example.com/x");
         ASSERT_TRUE(r) << r.error().message();
-        EXPECT_EQ(*r->text(), "body " + std::to_string(i));
+        EXPECT_EQ(body_of(r), "body " + std::to_string(i));
     }
     EXPECT_EQ(s.dials, 1);                                      // one connection, kept
     EXPECT_NE(s.received[0].find("GET /x HTTP/1.1\r\nHost: example.com\r\n"), std::string::npos) << s.received[0];
@@ -168,11 +179,11 @@ TEST(HttpClient_Tests, ConnectionCloseAndToTheClose) {
         return {"HTTP/1.1 200 OK\r\n\r\nuntil the close", true};
     };
     auto c = client_of(s);
-    EXPECT_EQ(*c.get("http://h/")->text(), "a");
+    EXPECT_EQ(body_of(c.get("http://h/")), "a");
     auto r = c.get("http://h/");
     ASSERT_TRUE(r);
     EXPECT_FALSE(r->content_length());
-    EXPECT_EQ(*r->text(), "until the close");
+    EXPECT_EQ(body_of(r), "until the close");
     EXPECT_EQ(s.dials, 2);
 }
 
@@ -181,10 +192,10 @@ TEST(HttpClient_Tests, RetryOnAConnectionThePoolKeptTooLong) {
     // the server answers each request and then closes, without saying so
     s.answer = [](int n, const std::string&) { return ok(std::to_string(n), "", true); };
     auto c = client_of(s);
-    EXPECT_EQ(*c.get("http://h/")->text(), "0");
+    EXPECT_EQ(body_of(c.get("http://h/")), "0");
     auto r = c.get("http://h/");                          // on the dead connection first
     ASSERT_TRUE(r) << r.error().message();
-    EXPECT_EQ(*r->text(), "1");
+    EXPECT_EQ(body_of(r), "1");
     EXPECT_EQ(s.dials, 2);
     // a stream body is not sent twice: on the dead pooled connection the
     // request fails, and is not tried again
@@ -210,21 +221,21 @@ TEST(HttpClient_Tests, Framings) {
     auto c = client_of(s);
     auto a = c.get("http://h/");
     ASSERT_TRUE(a);
-    EXPECT_EQ(*a->text(), "hello world");
+    EXPECT_EQ(body_of(a), "hello world");
     EXPECT_EQ(a->trailers().get("x-sum"), "11");
     auto b = c.get("http://h/");
     ASSERT_TRUE(b);
     EXPECT_EQ(b->status(), 201);
-    EXPECT_EQ(*b->text(), "ok");
+    EXPECT_EQ(body_of(b), "ok");
     auto h = c.head("http://h/");
     ASSERT_TRUE(h);
     EXPECT_EQ(h->content_length(), 1000u);
-    EXPECT_EQ(*h->text(), "");
-    EXPECT_EQ(*c.get("http://h/")->text(), "");
+    EXPECT_EQ(body_of(h), "");
+    EXPECT_EQ(body_of(c.get("http://h/")), "");
     auto m = c.get("http://h/");
     EXPECT_EQ(m->status(), 304);
-    EXPECT_EQ(*m->text(), "");
-    EXPECT_EQ(*c.get("http://h/")->text(), "GET");
+    EXPECT_EQ(body_of(m), "");
+    EXPECT_EQ(body_of(c.get("http://h/")), "GET");
     EXPECT_EQ(s.dials, 1);                                       // every one of them on one connection
 }
 
@@ -243,7 +254,7 @@ TEST(HttpClient_Tests, Redirects) {
     r.set_header("Authorization", "Bearer x").set_header("Cookie", "a=b");
     auto res = c.send(r);
     ASSERT_TRUE(res) << res.error().message();
-    EXPECT_EQ(*res->text(), "end");
+    EXPECT_EQ(body_of(res), "end");
     EXPECT_EQ(res->url().to_string(), "http://other/d");
     ASSERT_EQ(s.received.size(), 4u);
     EXPECT_EQ(s.received[1].substr(0, 20), "GET /b?x=1 HTTP/1.1\r");
@@ -308,10 +319,10 @@ TEST(HttpClient_Tests, Errors) {
     auto bad_url = c.get("not a url");
     ASSERT_FALSE(bad_url);
     EXPECT_EQ(bad_url.error().code(), net::errc::invalid_url);
-    auto https = c.get("https://example.com/");
-    ASSERT_FALSE(https);
-    EXPECT_EQ(https.error().code(), net::errc::unsupported_scheme);
-    EXPECT_EQ(text(https.error().message()).substr(0, 29), "GET https://example.com/: uns") << text(https.error().message());
+    auto ftp = c.get("ftp://example.com/");   // https is spoken since TLS (https.cpp)
+    ASSERT_FALSE(ftp);
+    EXPECT_EQ(ftp.error().code(), net::errc::unsupported_scheme);
+    EXPECT_EQ(text(ftp.error().message()).substr(0, 27), "GET ftp://example.com/: uns") << text(ftp.error().message());
     auto both = c.get("http://h/");
     ASSERT_FALSE(both);
     EXPECT_EQ(both.error().code(), net::errc::malformed_response);
@@ -371,14 +382,50 @@ TEST(HttpClient_Tests, BodiesSent) {
     EXPECT_NE(seen.find("Content-Length: 8\r\n\r\nstreamed"), std::string::npos) << seen;
     net::http::request bytes("POST", "http://h/");
     vector<byte> v(3, byte('z'));
-    bytes.set_body(v).set_header("X-A", "1\r\nInjected: yes");
+    bytes.set_body(v).set_header("X-A", "1");
     seen = text(*c.send(bytes)->text());
-    EXPECT_NE(seen.find("X-A: 1  Injected: yes\r\n"), std::string::npos) << seen;   // CR and LF made spaces
+    EXPECT_NE(seen.find("X-A: 1\r\n"), std::string::npos) << seen;
     EXPECT_NE(seen.find("Content-Length: 3\r\n\r\nzzz"), std::string::npos) << seen;
     net::http::request empty("POST", "http://h/");
     seen = text(*c.send(empty)->text());
     EXPECT_NE(seen.find("Content-Length: 0\r\n"), std::string::npos) << seen;
-    EXPECT_THROW(net::http::request("GET", "http://h/").set_header("Bad Name", "x"), std::invalid_argument);
+}
+
+// Found by the fuzzer of the fields (tests/net/http/fuzz/http_fields_fuzz.cpp):
+// the method went to the request line as given, so "GET / HTTP/1.1\r\nX: a"
+// wrote a head of the caller's making (request splitting). A method that is
+// not a token, a name that is not one, a value with CR, LF or NUL: the send
+// is std::errc::invalid_argument, the part named, and no connection is
+// dialed — not a byte of the request reaches a socket; no exception
+TEST(HttpClient_Tests, RequestsThatWouldSplit) {
+    Script& s = new_script();
+    s.answer = [](int, const std::string&) { return ok("fine"); };
+    auto c = client_of(s);
+    auto refused = [&](const net::http::request& req, const std::string& what) {
+        auto r = c.send(req);
+        ASSERT_FALSE(r) << what;
+        EXPECT_EQ(r.error().code(), std::errc::invalid_argument) << what;
+        EXPECT_NE(text(r.error().message()).find(what), std::string::npos) << text(r.error().message());
+    };
+    refused(net::http::request("GET\r\nX: y", "http://h/"), "invalid method: GET\\x0D\\x0AX: y");
+    refused(net::http::request("GET / HTTP/1.1\r\nX: a", "http://h/"), "invalid method");
+    refused(net::http::request("GET", "http://h/").set_header("X-Foo", "1\r\nInjected: yes"), "invalid header value: X-Foo");
+    refused(net::http::request("GET", "http://h/").set_header("X-Foo", "1\n folded"), "invalid header value: X-Foo");
+    refused(net::http::request("GET", "http://h/").set_header("Bad Name", "x"), "invalid header name: Bad Name");
+    refused(net::http::request("GET", "http://h/").add_header("X-Nul", sgcl::string(std::string("a\0b", 3))), "invalid header value: X-Nul");
+    refused(net::http::request("POST", "http://h/").set_header("Host", "h\r\nX: 1"), "invalid header value: Host");
+    EXPECT_EQ(s.dials, 0);
+    EXPECT_TRUE(s.received.empty());
+    // the async form the same, and the client goes on as before
+    auto a = async::spawn(c.async_send(net::http::request("GET\n", "http://h/"))).wait();
+    ASSERT_FALSE(a);
+    EXPECT_EQ(a.error().code(), std::errc::invalid_argument);
+    EXPECT_EQ(s.dials, 0);
+    auto fine = c.get("http://h/x");
+    ASSERT_TRUE(fine) << fine.error().message();
+    EXPECT_EQ(body_of(fine), "fine");
+    ASSERT_EQ(s.received.size(), 1u);
+    EXPECT_EQ(s.received[0].find("GET /x HTTP/1.1\r\n"), 0u);
 }
 
 // A response that comes a byte, two, three or seven at a time reads the
@@ -398,11 +445,11 @@ TEST(HttpClient_Tests, AResponseInPieces) {
         auto a = c.get("http://h/");
         ASSERT_TRUE(a) << piece;
         EXPECT_EQ(a->header("X-A"), "1");
-        EXPECT_EQ(*a->text(), "hello world") << piece;
+        EXPECT_EQ(body_of(a), "hello world") << piece;
         EXPECT_EQ(a->trailers().get("T"), "2");
         auto b = c.get("http://h/");
         ASSERT_TRUE(b);
-        EXPECT_EQ(*b->text(), "second") << piece;
+        EXPECT_EQ(body_of(b), "second") << piece;
         EXPECT_EQ(s.dials, 1);
     }
 }
@@ -417,7 +464,7 @@ TEST(HttpClient_Tests, IdleConnectionsExpire) {
         s.answer = [](int, const std::string&) { return ok("x"); };
         auto c = client_of(s);
         c.idle_timeout = 90s;
-        EXPECT_EQ(*c.get("http://h/")->text(), "x");
+        EXPECT_EQ(body_of(c.get("http://h/")), "x");
         clock.advance(89s);
         EXPECT_EQ(s.ended.load(), 0);
         clock.advance(2s);
@@ -425,7 +472,7 @@ TEST(HttpClient_Tests, IdleConnectionsExpire) {
             std::this_thread::sleep_for(1ms);
         }
         EXPECT_EQ(s.ended.load(), 1);                           // the pool closed it
-        EXPECT_EQ(*c.get("http://h/")->text(), "x");
+        EXPECT_EQ(body_of(c.get("http://h/")), "x");
         EXPECT_EQ(s.dials, 2);
     }
     clock.uninstall();

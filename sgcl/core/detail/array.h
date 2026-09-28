@@ -24,9 +24,15 @@ namespace sgcl::detail {
     static_assert(sizeof(Array<16>) == sizeof(ArrayBase) + 16, "the elements must start at sizeof(ArrayBase)");
     static_assert(std::is_trivially_destructible_v<Array<>>, "a buffer must have no destructor");
 
+    // A buffer past a page (maker.h: _make_array): the page layout of one
+    // object, as for Array<PageDataSize>, and the allocator of Array<> itself,
+    // which adds sizeof(Array<>) to the bytes asked for past it, the maker's
+    // arithmetic. Under the name TypeInfo reads (Allocator): the allocator
+    // of Array<PageDataSize>, inherited when the alias had another name,
+    // added its 65 552 bytes instead, a page more to every range
     template<>
     struct PageInfo<Array<>>
     : public PageInfo<Array<PageDataSize>> {
-        using ObjectAllocator = detail::ObjectAllocator<Array<>>;
+        using Allocator = detail::ObjectAllocator<Array<>>;
     };
 }

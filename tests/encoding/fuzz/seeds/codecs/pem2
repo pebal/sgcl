@@ -1,0 +1,10 @@
+-----BEGIN RSA PRIVATE KEY-----
+Proc-Type: 4,ENCRYPTED
+DEK-Info: DES-EDE3-CBC,1234
+
+AAAA
+-----END RSA PRIVATE KEY-----
+junk
+-----BEGIN X-----
+-----END X-----
+

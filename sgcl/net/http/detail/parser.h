@@ -11,6 +11,7 @@
 #include "../../../core/string.h"
 
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <string>
 #include <string_view>
@@ -152,14 +153,21 @@ namespace sgcl::net::http::detail {
         return true;
     }
 
-    inline bool field_value_char(uint8_t c) noexcept {
-        return c == '\t' || (c >= 0x20 && c != 0x7F);
-    }
-
     // The field lines of s from `at` to the empty line that ends them,
     // added to h as slices of s: 0, or the status to refuse them with
     inline int parse_fields(const string& s, size_t at, headers& h, bool strict, size_t& end) {
         auto v = s.view();
+        // room for a field a line, made once: the lines counted first (the
+        // empty one that ends them among them), so that the list does not
+        // grow a field at a time through four buffers
+        size_t lines = 0;
+        for (auto p = v.data() + at, last = v.data() + v.size(); (p = static_cast<const char*>(std::memchr(p, '\n', size_t(last - p)))); ++p) {
+            ++lines;
+        }
+        if (lines > 1) {
+            auto& fields = HeadersAccess::fields(h);
+            fields.reserve(fields.size() + lines - 1);
+        }
         for (;;) {
             size_t e, next;
             if (!next_line(v, at, e, next, strict)) {

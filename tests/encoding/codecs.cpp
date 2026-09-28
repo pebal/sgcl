@@ -68,11 +68,11 @@ TEST(Codecs_Tests, Rfc4648Vectors) {
         EXPECT_EQ(base32::standard.encode(in), b32[i]);
         EXPECT_EQ(base32::hex.encode(in), b32hex[i]);
         EXPECT_EQ(hex::encode_upper(in), b16[i]);
-        EXPECT_EQ(text_of(base64::standard.decode(b64[i]).value()), inputs[i]);
-        EXPECT_EQ(text_of(base32::standard.decode(b32[i]).value()), inputs[i]);
-        EXPECT_EQ(text_of(base32::hex.decode(b32hex[i]).value()), inputs[i]);
-        EXPECT_EQ(text_of(hex::decode(b16[i]).value()), inputs[i]);
-        EXPECT_EQ(text_of(hex::decode(string(b16[i]).to_lower()).value()), inputs[i]);
+        EXPECT_EQ(text_of(value_of(base64::standard.decode(b64[i]))), inputs[i]);
+        EXPECT_EQ(text_of(value_of(base32::standard.decode(b32[i]))), inputs[i]);
+        EXPECT_EQ(text_of(value_of(base32::hex.decode(b32hex[i]))), inputs[i]);
+        EXPECT_EQ(text_of(value_of(hex::decode(b16[i]))), inputs[i]);
+        EXPECT_EQ(text_of(value_of(hex::decode(string(b16[i]).to_lower()))), inputs[i]);
     }
 }
 
@@ -338,22 +338,22 @@ TEST(Codecs_Tests, ErrorOffsets) {
         EXPECT_EQ(r.error().line(), 0u) << c.text;
     }
     // lenient: line endings anywhere, and the bits past the data
-    EXPECT_EQ(text_of(base64::standard.lenient().decode("QU\r\nJD\nRA=\n=\n").value()), "ABCD");
-    EXPECT_EQ(text_of(base64::standard.lenient().decode("QR==").value()), "A");
-    EXPECT_EQ(base64::standard.lenient().decode("QU JD").error().offset(), 2u);   // a space is not a line ending
+    EXPECT_EQ(text_of(value_of(base64::standard.lenient().decode("QU\r\nJD\nRA=\n=\n"))), "ABCD");
+    EXPECT_EQ(text_of(value_of(base64::standard.lenient().decode("QR=="))), "A");
+    EXPECT_EQ(error_of(base64::standard.lenient().decode("QU JD")).offset(), 2u);   // a space is not a line ending
     // the message says where and what
-    EXPECT_EQ(base64::standard.decode("QUJ*").error().message(), "offset 3: invalid character '*'");
-    EXPECT_EQ(base64::standard.decode(string("QUJ\xFF")).error().message(), "offset 3: invalid character 0xFF");
-    EXPECT_EQ(hex::decode("abc").error().message(), "offset 3: the input ends inside a byte");
-    EXPECT_EQ(hex::decode("0g").error().offset(), 1u);
-    EXPECT_EQ(ascii85::decode("87cUz").error().code(), encoding::errc::syntax);
-    EXPECT_EQ(ascii85::decode("87cUz").error().offset(), 4u);
-    EXPECT_EQ(ascii85::decode("s8W-\"").error().code(), encoding::errc::out_of_range);
-    EXPECT_EQ(ascii85::decode("s8W-\"").error().offset(), 4u);
-    EXPECT_EQ(ascii85::decode("s8W-").error().code(), encoding::errc::out_of_range);   // padded with 'u', past 32 bits
-    EXPECT_EQ(text_of(ascii85::decode("s8W-!").value()), std::string(4, '\xFF'));
-    EXPECT_EQ(ascii85::decode("zz!").error().code(), encoding::errc::unexpected_end);
-    EXPECT_EQ(ascii85::decode("zz!").error().offset(), 3u);
+    EXPECT_EQ(error_of(base64::standard.decode("QUJ*")).message(), "offset 3: invalid character '*'");
+    EXPECT_EQ(error_of(base64::standard.decode(string("QUJ\xFF"))).message(), "offset 3: invalid character 0xFF");
+    EXPECT_EQ(error_of(hex::decode("abc")).message(), "offset 3: the input ends inside a byte");
+    EXPECT_EQ(error_of(hex::decode("0g")).offset(), 1u);
+    EXPECT_EQ(error_of(ascii85::decode("87cUz")).code(), encoding::errc::syntax);
+    EXPECT_EQ(error_of(ascii85::decode("87cUz")).offset(), 4u);
+    EXPECT_EQ(error_of(ascii85::decode("s8W-\"")).code(), encoding::errc::out_of_range);
+    EXPECT_EQ(error_of(ascii85::decode("s8W-\"")).offset(), 4u);
+    EXPECT_EQ(error_of(ascii85::decode("s8W-")).code(), encoding::errc::out_of_range);   // padded with 'u', past 32 bits
+    EXPECT_EQ(text_of(value_of(ascii85::decode("s8W-!"))), std::string(4, '\xFF'));
+    EXPECT_EQ(error_of(ascii85::decode("zz!")).code(), encoding::errc::unexpected_end);
+    EXPECT_EQ(error_of(ascii85::decode("zz!")).offset(), 3u);
 }
 
 // The alphabets of one's own, and the ones that cannot be
@@ -364,11 +364,11 @@ TEST(Codecs_Tests, CustomAlphabets) {
     auto in = input(40);
     auto text = crypt.encode(as_slice(in));
     EXPECT_EQ(text.size(), 54u);
-    EXPECT_EQ(bytes_of(crypt.decode(text).value()), in);
+    EXPECT_EQ(bytes_of(value_of(crypt.decode(text))), in);
     // a padding of one's own
     base64 star("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/", '*');
     EXPECT_EQ(star.encode("f"), "Zg**");
-    EXPECT_EQ(text_of(star.decode("Zg**").value()), "f");
+    EXPECT_EQ(text_of(value_of(star.decode("Zg**"))), "f");
     EXPECT_FALSE(star.decode("Zg==").has_value());
     base32 lower("abcdefghijklmnopqrstuvwxyz234567");
     EXPECT_EQ(lower.encode("foobar"), "mzxw6ytboi======");
@@ -458,7 +458,7 @@ TEST(Codecs_Tests, CallersBuffers) {
     EXPECT_THROW(base64::standard.decode_to(slice<byte>(two, 2), "QUJD"), std::length_error);
     // an error into a buffer is the error, the buffer's bytes unspecified
     byte three[3];
-    EXPECT_EQ(base64::standard.decode_to(slice<byte>(three, 3), "QU*D").error().offset(), 2u);
+    EXPECT_EQ(error_of(base64::standard.decode_to(slice<byte>(three, 3), "QU*D")).offset(), 2u);
 }
 
 TEST(Codecs_Tests, HexDumpAgainstGo) {

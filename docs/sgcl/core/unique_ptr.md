@@ -189,13 +189,12 @@ assert(!shape && !mutable_shape && !circle && back);
 ```cpp
 #include "sgcl/sgcl.h"
 #include <cassert>
-#include <iostream>
 
 using namespace sgcl;
 
 struct Node {
     explicit Node(int id) : id(id) {}
-    ~Node() { std::cout << "Node " << id << " destroyed\n"; }
+    ~Node() { println("Node {} destroyed", id); }
     int id;
     tracked_ptr<Node> next;
 };
@@ -223,7 +222,7 @@ int main() {
     shared = nullptr;                             // still alive: the registry keeps it
 
     collector::force_collect(true);           // optional, for the demonstration only: "Node 2 destroyed", on a collector thread
-    std::cout << "registry -> " << registry->next->id << '\n';   // 3
+    println("registry -> {}", registry->next->id);   // 3
     return 0;
 }
 ```

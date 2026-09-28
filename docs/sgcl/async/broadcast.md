@@ -61,7 +61,7 @@ auto worker = [](async::broadcast<int>::subscription s) -> async::task<> {
     }
 };
 async::channel<void> quit;
-auto loop = [](async::broadcast<int>::subscription s, async::channel<void>& quit) -> async::task<> {
+auto loop = [](async::broadcast<int>::subscription s, async::channel<void> quit) -> async::task<> {
     for (bool on = true; on;) {
         co_await async::select(
             s.on_receive([](int v) { /* a value */ }),
@@ -74,7 +74,6 @@ auto loop = [](async::broadcast<int>::subscription s, async::channel<void>& quit
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -119,21 +118,21 @@ int main() {
         bus.send(make_tracked<Message>(n));               // to the three, without waiting
         std::this_thread::sleep_for(1ms);                // the listeners keep up; the slow one does not read
     }
-    async::task<int> late = async::spawn(sum_all(bus.subscribe()));   // from message 6 on
+    async::task<int> late = async::spawn(sum_all(bus.subscribe()));                 // from message 6 on
     for (int n : range(6, 11)) {
         bus.send(make_tracked<Message>(n));
         std::this_thread::sleep_for(1ms);
     }
     bus.close();                                         // what was sent is still received, then nothing
-    std::cout << "counter: " << counter.wait() << " messages\n";
-    std::cout << "summer: " << summer.wait() << "\n";
-    std::cout << "late: " << late.wait() << " (6 + 7 + 8 + 9 + 10)\n";
+    println("counter: {} messages", counter.wait());
+    println("summer: {}", summer.wait());
+    println("late: {} (6 + 7 + 8 + 9 + 10)", late.wait());
     optional<tracked_ptr<Message>> first = slow.receive().wait();
-    std::cout << "slow: lost " << slow.lagged() << ", then message " << (*first)->number;
+    print("slow: lost {}, then message {}", slow.lagged(), (*first)->number);
     while (auto e = slow.receive().wait()) {
-        std::cout << ", " << (*e)->number;
+        print(", {}", (*e)->number);
     }
-    std::cout << "\n";
+    println();
     async::scheduler::stop();
 }
 ```

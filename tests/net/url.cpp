@@ -106,6 +106,50 @@ namespace {
     }
 }
 
+// A literal in the program is constructed, not parsed (DESIGN 234)
+TEST(NetUrl_Tests, LiteralsConstruct) {
+    net::url u("https://user@example.com:8443/a/b?q=1#top");
+    EXPECT_EQ(net::url::parse("https://user@example.com:8443/a/b?q=1#top"), u);   // an expected compared whole: equal only with the value
+    EXPECT_EQ(u.scheme(), "https");
+    EXPECT_EQ(u.host(), "example.com:8443");
+    try {
+        net::url("http://[::1");
+        FAIL() << "not a URL";
+    } catch (const bad_expected_access<io::error>& x) {
+        EXPECT_EQ(x.error().code(), net::errc::invalid_url);
+        EXPECT_STREQ(x.what(), "parse URL http://[::1: invalid URL");
+    }
+    EXPECT_THROW(net::url("../c"), bad_expected_access<io::error>);   // relative: the constructor with a base
+    static_assert(!std::is_convertible_v<const char*, net::url>, "explicit");
+
+    // A reference against a base, the mirror of parse(text, base)
+    net::url base("https://example.com/a/b?q=1");
+    net::url up("../c?x=2#f", base);
+    EXPECT_EQ(net::url::parse("../c?x=2#f", base), up);
+    EXPECT_EQ(up.to_string(), "https://example.com/c?x=2#f");
+    EXPECT_EQ(net::url("https://other.org/", base), net::url("https://other.org/"));   // an absolute URL keeps itself
+    net::url opaque("mailto:a@b");
+    auto bad = net::url::parse("c", opaque);   // nothing is relative to an opaque path
+    ASSERT_FALSE(bad);
+    try {
+        net::url("c", opaque);
+        FAIL() << "a reference against an opaque path";
+    } catch (const bad_expected_access<io::error>& x) {
+        EXPECT_EQ(x.error().code(), net::errc::invalid_url);
+        EXPECT_EQ(string(x.what()), bad.error().message());
+    }
+    static_assert(!std::is_convertible_v<const string&, net::url>, "explicit");
+
+    // query_params: parse never fails, and the constructor is the same
+    net::query_params q("?a=1&b=x+y&a=2");
+    EXPECT_EQ(q, net::query_params::parse("?a=1&b=x+y&a=2"));
+    EXPECT_EQ(q.get("b"), "x y");
+    EXPECT_EQ(q.get_all("a").size(), 2u);
+    EXPECT_EQ(net::query_params(""), net::query_params());
+    static_assert(!std::is_convertible_v<const string&, net::query_params>, "explicit");
+    static_assert(!std::is_convertible_v<const char*, net::query_params>, "explicit");
+}
+
 TEST(NetUrl_Tests, ParseAgainstTheStandardsTests) {
     size_t checked = 0, wrong = 0;
     for (auto& c : url_oracle::parse_cases) {

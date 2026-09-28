@@ -276,7 +276,7 @@ TEST(JsonValue_Tests, EqualityAndHash) {
     EXPECT_NE(parsed("{\"a\": 1}"), parsed("{\"a\": 1, \"b\": 2}"));
     EXPECT_NE(parsed("{\"a\": 1}"), parsed("{\"b\": 1}"));
     EXPECT_NE(json(int64_t(9007199254740993)), json(int64_t(9007199254740992)));   // two integers: exactly
-    EXPECT_NE(json::parse(text("1.0000000000000000000001"), keep).value(), json::parse(text("1"), keep).value());
+    EXPECT_NE(value_of(json::parse(text("1.0000000000000000000001"), keep)), value_of(json::parse(text("1"), keep)));
     // a hundred thousand arrays deep, built by hand: compared, hashed and
     // written without a stack of calls
     json a = json::array({});
@@ -351,4 +351,19 @@ TEST(JsonValue_Tests, SurvivesTheCollector) {
     collector.join();
     EXPECT_EQ(wrong, 0);
     EXPECT_EQ(doc.to_string().view(), parsed(t).to_string().view());
+}
+
+// The accessors with a value for when there is none
+TEST(JsonValue_Tests, AccessorsWithAFallback) {
+    auto j = sgcl::encoding::json::parse(R"({"name":"Ala","age":7,"ok":true,"pi":2.5,"big":-1})");
+    ASSERT_TRUE(j);
+    EXPECT_EQ((*j)["name"].as_string("?"), "Ala");
+    EXPECT_EQ((*j)["missing"].as_string("?"), "?");
+    EXPECT_EQ((*j)["age"].as_int(0), 7);
+    EXPECT_EQ((*j)["name"].as_int(-1), -1);
+    EXPECT_EQ((*j)["big"].as_uint(9), 9u);
+    EXPECT_TRUE((*j)["ok"].as_bool(false));
+    EXPECT_FALSE((*j)["age"].as_bool(false));
+    EXPECT_EQ((*j)["pi"].as_double(0), 2.5);
+    EXPECT_EQ((*j)["name"].as_double(1.5), 1.5);
 }

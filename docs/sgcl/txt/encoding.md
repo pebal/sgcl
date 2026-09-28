@@ -51,15 +51,14 @@ A byte that means nothing in its encoding decodes to one `U+FFFD`, exactly as an
 decode(one_byte(0x81), encoding::windows1250);   // U+FFFD: that byte is nothing there
 decode(one_byte(0x81), encoding::latin1);        // U+0081: in Latin-1 every byte is a code point
 decode(one_byte(0x81), encoding::windows1250, strict);   // decode_error at byte 0, for a program that must not store a changed text
-encode(string("日"), encoding::iso8859_2);          // "?"
-encode(string("Ł"), encoding::iso8859_2);           // one byte, 0xA3
+encode("日", encoding::iso8859_2);          // "?"
+encode("Ł", encoding::iso8859_2);           // one byte, 0xA3
 ```
 
 ## Example
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -68,17 +67,15 @@ using namespace sgcl;
 int main() {
     string text = "Zażółć gęślą jaźń — 日";
     for (auto name : {"utf-8", "utf-16le", "iso-8859-2", "windows-1250", "us-ascii"}) {
-        auto e = txt::encoding_from_name(string(name));
+        auto e = txt::encoding_from_name(name);
         auto bytes = txt::encode(text, *e);
-        std::cout << txt::name_of(*e) << ": " << bytes.size() << " bajtów -> "
-                  << txt::decode(bytes.as_slice(), *e) << '\n';
+        println("{}: {} bajtów -> {}", txt::name_of(*e), bytes.size(), txt::decode(bytes, *e));
     }
 
     byte page[] = {byte(0xEF), byte(0xBB), byte(0xBF),
                         byte('c'), byte('z'), byte(0xC5), byte(0x82)};
-    auto bom = txt::detect_bom(slice<const byte>(page));
-    std::cout << "znacznik mówi " << (bom ? txt::name_of(*bom.says) : "nic")
-              << ", treść: " << txt::decode(slice<const byte>(page).subslice(bom.size), txt::encoding::utf8) << '\n';
+    auto bom = txt::detect_bom(page);
+    println("znacznik mówi {}, treść: {}", (bom ? txt::name_of(*bom.says) : "nic"), txt::decode(slice<const byte>(page).subslice(bom.size), txt::encoding::utf8));
     return 0;
 }
 ```

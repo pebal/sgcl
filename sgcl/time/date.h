@@ -247,6 +247,18 @@ namespace sgcl::time {
         // is refused, a date having neither
         static expected<date, error> parse(const string& text, const string& pattern);
 
+        // The date a literal in the program spells, in either of parse's
+        // forms: parse's value, or bad_expected_access<time::error> with
+        // parse's message. Input is parsed; a text the program itself
+        // wrote is constructed (DESIGN 234)
+        explicit date(const string& text)
+        : date(parse(text).value()) {
+        }
+
+        explicit date(const string& text, const string& pattern)
+        : date(parse(text, pattern).value()) {
+        }
+
         constexpr int year() const noexcept {
             return detail::civil_from_days(_days).year;
         }

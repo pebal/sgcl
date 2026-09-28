@@ -8,6 +8,7 @@
 #include "aliases.h"
 #include "detail/collector.h"
 
+#include <cassert>
 #include <ostream>
 #include <tuple>
 #include <vector>
@@ -135,16 +136,27 @@ namespace sgcl {
         }
 
         // Ceiling on committed managed memory: by default 90% of the cgroup
-        // limit (Linux) or of the physical memory. Near it the collector runs
-        // more often and returns free chunks at once; at it an allocation
-        // forces a collection and throws bad_alloc if that is not enough.
-        // 0 disables the ceiling.
+        // limit (Linux) or of the physical memory, or what the environment
+        // says, SGCL_MEMORY_LIMIT (bytes with K, M or G, or a percentage:
+        // "512M", "50%"), read once when the heap is first used. Near it the
+        // collector runs more often and returns free chunks at once; at it an
+        // allocation forces a collection and throws bad_alloc if that is not
+        // enough. 0 disables the ceiling. A call here wins over the
+        // environment.
         inline static size_t get_memory_limit() noexcept {
             return detail::Heap::instance().memory_limit();
         }
 
         inline static void set_memory_limit(size_t bytes) noexcept {
             detail::Heap::instance().set_memory_limit(bytes);
+        }
+
+        // The ceiling as a share of the memory the process may use (the
+        // cgroup limit, else the physical memory), 1..100; 0 when the system
+        // does not say how much that is
+        inline static void set_memory_limit_percent(unsigned percent) noexcept {
+            assert(percent >= 1 && percent <= 100);
+            detail::Heap::instance().set_memory_limit(detail::os::memory_limit() / 100 * percent);
         }
 
         // What holds an object: the words that point at it, wherever they

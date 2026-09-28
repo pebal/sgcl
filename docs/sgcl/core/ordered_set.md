@@ -57,7 +57,6 @@ assert(s.index_of(3) == 1 && s.exists([](int x) { return x == 5; }));
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -91,9 +90,9 @@ int main() {
     b->edges = {a};                               // a cycle
     c->edges = {b};
     for (const auto& node : reach(a)) {
-        std::cout << node->name << " ";
+        print("{} ", node->name);
     }
-    std::cout << "\n";
+    println();
     return 0;
 }
 ```

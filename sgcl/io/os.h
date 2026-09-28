@@ -314,8 +314,8 @@ namespace sgcl::io {
 
         // The file over the descriptor, for what takes a file (a child's
         // standard stream shared with the program's: cmd.out = io::stdout.file())
-        tracked_ptr<io::file> file() const {
-            return _held().ptr();
+        io::file file() const {
+            return detail::FileAccess::make(_held().ptr());
         }
 
         int fd() const noexcept {
@@ -327,17 +327,17 @@ namespace sgcl::io {
         }
 
     private:
-        io::file& _get() const {
+        detail::FileState& _get() const {
             return *_held();
         }
 
         // Made once, on the first use, by whichever thread comes first;
         // never destroyed: a root whose cell outlives the static
         // destructors that may still write to the stream
-        root_ptr<io::file>& _held() const {
-            root_ptr<io::file>* p = _file.load(std::memory_order_acquire);
+        root_ptr<detail::FileState>& _held() const {
+            root_ptr<detail::FileState>* p = _file.load(std::memory_order_acquire);
             if (!p) {
-                auto made = new root_ptr<io::file>(detail::std_stream(_fd, _name));
+                auto made = new root_ptr<detail::FileState>(detail::std_stream(_fd, _name));
                 if (_file.compare_exchange_strong(p, made, std::memory_order_acq_rel, std::memory_order_acquire)) {
                     p = made;
                 } else {
@@ -349,7 +349,7 @@ namespace sgcl::io {
 
         int _fd;
         const char* _name;
-        mutable std::atomic<root_ptr<io::file>*> _file = {nullptr};
+        mutable std::atomic<root_ptr<detail::FileState>*> _file = {nullptr};
     };
 
     inline standard_stream stdin(0, "stdin");

@@ -5,11 +5,50 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../detail/type_info.h"
 #include "../req.h"
 
 #include <algorithm>
 #include <functional>
 #include <iterator>
+#include <numeric>
+#include <vector>
+
+namespace sgcl::detail {
+    // The stable sort of elements that hold tracked pointers: the standard's
+    // stable_sort moves them into a buffer of operator new, memory the
+    // collector never scans (The rules, 1). Here the positions are sorted
+    // instead — plain numbers, in a plain buffer — by std::stable_sort,
+    // and the elements are then moved once each into place along the
+    // cycles of that permutation, one of them at a time in a local on the
+    // stack. O(n log n) comparisons and n moves: faster than the standard's
+    // on the elements themselves, whose moves cost a write barrier each.
+    template<class It, class Less>
+    void stable_sort_by_positions(It first, It last, Less& less) {
+        size_t n = size_t(last - first);
+        std::vector<size_t> order(n);
+        std::iota(order.begin(), order.end(), size_t(0));
+        std::stable_sort(order.begin(), order.end(), [&](size_t a, size_t b) { return less(first[a], first[b]); });
+        // order[j] is the position of the element that goes to j
+        for (size_t i = 0; i < n; ++i) {
+            if (order[i] == i) {
+                continue;
+            }
+            auto held = std::move(first[i]);
+            size_t j = i;
+            for (;;) {
+                size_t k = order[j];
+                order[j] = j;
+                if (k == i) {
+                    first[j] = std::move(held);
+                    break;
+                }
+                first[j] = std::move(first[k]);
+                j = k;
+            }
+        }
+    }
+}
 
 namespace sgcl::mixin {
     // ordered<Derived>: the order of the whole range — whether it is
@@ -114,13 +153,16 @@ namespace sgcl::mixin {
             std::ranges::sort(_begin(), _end(), detail::Less{}, proj);
         }
 
+        // Stable; elements that may hold tracked pointers are sorted by
+        // their positions (detail::stable_sort_by_positions), any other by
+        // the standard's
         void stable_sort() requires detail::ComparableElements<Derived> && req::sequence<Derived> && req::random_access<Derived> {
-            std::ranges::stable_sort(_begin(), _end(), detail::Less{});
+            _stable_sort(detail::Less{});
         }
 
         template<class Compare>
         void stable_sort(Compare cmp) requires detail::ElementOrder<Compare, Derived> && req::sequence<Derived> && req::random_access<Derived> {
-            std::ranges::stable_sort(_begin(), _end(), cmp);
+            _stable_sort(cmp);
         }
 
     protected:
@@ -128,6 +170,16 @@ namespace sgcl::mixin {
         ~ordered() = default;
 
     private:
+        template<class Compare>
+        void _stable_sort(Compare cmp) {
+            using T = std::remove_cvref_t<decltype(*_begin())>;
+            if constexpr (detail::TypeInfo<T>::MayContainTracked) {
+                detail::stable_sort_by_positions(_begin(), _end(), cmp);
+            } else {
+                std::ranges::stable_sort(_begin(), _end(), cmp);
+            }
+        }
+
         constexpr auto _begin() noexcept { return static_cast<Derived&>(*this).begin(); }
         constexpr auto _end() noexcept { return static_cast<Derived&>(*this).end(); }
         constexpr auto _begin() const noexcept { return static_cast<const Derived&>(*this).begin(); }

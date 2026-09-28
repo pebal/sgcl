@@ -49,6 +49,45 @@ namespace {
         auto w = d.iso_week();
         return std::format("{}{:04}-W{:02}-{}", w.year < 0 ? "-" : "", w.year < 0 ? -w.year : w.year, w.week, static_cast<int>(d.weekday()));
     }
+
+    // Whether T(0) compiles (0 -> const char* -> string would reach the
+    // constructor from text)
+    template<class T>
+    concept from_literal_zero = requires { T(0); };
+}
+
+// A literal in the program is constructed, not parsed: the value parse
+// gives, or parse's error thrown (DESIGN 234), in both of parse's forms
+TEST(Date_Tests, LiteralsConstruct) {
+    date d("2026-09-24");
+    EXPECT_EQ(d, value_of(date::parse("2026-09-24")));
+    EXPECT_EQ(d, date(2026, 9, 24));
+    EXPECT_EQ(date("2026-W39-4"), d);
+    date p("24.09.2026", "%d.%m.%Y");
+    EXPECT_EQ(p, value_of(date::parse("24.09.2026", "%d.%m.%Y")));
+    EXPECT_EQ(p, d);
+    auto bad = date::parse("2026-02-30");
+    ASSERT_FALSE(bad);
+    try {
+        date("2026-02-30");
+        FAIL() << "no such day";
+    } catch (const bad_expected_access<time::error>& x) {
+        EXPECT_EQ(x.error(), bad.error());
+        EXPECT_EQ(string(x.what()), bad.error().message());
+    }
+    auto bad_pattern = date::parse("24.09.2026 12:00", "%d.%m.%Y %H:%M");   // a time of day in a date
+    ASSERT_FALSE(bad_pattern);
+    try {
+        date("24.09.2026 12:00", "%d.%m.%Y %H:%M");
+        FAIL() << "a date has no time of day";
+    } catch (const bad_expected_access<time::error>& x) {
+        EXPECT_EQ(x.error(), bad_pattern.error());
+        EXPECT_EQ(string(x.what()), bad_pattern.error().message());
+    }
+    static_assert(!std::is_convertible_v<const string&, date>, "explicit");
+    static_assert(!std::is_convertible_v<const char*, date>, "explicit");
+    static_assert(!std::is_constructible_v<date, int>);
+    static_assert(!from_literal_zero<date>);
 }
 
 TEST(Date_Tests, CarriedAndReadAsGoDoes) {
@@ -303,9 +342,9 @@ TEST(Date_Tests, ParseRefusesWithAnOffset) {
         EXPECT_EQ(d.error().offset(), c.offset) << c.text << ": " << d.error().message();
         EXPECT_FALSE(d.error().message().empty());
     }
-    EXPECT_EQ(date::parse("2026-02-29").error().message(), "a day that the month has expected");
-    EXPECT_EQ(date::parse("2026-13-01").error().message(), "a month from 01 to 12 expected");
-    EXPECT_EQ(date::parse("2026-09-24T10:00").error().message(), "the end of the date expected");
+    EXPECT_EQ(error_of(date::parse("2026-02-29")).message(), "a day that the month has expected");
+    EXPECT_EQ(error_of(date::parse("2026-13-01")).message(), "a month from 01 to 12 expected");
+    EXPECT_EQ(error_of(date::parse("2026-09-24T10:00")).message(), "the end of the date expected");
 }
 
 TEST(Date_Tests, ChronoBothWays) {

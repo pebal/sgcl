@@ -94,7 +94,6 @@ Replaces the value with `desired` if the current one is still the one `expected`
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -130,7 +129,7 @@ int main() {
     for (auto& r : readers) {
         r.join();
     }
-    std::cout << lookups << " lookups, " << inconsistent << " inconsistent, " << table.load()->size() << " routes\n";
+    println("{} lookups, {} inconsistent, {} routes", lookups.load(), inconsistent.load(), table.load()->size());
     return inconsistent == 0 && table.load()->size() == 100 ? 0 : 1;
 }
 ```

@@ -23,6 +23,7 @@ CSV ([RFC 4180](https://www.rfc-editor.org/rfc/rfc4180)) as Go's `encoding/csv` 
 - **The header**: `read_header()` takes the next record as the names of the columns; `row[name]` is the field of that column, `nullopt` when there is none. `read<T>()` takes the first record as the header when `read_header()` was not called, and fills the fields of `T` by the columns' names — a column no field has is skipped, a field whose column is not there keeps its value (`required()`: `missing_field`). A field is what one text holds: a number (JSON's grammar: `12`, `-3.5`, `1e3`), a boolean (Go's `strconv.ParseBool`: `true`, `1`, `T`, `false`...), a string, an enum with `names`, a type with `to_text`/`from_text`, an optional of one (an empty field is `nullopt`); any other kind is `unsupported_value`.
 - **Written as Go writes it.** A field is quoted when it holds the separator, a quote, `'\r'` or `'\n'`, when it starts with a space (Go's `unicode.IsSpace`), or when it is `\.` (Postgres' end of data); a quote is doubled; a record ends with `'\n'`, or `"\r\n"` after `use_crlf()`, which also writes a `'\n'` inside quotes as `"\r\n"`. A record of a type of the program writes the header of its field names first; NaN and the infinities are `NaN`, `+Inf`, `-Inf`, as `strconv` writes them.
 - **Every method that may reach into the stream does it on the thread that calls it**; a task uses the `async_` forms: `co_await r.async_next()`, `co_await w.async_flush()`. The writer gathers the text and `flush()` hands it to the stream; a long stream of records is flushed in the loop.
+- **A record of one empty field is written `""`**, where Go writes an empty line — which every reader, Go's too, passes over, so the record would be lost between the writing and the reading; RFC 4180 allows the quotes, Go reads them as one empty field, and this is the one place the writer parts from Go's.
 
 ## Members
 
@@ -50,6 +51,7 @@ public:
     slice<const char> operator[](size_t index) const;                    // index < size(), unchecked as a vector's
     slice<const char> at(size_t index) const;                            // out_of_range past size()
     optional<slice<const char>> operator[](const string& column) const;  // by the header's name
+    string get(const string& column, const string& fallback) const;     // the field as a string of its own, fallback when there is none
     uint32_t line() const noexcept;                                      // the line the record starts on
     pair<uint32_t, uint32_t> position(size_t index) const noexcept;      // the field's line and column
     iterator begin() const noexcept;                                     // the fields, as slices
@@ -95,7 +97,6 @@ public:
 #include "sgcl/sgcl.h"
 
 using namespace sgcl;
-using encoding::csv;
 
 struct item {
     string name;
@@ -115,26 +116,26 @@ int main() {
                   "\"cup, blue\",1,\n"
                   "\"note\n(two lines)\",2,0.25\n";
 
-    csv::reader rows(text);
+    encoding::csv::reader rows(text);
     rows.read_header();
     for (auto row : rows.rows()) {
         auto [line, column] = row.position(0);
-        io::stdout.write(string(row["name"].value()) + " at " + to_string(line) + ":" + to_string(column) + "\n");
+        println("{} at {}:{}", row["name"].value(), line, column);
     }
 
-    csv::reader typed(text);
+    encoding::csv::reader typed(text);
     while (auto i = typed.read<item>()) {
-        io::stdout.write(i->name + " x" + to_string(i->count) + (i->price ? " for " + to_string(*i->price) : string()) + "\n");
+        println("{} x{}{}", i->name, i->count, i->price ? " for " + to_string(*i->price) : string());
     }
 
-    csv::writer out(io::stdout);
+    encoding::csv::writer out(io::stdout);
     out.write({"a", "b, c", "say \"hi\""}).write(item{"pencil", 2, 0.5});
     out.flush().value();
 
-    csv::reader bad(string("a,b\nc,\"d\"e\n"));
+    encoding::csv::reader bad("a,b\nc,\"d\"e\n");
     while (bad.next()) {
     }
-    io::stdout.write(bad.last_error()->message() + "\n");
+    println(bad.last_error()->message());
 }
 ```
 

@@ -7,6 +7,7 @@
 
 #include "detail/json_number.h"
 #include "../core/aliases.h"
+#include "../txt/detail/lent.h"
 #include "../core/array.h"
 #include "../core/make_tracked.h"
 #include "../core/map.h"
@@ -498,8 +499,8 @@ namespace sgcl::encoding {
         template<class T, size_t N>
         inline constexpr bool IsFixed<std::array<T, N>> = true;
 
-        template<class T, size_t N, class S>
-        inline constexpr bool IsFixed<sgcl::array<T, N, S>> = true;
+        template<class T, size_t N>
+        inline constexpr bool IsFixed<sgcl::array<T, N>> = true;
 
         template<class T, size_t N>
         inline constexpr bool IsFixed<T[N]> = true;
@@ -513,8 +514,8 @@ namespace sgcl::encoding {
             static constexpr size_t count = N;
         };
 
-        template<class T, size_t N, class S>
-        struct FixedOf<sgcl::array<T, N, S>> {
+        template<class T, size_t N>
+        struct FixedOf<sgcl::array<T, N>> {
             using element = T;
             static constexpr size_t count = N;
         };
@@ -1002,26 +1003,40 @@ namespace sgcl::encoding {
                         c = std::move(fresh);
                     }
                     return true;
+                } else if constexpr (std::is_trivially_copyable_v<E> && !sgcl::detail::MayContainTracked<E>::value) {
+                    // Elements with nothing the collector has to see — the
+                    // numbers of a dynamic_array<int> — are gathered in
+                    // plain memory the thread lends (txt/detail/lent.h):
+                    // in a vector of the library its growth was managed
+                    // garbage, in a fresh std::vector a malloc per call
+                    sgcl::txt::detail::lent<sgcl::txt::detail::scratch_vector<E>> gathered;
+                    return _gathered(c, *gathered, ctx, more, read);
                 } else {
                     vector<E> gathered;
-                    while (more(ctx)) {
-                        E e{};
-                        if (!read(ctx, std::addressof(e))) {
-                            return false;
-                        }
-                        gathered.push_back(std::move(e));
-                    }
-                    if constexpr (requires(const T& t, E&& e) { { t.push_front(std::move(e)) } -> std::same_as<T>; }) {
-                        T built{};
-                        for (auto it = gathered.rbegin(); it != gathered.rend(); ++it) {
-                            built = built.push_front(std::move(*it));
-                        }
-                        c = std::move(built);
-                    } else {
-                        c = T(std::make_move_iterator(gathered.begin()), std::make_move_iterator(gathered.end()));
-                    }
-                    return true;
+                    return _gathered(c, gathered, ctx, more, read);
                 }
+            }
+
+            // The elements read into `gathered`, and the sequence made of them
+            template<class G>
+            static bool _gathered(T& c, G& gathered, void* ctx, MoreFn more, ReadFn read) {
+                while (more(ctx)) {
+                    E e{};
+                    if (!read(ctx, std::addressof(e))) {
+                        return false;
+                    }
+                    gathered.push_back(std::move(e));
+                }
+                if constexpr (requires(const T& t, E&& e) { { t.push_front(std::move(e)) } -> std::same_as<T>; }) {
+                    T built{};
+                    for (size_t i = gathered.size(); i-- > 0;) {
+                        built = built.push_front(std::move(gathered[i]));
+                    }
+                    c = std::move(built);
+                } else {
+                    c = T(std::make_move_iterator(gathered.begin()), std::make_move_iterator(gathered.end()));
+                }
+                return true;
             }
 
             static const ValueOps* inner() {

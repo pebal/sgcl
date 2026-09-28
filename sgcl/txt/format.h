@@ -11,6 +11,7 @@
 #include "../core/string.h"
 #include "../core/utf8.h"
 #include "properties.h"
+#include "segment.h"
 
 #include <charconv>
 #include <cmath>
@@ -45,7 +46,8 @@
 // it by six and not by two, and {:.3} has to stop on a code point, where
 // cutting bytes leaves a lead byte with nothing behind it. The standard
 // says the same — width and precision over text are an estimated field
-// width, wide East Asian characters counting two — which is columns().
+// width, a grapheme cluster a unit and wide East Asian characters two
+// (estimated_width below; columns() counts a terminal's columns instead).
 //
 // Why not std::format itself. The values go straight to the writer as the
 // types they are, where the standard's passes them through a variant and
@@ -321,6 +323,67 @@ namespace sgcl::txt {
     };
 
     namespace detail {
+        // The width of a field of text as the standard estimates it
+        // ([format.string.std]/13): the first code point of every
+        // extended grapheme cluster counts, two for East_Asian_Width W and
+        // F and for the three blocks the standard names (the Yijing
+        // hexagrams, the pictographs from U+1F300 to U+1F5FF and from
+        // U+1F900 to U+1F9FF), one for anything else — a control, a format
+        // character and a mark that begins a cluster among them. Not
+        // columns(), which counts a terminal's columns and gives those
+        // none: a field is std::format's, so that the two pad alike.
+        constexpr size_t estimated_width_of(char32_t c) noexcept {
+            if (c < 0x1100) {
+                return 1;
+            }
+            return in_set(c, property_tables::Wide) || (c >= 0x4DC0 && c <= 0x4DFF)
+                || (c >= 0x1F300 && c <= 0x1F5FF) || (c >= 0x1F900 && c <= 0x1F9FF) ? 2 : 1;
+        }
+
+        // A run of ASCII is a cluster a character but for CR LF, which is
+        // one: counted a byte at a time with no segmentation
+        constexpr size_t estimated_width(std::string_view text) noexcept {
+            size_t n = 0;
+            for (size_t i = 0; i < text.size();) {
+                size_t run = utf8::ascii_run(text, i);
+                for (size_t k = 0; k < run; ++k) {
+                    n += text[i + k] == '\n' && i + k > 0 && text[i + k - 1] == '\r' ? 0 : 1;
+                }
+                i += run;
+                if (i >= text.size()) {
+                    break;
+                }
+                // a cluster may begin with the ASCII byte before it (e
+                // and a combining acute): that byte was counted, and the
+                // marks after it are its own cluster's
+                size_t end = cluster_end(text, i ? i - 1 : 0);
+                if (i && end > i) {
+                    i = end;
+                    continue;
+                }
+                n += estimated_width_of(utf8::decode(text, i).first);
+                i = cluster_end(text, i);
+            }
+            return n;
+        }
+
+        // The bytes of the longest prefix of whole clusters whose estimated
+        // width is at most `limit`: a precision over text, as the standard
+        // cuts it
+        constexpr size_t estimated_prefix(std::string_view text, size_t limit) noexcept {
+            size_t taken = 0;
+            size_t at = 0;
+            while (at < text.size()) {
+                size_t w = estimated_width_of(utf8::decode(text, at).first);
+                if (taken + w > limit) {
+                    break;
+                }
+                taken += w;
+                at = cluster_end(text, at);
+            }
+            return at;
+        }
+
         // A value already written into a small buffer, put in a field
         // wider than itself: the padding of the specification around it.
         // `head` is what must stay in front of the zeros when a number is
@@ -686,9 +749,12 @@ namespace sgcl::txt {
             // conversion below is the real one, done to P - 1 places,
             // and the fixed form is a second pass when the exponent
             // turns out to call for it.
-            bool general = !spec.type || spec.type == 'g' || spec.type == 'G';
-            bool weigh = spec.alternate && general && std::isfinite(magnitude)
-                      && (spec.precision >= 0 || spec.type);
+            // Only g and G: with no form named and a precision, the text
+            // is the general form's with its zeros removed and a point
+            // kept ({:#.3} of 0 is "0.", as the standard words it and
+            // libc++ writes it)
+            bool general = spec.type == 'g' || spec.type == 'G';
+            bool weigh = spec.alternate && general && std::isfinite(magnitude);
             int digits = 0;
             if (weigh) {
                 digits = precision < 0 ? 6 : precision;
@@ -799,15 +865,15 @@ namespace sgcl::txt {
             put_padded(out, {at, size_t(r.ptr - at)}, spec, {head, head_size}, '>');
         }
 
-        // Text in its field, measured in the columns it takes on a
-        // terminal and not in its bytes. A precision cuts it to that many
-        // columns and stops on a code point; a width pads it to that many.
-        // The measuring is skipped when neither was asked for.
+        // Text in its field, measured by the standard's estimate and not
+        // by its bytes. A precision cuts it to that width and stops on a
+        // grapheme cluster; a width pads it to that many. The measuring is
+        // skipped when neither was asked for.
         constexpr void write_text(format_sink& out, std::string_view text, const format_spec& spec) noexcept {
             if (spec.precision >= 0) {
-                text = text.substr(0, columns_prefix(text, size_t(spec.precision)));
+                text = text.substr(0, estimated_prefix(text, size_t(spec.precision)));
             }
-            put_padded(out, text, spec, {}, '<', spec.width ? columns_of_text(text) : size_t(-1));
+            put_padded(out, text, spec, {}, '<', spec.width ? estimated_width(text) : size_t(-1));
         }
 
         //----------------------------------------------------------------
@@ -1463,7 +1529,7 @@ namespace sgcl::txt {
                 // for garbage and gets it, but not memory past the room.
                 size_t n = _written(_arena._cap);
                 char* base = _arena._room;
-                size_t cols = columns_of_text(std::string_view(base + _mark, n));
+                size_t cols = estimated_width(std::string_view(base + _mark, n));
                 size_t pad = spec.width > cols ? spec.width - cols : 0;
                 char how = spec.align ? spec.align : '<';
                 size_t left = how == '>' ? pad : how == '^' ? pad / 2 : 0;

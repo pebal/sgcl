@@ -137,7 +137,6 @@ double hit_rate = double(cache.hits()) / double(cache.hits() + cache.misses());
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -175,17 +174,17 @@ int main() {
     for (auto& th : threads) {
         th.join();
     }
-    std::cout << server->documents.size() << " documents cached, " << server->documents.hits() << " hits, " << server->documents.misses() << " misses\n";
+    println("{} documents cached, {} hits, {} misses", server->documents.size(), server->documents.hits(), server->documents.misses());
     if (auto doc = server->documents.get("doc7")) {   // a literal: no string made for the lookup
-        std::cout << (*doc)->name << " is " << (*doc)->size << " characters\n";
+        println("{} is {} characters", (*doc)->name, (*doc)->size);
     }
 
-    concurrent::cache<string, string> small(2);   // the two-line LRU cache of ordered_map, shared
+    concurrent::cache<string, string> small(2);               // the two-line LRU cache of ordered_map, shared
     small.put("a", "1");
     small.put("b", "2");
     small.get("a");                                                // a is newer than b now
     small.put("c", "3");                                           // full: b, the oldest, goes
-    std::cout << (small.get("b") ? "b kept" : "b evicted") << "\n";
+    println("{}", (small.get("b") ? "b kept" : "b evicted"));
     return server->documents.size() == 50 ? 0 : 1;
 }
 ```

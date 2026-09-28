@@ -164,7 +164,6 @@ template<class T> weak_ptr(const tracked_ptr<T>&) -> weak_ptr<T, tracked_ptr>;
 ```cpp
 #include "sgcl/sgcl.h"
 #include <cassert>
-#include <iostream>
 
 using namespace sgcl;
 
@@ -189,9 +188,9 @@ tracked_ptr<Node> add_child(const tracked_ptr<Node>& parent, int id) {
 // stack words, and the stack is scanned conservatively
 void print_path(tracked_ptr<Node> node) {
     for (auto n = node; n; n = n->parent.lock()) {   // lock(): the parent while it lives
-        std::cout << n->id << ' ';
+        print("{} ", n->id);
     }
-    std::cout << '\n';
+    println();
 }
 
 int main() {

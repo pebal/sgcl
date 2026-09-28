@@ -26,7 +26,9 @@ The scheduler is started by the first `spawn` (or the first wake of a waiting co
 - A task on a worker waits with `co_await`: `co_await ch.receive()`, `co_await other_task`, `co_await async::yield()`. The blocking calls (`ch.receive().wait()`, `task.wait()`) park the worker's thread and take it from every other task; debug builds assert on a task's `wait()` from a worker.
 - A worker is a thread like any other to the collector: its stack is scanned, the frame it runs is held on it.
 - The workers are joined when the scheduler stops: at the end of the program, after `main` returns, or on `stop()`. `stop()` is for a program that wants its threads gone at a point of its own, when nothing runs; a task queued at that moment stays queued until the next start. The queues stay across a stop: a task made ready while the workers are being joined (a promise set from a callback, a send from a plain thread) is queued and runs at the next start.
-- `config::workers` (`-DSGCL_WORKERS`, 0 for the hardware concurrency, at most 64) and `config::worker_spin_microseconds` (`-DSGCL_WORKER_SPIN_US`, 20: how long a worker with nothing to run looks for work before it sleeps in the kernel) are compile-time ([config](../core/config.md)).
+- **The number of workers** is the program's (`scheduler::set_workers(n)`), else the environment's (`SGCL_WORKERS`, read once when the scheduler first starts, as Go reads `GOMAXPROCS`), else the build's (`config::workers`, `-DSGCL_WORKERS`); 0 in any of them is the hardware concurrency, and there are at most 64. `set_workers` before the first task sets what the scheduler starts with. After it, the workers are stopped as `stop()` stops them, **once the tasks ready at that moment have run**, and started again with the new number; the queues are kept, and the tasks on the rings of workers no longer there go to the global queue. So a program changes it at a quiet moment, never from a task (debug builds assert: it joins the workers). The same number again does nothing.
+- **The spin** (how long a worker with nothing to run looks for work before it sleeps in the kernel; a task made ready in that window costs no wake) is `set_worker_spin(d)`, else `SGCL_WORKER_SPIN_US`, else `config::worker_spin_microseconds` (20 µs); it applies at once. The threads of the blocking pool likewise: `blocking_pool::set_threads(n)`, else `SGCL_BLOCKING_THREADS`, else `config::blocking_threads` ([blocking](blocking.md)).
+- A value of the environment that does not read (`SGCL_WORKERS=abc`) is ignored with one line on stderr, and the default taken; nothing of these settings is read on a task's path.
 
 ## Members
 
@@ -34,6 +36,8 @@ The scheduler is started by the first `spawn` (or the first wake of a waiting co
 
 ```cpp
 static unsigned workers();          // the number of workers; starts the scheduler
+static void set_workers(unsigned n);   // from now on (0: the hardware concurrency); after the start: stop() and start again
+static void set_worker_spin(duration d);  static duration worker_spin() noexcept;   // the look for work before a sleep
 static bool on_worker() noexcept;   // whether the calling thread is a worker
 static void stop();                 // the workers joined, the queue let go of; the next spawn starts it again
 static statistics get_statistics(); // the queues as they are
@@ -48,6 +52,14 @@ struct statistics {
 ```
 
 `get_statistics()` is a look at the load for a benchmark or a monitor: a snapshot, the counts of different words read at different moments.
+
+```cpp
+async::scheduler::set_workers(4);                // before the first task: the scheduler starts with four
+// ... the program's tasks ...
+async::scheduler::set_workers(8);                // later, at a quiet moment: the ready tasks run, then eight workers
+```
+
+The same from the shell, with no change to the program: `SGCL_WORKERS=4 ./server`.
 
 ### spawn
 
@@ -90,7 +102,6 @@ The running task goes to the back of the queue and the worker takes the next rea
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -102,19 +113,19 @@ struct Job {
     int id;
 };
 
-async::task<> producer(async::channel<tracked_ptr<Job>>& jobs, int from, int count) {
+async::task<> producer(async::channel<tracked_ptr<Job>> jobs, int from, int count) {
     for (int i : range(count)) {
         co_await jobs.send(make_tracked<Job>(from + i));   // suspends while jobs is full
     }
 }
 
-async::task<> worker(async::channel<tracked_ptr<Job>>& jobs, async::channel<int>& results) {
+async::task<> worker(async::channel<tracked_ptr<Job>> jobs, async::channel<int> results) {
     while (auto job = co_await jobs.receive()) {                 // suspends while jobs is empty
         co_await results.send((*job)->id * 2);
     }
 }
 
-async::task<long> summer(async::channel<int>& results) {
+async::task<long> summer(async::channel<int> results) {
     long sum = 0;
     while (auto r = co_await results.receive()) {
         sum += *r;
@@ -141,7 +152,7 @@ int main() {
         w.wait();
     }
     results.close();                                   // the summer's loop ends
-    std::cout << sum.wait() << "\n";                   // 2 * (0 + 1 + ... + 399)
+    println("{}", sum.wait());                   // 2 * (0 + 1 + ... + 399)
     return sum.result() == 2L * 399 * 400 / 2 ? 0 : 1;
 }
 ```

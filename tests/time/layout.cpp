@@ -33,6 +33,44 @@ namespace {
     }
 }
 
+// A literal in the program is constructed, not parsed: the value parse
+// gives, or parse's error thrown (DESIGN 234), in both of parse's forms
+TEST(Layout_Tests, LiteralsConstruct) {
+    datetime t("2026-09-24T12:41:15+02:00", time::rfc3339);
+    EXPECT_EQ(t, value_of(datetime::parse("2026-09-24T12:41:15+02:00", time::rfc3339)));
+    EXPECT_EQ(t.format(time::rfc3339), "2026-09-24T12:41:15+02:00");
+    datetime u("24.09.2026 12:41", "%d.%m.%Y %H:%M");   // UTC by default, as parse
+    EXPECT_EQ(u, value_of(datetime::parse("24.09.2026 12:41", "%d.%m.%Y %H:%M")));
+    EXPECT_EQ(u.zone(), zone::utc());
+    zone warsaw = load("Europe/Warsaw");
+    datetime w("24.09.2026 12:41", "%d.%m.%Y %H:%M", warsaw);
+    EXPECT_EQ(w, value_of(datetime::parse("24.09.2026 12:41", "%d.%m.%Y %H:%M", warsaw)));
+    EXPECT_EQ(w.zone(), warsaw);
+    EXPECT_EQ(u - w, 2h);
+    auto bad = datetime::parse("2026-09-24 12:41:15Z", time::rfc3339);
+    ASSERT_FALSE(bad);
+    try {
+        datetime("2026-09-24 12:41:15Z", time::rfc3339);
+        FAIL() << "not RFC 3339";
+    } catch (const bad_expected_access<time::error>& x) {
+        EXPECT_EQ(x.error(), bad.error());
+        EXPECT_EQ(string(x.what()), bad.error().message());
+    }
+    auto bad_pattern = datetime::parse("24.13.2026", "%d.%m.%Y", warsaw);
+    ASSERT_FALSE(bad_pattern);
+    try {
+        datetime("24.13.2026", "%d.%m.%Y", warsaw);
+        FAIL() << "no thirteenth month";
+    } catch (const bad_expected_access<time::error>& x) {
+        EXPECT_EQ(x.error(), bad_pattern.error());
+        EXPECT_EQ(string(x.what()), bad_pattern.error().message());
+    }
+    static_assert(!std::is_convertible_v<const string&, datetime>, "explicit");
+    static_assert(std::is_constructible_v<datetime, const char*, time::layout>);
+    static_assert(std::is_constructible_v<datetime, const char*, const char*>);
+    static_assert(std::is_constructible_v<datetime, const char*, const char*, zone>);
+}
+
 TEST(Layout_Tests, WrittenAsGoWritesThem) {
     sgcl::map<sgcl::string, zone> zones;   // a zone holds a tracked_ptr: a container of the library
     for (const auto& c : oracle::GoWrites) {
@@ -62,7 +100,7 @@ TEST(Layout_Tests, ReadAsGoReadsThem) {
         auto r = datetime::parse(c.text, l);
         bool ok = c.ok && !c.outside;
         if (c.outside) {
-            EXPECT_FALSE(r) << s;
+            ASSERT_FALSE(r) << s;
             EXPECT_NE(text(r.error().message()).find("1677 to 2262"), std::string::npos) << s;
             continue;
         }
@@ -286,7 +324,7 @@ TEST(Layout_Tests, WrittenAndReadBack) {
             ASSERT_TRUE(again) << text(t.format(l));
             ASSERT_EQ(*again, whole) << text(t.format(l));
         }
-        ASSERT_EQ(datetime::parse(t.format(time::http), time::http)->zone(), zone::utc());
+        ASSERT_EQ(value_of(datetime::parse(t.format(time::http), time::http)).zone(), zone::utc());
     }
 }
 
@@ -318,7 +356,7 @@ TEST(Layout_Tests, TheDateOfHttp) {
     EXPECT_EQ(year_of((now + 51) % 100), now + 51 - 100);
     EXPECT_EQ(year_of(now % 100), now);
     // A leap second, only at the end of a day
-    EXPECT_EQ(text(datetime::parse("Thu, 31 Dec 1998 23:59:60 GMT", time::http)->format(time::http)), "Fri, 01 Jan 1999 00:00:00 GMT");
+    EXPECT_EQ(text(value_of(datetime::parse("Thu, 31 Dec 1998 23:59:60 GMT", time::http)).format(time::http)), "Fri, 01 Jan 1999 00:00:00 GMT");
     EXPECT_FALSE(datetime::parse("Thu, 31 Dec 1998 12:59:60 GMT", time::http));
     struct Refused {
         const char* text;
@@ -356,23 +394,23 @@ TEST(Layout_Tests, Rfc3339ByItsExamples) {
     EXPECT_EQ(b->unix(), 851042397);
     EXPECT_EQ(b->zone(), zone::fixed(-8h));
     EXPECT_EQ(text(b->to_string()), "1996-12-19T16:39:57-08:00");
-    EXPECT_EQ(datetime::parse("1990-12-31T23:59:60Z", time::rfc3339)->unix(), 662688000);
-    EXPECT_EQ(datetime::parse("1990-12-31T15:59:60-08:00", time::rfc3339)->unix(), 662688000);
+    EXPECT_EQ(value_of(datetime::parse("1990-12-31T23:59:60Z", time::rfc3339)).unix(), 662688000);
+    EXPECT_EQ(value_of(datetime::parse("1990-12-31T15:59:60-08:00", time::rfc3339)).unix(), 662688000);
     auto c = datetime::parse("1937-01-01T12:00:27.87+00:20", time::rfc3339);
     ASSERT_TRUE(c);
     EXPECT_EQ(c->unix_nano(), -1041337172130000000);
     EXPECT_EQ(c->offset(), 20min);
     EXPECT_EQ(datetime::parse("2026-09-24t12:41:15z", time::rfc3339), datetime::parse("2026-09-24T12:41:15Z", time::rfc3339));
-    EXPECT_EQ(datetime::parse("2026-09-24T12:41:15-00:00", time::rfc3339)->zone(), zone::utc());
-    EXPECT_EQ(datetime::parse("2026-09-24T12:41:15.123456789999Z", time::rfc3339)->nanosecond(), 123456789);
-    EXPECT_EQ(datetime::parse("2262-04-11T23:47:16.854775807Z", time::rfc3339)->unix_nano(), INT64_MAX);
-    EXPECT_EQ(datetime::parse("1677-09-21T00:12:43.145224192Z", time::rfc3339)->unix_nano(), INT64_MIN);
+    EXPECT_EQ(value_of(datetime::parse("2026-09-24T12:41:15-00:00", time::rfc3339)).zone(), zone::utc());
+    EXPECT_EQ(value_of(datetime::parse("2026-09-24T12:41:15.123456789999Z", time::rfc3339)).nanosecond(), 123456789);
+    EXPECT_EQ(value_of(datetime::parse("2262-04-11T23:47:16.854775807Z", time::rfc3339)).unix_nano(), INT64_MAX);
+    EXPECT_EQ(value_of(datetime::parse("1677-09-21T00:12:43.145224192Z", time::rfc3339)).unix_nano(), INT64_MIN);
     EXPECT_FALSE(datetime::parse("2262-04-11T23:47:16.854775808Z", time::rfc3339));
     EXPECT_FALSE(datetime::parse("1677-09-21T00:12:43.145224191Z", time::rfc3339));
     for (const char* bad : {"2026-09-24 12:41:15Z", "2026-09-24T12:41:15", "2026-09-24T12:41:15+0200", "2026-09-24T12:41:15+24:00",
                             "2026-09-24T12:41:15.Z", "2026-02-30T00:00:00Z", "1990-12-31T23:59:60+01:00", "10000-01-01T00:00:00Z"}) {
         auto r = datetime::parse(bad, time::rfc3339);
-        EXPECT_FALSE(r) << bad;
+        ASSERT_FALSE(r) << bad;
         EXPECT_LE(r.error().offset(), std::strlen(bad)) << bad;
     }
 }
@@ -382,18 +420,18 @@ TEST(Layout_Tests, TheDateOfEmail) {
     ASSERT_TRUE(a);
     EXPECT_EQ(text(a->to_string()), "2026-09-24T12:41:15+02:00");
     EXPECT_EQ(text(a->format(time::email)), "Thu, 24 Sep 2026 12:41:15 +0200");
-    EXPECT_EQ(text(datetime::parse("24 Sep 2026 12:41 EDT", time::email)->to_string()), "2026-09-24T12:41:00-04:00");
-    EXPECT_EQ(text(datetime::parse("Thu, 24 Sep 26 12:41:15 (a (nested) comment) GMT", time::email)->to_string()), "2026-09-24T12:41:15Z");
-    EXPECT_EQ(text(datetime::parse(" Thu , 4 Sep 2026 12 : 41 : 15 -0000 (x)", time::email)->to_string()), "2026-09-04T12:41:15Z");
-    EXPECT_EQ(text(datetime::parse("Thu, 24 Sep 2026 12:41:15\r\n +0200", time::email)->to_string()), "2026-09-24T12:41:15+02:00");
-    EXPECT_EQ(datetime::parse("Thu, 24 Sep 99 12:41:15 +0000", time::email)->year(), 1999);
-    EXPECT_EQ(datetime::parse("Thu, 24 Sep 49 12:41:15 +0000", time::email)->year(), 2049);
-    EXPECT_EQ(datetime::parse("Thu, 24 Sep 126 12:41:15 +0000", time::email)->year(), 2026);
-    EXPECT_EQ(datetime::parse("Thu, 24 Sep 2026 12:41:15 A", time::email)->zone(), zone::utc());
+    EXPECT_EQ(text(value_of(datetime::parse("24 Sep 2026 12:41 EDT", time::email)).to_string()), "2026-09-24T12:41:00-04:00");
+    EXPECT_EQ(text(value_of(datetime::parse("Thu, 24 Sep 26 12:41:15 (a (nested) comment) GMT", time::email)).to_string()), "2026-09-24T12:41:15Z");
+    EXPECT_EQ(text(value_of(datetime::parse(" Thu , 4 Sep 2026 12 : 41 : 15 -0000 (x)", time::email)).to_string()), "2026-09-04T12:41:15Z");
+    EXPECT_EQ(text(value_of(datetime::parse("Thu, 24 Sep 2026 12:41:15\r\n +0200", time::email)).to_string()), "2026-09-24T12:41:15+02:00");
+    EXPECT_EQ(value_of(datetime::parse("Thu, 24 Sep 99 12:41:15 +0000", time::email)).year(), 1999);
+    EXPECT_EQ(value_of(datetime::parse("Thu, 24 Sep 49 12:41:15 +0000", time::email)).year(), 2049);
+    EXPECT_EQ(value_of(datetime::parse("Thu, 24 Sep 126 12:41:15 +0000", time::email)).year(), 2026);
+    EXPECT_EQ(value_of(datetime::parse("Thu, 24 Sep 2026 12:41:15 A", time::email)).zone(), zone::utc());
     for (const char* bad : {"Thu, 24 Sep 2026 12:41:15 J", "Thu, 24 Sep 2026 12:41:15 (unclosed", "Thu, 24 Sep 2026 12:41:15 +2400",
                             "Thu, 24 Sep 2026 12:41:15", "Thu, 31 Sep 2026 12:41:15 +0200", "Thu, 24 Sep 20266 12:41:15 +0200", ""}) {
         auto r = datetime::parse(bad, time::email);
-        EXPECT_FALSE(r) << bad;
+        ASSERT_FALSE(r) << bad;
         EXPECT_LE(r.error().offset(), std::strlen(bad)) << bad;
     }
 }
@@ -550,27 +588,27 @@ TEST(Pattern_Tests, ReadInAZone) {
     EXPECT_EQ(text(r->to_string()), "2026-09-24T12:41:00+02:00");
     EXPECT_EQ(r->zone(), w);
     // No zone given: UTC
-    EXPECT_EQ(text(datetime::parse("24.09.2026 12:41", "%d.%m.%Y %H:%M")->to_string()), "2026-09-24T12:41:00Z");
+    EXPECT_EQ(text(value_of(datetime::parse("24.09.2026 12:41", "%d.%m.%Y %H:%M")).to_string()), "2026-09-24T12:41:00Z");
     // A skipped time moved on, a time shown twice the first, unless %Z says
-    EXPECT_EQ(text(datetime::parse("2026-03-29 02:30", "%F %R", w)->to_string()), "2026-03-29T03:30:00+02:00");
-    EXPECT_EQ(text(datetime::parse("2026-10-25 02:30", "%F %R", w)->to_string()), "2026-10-25T02:30:00+02:00");
-    EXPECT_EQ(text(datetime::parse("2026-10-25 02:30 CEST", "%F %R %Z", w)->to_string()), "2026-10-25T02:30:00+02:00");
-    EXPECT_EQ(text(datetime::parse("2026-10-25 02:30 CET", "%F %R %Z", w)->to_string()), "2026-10-25T02:30:00+01:00");
+    EXPECT_EQ(text(value_of(datetime::parse("2026-03-29 02:30", "%F %R", w)).to_string()), "2026-03-29T03:30:00+02:00");
+    EXPECT_EQ(text(value_of(datetime::parse("2026-10-25 02:30", "%F %R", w)).to_string()), "2026-10-25T02:30:00+02:00");
+    EXPECT_EQ(text(value_of(datetime::parse("2026-10-25 02:30 CEST", "%F %R %Z", w)).to_string()), "2026-10-25T02:30:00+02:00");
+    EXPECT_EQ(text(value_of(datetime::parse("2026-10-25 02:30 CET", "%F %R %Z", w)).to_string()), "2026-10-25T02:30:00+01:00");
     EXPECT_FALSE(datetime::parse("2026-07-01 12:00 CET", "%F %R %Z", w));   // not Warsaw's in July
-    EXPECT_EQ(datetime::parse("2026-07-01 12:00 UTC", "%F %R %Z", w)->zone(), zone::utc());
+    EXPECT_EQ(value_of(datetime::parse("2026-07-01 12:00 UTC", "%F %R %Z", w)).zone(), zone::utc());
     // An offset wins over the zone
     auto o = datetime::parse("2026-09-24 12:41 -0330", "%F %R %z", w);
     ASSERT_TRUE(o);
     EXPECT_EQ(o->zone(), zone::fixed(-(3h + 30min)));
     EXPECT_EQ(o->unix(), date(2026, 9, 24).at(16, 11, zone::utc()).unix());
     // A leap second only in UTC
-    EXPECT_EQ(datetime::parse("1998-12-31 23:59:60", "%F %T")->unix(), 915148800);
+    EXPECT_EQ(value_of(datetime::parse("1998-12-31 23:59:60", "%F %T")).unix(), 915148800);
     EXPECT_FALSE(datetime::parse("1998-12-31 23:59:60", "%F %T", w));
     EXPECT_FALSE(datetime::parse("1998-12-31 12:59:60", "%F %T"));
     // Twelve hours
-    EXPECT_EQ(datetime::parse("2026-09-24 12:05 AM", "%F %I:%M %p")->hour(), 0);
-    EXPECT_EQ(datetime::parse("2026-09-24 12:05 PM", "%F %I:%M %p")->hour(), 12);
-    EXPECT_EQ(datetime::parse("2026-09-24 01:05 pm", "%F %I:%M %p")->hour(), 13);
+    EXPECT_EQ(value_of(datetime::parse("2026-09-24 12:05 AM", "%F %I:%M %p")).hour(), 0);
+    EXPECT_EQ(value_of(datetime::parse("2026-09-24 12:05 PM", "%F %I:%M %p")).hour(), 12);
+    EXPECT_EQ(value_of(datetime::parse("2026-09-24 01:05 pm", "%F %I:%M %p")).hour(), 13);
     EXPECT_FALSE(datetime::parse("2026-09-24 01:05", "%F %I:%M"));
 }
 

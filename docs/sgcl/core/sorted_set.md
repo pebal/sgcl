@@ -378,7 +378,6 @@ From an iterator pair or an initializer list, as for `std::set`; an initializer 
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -388,6 +387,8 @@ struct Node {
 };
 
 int main() {
+    println("a graph whose edges are sorted sets");
+    auto base = collector::get_live_object_count();   // after the first line: io's own objects are not the example's
     // A graph whose edges are sets: each node is reachable from its peers
     tracked_ptr a = make_tracked<Node>("a");
     tracked_ptr b = make_tracked<Node>("b");
@@ -403,11 +404,11 @@ int main() {
         names.insert(peer->name);
     }
     names.insert("b");
-    std::cout << "b's neighbourhood:";
+    print("b's neighbourhood:");
     for (const auto& n : names) {
-        std::cout << ' ' << n;                  // a b c
+        print(" {}", n);                  // a b c
     }
-    std::cout << '\n';
+    println();
 
     // Dropping the stack roots: a and b keep each other alive only through
     // their sets, which the collector sees as a cycle
@@ -416,7 +417,7 @@ int main() {
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
     collector::force_collect(true);
-    std::cout << collector::get_live_object_count() << " live objects\n";     // the header and three nodes of `names`
+    println("{} live objects", collector::get_live_object_count() - base);     // the header and three nodes of `names`
     return node_count == 3 ? 0 : 1;
 }
 ```
@@ -424,6 +425,7 @@ int main() {
 The output:
 
 ```
+a graph whose edges are sorted sets
 b's neighbourhood: a b c
 7 live objects
 ```

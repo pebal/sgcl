@@ -54,24 +54,21 @@ The mappings that depend on their surroundings are in the code rather than in a 
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
 int main() {
     string german = "die straße";
-    std::cout << txt::to_upper_full(german) << "   (core, one to one: " << german.to_upper() << ")\n";
+    println("{}   (core, one to one: {})", txt::to_upper_full(german), german.to_upper());
 
     string greek = "ΟΔΟΣ ΚΑΙ ΣΠΙΤΙ";
-    std::cout << greek << " -> " << txt::to_lower_full(greek) << '\n';   // the sigma that ends a word
+    println("{} -> {}", greek, txt::to_lower_full(greek));   // the sigma that ends a word
 
-    auto tr = txt::locale(string("tr-TR"));
-    std::cout << "Istanbul -> " << txt::to_lower_full(string("ISTANBUL"), tr)
-              << " (tr), " << txt::to_lower_full(string("ISTANBUL")) << " (root)\n";
+    auto tr = txt::locale("tr-TR");
+    println("Istanbul -> {} (tr), {} (root)", txt::to_lower_full("ISTANBUL", tr), txt::to_lower_full("ISTANBUL"));
 
-    std::cout << txt::to_title(string("don't stop me now")) << '\n';
-    std::cout << "fold: " << txt::fold_case(string("STRASSE")) << " == " << txt::fold_case(german)
-              << " -> " << txt::equal_fold_full(german, string("DIE STRASSE")) << '\n';
+    println("{}", txt::to_title("don't stop me now"));
+    println("fold: {} == {} -> {}", txt::fold_case("STRASSE"), txt::fold_case(german), txt::equal_fold_full(german, "DIE STRASSE"));
     return 0;
 }
 ```
@@ -83,7 +80,7 @@ DIE STRASSE   (core, one to one: DIE STRAßE)
 ΟΔΟΣ ΚΑΙ ΣΠΙΤΙ -> οδος και σπιτι
 Istanbul -> ıstanbul (tr), istanbul (root)
 Don't Stop Me Now
-fold: strasse == die strasse -> 1
+fold: strasse == die strasse -> true
 ```
 
 ## What it is held to

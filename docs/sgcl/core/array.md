@@ -34,10 +34,12 @@ using reverse_iterator = std::reverse_iterator<iterator>;  using const_reverse_i
 
 ```cpp
 constexpr array() = default;                 // trivial: the elements uninitialized, as an aggregate's; `= {}` zeroes them
-constexpr array(T... elements);              // N parameters of type T, one per element: {1, 2, 3}
+constexpr array(T... elements);              // N <= 64: N parameters of type T, one per element: {1, 2, 3}
+template<class... U>
+constexpr array(U&&... elements);            // N > 64: N arguments, each converting to T implicitly
 ```
 
-The braces of an aggregate, as a constructor: `N` parameters of type `T`, one per element, generated from an index sequence that is a third, defaulted template parameter of the class (`array<T, N>` is spelled as ever). Each element is constructed in place from its argument; a fourth argument for an `array<T, 3>` is an error at compile time; an element that only moves is moved in; an element that is itself an aggregate takes its brace, `array<point, 2> p = {{1, 2}, {3, 4}}`, one level for one level. What the constructor does not do that the aggregate did: fill in the rest when fewer elements are given — `array<int, 3> a = {7}` is an error, `= {}` the way to zero.
+The braces of an aggregate, as a constructor. Each element is constructed in place from its argument; a fourth argument for an `array<T, 3>` is an error at compile time; an element that only moves is moved in; an element that is itself an aggregate takes its brace, `array<point, 2> p = {{1, 2}, {3, 4}}`, one level for one level; `array<double, 2> d = {1, 2}` as for an aggregate. Past 64 elements the constructor is a template, which takes the same arguments but a brace without a type (`{{1, 2}, ...}` for points is refused there, `{point{1, 2}, ...}` is not) and does not refuse a narrowing one (`1.5` for an `int`). Neither form puts anything but `T` and `N` into the type: `array<std::byte, 32768>` has a name of a few dozen characters. What the constructor does not do that the aggregate did: fill in the rest when fewer elements are given — `array<int, 3> a = {7}` is an error, `= {}` the way to zero.
 
 ```cpp
 array<int, 3> a = {1, 2, 3};
@@ -176,7 +178,6 @@ auto b = to_array({3, 2, 1});            // array<int, 3>
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -213,8 +214,7 @@ int main() {
     // A table known at compile time, searched at compile time
     constexpr array squares = {0, 1, 4, 9, 16, 25};
     static_assert(squares.binary_search(16) && squares.sorted_index_of(9) == 3);
-    std::cout << "node behind keep " << keep->next->value << ", squares up to " << squares.max()
-              << ", " << squares.count_of([](int x) { return x % 2 == 0; }) << " even\n";
+    println("node behind keep {}, squares up to {}, {} even", keep->next->value, squares.max(), squares.count_of([](int x) { return x % 2 == 0; }));
     return keep->next->value == 2 && h->nodes[2]->value == 7 ? 0 : 1;
 }
 ```

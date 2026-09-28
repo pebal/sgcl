@@ -16,7 +16,7 @@ MIIBszCCAVmgAwIBAgIU...
 -----END CERTIFICATE-----
 ```
 
-with the headers of [RFC 1421](https://www.rfc-editor.org/rfc/rfc1421) (`Proc-Type`, `DEK-Info`) that older encrypted keys carry between the first line and the base64. A `pem` is one block, a value; `parse` reads the first block of a text and `parse_all` every one of them.
+with the headers of [RFC 1421](https://www.rfc-editor.org/rfc/rfc1421) (`Proc-Type`, `DEK-Info`) that older encrypted keys carry between the first line and the base64. A `pem` is one block, a value; `parse` reads the first block of a text and `parse_all` every one of them. A block the program itself writes as text (a test's key, a pinned certificate) is constructed, `encoding::pem block(text)`, which throws `parse`'s error; the constructor from a type and bytes, with two or three arguments, makes a block from its parts.
 
 ## Rules
 
@@ -45,6 +45,7 @@ public:
     string to_string() const;
 
     static expected<pem, error> parse(const string& text);              // the first block
+    explicit encoding::pem(const string& text);                         // a literal: parse(text), or bad_expected_access<error> with its message (DESIGN 234)
     static expected<vector<pem>, error> parse_all(const string& text);  // every block
 };
 ```
@@ -53,7 +54,7 @@ public:
 
 ```cpp
 #include "sgcl/encoding/pem.h"
-#include "sgcl/io/os.h"
+#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
@@ -68,16 +69,16 @@ int main() {
         "-----END CERTIFICATE-----\n";
     auto blocks = encoding::pem::parse_all(chain);
     for (auto& block : blocks.value()) {
-        io::stdout.write(block.type() + ": " + string(std::to_string(block.bytes().size())) + " bytes\n");   // CERTIFICATE: 15 bytes
+        println("{}: {} bytes", block.type(), block.bytes().size());   // CERTIFICATE: 15 bytes
     }
 
     auto bad = encoding::pem::parse("-----BEGIN PRIVATE KEY-----\nMIIB\n-----END PUBLIC KEY-----\n");
-    io::stdout.write(bad.error().message() + "\n");   // 3:10: END PUBLIC KEY does not match BEGIN PRIVATE KEY
+    println(bad.error().message());   // 3:10: END PUBLIC KEY does not match BEGIN PRIVATE KEY
 
     ordered_map<string, string> headers;
     headers.insert_or_assign("Comment", "made by hand");
     encoding::pem key("EC PRIVATE KEY", vector<byte>(40), headers);
-    io::stdout.write(key.to_string());
+    print(key.to_string());
 }
 ```
 

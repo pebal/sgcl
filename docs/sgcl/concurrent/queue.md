@@ -97,7 +97,6 @@ Pops every element there is, destroying each on the calling thread.
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -135,7 +134,7 @@ int main() {
     for (auto& t : threads) {
         t.join();
     }
-    std::cout << received << " messages, " << out_of_order << " out of order\n";
+    println("{} messages, {} out of order", received.load(), out_of_order.load());
     return received == 4000 && out_of_order == 0 ? 0 : 1;
 }
 ```

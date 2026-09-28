@@ -4,7 +4,7 @@
 #include "sgcl/net/connection.h"   // or "sgcl/net/net.h"
 
 namespace sgcl::net {
-    class connection;   // a stream both ways: TCP, unix, a pair in memory (TLS in stage 2); a handle of one word
+    class connection;   // a stream both ways: TCP, unix, TLS (net::tls), a pair in memory; a handle of one word
     class listener;     // what tcp::listen and unix_domain::listen give: the connections it accepts
     struct datagram;    // a datagram received: its size, its sender, whether it was cut
     class udp::socket;   // what udp::bind and udp::connect give
@@ -19,11 +19,11 @@ Every operation that may wait comes twice: `read(b)` takes the thread until the 
 
 - **Full duplex, one at a time per direction.** One read and one write may run at once; two reads at once are taken one after the other (a [`mutex`](../async/mutex.md) of the library per direction, which parks no worker), as are two writes, so that a message written from each of two tasks lands whole.
 - **A write writes everything or fails**; a read returns what has come, at least one byte, and 0 at the end of the stream. A write that fails part way (a deadline passing in a long write, a reset) reports the error alone: how many bytes went out before it is lost, as in io, and the stream is then of no use but to close.
-- **Deadlines are absolute**, on the module's clock, as Go's: a read (write) that starts after the deadline of its direction, or would wait past it, fails with `ETIMEDOUT` (`is_timeout()`) and takes nothing, even when data is there. `time_point()` removes it. A change applies to the operations in progress: a deadline in the past set from another task ends a read at once. A limit per operation is `c.set_read_deadline(clock::now() + 5s)` before each; `async::timeout(c.read(b), 5s)` is not the same, since the read lost to the timer runs on and takes the data.
+- **Deadlines are absolute**, on the module's clock, as Go's: a read (write) that starts after the deadline of its direction, or would wait past it, fails with `ETIMEDOUT` (`is_timeout()`) and takes nothing, even when data is there. `time_point()` removes it. A change applies to the operations in progress: a deadline in the past set from another task ends a read at once. A limit per operation is `c.set_read_deadline(clock::now() + 5s)` before each; `async::timeout(c.read(b), 5s)` is not the same, since the read lost to the timer runs on and takes the data. `close()` gives the descriptor back at once, deadlines and all.
 - **`close()` from another task cancels**: the reads, writes and accepts in progress end with `io::errc::closed`, and a second close does nothing. The descriptor goes back to the system when the last operation in progress has let go of it, never under one (the race of a close with a read is closed, `io/detail/descriptor.h`). A connection not closed is closed by its destructor, on the collector's thread after the sweep that finds it dead: later than the last use.
 - **A write to a peer that closed is `EPIPE`**, never a `SIGPIPE`.
 - **Lines** (`read_line`) go through a buffer of 8 KB the first call puts in front of the connection; `read` takes from that buffer first from then on. A line is bounded (64 KB by default, `set_max_line`): the input is the network's.
-- A connection is a stream as it is ([stream](../io/stream.md)): `read` and `async_read`, `write` and `async_write`, `close` and `async_close`, so `buffered_reader`, `limit_reader`, `io::copy` and, in the next stage, TLS take it.
+- A connection is a stream as it is ([stream](../io/stream.md)): `read` and `async_read`, `write` and `async_write`, `close` and `async_close`, so `buffered_reader`, `limit_reader` and `io::copy` take it, and a connection [`net::tls`](tls.md) makes is one too.
 
 ## Members
 
@@ -81,7 +81,7 @@ async::task<> ask(string address) {
         co_await c->async_write("PING " + to_string(i) + "\r\n");
         auto line = co_await c->async_read_line();
         if (!line || !*line) break;               // an error, or the end of the stream
-        std::cout << **line << '\n';
+        println("{}", **line);
     }
     co_await c->async_close();
 }
@@ -133,10 +133,10 @@ A datagram is sent whole or not at all; `ENOBUFS` (the interface's queue full) i
 async::task<> udp_echo() {
     auto s = co_await net::udp::async_bind(":5353");
     if (!s) co_return;
-    tracked_ptr<array<byte, 8192>> block = make_tracked<array<byte, 8192>>();
-    slice<byte> buffer(block, block->data(), block->size());
-    while (auto d = co_await s->async_receive_from(buffer)) {
-        co_await s->async_send_to(buffer.first(d->size), d->from);
+    vector<byte> datagram(8192);
+    slice<byte> room = datagram;
+    while (auto d = co_await s->async_receive_from(room)) {
+        co_await s->async_send_to(room.first(d->size), d->from);
     }
 }
 ```

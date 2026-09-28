@@ -4,7 +4,7 @@
 #include "sgcl/async/signal.h"   // or "sgcl/sgcl.h"
 
 namespace sgcl {
-    tracked_ptr<async::channel<int>> async::signals(std::initializer_list<int> numbers, size_t capacity = 1);   // the number of every signal delivered, from now on
+    async::channel<int> async::signals(std::initializer_list<int> numbers, size_t capacity = 1);   // the number of every signal delivered, from now on
     void reset_signals(std::initializer_list<int> numbers = {});   // the disposition from before back; every registered number, for an empty list
     void ignore_signals(std::initializer_list<int> numbers);       // the numbers ignored by the process
 }
@@ -13,16 +13,16 @@ namespace sgcl {
 The signals of the process as a channel, the way Go's `os/signal` has them: `async::signals({SIGINT, SIGTERM})` returns a channel that gets the number of every signal of those delivered to the process from then on, so that a signal is waited for as anything else in the module is: a task `co_await`s the channel and holds no thread meanwhile, a thread receives on it, a select takes it as a case. The shutdown of a server is one more case of the loop that serves it:
 
 ```cpp
-auto stop = async::signals({SIGINT, SIGTERM});
+async::channel<int> stop = async::signals({SIGINT, SIGTERM});
 while (running) {
     co_await async::select(
         jobs.on_receive([&](Job j) { serve(j); }),
-        stop->on_receive([&](int) { running = false; })
+        stop.on_receive([&](int) { running = false; })
     );
 }
 ```
 
-A signal handler may do almost nothing, so the delivery is in two steps: the handler the registration installs writes the number as one byte to a pipe of the module (`write` is one of the calls a handler may make; the pipe's write end is non-blocking, so the handler never blocks), and one thread of the module, blocked in a `read` on the pipe's other end, sends the number on every channel registered for it, without waiting: a channel that is full drops the delivery. A burst of signals is therefore coalesced to the capacity of the channel, one by default, as Go recommends and as the kernel does anyway, a pending signal being one bit per number, not a count. A channel registered for several numbers gets each of them; several channels registered for one number each get it. The channel is held by the registration, so it lives while the process listens, wherever the `tracked_ptr` returned went.
+A signal handler may do almost nothing, so the delivery is in two steps: the handler the registration installs writes the number as one byte to a pipe of the module (`write` is one of the calls a handler may make; the pipe's write end is non-blocking, so the handler never blocks), and one thread of the module, blocked in a `read` on the pipe's other end, sends the number on every channel registered for it, without waiting: a channel that is full drops the delivery. A burst of signals is therefore coalesced to the capacity of the channel, one by default, as Go recommends and as the kernel does anyway, a pending signal being one bit per number, not a count. A channel registered for several numbers gets each of them; several channels registered for one number each get it. The channel is held by the registration, so it lives while the process listens, wherever the handle returned went; the handle is a [channel](channel.md) as any other, copied into the tasks that wait on it, and in a global a `rooted<async::channel<int>>`.
 
 `reset_signals({SIGINT})` gives the number the disposition it had before the first registration, the default action or a handler the program had installed (Go's `signal.Reset`); `ignore_signals({SIGPIPE})` sets it to be ignored (`signal.Ignore`), and a later reset undoes that too. Both forget the channels registered for the numbers, and neither closes them, since a channel may serve other numbers still. At the end of the program the dispositions are given back and the thread joined.
 
@@ -39,7 +39,7 @@ A signal handler may do almost nothing, so the delivery is in two steps: the han
 ### signals
 
 ```cpp
-tracked_ptr<async::channel<int>> async::signals(std::initializer_list<int> numbers, size_t capacity = 1);
+async::channel<int> async::signals(std::initializer_list<int> numbers, size_t capacity = 1);
 ```
 
 The channel, registered for the numbers; the handler installed for each, the module's thread started on the first call.
@@ -52,11 +52,11 @@ void ignore_signals(std::initializer_list<int> numbers);       // SIG_IGN; reset
 ```
 
 ```cpp
-auto usr = async::signals({SIGUSR1, SIGUSR2});
+async::channel<int> usr = async::signals({SIGUSR1, SIGUSR2});
 std::raise(SIGUSR2);                                             // what another process's kill would do
-int n = *usr->receive().wait();                                         // SIGUSR2
-auto t = async::spawn([](tracked_ptr<async::channel<int>> usr) -> async::task<int> {
-    co_return *co_await usr->receive();                    // no thread held while the process waits
+int n = *usr.receive().wait();                                   // SIGUSR2
+auto t = async::spawn([](async::channel<int> usr) -> async::task<int> {
+    co_return *co_await usr.receive();                     // no thread held while the process waits
 }(usr));
 std::raise(SIGUSR1);
 int m = t.wait();                                                // SIGUSR1
@@ -69,28 +69,27 @@ reset_signals();                                           // both as they were 
 ```cpp
 #include "sgcl/sgcl.h"
 #include <csignal>
-#include <iostream>
 
 using namespace sgcl;
 
 // A server that serves its jobs until the process gets SIGINT or
 // SIGTERM: the signal is a case of the select, like the jobs. The
 // program sends itself the SIGINT that Ctrl-C would.
-async::task<int> serve(async::channel<int>& jobs, tracked_ptr<async::channel<int>> stop, int& by) {
+async::task<int> serve(async::channel<int> jobs, async::channel<int> stop, int& by) {
     int done = 0;
     bool running = true;
     while (running) {
         co_await async::select(
             jobs.on_receive([&](int) { ++done; }),
-            stop->on_receive([&](int n) { by = n; running = false; })
+            stop.on_receive([&](int n) { by = n; running = false; })
         );
     }
     co_return done;
 }
 
 int main() {
-    tracked_ptr stop = async::signals({SIGINT, SIGTERM});
-    async::channel<int> jobs;                  // a rendezvous: a send returns once the server took the job
+    async::channel<int> stop = async::signals({SIGINT, SIGTERM});
+    async::channel<int> jobs;                         // a rendezvous: a send returns once the server took the job
     int by = 0;
     auto server = async::spawn(serve(jobs, stop, by));
     for (int i : range(5)) {
@@ -98,8 +97,8 @@ int main() {
     }
     std::raise(SIGINT);                       // Ctrl-C
     int done = server.wait();
-    std::cout << done << " jobs done, stopped by signal " << by << (by == SIGINT ? " (SIGINT)" : "") << "\n";
-    async::reset_signals();                    // SIGINT and SIGTERM as they were
+    println("{} jobs done, stopped by signal {}{}", done, by, (by == SIGINT ? " (SIGINT)" : ""));
+    async::reset_signals();                           // SIGINT and SIGTERM as they were
     async::scheduler::stop();
 }
 ```

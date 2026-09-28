@@ -119,7 +119,6 @@ The entries, the dead ones not yet swept included; `sweep()` drops the dead ones
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -150,28 +149,28 @@ int main() {
             for (int i : range(1000)) {
                 string line = (i + t) % 2 ? "alpha.example 512" : "beta.example 1024";   // a line read from a file
                 string_slice host = line.as_slice(0, line.find(' '));
-                records.push(make_tracked<Record>(concurrent::intern_string(host), 512));   // no string made once the host is known
+                records.push(make_tracked<Record>(concurrent::intern_string(host), 512));               // no string made once the host is known
             }
         });
     }
     for (auto& p : parsers) {
         p.join();
     }
-    string alpha = concurrent::intern_string("alpha.example");   // the object the parsers got
+    string alpha = concurrent::intern_string("alpha.example");               // the object the parsers got
     int of_alpha = 0;
     while (auto r = records.try_pop()) {
         if ((*r)->host.object() == alpha.object()) {   // compared by identity: one word
             ++of_alpha;
         }
     }
-    std::cout << of_alpha << " records of alpha.example, " << concurrent::intern<string>::pool().size() << " strings in the pool\n";
+    println("{} records of alpha.example, {} strings in the pool", of_alpha, concurrent::intern<string>::pool().size());
 
     // A pool of values: one object per distinct value, compared by pointer
     concurrent::intern<Point, PointHash> points;
     tracked_ptr<const Point> a = points.of({1, 2});
     tracked_ptr<const Point> b = points.of({1, 2});
     tracked_ptr<const Point> c = points.of({2, 1});
-    std::cout << (a == b) << ' ' << (a == c) << ' ' << points.size() << " points\n";
+    println("{} {} {} points", (a == b), (a == c), points.size());
 }
 ```
 
@@ -179,7 +178,7 @@ The output:
 
 ```
 2000 records of alpha.example, 2 strings in the pool
-1 0 2 points
+true false 2 points
 ```
 
 ## See also

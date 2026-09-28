@@ -93,10 +93,10 @@ And it takes whole combining sequences — a letter and the marks that belong to
 The two rules are asked of the two ends of a match, and together they are a rule about the whole of it: a match holds every code point of every character it touches, and nothing of any other. That holds where canonical ordering has pulled a decomposition apart — `"ḋ"` with a dot below it becomes `d`, dot-below, dot-above, the dot-below of the second character standing between the two parts of the first — and neither `"d"` nor `"ḍ"` nor `"ḋ"` is found in it, while the whole letter is, however either side spells it. The position and size a match reports are the bytes of those characters, from the first to the last. In a text that begins with marks written out of canonical order, a match of them begins at byte 0 and covers them all, which is what the collated search answers too.
 
 ```cpp
-find_fold(string("straße"), string("ss"));    // {4, 2}: the ß
-find_fold(string("aßb"), string("s"));        // nothing
-find_normalized(string("café"), string("e"));        // nothing
-find_normalized(string("cafe\u0301"), string("e"));   // nothing — the acute belongs to the e
+find_fold("straße", "ss");    // {4, 2}: the ß
+find_fold("aßb", "s");        // nothing
+find_normalized("café", "e");        // nothing
+find_normalized("cafe\u0301", "e");   // nothing — the acute belongs to the e
 ```
 
 Without the rule a match could begin and end in the middle of one character, and what came back was a position with no text at it — nothing a caller can cut out, highlight or draw a box round. Every match a range hands out is a slice with something in it.
@@ -111,33 +111,30 @@ An empty pattern is found where it is looked for, and nowhere past the end of th
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
 int main() {
     string text = "Ala ma kota, a kot ma kota";
-    txt::searcher kota(string("kota"));
-    std::cout << kota.find(text) << ", " << kota.find(text, 8) << ", " << kota.count(text) << " razy\n";
+    txt::searcher kota("kota");
+    println("{}, {}, {} razy", kota.find(text), kota.find(text, 8), kota.count(text));
 
-    auto found = txt::find_fold(string("Die straße"), string("STRASSE"));
-    std::cout << "STRASSE w 'Die straße': " << found->pos << ", bajtów " << found->size << '\n';
+    auto found = txt::find_fold("Die straße", "STRASSE");
+    println("STRASSE w 'Die straße': {}, bajtów {}", found->pos, found->size);
 
     string composed = "rue café";            // e with an acute, one code point
     string typed = "cafe\u0301";            // and two
-    std::cout << "znalezione na bajcie " << txt::find_normalized(composed, typed)->pos
-              << ", a jako bajty: " << (composed.find(typed) == npos ? "nie ma" : "jest") << '\n';
+    println("znalezione na bajcie {}, a jako bajty: {}", txt::find_normalized(composed, typed)->pos, (composed.find(typed) == npos ? "nie ma" : "jest"));
 
     // every occurrence, the text folded a single time for all of them
     string line = "Kot, KOT, kot i Kotek";
-    for (auto it = txt::fold_matches(line, string("kot")); auto m : it) {
-        std::cout << '[' << m << ']';
+    for (auto it = txt::fold_matches(line, "kot"); auto m : it) {
+        print("[{}]", m);
     }
-    std::cout << '\n';
+    println();
 
     // a ß is found whole, and not by half of what it folds to
-    std::cout << txt::find_fold(string("straße"), string("ss"))->pos << ' '
-              << (txt::find_fold(string("aßb"), string("s")) ? "znalezione" : "nic") << '\n';
+    println("{} {}", txt::find_fold("straße", "ss")->pos, (txt::find_fold("aßb", "s") ? "znalezione" : "nic"));
     return 0;
 }
 ```

@@ -120,7 +120,6 @@ A group that **took no part** in the match is nothing, which an empty group is n
 ```cpp
 #include "sgcl/sgcl.h"
 #include "sgcl/txt/regex.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -129,19 +128,19 @@ int main() {
     string text = "spotkanie 2026-09-23, a potem 2026-12-01";
 
     if (auto m = date.find(text)) {
-        std::cout << m->text() << ": rok " << *m->group("y") << '\n';
+        println("{}: rok {}", m->text(), *m->group("y"));
     }
     for (const auto& m : date.all(text)) {
-        std::cout << m.begin_at() << ": " << m.text() << '\n';
+        println("{}: {}", m.begin_at(), m.text());
     }
-    std::cout << date.replace(text, string("${d}.${m}.${y}")) << '\n';
+    println("{}", date.replace(text, "${d}.${m}.${y}"));
 
     for (auto piece : txt::regex("\\s*,\\s*").split(text)) {
-        std::cout << '[' << piece << "]\n";
+        println("[{}]", piece);
     }
 
     auto bad = txt::regex::compile(string("(a+)+\\1"));
-    std::cout << bad.error().message() << '\n';
+    println("{}", bad.error().message());
     return 0;
 }
 ```

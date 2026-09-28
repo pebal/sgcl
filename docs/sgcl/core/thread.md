@@ -44,7 +44,6 @@ static unsigned hardware_concurrency() noexcept;
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -67,7 +66,7 @@ int main() {
     for (auto& w : workers) {
         w.join();
     }
-    std::cout << sum->total.load() << "\n";            // 7998000
+    println("{}", sum->total.load());            // 7998000
     return sum->total.load() == 7998000 ? 0 : 1;
 }
 ```

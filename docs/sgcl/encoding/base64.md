@@ -20,6 +20,7 @@ Base64 of [RFC 4648](https://www.rfc-editor.org/rfc/rfc4648) sections 4 and 5: t
 - **Sizes never wrap.** `encoded_size(n)` of an `n` no `size_t` can hold the characters of is `SIZE_MAX`, the size no buffer has; `encode_to` and `decode_to` throw `length_error` on a buffer smaller than `encoded_size` or `max_decoded_size` — a mistake in the program, not in the input. A text longer than a `string` holds (4 G characters) is `length_error` too.
 - **An alphabet of one's own** is 64 different characters, none of them `'\0'`, `'\r'`, `'\n'` or the padding, in an array of 65 whose last is the terminator — the length is the array's, the characters past it are never read; anything else is `invalid_argument`, which in a constant is an error at compile time.
 - **The streams.** `encoder_to(w)` is a writer that writes the encoding of what it is given to `w`: whole groups at once, the bytes short of a group kept for the next write, and `close()` writes the last group with its padding — and leaves `w` open, as Go's does, since what is written around the base64 usually goes on. A failure of `w` is kept for good, as Go's encoder keeps it: the group being written went with it, so every later `write` and `close` reports that failure rather than going on without those bytes. `decoder_from(r)` is a reader of the bytes `r`'s text decodes to; the text may come in pieces of any size, and a read into a buffer smaller than a group gets the group through the decoder. An invalid text fails the read that reaches it, after the bytes before the error were handed out, and every read after; the read's `io::error` has the code in the `encoding` category, and `last_error()` holds the [`error`](error.md) with its offset in the text.
+- **The streams are handles.** An encoder, a decoder is one word, a tracked word to the stream's state, made by the codec (`encoding::base64::encoder armored = encoding::base64::standard.encoder_to(w);`) and shared by its copies (`==` says whether two are the same); a default-constructed one holds none (`!s`), and an operation on it is a contract violation. A stream made of one (`io::writer w = armored;`, `io::copy`) binds the state, so the handle may go first. It lies on a stack, in a task, in a managed object; in a global or a std container, a [`rooted`](../core/rooted.md) of it.
 
 ## Members
 
@@ -50,21 +51,27 @@ public:
     size_t encode_to(const slice<char>& out, const slice<const byte>& data) const;          // the characters written
     expected<size_t, error> decode_to(const slice<byte>& out, const string& text) const;   // the bytes written
 
-    tracked_ptr<encoder> encoder_to(const io::writer& out) const;
-    tracked_ptr<decoder> decoder_from(const io::reader& in) const;
+    encoder encoder_to(const io::writer& out) const;   // encoding::base64::encoder armored = encoding::base64::standard.encoder_to(w);
+    decoder decoder_from(const io::reader& in) const;  // encoding::base64::decoder plain = encoding::base64::standard.decoder_from(r);
 };
 
-class base64::encoder final {   // and everything of io::mixin::writer
-    expected<size_t, io::error> write(const slice<const byte>& data);
-    async::task<expected<size_t, io::error>> async_write(slice<const byte> data);
-    expected<void, io::error> close();  async::task<expected<void, io::error>> async_close();   // the last group; the writer under it stays open
+class base64::encoder final {   // a handle; and everything of io::mixin::writer
+    encoder() noexcept;                                     // holds none
+    expected<size_t, io::error> write(const slice<const byte>& data) const;
+    async::task<expected<size_t, io::error>> async_write(const slice<const byte>& data) const;
+    expected<void, io::error> close() const;  async::task<expected<void, io::error>> async_close() const;   // the last group; the writer under it stays open
     bool is_closed() const noexcept;
+    explicit operator bool() const noexcept;               // holds a stream
+    friend bool operator==(const encoder&, const encoder&) noexcept;   // the same stream
 };
 
-class base64::decoder final {   // and everything of io::mixin::reader
-    expected<size_t, io::error> read(const slice<byte>& buffer);
-    async::task<expected<size_t, io::error>> async_read(slice<byte> buffer);
+class base64::decoder final {   // a handle; and everything of io::mixin::reader
+    decoder() noexcept;                                     // holds none
+    expected<size_t, io::error> read(const slice<byte>& buffer) const;
+    async::task<expected<size_t, io::error>> async_read(const slice<byte>& buffer) const;
     const optional<error>& last_error() const noexcept;
+    explicit operator bool() const noexcept;
+    friend bool operator==(const decoder&, const decoder&) noexcept;
 };
 ```
 
@@ -74,35 +81,35 @@ class base64::decoder final {   // and everything of io::mixin::reader
 
 ```cpp
 #include "sgcl/encoding/base64.h"
-#include "sgcl/io/os.h"
+#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
 int main() {
     // Basic authentication: the bytes of a text
     string header = "Basic " + encoding::base64::standard.encode("ala:sekret");
-    io::stdout.write(header + "\n");                      // Basic YWxhOnNla3JldA==
+    println(header);                      // Basic YWxhOnNla3JldA==
 
     // A JWT's segment: the URL alphabet without padding
     auto claims = encoding::base64::raw_url.decode("eyJzdWIiOiI0MiJ9");
     if (claims) {
-        io::stdout.write(string(reinterpret_cast<const char*>(claims->data()), claims->size()) + "\n");   // {"sub":"42"}
+        println(string(claims));   // {"sub":"42"}
     }
 
     // Strict by default: a line ending is not base64
     auto wrapped = encoding::base64::standard.decode("YWxh\nOnNla3JldA==");
-    io::stdout.write(wrapped.error().message() + "\n");   // offset 4: invalid character 0x0A
+    println(wrapped.error().message());   // offset 4: invalid character 0x0A
     // MIME wraps its lines: lenient() skips them
     auto mime = encoding::base64::standard.lenient().decode("YWxh\r\nOnNla3JldA==");
-    io::stdout.write(string(std::to_string(mime->size())) + " bytes\n");   // 10 bytes
+    println("{} bytes", mime->size());   // 10 bytes
 
     // A stream: what is written goes out encoded
-    tracked_ptr out = make_tracked<io::buffer>();
-    auto enc = encoding::base64::standard.encoder_to(out);
-    enc->write("hello, ");
-    enc->write("world");
-    enc->close();// the last group and its padding
-    io::stdout.write(out->text() + "\n");                 // aGVsbG8sIHdvcmxk
+    io::buffer out;
+    encoding::base64::encoder armored = encoding::base64::standard.encoder_to(out);
+    armored.write("hello, ");
+    armored.write("world");
+    armored.close();// the last group and its padding
+    println(out.text());                  // aGVsbG8sIHdvcmxk
 }
 ```
 

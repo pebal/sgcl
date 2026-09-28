@@ -30,6 +30,39 @@ namespace {
     duration ns(int64_t n) {
         return std::chrono::nanoseconds(n);
     }
+
+    // Whether T(0) compiles: the literal 0 is a null pointer constant, and
+    // 0 -> const char* -> string would reach a constructor from text
+    template<class T>
+    concept from_literal_zero = requires { T(0); };
+}
+
+// A literal in the program is constructed, not parsed: the value parse
+// gives, or parse's error thrown (DESIGN 234)
+TEST(Duration_Tests, LiteralsConstruct) {
+    duration d("1h30m");
+    EXPECT_EQ(d, value_of(duration::parse("1h30m")));
+    EXPECT_EQ(d, 90 * minute);
+    EXPECT_EQ(duration("-1.5µs"), value_of(duration::parse("-1.5µs")));
+    EXPECT_EQ(duration("0"), duration());
+    auto bad = duration::parse("1d");
+    ASSERT_FALSE(bad);
+    try {
+        duration("1d");
+        FAIL() << "a day is not a unit";
+    } catch (const bad_expected_access<duration_error>& x) {
+        EXPECT_EQ(x.error().offset(), bad.error().offset());
+        EXPECT_EQ(string(x.what()), bad.error().message());
+    }
+    static_assert(!std::is_convertible_v<const string&, duration>, "explicit");
+    static_assert(!std::is_convertible_v<const char*, duration>, "explicit");
+    // No constructor from a number, and the literal 0 does not reach the
+    // one from text: 0 -> string is ambiguous (string's deleted nullptr_t)
+    static_assert(!std::is_constructible_v<duration, int>);
+    static_assert(!std::is_constructible_v<duration, int64_t>);
+    static_assert(!from_literal_zero<duration>);
+    EXPECT_EQ(duration(std::chrono::nanoseconds(int64_t(0))), duration());
+    EXPECT_EQ(duration(std::chrono::nanoseconds(int64_t(1500))).nanoseconds(), 1500);
 }
 
 TEST(Duration_Tests, ParseAsGoDoes) {
@@ -55,9 +88,9 @@ TEST(Duration_Tests, AFractionIsTakenExactly) {
         ASSERT_TRUE(d.has_value()) << c.text;
         EXPECT_EQ(d->nanoseconds(), c.ns) << c.text;
     }
-    EXPECT_EQ(duration::parse("0.3333333333333333333h")->nanoseconds(), 1199999999999);   // 3600e9 / 3 = 1.2e12 would need the digits to go on
-    EXPECT_EQ(duration::parse("0.33333333333333333333333333333333333333333333333333333333333333333334h")->nanoseconds(), 1200000000000);
-    EXPECT_EQ(duration::parse("1.9999999999999999999999999999999999999999ns")->nanoseconds(), 1);
+    EXPECT_EQ(value_of(duration::parse("0.3333333333333333333h")).nanoseconds(), 1199999999999);   // 3600e9 / 3 = 1.2e12 would need the digits to go on
+    EXPECT_EQ(value_of(duration::parse("0.33333333333333333333333333333333333333333333333333333333333333333334h")).nanoseconds(), 1200000000000);
+    EXPECT_EQ(value_of(duration::parse("1.9999999999999999999999999999999999999999ns")).nanoseconds(), 1);
 }
 
 TEST(Duration_Tests, TextAndUnitsAsGoHasThem) {
@@ -122,22 +155,22 @@ TEST(Duration_Tests, WhereARefusalPoints) {
         ASSERT_FALSE(d.has_value()) << c.text;
         EXPECT_EQ(d.error().offset(), c.offset) << c.text;
     }
-    EXPECT_EQ(duration::parse("1d").error().message(), "an unknown unit: ns, us, ms, s, m or h expected");
-    EXPECT_EQ(duration::parse("1").error().message(), "a unit expected: ns, us, ms, s, m or h");
-    EXPECT_EQ(duration::parse("").error().message(), "a number expected");
-    EXPECT_EQ(duration::parse("3000000h").error().message(), "out of range: a duration is at most about 292 years");
+    EXPECT_EQ(error_of(duration::parse("1d")).message(), "an unknown unit: ns, us, ms, s, m or h expected");
+    EXPECT_EQ(error_of(duration::parse("1")).message(), "a unit expected: ns, us, ms, s, m or h");
+    EXPECT_EQ(error_of(duration::parse("")).message(), "a number expected");
+    EXPECT_EQ(error_of(duration::parse("3000000h")).message(), "out of range: a duration is at most about 292 years");
 }
 
 TEST(Duration_Tests, BothMicroSigns) {
-    EXPECT_EQ(duration::parse("1\xC2\xB5s")->nanoseconds(), 1000);   // µ, the micro sign
-    EXPECT_EQ(duration::parse("1\xCE\xBCs")->nanoseconds(), 1000);   // μ, the Greek letter
-    EXPECT_EQ(duration::parse("1us")->nanoseconds(), 1000);
+    EXPECT_EQ(value_of(duration::parse("1\xC2\xB5s")).nanoseconds(), 1000);   // µ, the micro sign
+    EXPECT_EQ(value_of(duration::parse("1\xCE\xBCs")).nanoseconds(), 1000);   // μ, the Greek letter
+    EXPECT_EQ(value_of(duration::parse("1us")).nanoseconds(), 1000);
     EXPECT_EQ(duration(1500ns).to_string(), "1.5\xC2\xB5s");          // written with the micro sign, as Go writes it
 }
 
 TEST(Duration_Tests, TheEndsOfTheRange) {
-    EXPECT_EQ(duration::parse("-9223372036854775808ns")->nanoseconds(), Min);
-    EXPECT_EQ(duration::parse("9223372036854775807ns")->nanoseconds(), Max);
+    EXPECT_EQ(value_of(duration::parse("-9223372036854775808ns")).nanoseconds(), Min);
+    EXPECT_EQ(value_of(duration::parse("9223372036854775807ns")).nanoseconds(), Max);
     EXPECT_FALSE(duration::parse("9223372036854775808ns"));
     EXPECT_EQ(ns(Min).to_string(), "-2562047h47m16.854775808s");
     EXPECT_EQ(ns(Max).to_string(), "2562047h47m16.854775807s");

@@ -11,6 +11,7 @@
 #include "../../core/aliases.h"
 #include "../../core/config.h"
 #include "../../core/detail/bytes.h"
+#include "../../core/detail/handle_word.h"
 #include "../../core/expected.h"
 #include "../../core/make_tracked.h"
 #include "../../core/slice.h"
@@ -18,6 +19,7 @@
 #include "../../io/stream.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <stdexcept>
@@ -427,5 +429,163 @@ namespace sgcl::encoding::detail {
         uint8_t _pending_begin = 0, _pending_end = 0;
         bool _eof = false;
         bool _finished = false;
+    };
+
+    // The tag of a stream handle's constructor from a state the library made
+    struct CodecMade {
+        explicit CodecMade() = default;
+    };
+
+    // The one way from a state to a handle: encoder_to, decoder_from,
+    // dumper_to (base64.h, base32.h, hex.h, ascii85.h)
+    struct CodecAccess {
+        template<class H, class S>
+        static H make(S&& state) noexcept {
+            return H(CodecMade{}, std::forward<S>(state));   // the state as make_tracked gave it: held from here on
+        }
+    };
+
+    // The public streams of the codecs as handles (a base64 encoder, a hex
+    // dumper): one tracked word to the state (CodecWriter, CodecReader,
+    // HexDumperState), copied and passed by value, the copies sharing one
+    // stream. Made by the library alone, the state with the handle; a
+    // default-constructed handle holds none (`!h`), and an operation on it
+    // is a contract violation. A stream made of one (io::writer(h),
+    // io::copy) binds the state, not the handle (io/stream.h: IsStreamHandle).
+    // Each public type derives from one of these two and adds nothing,
+    // so that its layout is the word's (req::handle).
+    template<class Derived, class State>
+    class WriterHandle
+    : public io::mixin::writer<Derived> {
+    public:
+        using io::mixin::writer<Derived>::write;
+        using io::mixin::writer<Derived>::async_write;
+
+        WriterHandle() noexcept = default;
+
+        expected<size_t, io::error> write(const slice<const byte>& data) const {
+            return _get().write(data);
+        }
+
+        async::task<expected<size_t, io::error>> async_write(const slice<const byte>& data) const {
+            return _get().async_write(data);
+        }
+
+        // The rest written (the last group, the short line), the writer
+        // underneath left open; a write after it is errc::closed
+        expected<void, io::error> close() const {
+            return _get().close();
+        }
+
+        async::task<expected<void, io::error>> async_close() const {
+            return _get().async_close();
+        }
+
+        bool is_closed() const noexcept {
+            return _get().is_closed();
+        }
+
+        // Whether this handle holds a stream
+        explicit operator bool() const noexcept {
+            return (bool)_s;
+        }
+
+        // The same stream: the same state
+        friend bool operator==(const Derived& a, const Derived& b) noexcept {
+            return a._s == b._s;
+        }
+
+    private:
+        friend struct io::detail::HandleAccess;
+        friend struct sgcl::detail::HandleWord;
+        friend struct CodecAccess;
+
+        WriterHandle(CodecMade, tracked_ptr<State> s) noexcept
+        : _s(std::move(s)) {
+        }
+
+        // The handle's word, for the atomics (core/detail/handle_word.h)
+        WriterHandle(sgcl::detail::FromWord, const tracked_ptr<State>& w) noexcept
+        : _s(w) {
+        }
+
+        tracked_ptr<State>& _handle_word() noexcept {
+            return _s;
+        }
+
+        const tracked_ptr<State>& _handle_word() const noexcept {
+            return _s;
+        }
+
+        State& _get() const noexcept {
+            assert(_s && "an empty encoding stream: made by encoder_to or dumper_to");
+            return *_s;
+        }
+
+        const tracked_ptr<State>& _stream_state() const noexcept {
+            return _s;
+        }
+
+        tracked_ptr<State> _s;
+    };
+
+    template<class Derived, class State>
+    class ReaderHandle
+    : public io::mixin::reader<Derived> {
+    public:
+        ReaderHandle() noexcept = default;
+
+        expected<size_t, io::error> read(const slice<byte>& buffer) const {
+            return _get().read(buffer);
+        }
+
+        async::task<expected<size_t, io::error>> async_read(const slice<byte>& buffer) const {
+            return _get().async_read(buffer);
+        }
+
+        // Where the text went wrong, or why the reader under it failed
+        const optional<error>& last_error() const noexcept {
+            return _get().last_error();
+        }
+
+        explicit operator bool() const noexcept {
+            return (bool)_s;
+        }
+
+        friend bool operator==(const Derived& a, const Derived& b) noexcept {
+            return a._s == b._s;
+        }
+
+    private:
+        friend struct io::detail::HandleAccess;
+        friend struct sgcl::detail::HandleWord;
+        friend struct CodecAccess;
+
+        ReaderHandle(CodecMade, tracked_ptr<State> s) noexcept
+        : _s(std::move(s)) {
+        }
+
+        ReaderHandle(sgcl::detail::FromWord, const tracked_ptr<State>& w) noexcept
+        : _s(w) {
+        }
+
+        tracked_ptr<State>& _handle_word() noexcept {
+            return _s;
+        }
+
+        const tracked_ptr<State>& _handle_word() const noexcept {
+            return _s;
+        }
+
+        State& _get() const noexcept {
+            assert(_s && "an empty encoding stream: made by decoder_from");
+            return *_s;
+        }
+
+        const tracked_ptr<State>& _stream_state() const noexcept {
+            return _s;
+        }
+
+        tracked_ptr<State> _s;
     };
 }

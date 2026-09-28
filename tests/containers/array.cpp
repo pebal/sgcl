@@ -5,12 +5,16 @@
 //------------------------------------------------------------------------------
 #include "tests/types.h"
 
+#include <cstdint>
+#include <cstring>
 #include <functional>
 #include <iterator>
+#include <memory>
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <typeinfo>
 #include <vector>
 
 namespace {
@@ -164,3 +168,71 @@ static_assert(sorts_in_constant_evaluation());
 static_assert(HasTupleSize<sgcl::array<int, 2>> && HasTupleElement<sgcl::array<int, 2>>);
 static_assert(!HasTupleSize<sgcl::dynamic_array<int>> && !HasTupleElement<sgcl::dynamic_array<int>>);
 static_assert(std::tuple_size_v<sgcl::array<int, 0>> == 0);
+
+// The type of array<T, N> is T and N alone: with the index sequence of
+// its constructor as a third template parameter, array<std::byte, 32768>
+// (a buffer of the library, make_tracked of it) was named in 251 095
+// characters, and so was every member function of it
+TEST(Array_Tests, TheTypeIsNamedByItsElementAndCountAlone) {
+    EXPECT_LT(std::strlen(typeid(sgcl::array<std::byte, 32768>).name()), 100u);
+    EXPECT_LT(std::strlen(typeid(sgcl::array<int, 64>).name()), 100u);
+    auto buffer = make_tracked<sgcl::array<std::byte, 32768>>();
+    (*buffer)[32767] = std::byte{7};
+    EXPECT_EQ((*buffer)[32767], std::byte{7});
+    EXPECT_EQ(buffer->size(), 32768u);
+}
+
+// The braces: up to 64 elements an aggregate's exactly (a brace per
+// element, constants that fit, a narrowing one refused), past 64 any N
+// arguments that convert to T implicitly, converted as a parameter of
+// type T would be (a narrowing one taken there)
+namespace {
+    struct Point2 {
+        int x;
+        int y;
+    };
+
+    template<class P>
+    constexpr bool takes_a_brace_per_element = requires { sgcl::array<P, 2>{{1, 2}, {3, 4}}; };
+
+    template<class T>
+    constexpr bool takes_constants_that_fit = requires { sgcl::array<T, 2>{1, 255}; };
+
+    template<class T>
+    constexpr bool takes_a_narrowing_constant = requires { sgcl::array<T, 2>{1.5, 2}; };
+
+    template<class T, class U, size_t... I>
+    constexpr bool takes(std::index_sequence<I...>) {
+        return requires { sgcl::array<T, sizeof...(I)>{(void(I), U())...}; };
+    }
+
+    template<size_t N, size_t... I>
+    constexpr sgcl::array<int, N> iota(std::index_sequence<I...>) {
+        return {int(I)...};
+    }
+}
+
+static_assert(takes_a_brace_per_element<Point2>);
+static_assert(takes_constants_that_fit<double> && takes_constants_that_fit<uint8_t>);
+static_assert(!takes_a_narrowing_constant<int>);
+static_assert(takes<int, int>(std::make_index_sequence<65>()) && takes<double, double>(std::make_index_sequence<65>()));
+static_assert(takes<double, int>(std::make_index_sequence<65>()) && takes<uint8_t, int>(std::make_index_sequence<65>()) && takes<int, double>(std::make_index_sequence<65>()));
+static_assert(!takes<std::string, int>(std::make_index_sequence<65>()) && !takes<int, std::string>(std::make_index_sequence<65>()));
+static_assert(iota<100>(std::make_index_sequence<100>())[99] == 99);
+static_assert(!std::is_aggregate_v<sgcl::array<int, 100>> && std::is_trivially_copyable_v<sgcl::array<int, 100>> && std::is_trivially_default_constructible_v<sgcl::array<int, 100>>);
+static_assert(sizeof(sgcl::array<int, 100>) == 100 * sizeof(int));
+
+TEST(Array_Tests, ThePastSixtyFourTakesAnyConvertingArguments) {
+    auto moved = sgcl::to_array({std::make_unique<int>(1), std::make_unique<int>(2)});
+    EXPECT_EQ(*moved[1], 2);
+    std::unique_ptr<int> many[70];
+    many[69] = std::make_unique<int>(69);
+    auto all = sgcl::to_array(std::move(many));
+    static_assert(std::is_same_v<decltype(all), sgcl::array<std::unique_ptr<int>, 70>>);
+    EXPECT_EQ(*all[69], 69);
+    EXPECT_EQ(all[0], nullptr);
+    constexpr auto hundred = iota<100>(std::make_index_sequence<100>());
+    EXPECT_EQ(hundred.back(), 99);
+    sgcl::array<Point2, 2> p = {{1, 2}, {3, 4}};
+    EXPECT_EQ(p[1].y, 4);
+}

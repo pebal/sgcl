@@ -89,35 +89,29 @@ A list, because the absence of one is what makes a security function dangerous.
 ```cpp
 #include "sgcl/sgcl.h"
 #include "sgcl/txt/identifier.h"
-#include <iostream>
 
 using namespace sgcl;
 
 // A registry that will not let two names be told apart by nobody
 int main() {
-    for (auto s : {string("wartość"), string("_name"), string("2name"), string("na me")}) {
-        std::cout << s << ": identifier " << txt::is_identifier(s)
-                  << ", with the profile " << txt::is_identifier(s, txt::program_syntax) << '\n';
+    for (auto s : {"wartość", "_name", "2name", "na me"}) {
+        println("{}: identifier {}, with the profile {}", s, txt::is_identifier(s), txt::is_identifier(s, txt::program_syntax));
     }
 
-    for (auto s : {string("ＦＵＬＬ"), string("ﬁle"), string("Straße"), string("①②③")}) {
-        std::cout << s << " -> " << txt::nfkc_casefold(s) << "   ";
+    for (auto s : {"ＦＵＬＬ", "ﬁle", "Straße", "①②③"}) {
+        print("{} -> {}   ", s, txt::nfkc_casefold(s));
     }
-    std::cout << '\n';
+    println();
 
     string wanted = "раypal";          // the а and the р are Cyrillic
     string taken = "paypal";
-    std::cout << wanted << " vs " << taken
-              << ": same bytes " << (wanted == taken)
-              << ", same folded " << (txt::nfkc_casefold(wanted) == txt::nfkc_casefold(taken))
-              << ", confusable " << txt::is_confusable(wanted, taken)
-              << ", single script " << txt::is_single_script(wanted) << '\n';
+    println("{} vs {}: same bytes {}, same folded {}, confusable {}, single script {}", wanted, taken, (wanted == taken), (txt::nfkc_casefold(wanted) == txt::nfkc_casefold(taken)), txt::is_confusable(wanted, taken), txt::is_single_script(wanted));
 
-    for (auto s : {string("paypal"), string("wartość"), string("変数"),
-                   string("раypal"), string("na me")}) {
+    for (auto s : {"paypal", "wartość", "変数",
+                   "раypal", "na me"}) {
         const char* names[] = {"ascii_only", "single_script", "highly_restrictive",
                                "moderately_restrictive", "minimally_restrictive", "unrestricted"};
-        std::cout << s << ": " << names[size_t(txt::restriction_level_of(s))] << '\n';
+        println("{}: {}", s, names[size_t(txt::restriction_level_of(s))]);
     }
     return 0;
 }
@@ -126,12 +120,12 @@ int main() {
 The output:
 
 ```
-wartość: identifier 1, with the profile 1
-_name: identifier 0, with the profile 1
-2name: identifier 0, with the profile 0
-na me: identifier 0, with the profile 0
+wartość: identifier true, with the profile true
+_name: identifier false, with the profile true
+2name: identifier false, with the profile false
+na me: identifier false, with the profile false
 ＦＵＬＬ -> full   ﬁle -> file   Straße -> strasse   ①②③ -> 123   
-раypal vs paypal: same bytes 0, same folded 0, confusable 1, single script 0
+раypal vs paypal: same bytes false, same folded false, confusable true, single script false
 paypal: ascii_only
 wartość: single_script
 変数: single_script

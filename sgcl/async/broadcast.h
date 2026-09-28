@@ -99,7 +99,7 @@ namespace sgcl::async {
             : position(position) {
             }
 
-            channel<void> ch;
+            detail::ChannelState<void> ch;
             const size_t position;
         };
 
@@ -142,7 +142,7 @@ namespace sgcl::async {
             atomic<size_t> committed = {0};    // the positions published, in order
             atomic<tracked_ptr<Round>> round;  // the select cases waiting for the next position, if any
             atomic<tracked_ptr<Sub>> subs;     // the subscriptions, for the wake of a receive
-            channel<void> ready;               // closed at birth: the channel of a select case served at once
+            detail::ChannelState<void> ready;               // closed at birth: the channel of a select case served at once
             atomic<bool> closed = {false};
         };
 
@@ -308,8 +308,8 @@ namespace sgcl::async {
             // when it is made: another case may win)
             template<class F>
             class receive_case
-            : public decltype(std::declval<channel<void>&>().on_receive(std::declval<F>())) {
-                using Base = decltype(std::declval<channel<void>&>().on_receive(std::declval<F>()));
+            : public decltype(std::declval<detail::ChannelState<void>&>().on_receive(std::declval<F>())) {
+                using Base = decltype(std::declval<detail::ChannelState<void>&>().on_receive(std::declval<F>()));
 
             public:
                 receive_case(subscription& s, tracked_ptr<Round> round, F f)
@@ -318,7 +318,7 @@ namespace sgcl::async {
                 }
 
             private:
-                static channel<void>& _channel(subscription& s, Round* round) noexcept {   // read only, and may be null
+                static detail::ChannelState<void>& _channel(subscription& s, Round* round) noexcept {   // read only, and may be null
                     return round ? round->ch : s._s->ready;
                 }
 

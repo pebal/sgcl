@@ -299,9 +299,7 @@ namespace sgcl::detail {
             }
             _has_free.assign((_chunk_count + 63) / 64, 0);
             os::advise_huge_pages((void*)globals.base, globals.size);
-            if (auto limit = os::memory_limit()) {
-                _limit.store(limit / 100 * config::heap_limit_percent, std::memory_order_relaxed);
-            }
+            _limit.store(os::default_memory_limit(), std::memory_order_relaxed);   // SGCL_MEMORY_LIMIT or the default share (os.h), read once here
         }
 
         ~Heap() = default;   // the range lives as long as the process

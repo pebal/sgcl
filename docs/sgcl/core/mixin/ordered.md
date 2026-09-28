@@ -16,6 +16,7 @@ namespace sgcl::mixin {
 - Every method exists only for elements that are ordered (`req::comparable`: `<=>` or `<`), or takes a comparator or a key and asks nothing of the element.
 - The sorts exist only where the elements can be written (`req::sequence`) and reached by position (`req::random_access`): an immutable vector is ordered — `is_sorted`, `binary_search` — but not sorted in place. `list` and `forward_list` have a `sort` of their own, on the nodes, which hides these.
 - The searches assume a sorted range, by `<` or by the comparator given, and take O(log n) comparisons on a random-access range, O(n) steps on a list. A sorted `vector` with them is the flat map of this library: the lookups of a `sorted_map` with the memory of a `vector`.
+- `stable_sort` of elements that may hold tracked pointers (a `tracked_ptr`, a `string`, a pair or a struct with one) never moves them into memory the collector does not scan, as the standard's `stable_sort` would (its buffer is `operator new`'s; [The rules](../README.md#the-rules), 1): their positions are sorted, plain numbers in a plain buffer, and the elements moved once each into place. It is faster than the standard's on the elements themselves: `pair<int, tracked_ptr<T>>` on M-series, 10 000 in 0.54 ms (the standard's 1.1 ms), 100 000 in 8.8 ms (11.2 ms). The positions take 8 bytes an element of plain memory for the time of the sort (no collection). Elements with no tracked pointer (an `int`, a struct of numbers) go through `std::stable_sort` as they are.
 - One mixin holds every overload of a name: `sort()`, `sort(cmp)`, `sort_by(proj)` are all here, not split between this and `mixin::sequence`, because a name in two bases is ambiguous.
 
 ## Members
@@ -49,7 +50,6 @@ assert(iv.is_sorted() && iv.binary_search(2));   // ordered; no sort(): nothing 
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -64,7 +64,7 @@ int main() {
     for (int k : {40, 10, 30, 20}) {
         add_sorted(keys, k);
     }
-    std::cout << (keys.is_sorted() ? "sorted" : "not sorted") << ", 30 at " << keys.sorted_index_of(30) << "\n";
+    println("{}, 30 at {}", (keys.is_sorted() ? "sorted" : "not sorted"), keys.sorted_index_of(30));
     return 0;
 }
 ```

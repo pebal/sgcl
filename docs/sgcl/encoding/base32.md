@@ -41,20 +41,20 @@ public:
 
 ```cpp
 #include "sgcl/encoding/base32.h"
-#include "sgcl/io/os.h"
+#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
 int main() {
-    io::stdout.write(encoding::base32::standard.encode("foobar") + "\n");                     // MZXW6YTBOI======
-    io::stdout.write(encoding::base32::hex.encode("foobar") + "\n");                          // CPNMUOJ1E8======
+    println(encoding::base32::standard.encode("foobar"));                               // MZXW6YTBOI======
+    println(encoding::base32::hex.encode("foobar"));                                    // CPNMUOJ1E8======
     // the secret of a one-time password: base32 without padding
     auto secret = encoding::base32::standard.without_padding().decode("JBSWY3DPEHPK3PXP");
-    io::stdout.write(string(std::to_string(secret->size())) + " bytes\n");          // 10 bytes
+    println("{} bytes", secret->size());          // 10 bytes
     // strict: the bits past the data must be zero
     auto odd = encoding::base32::standard.decode("MZ======");
-    io::stdout.write(odd.error().message() + "\n");                                 // offset 1: bits past the data in the last character
-    io::stdout.write(string(std::to_string(encoding::base32::standard.lenient().decode("MZ======")->size())) + " byte\n");   // 1 byte
+    println(odd.error().message());                                 // offset 1: bits past the data in the last character
+    println("{} byte", encoding::base32::standard.lenient().decode("MZ======")->size());             // 1 byte
 }
 ```
 

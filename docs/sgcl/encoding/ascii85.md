@@ -36,8 +36,8 @@ public:
     static constexpr size_t max_decoded_size(size_t n) noexcept;       // 4n: every character a 'z'
     static size_t encode_to(const slice<char>& out, const slice<const byte>& data);                // into the caller's buffer
     static expected<size_t, error> decode_to(const slice<byte>& out, const string& text);
-    static tracked_ptr<encoder> encoder_to(const io::writer& out);
-    static tracked_ptr<decoder> decoder_from(const io::reader& in);
+    static encoder encoder_to(const io::writer& out);     // handles, as base64's
+    static decoder decoder_from(const io::reader& in);
 };
 ```
 
@@ -47,17 +47,17 @@ public:
 
 ```cpp
 #include "sgcl/encoding/ascii85.h"
-#include "sgcl/io/os.h"
+#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
 int main() {
-    io::stdout.write(encoding::ascii85::encode("Hello, World!") + "\n");      // 87cURD_*#4DfTZ)+T
+    println(encoding::ascii85::encode("Hello, World!"));                // 87cURD_*#4DfTZ)+T
     vector<byte> zeros(8);
-    io::stdout.write(encoding::ascii85::encode(zeros) + "\n");                // zz
-    auto back = encoding::ascii85::decode("87cURD_*#4\nDfTZ)+T");                      // white space skipped
-    io::stdout.write(string(reinterpret_cast<const char*>(back->data()), back->size()) + "\n");   // Hello, World!
-    io::stdout.write(encoding::ascii85::decode("s8W-\"").error().message() + "\n");   // offset 4: a group past 32 bits
+    println(encoding::ascii85::encode(zeros));                          // zz
+    auto back = encoding::ascii85::decode("87cURD_*#4\nDfTZ)+T");                                // white space skipped
+    println(string(back));   // Hello, World!
+    println(encoding::ascii85::decode("s8W-\"").error().message());             // offset 4: a group past 32 bits
 }
 ```
 

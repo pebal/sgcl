@@ -12,24 +12,26 @@ A wait group: `add(n)` counts the work, `done()` counts it off, `wait()` waits f
 
 ## Rules
 
-- It lives where a `tracked_ptr` may: on a stack or inside a managed object ([The rules](../core/README.md#the-rules), 1); not copyable, not movable.
+- A handle: one word, a tracked word to the state, which copies share (`==` says whether two are the same). Made by the constructor; there is no empty wait_group. It lies on a stack, in a task (a parameter by value), in a managed object; in a global or a std container, as a `rooted<async::wait_group>` ([rooted](../core/rooted.md)), the same object reached with `->`. A root is never part of a cycle: never a `rooted` in a managed object or a task's frame ([The rules](../core/README.md#the-rules), 1).
 - `add` before the work starts and `wait` after are the program's order, as Go's are: an `add` racing with a `wait` from zero is a misuse.
 - `add(-n)` takes n off, as `done()` takes one: a count brought to zero releases the waiters (Go's `Add(-n)`).
 
 ## Members
 
 ```cpp
-void add(long n = 1);  void done();  long count() const noexcept;
-void wait();                                   // a thread
-operation<void> operator co_await();            // co_await g: the task resumed at zero
-template<class F> auto on_done(F f);           // a case of a select: f() when the count is zero
+wait_group();                                        // at zero
+void add(long n = 1) const;  void done() const;  long count() const noexcept;
+void wait() const;                                   // a thread
+auto operator co_await() const;                      // co_await g: the task resumed at zero
+template<class F> auto on_done(F f) const;           // a case of a select: f() when the count is zero
+friend bool operator==(const wait_group&, const wait_group&) noexcept;   // the same group
 ```
 
 ```cpp
 async::wait_group all;
 all.add(2);
-async::go([](async::wait_group& all) -> async::task<> { all.done(); co_return; }(all));
-async::go([](async::wait_group& all) -> async::task<> { all.done(); co_return; }(all));
+async::go([](async::wait_group all) -> async::task<> { all.done(); co_return; }(all));   // by value: a copy is the same group
+async::go([](async::wait_group all) -> async::task<> { all.done(); co_return; }(all));
 all.wait();                                     // both done
 ```
 
@@ -37,7 +39,6 @@ all.wait();                                     // both done
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -75,7 +76,7 @@ int main() {
     }
     site->go.set();
     site->pending.wait();                                    // this thread waits for the twenty
-    std::cout << site->fetched << " pages\n";                // 20 pages
+    println("{} pages", site->fetched);                // 20 pages
     return site->fetched == 20 ? 0 : 1;
 }
 ```

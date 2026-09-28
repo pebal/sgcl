@@ -92,7 +92,6 @@ assert(described == "text");
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -126,10 +125,10 @@ int main() {
     tracked_ptr root = make_tracked<Node>();
     Children children;
     children.push_back(make_tracked<Node>(Node{1.5}));
-    children.push_back(make_tracked<Node>(Node{string("name")}));
+    children.push_back(make_tracked<Node>(Node{"name"}));
     children.push_back(make_tracked<Node>(Node{2.5}));
     root->value = std::move(children);
-    std::cout << sum(root) << "\n";              // 4
+    println("{}", sum(root));              // 4
     root->value = 0.0;                           // the children unreferenced: collected
     collector::force_collect(true);          // optional, for the demonstration only
     return 0;

@@ -287,10 +287,10 @@ namespace sgcl::async {
         }
 
         // The round the held-back readers wait on: the one there, or a new one
-        tracked_ptr<channel<void>> _round_or_new() {
-            tracked_ptr<channel<void>> round = _round.load(std::memory_order_acquire);
+        tracked_ptr<detail::ChannelState<void>> _round_or_new() {
+            tracked_ptr<detail::ChannelState<void>> round = _round.load(std::memory_order_acquire);
             while (!round) {
-                if (_round.compare_exchange_strong(round, tracked_ptr<channel<void>>(make_tracked<channel<void>>()), std::memory_order_acq_rel, std::memory_order_acquire)) {
+                if (_round.compare_exchange_strong(round, tracked_ptr<detail::ChannelState<void>>(make_tracked<detail::ChannelState<void>>()), std::memory_order_acq_rel, std::memory_order_acquire)) {
                     round = _round.load(std::memory_order_acquire);
                 }
             }
@@ -299,7 +299,7 @@ namespace sgcl::async {
 
         void _wait_shared(uint32_t writer) {
             for (;;) {
-                tracked_ptr<channel<void>> round = _round_or_new();
+                tracked_ptr<detail::ChannelState<void>> round = _round_or_new();
                 std::atomic_thread_fence(std::memory_order_seq_cst);
                 if (_writer_gone(writer)) {
                     return;
@@ -310,7 +310,7 @@ namespace sgcl::async {
 
         task<> _async_wait_shared(uint32_t writer) {
             for (;;) {
-                tracked_ptr<channel<void>> round = _round_or_new();
+                tracked_ptr<detail::ChannelState<void>> round = _round_or_new();
                 std::atomic_thread_fence(std::memory_order_seq_cst);
                 if (_writer_gone(writer)) {
                     co_return;
@@ -342,7 +342,7 @@ namespace sgcl::async {
 
         task<> _async_wait(int stage) {
             if (stage == 0) {
-                co_await _writers._ch.receive();
+                co_await _writers.ch.receive();
                 if (_claim()) {
                     co_return;
                 }
@@ -352,8 +352,8 @@ namespace sgcl::async {
 
         atomic<uint64_t> _word = {0};
         std::atomic<long> _reader_wait = {0};
-        mutex _writers;
-        channel<void> _drained{1};
-        atomic<tracked_ptr<channel<void>>> _round;
+        detail::MutexState _writers;
+        detail::ChannelState<void> _drained{1};
+        atomic<tracked_ptr<detail::ChannelState<void>>> _round;
     };
 }

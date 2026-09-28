@@ -74,13 +74,15 @@ TEST(Clock_Test, SleepUntilAPointInTheFutureWaits) {
 
 TEST(Clock_Test, AtIsOneSignalAtThePointThenClosed) {
     auto t0 = Steady::now();
-    auto ch = sgcl::async::at(sgcl::clock::now() + 20ms);
-    EXPECT_TRUE(ch->receive().wait());
+    sgcl::async::event ev = sgcl::async::at(sgcl::clock::now() + 20ms);
+    EXPECT_FALSE(ev.is_set());
+    ev.wait();
+    EXPECT_TRUE(ev.is_set());
     EXPECT_GE(Steady::now() - t0, 20ms);
-    EXPECT_FALSE(ch->receive().wait());   // closed
-    auto past = sgcl::async::at(sgcl::clock::now() - 1s);   // a point that has passed: at once
-    EXPECT_TRUE(past->receive().wait());
-    EXPECT_FALSE(past->receive().wait());
+    ev.wait();                               // set: a wait after it does not wait
+    sgcl::async::event past = sgcl::async::at(sgcl::clock::now() - 1s);   // a point that has passed: at once
+    past.wait();
+    EXPECT_TRUE(past.is_set());
     // a timeout case at a point
     sgcl::async::channel<int> never;
     bool timed = false;
@@ -95,13 +97,13 @@ TEST(Clock_Test, TickAlignedToAPoint) {
     auto start = clock.now();
     auto tk = sgcl::async::tick(1s, start + 500ms);   // the first tick at +500 ms, then every second
     clock.advance(499ms);
-    EXPECT_FALSE(tk->try_receive());
+    EXPECT_FALSE(tk.try_receive());
     clock.advance(1ms);
-    EXPECT_TRUE(tk->try_receive());
-    EXPECT_FALSE(tk->try_receive());
+    EXPECT_TRUE(tk.try_receive());
+    EXPECT_FALSE(tk.try_receive());
     clock.advance(1s);
-    EXPECT_TRUE(tk->try_receive());              // at +1500 ms
-    tk->close();
+    EXPECT_TRUE(tk.try_receive());              // at +1500 ms
+    tk.close();
     sgcl::async::scheduler::stop();
 }
 
@@ -146,20 +148,20 @@ TEST(Clock_Test, TickFiresPerAdvance) {
     for (int i : sgcl::range(5)) {              // one advance per period: one tick each
         (void)i;
         clock.advance(1s);
-        if (tk->try_receive()) {
+        if (tk.try_receive()) {
             ++n;
         }
     }
     EXPECT_EQ(n, 5);
-    EXPECT_FALSE(tk->try_receive());
+    EXPECT_FALSE(tk.try_receive());
     clock.advance(3s);                           // three periods in one advance, nobody receiving in between:
-    EXPECT_TRUE(tk->try_receive());              // coalesced to the one the channel holds, as a slow receiver's are
-    EXPECT_FALSE(tk->try_receive());
+    EXPECT_TRUE(tk.try_receive());              // coalesced to the one the channel holds, as a slow receiver's are
+    EXPECT_FALSE(tk.try_receive());
     clock.advance(999ms);
-    EXPECT_FALSE(tk->try_receive());             // the period is kept: the next is at +4 s, not 1 s after the last receive
+    EXPECT_FALSE(tk.try_receive());             // the period is kept: the next is at +4 s, not 1 s after the last receive
     clock.advance(1ms);
-    EXPECT_TRUE(tk->try_receive());
-    tk->close();
+    EXPECT_TRUE(tk.try_receive());
+    tk.close();
     sgcl::async::scheduler::stop();
 }
 
@@ -170,8 +172,8 @@ TEST(Clock_Test, AfterOrderedAcrossDeadlinesInOneAdvance) {
     std::vector<sgcl::async::task<>> tasks;
     for (int i = 4; i >= 0; --i) {              // armed in reverse order of their deadlines: 5 s first, 1 s last
         tasks.push_back(sgcl::async::spawn([](int i, std::atomic<int>* done) -> sgcl::async::task<> {
-            auto ch = sgcl::async::after(std::chrono::seconds(1 + i));
-            co_await ch->receive();
+            sgcl::async::event ev = sgcl::async::after(std::chrono::seconds(1 + i));
+            co_await ev;
             done[i] = 1;
         }(i, done)));
     }
@@ -190,10 +192,10 @@ TEST(Clock_Test, AfterOrderedAcrossDeadlinesInOneAdvance) {
     auto a = sgcl::async::after(2s);
     auto b = sgcl::async::after(1s);
     clock.advance(1s);
-    EXPECT_TRUE(b->try_receive());
-    EXPECT_FALSE(a->try_receive());
+    EXPECT_TRUE(b.is_set());
+    EXPECT_FALSE(a.is_set());
     clock.advance(1s);
-    EXPECT_TRUE(a->try_receive());
+    EXPECT_TRUE(a.is_set());
     sgcl::async::scheduler::stop();
 }
 
@@ -256,7 +258,7 @@ TEST(Clock_Test, UninstallRestoresRealTime) {
     }
     // a timer armed under the real clock after that fires in real time
     auto t0 = Steady::now();
-    EXPECT_TRUE(sgcl::async::after(10ms)->receive().wait());
+    sgcl::async::after(10ms).wait();
     EXPECT_GE(Steady::now() - t0, 10ms);
     // and a sleep in a task
     auto t = sgcl::async::spawn([]() -> sgcl::async::task<int> {
@@ -275,7 +277,9 @@ TEST(Clock_Test, AdvanceWithNoTimerThread) {
     auto t = clock.now();
     clock.advance_to(t + 2s);
     EXPECT_EQ(clock.now(), t + 2s);
-    EXPECT_TRUE(sgcl::async::at(t + 1s)->receive().wait());    // a point that has passed under the manual clock: at once
+    sgcl::async::event passed = sgcl::async::at(t + 1s);    // a point that has passed under the manual clock: at once
+    passed.wait();
+    EXPECT_TRUE(passed.is_set());
 }
 
 // A cache's time to live runs on the library's clock, so the manual clock

@@ -102,6 +102,19 @@ namespace sgcl::encoding {
             return detail::encode_text(detail::HexUpper, reinterpret_cast<const uint8_t*>(text.data()), text.size());
         }
 
+        // A literal, a character array, a std::string_view: as the
+        // string's overload (an exact match, else the conversions to a
+        // string and to bytes tie)
+        template<sgcl::detail::TextArgument T>
+        static string encode(const T& text) {
+            return encode(slice<const byte>(text));
+        }
+
+        template<sgcl::detail::TextArgument T>
+        static string encode_upper(const T& text) {
+            return encode_upper(slice<const byte>(text));
+        }
+
         // The first character that is not a digit is invalid_character at
         // its offset; an odd length is unexpected_end at the end
         static expected<vector<byte>, error> decode(const string& text) {
@@ -133,8 +146,8 @@ namespace sgcl::encoding {
         // A writer that encodes what is written to it into out, in lower
         // case (close() leaves out open), and a reader of the bytes the
         // digits of in decode to, as base64's
-        static tracked_ptr<encoder> encoder_to(const io::writer& out);
-        static tracked_ptr<decoder> decoder_from(const io::reader& in);
+        static encoder encoder_to(const io::writer& out);
+        static decoder decoder_from(const io::reader& in);
 
         // Go's hex.Dump and hexdump -C without its closing line:
         //
@@ -161,171 +174,201 @@ namespace sgcl::encoding {
             return dump(as_bytes(text.as_slice()));
         }
 
+        template<sgcl::detail::TextArgument T>
+        static string dump(const T& text) {
+            return dump(slice<const byte>(text));
+        }
+
         // A writer that writes the dump of what is written to it into out,
         // a line as soon as its sixteen bytes are there; close() writes the
         // line that is short and leaves out open. A failure of out is kept
         // for good: every later write and close reports it
-        static tracked_ptr<dumper> dumper_to(const io::writer& out);
+        static dumper dumper_to(const io::writer& out);
     };
 
+    // The streams: handles of one word, the state made by encoder_to and
+    // decoder_from (detail/codec.h: WriterHandle, ReaderHandle)
     class hex::encoder final
-    : public detail::CodecWriter<detail::Radix<4>> {
+    : public detail::WriterHandle<hex::encoder, detail::CodecWriter<detail::Radix<4>>> {
     public:
-        using CodecWriter::CodecWriter;
+        using WriterHandle::WriterHandle;
     };
 
     class hex::decoder final
-    : public detail::CodecReader<detail::Radix<4>> {
+    : public detail::ReaderHandle<hex::decoder, detail::CodecReader<detail::Radix<4>>> {
     public:
-        using CodecReader::CodecReader;
+        using ReaderHandle::ReaderHandle;
     };
 
-    inline tracked_ptr<hex::encoder> hex::encoder_to(const io::writer& out) {
-        return make_tracked<encoder>(detail::HexLower, out);
+    inline hex::encoder hex::encoder_to(const io::writer& out) {
+        return detail::CodecAccess::make<encoder>(make_tracked<detail::CodecWriter<detail::Radix<4>>>(detail::HexLower, out));
     }
 
-    inline tracked_ptr<hex::decoder> hex::decoder_from(const io::reader& in) {
-        return make_tracked<decoder>(detail::HexLower, in);
+    inline hex::decoder hex::decoder_from(const io::reader& in) {
+        return detail::CodecAccess::make<decoder>(make_tracked<detail::CodecReader<detail::Radix<4>>>(detail::HexLower, in));
     }
 
+    namespace detail {
+        // The state of hex::dumper: a line of sixteen bytes, written out as
+        // `hexdump -C` does once it is full
+        class HexDumperState final
+        : public io::mixin::writer<HexDumperState> {
+        public:
+            using io::mixin::writer<HexDumperState>::write;
+            using io::mixin::writer<HexDumperState>::async_write;
+
+            explicit HexDumperState(const io::writer& out)
+            : _out(out), _block(make_tracked<CodecBlock>()) {
+            }
+
+            expected<size_t, io::error> write(const slice<const byte>& data) {
+                if (_error) {
+                    return io::detail::fail(*_error);
+                }
+                if (_closed) {
+                    return io::detail::fail(io::error(io::errc::closed, "write", "hex dump"));
+                }
+                auto p = reinterpret_cast<const uint8_t*>(data.data());
+                auto end = p + data.size();
+                for (;;) {
+                    size_t n = _fill(p, end);
+                    if (n == 0) {
+                        return data.size();
+                    }
+                    auto w = _out.write(_chunk(n));
+                    if (!w) {
+                        _error = w.error();
+                        return io::detail::fail(w);
+                    }
+                }
+            }
+
+            async::task<expected<size_t, io::error>> async_write(slice<const byte> data) {
+                if (_error) {
+                    co_return io::detail::fail(*_error);
+                }
+                if (_closed) {
+                    co_return io::detail::fail(io::error(io::errc::closed, "write", "hex dump"));
+                }
+                auto p = reinterpret_cast<const uint8_t*>(data.data());
+                auto end = p + data.size();
+                for (;;) {
+                    size_t n = _fill(p, end);
+                    if (n == 0) {
+                        co_return data.size();
+                    }
+                    auto w = co_await _out.async_write(_chunk(n));
+                    if (!w) {
+                        _error = w.error();
+                        co_return io::detail::fail(w);
+                    }
+                }
+            }
+
+            expected<void, io::error> close() {
+                if (_closed || _error) {
+                    _closed = true;
+                    return _error ? expected<void, io::error>(io::detail::fail(*_error)) : expected<void, io::error>();
+                }
+                _closed = true;
+                if (size_t n = _final()) {
+                    auto w = _out.write(_chunk(n));
+                    if (!w) {
+                        _error = w.error();
+                        return io::detail::fail(w);
+                    }
+                }
+                return {};
+            }
+
+            async::task<expected<void, io::error>> async_close() {
+                if (_closed || _error) {
+                    _closed = true;
+                    co_return _error ? expected<void, io::error>(io::detail::fail(*_error)) : expected<void, io::error>();
+                }
+                _closed = true;
+                if (size_t n = _final()) {
+                    auto w = co_await _out.async_write(_chunk(n));
+                    if (!w) {
+                        _error = w.error();
+                        co_return io::detail::fail(w);
+                    }
+                }
+                co_return expected<void, io::error>();
+            }
+
+            bool is_closed() const noexcept {
+                return _closed;
+            }
+
+        private:
+            char* _chars() const noexcept {
+                return reinterpret_cast<char*>(_block->data());
+            }
+
+            slice<const byte> _chunk(size_t n) const noexcept {
+                return slice<const byte>(_block, _block->data(), n);
+            }
+
+            // The whole lines the input from p makes, into the block while it
+            // has room for one; bytes short of a line wait for the next write
+            size_t _fill(const uint8_t*& p, const uint8_t* end) noexcept {
+                char* o = _chars();
+                char* o_end = o + _block->size();
+                while (p != end && size_t(o_end - o) >= detail::DumpLineChars + 8) {
+                    size_t k = std::min(size_t(16 - _n), size_t(end - p));
+                    detail::copy_bytes(_line + _n, p, k);
+                    _n += uint8_t(k);
+                    p += k;
+                    if (_n == 16) {
+                        o = detail::dump_line(o, _offset, _line, 16);
+                        _offset += 16;
+                        _n = 0;
+                    }
+                }
+                return size_t(o - _chars());
+            }
+
+            size_t _final() noexcept {
+                if (_n == 0) {
+                    return 0;
+                }
+                char* o = detail::dump_line(_chars(), _offset, _line, _n);
+                _offset += _n;
+                _n = 0;
+                return size_t(o - _chars());
+            }
+
+            io::writer _out;
+            tracked_ptr<CodecBlock> _block;
+            uint64_t _offset = 0;
+            uint8_t _line[16] {};
+            uint8_t _n = 0;
+            optional<io::error> _error;   // the first failure of the writer under it, for good
+            bool _closed = false;
+        };
+    }
+
+    // The dumper as a handle of one word, the state made by dumper_to
     class hex::dumper final
-    : public io::mixin::writer<hex::dumper> {
+    : public detail::WriterHandle<hex::dumper, detail::HexDumperState> {
     public:
-        using io::mixin::writer<hex::dumper>::write;
-        using io::mixin::writer<hex::dumper>::async_write;
-
-        explicit dumper(const io::writer& out)
-        : _out(out), _block(make_tracked<detail::CodecBlock>()) {
-        }
-
-        expected<size_t, io::error> write(const slice<const byte>& data) {
-            if (_error) {
-                return io::detail::fail(*_error);
-            }
-            if (_closed) {
-                return io::detail::fail(io::error(io::errc::closed, "write", "hex dump"));
-            }
-            auto p = reinterpret_cast<const uint8_t*>(data.data());
-            auto end = p + data.size();
-            for (;;) {
-                size_t n = _fill(p, end);
-                if (n == 0) {
-                    return data.size();
-                }
-                auto w = _out.write(_chunk(n));
-                if (!w) {
-                    _error = w.error();
-                    return io::detail::fail(w);
-                }
-            }
-        }
-
-        async::task<expected<size_t, io::error>> async_write(slice<const byte> data) {
-            if (_error) {
-                co_return io::detail::fail(*_error);
-            }
-            if (_closed) {
-                co_return io::detail::fail(io::error(io::errc::closed, "write", "hex dump"));
-            }
-            auto p = reinterpret_cast<const uint8_t*>(data.data());
-            auto end = p + data.size();
-            for (;;) {
-                size_t n = _fill(p, end);
-                if (n == 0) {
-                    co_return data.size();
-                }
-                auto w = co_await _out.async_write(_chunk(n));
-                if (!w) {
-                    _error = w.error();
-                    co_return io::detail::fail(w);
-                }
-            }
-        }
-
-        expected<void, io::error> close() {
-            if (_closed || _error) {
-                _closed = true;
-                return _error ? expected<void, io::error>(io::detail::fail(*_error)) : expected<void, io::error>();
-            }
-            _closed = true;
-            if (size_t n = _final()) {
-                auto w = _out.write(_chunk(n));
-                if (!w) {
-                    _error = w.error();
-                    return io::detail::fail(w);
-                }
-            }
-            return {};
-        }
-
-        async::task<expected<void, io::error>> async_close() {
-            if (_closed || _error) {
-                _closed = true;
-                co_return _error ? expected<void, io::error>(io::detail::fail(*_error)) : expected<void, io::error>();
-            }
-            _closed = true;
-            if (size_t n = _final()) {
-                auto w = co_await _out.async_write(_chunk(n));
-                if (!w) {
-                    _error = w.error();
-                    co_return io::detail::fail(w);
-                }
-            }
-            co_return expected<void, io::error>();
-        }
-
-        bool is_closed() const noexcept {
-            return _closed;
-        }
-
-    private:
-        char* _chars() const noexcept {
-            return reinterpret_cast<char*>(_block->data());
-        }
-
-        slice<const byte> _chunk(size_t n) const noexcept {
-            return slice<const byte>(_block, _block->data(), n);
-        }
-
-        // The whole lines the input from p makes, into the block while it
-        // has room for one; bytes short of a line wait for the next write
-        size_t _fill(const uint8_t*& p, const uint8_t* end) noexcept {
-            char* o = _chars();
-            char* o_end = o + _block->size();
-            while (p != end && size_t(o_end - o) >= detail::DumpLineChars + 8) {
-                size_t k = std::min(size_t(16 - _n), size_t(end - p));
-                detail::copy_bytes(_line + _n, p, k);
-                _n += uint8_t(k);
-                p += k;
-                if (_n == 16) {
-                    o = detail::dump_line(o, _offset, _line, 16);
-                    _offset += 16;
-                    _n = 0;
-                }
-            }
-            return size_t(o - _chars());
-        }
-
-        size_t _final() noexcept {
-            if (_n == 0) {
-                return 0;
-            }
-            char* o = detail::dump_line(_chars(), _offset, _line, _n);
-            _offset += _n;
-            _n = 0;
-            return size_t(o - _chars());
-        }
-
-        io::writer _out;
-        tracked_ptr<detail::CodecBlock> _block;
-        uint64_t _offset = 0;
-        uint8_t _line[16] {};
-        uint8_t _n = 0;
-        optional<io::error> _error;   // the first failure of the writer under it, for good
-        bool _closed = false;
+        using WriterHandle::WriterHandle;
     };
 
-    inline tracked_ptr<hex::dumper> hex::dumper_to(const io::writer& out) {
-        return make_tracked<dumper>(out);
+    inline hex::dumper hex::dumper_to(const io::writer& out) {
+        return detail::CodecAccess::make<dumper>(make_tracked<detail::HexDumperState>(out));
     }
+}
+
+// The streams of the codec are handles: a stream made of one binds its state
+namespace sgcl::io::detail {
+    template<>
+    inline constexpr bool IsStreamHandle<encoding::hex::encoder> = true;
+
+    template<>
+    inline constexpr bool IsStreamHandle<encoding::hex::decoder> = true;
+
+    template<>
+    inline constexpr bool IsStreamHandle<encoding::hex::dumper> = true;
 }

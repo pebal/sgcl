@@ -44,7 +44,6 @@ A table read by four tasks and grown by one, the readers' results handed to the 
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 #include <mutex>
 
 using namespace sgcl;
@@ -107,8 +106,8 @@ int main() {
     }
     lock.unlock();
     w.wait();
-    std::cout << table->squares.size() << " squares, the last " << table->squares.back() << "\n";
-    std::cout << results->queue.size() << " readers, " << total << " consistent looks at the table\n";
+    println("{} squares, the last {}", table->squares.size(), table->squares.back());
+    println("{} readers, {} consistent looks at the table", results->queue.size(), total);
     async::scheduler::stop();
 }
 ```

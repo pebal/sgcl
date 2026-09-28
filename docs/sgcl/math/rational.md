@@ -38,13 +38,14 @@ template<std::integral T> rational(T value);                  // implicit: n/1
 rational(big_integer value) noexcept;                         // implicit: n/1
 rational(big_integer numerator, big_integer denominator);     // reduced; 0 → domain_error
 explicit rational(double value);                              // exactly; NaN, ±∞ → domain_error
-rational(bool) = delete;
+template<std::same_as<bool> B> rational(B) = delete;         // a bool alone: a pointer is not taken for one
 explicit rational(long double) = delete;
 
 static expected<rational, parse_error> parse(const string& text);
+explicit rational(const string& text);                        // a literal: parse(text), or bad_expected_access<parse_error> with its message (DESIGN 234)
 ```
 
-`parse` reads a fraction — `"3/4"`, `"-5"`, `"+0/7"`, digits, a slash and digits, the sign in front and none in the denominator — or a decimal: `"-0.125"`, `".5"`, `"7."`, `"1.5e-3"`, `"2E10"`, digits with a point (either side may be empty, not both) and an exponent of at most a million either way. Nothing else: no space, no `_`, no `inf` or `nan`. The error's `offset()` is the byte where reading stopped, the first digit of a denominator of zero, or the first byte after the `e` of an exponent too large.
+`parse` reads a fraction — `"3/4"`, `"-5"`, `"+0/7"`, digits, a slash and digits, the sign in front and none in the denominator — or a decimal: `"-0.125"`, `".5"`, `"7."`, `"1.5e-3"`, `"2E10"`, digits with a point (either side may be empty, not both) and an exponent of at most a million either way. Nothing else: no space, no `_`, no `inf` or `nan`. The error's `offset()` is the byte where reading stopped, the first digit of a denominator of zero, or the first byte after the `e` of an exponent too large. A fraction the program itself writes is constructed from the same text, `math::rational rate("0.075")`, which throws `parse`'s error as `bad_expected_access<parse_error>`; text from outside is parsed. The literal `0` still goes to the constructor from a number.
 
 ### Parts
 
@@ -100,43 +101,39 @@ A sum or a product is a few multiplications and one or two gcds of the parts; a 
 ```cpp
 #include "sgcl/sgcl.h"
 #include "sgcl/math/math.h"
-#include <iostream>
 
 using namespace sgcl;
 
 int main() {
     // Exact: a third three times is one, and the harmonic sum has no error
     math::rational third(1, 3);
-    std::cout << (third + third + third == 1) << '\n';
+    println(third + third + third == 1);
     math::rational sum;
     for (auto k : range(1, 11)) {
         sum += math::rational(1, k);
     }
-    std::cout << sum.to_string() << " = " << sum.to_decimal(6) << '\n';
+    println("{} = {}", sum.to_string(), sum.to_decimal(6));
 
     // 0.1 as a double is not a tenth; as text it is
-    std::cout << math::rational(0.1).to_string() << '\n';
-    auto tenth = math::rational::parse("0.1");
-    if (!tenth) {
-        return 1;
-    }
-    std::cout << tenth->to_string() << ' ' << (math::rational(0.1) == *tenth) << '\n';
+    println(math::rational(0.1).to_string());
+    math::rational tenth("0.1");                               // a literal: constructed
+    println("{} {}", tenth.to_string(), math::rational(0.1) == tenth);
 
     // Rounded once, from the exact value
-    std::cout << txt::format("{:.3f} {} {}", math::rational(-1, 8), (third * 2).to_double(), third.pow(-2)) << '\n';
+    println("{:.3f} {} {}", math::rational(-1, 8), (third * 2).to_double(), third.pow(-2));
 
-    auto bad = math::rational::parse("3/0");
-    std::cout << bad.error().message() << '\n';
+    auto bad = math::rational::parse("3/0");                   // text that may be wrong: parsed
+    println(bad.error().message());
 }
 ```
 
 Output:
 
 ```text
-1
+true
 7381/2520 = 2.928968
 3602879701896397/36028797018963968
-1/10 0
+1/10 false
 -0.125 0.6666666666666666 9
 a denominator of zero at byte 2
 ```

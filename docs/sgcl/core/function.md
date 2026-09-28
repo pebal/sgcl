@@ -11,7 +11,7 @@ namespace sgcl {
 }
 ```
 
-`sgcl::function<R(Args...)>` is `std::function` for a closure that captures tracked pointers. `std::function` keeps a small closure in a buffer inside itself, where a `tracked_ptr` would share its word with the data of other closures (the offset leaves the collector's pointer map by elimination: [README: Pointer maps](../../garbage_collector/overview.md#pointer-maps)), and a large one on the unmanaged heap, where a `tracked_ptr` may not live; so a `std::function` may not capture one ([The rules](README.md#the-rules), 1). Here a closure goes to one of two places by what it is: a small one that cannot hold a pointer (16 bytes at most, and trivially default constructible, or smaller than a word, or aligned under a word: a function pointer, a captureless lambda, a lambda capturing ints, a `std::reference_wrapper`) into a buffer inside the `function`; any other, a closure capturing a `tracked_ptr` or a `weak_ptr` first of all, but also one capturing a reference, a raw pointer or a `double` (a closure has no default constructor, so the collector cannot rule a pointer out of a word aligned as one), into a managed node of its own, held by a pointer in a word of the `function` and traced through its own pointer map, so that a closure capturing the object that holds the `function` is a cycle collected like any other; the closure is destroyed the moment the `function` drops it, on that thread, as a container destroys an erased element, and the node is reclaimed by the collector later. The word holds null or an address and nothing else; 32 bytes, as `std::function`.
+`sgcl::function<R(Args...)>` is `std::function` for a closure that captures tracked pointers. `std::function` keeps a small closure in a buffer inside itself, where a `tracked_ptr` would share its word with the data of other closures (the offset leaves the collector's pointer map by elimination: [README: Pointer maps](../../garbage_collector/overview.md#pointer-maps)), and a large one on the unmanaged heap, where a `tracked_ptr` may not live; so a `std::function` may not capture one ([The rules](README.md#the-rules), 1). Here a closure goes to one of two places by what it is: a small one that cannot hold a pointer (16 bytes at most, and trivially default constructible, or smaller than a word, or aligned under a word, or trivially copyable, which a closure with a pointer word never is: a function pointer, a captureless lambda, a lambda capturing ints, a `double`, a raw pointer or a reference, a `std::reference_wrapper`) into a buffer inside the `function`; any other, a closure capturing a `tracked_ptr` or a `weak_ptr` first of all, but also one capturing a `std::string` or anything else with a copy constructor of its own (a closure has no default constructor, so the collector cannot rule a pointer out of such a word), into a managed node of its own, held by a pointer in a word of the `function` and traced through its own pointer map, so that a closure capturing the object that holds the `function` is a cycle collected like any other; the closure is destroyed the moment the `function` drops it, on that thread, as a container destroys an erased element, and the node is reclaimed by the collector later. The word holds null or an address and nothing else; 32 bytes, as `std::function`.
 
 The interface is that of `std::function`: the constructors (a null function pointer, a null member pointer or an empty function of either library make an empty one), the assignments, `std::reference_wrapper`, `swap`, `operator bool`, the call (`bad_function_call`, the one of `std`, on an empty function; the callable is called as an lvalue, as `std::function` calls it), `target_type`, `target<T>`, the deduction guides from a function pointer and from a functor's `operator()`, `==` with `nullptr`. A copy of a closure in a node is a node of its own. A callable larger than a page is not supported.
 
@@ -80,7 +80,6 @@ assert(m() == 2);
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -106,12 +105,12 @@ int main() {
     Button button;
     tracked_ptr label = make_tracked<Label>();
     button.on_click.push_back([label](const string& what) { label->text = "clicked " + what; });   // the closure in a managed node: label followed
-    button.on_click.push_back([](const string& what) { std::cout << "log: " << what << "\n"; });   // no pointers: inside the function
+    button.on_click.push_back([](const string& what) { println("log: {}", what); });   // no pointers: inside the function
     tracked_ptr<Label> seen = label;
     label = nullptr;                                     // the listener keeps the label
     collector::force_collect(true);                  // optional, for the demonstration only
     button.click("ok");
-    std::cout << seen->text << "\n";                     // clicked ok
+    println("{}", seen->text);                     // clicked ok
     button.on_click.clear();                             // the closures destroyed now; the label lives on through seen
     return 0;
 }

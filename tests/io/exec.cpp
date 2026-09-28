@@ -47,7 +47,7 @@ TEST_F(IoExec_Tests, LookPath) {
     auto sh = look_path("sh");
     ASSERT_TRUE(sh) << sh.error().message();
     EXPECT_TRUE(sh->starts_with("/") && sh->ends_with("/sh"));
-    EXPECT_EQ(look_path(*sh).value(), *sh);                       // a path with a separator: itself, when executable
+    EXPECT_EQ(value_of(look_path(*sh)), *sh);                       // a path with a separator: itself, when executable
     auto none = look_path("no-such-program-sgcl");
     ASSERT_FALSE(none);
     EXPECT_EQ(none.error().code(), errc::not_found);
@@ -65,7 +65,14 @@ TEST_F(IoExec_Tests, RunOutputAndTheExitStatus) {
     ASSERT_TRUE(echo.state);
     EXPECT_TRUE(echo.state->success() && echo.state->exited() && echo.state->exit_code() == 0 && !echo.state->signaled());
     EXPECT_EQ(echo.state->to_string(), "exit status 0");
-    EXPECT_EQ(echo.state->pid(), echo.process->pid());
+    EXPECT_EQ(echo.state->pid(), echo.process.pid());
+    // the process is a handle: empty until start(), the copies one process
+    static_assert(sizeof(io::process) == sizeof(sgcl::tracked_ptr<void>));
+    io::command idle("true");
+    EXPECT_FALSE(idle.process);
+    io::process same = echo.process;
+    EXPECT_TRUE(same == echo.process);
+    EXPECT_EQ(error_of(same.wait()).code(), errc::process_done);   // waited for by output(): through the copy too
 
     // A failure status is an error, the code in the state, the standard
     // error captured for the message
@@ -96,7 +103,7 @@ TEST_F(IoExec_Tests, RunOutputAndTheExitStatus) {
 
     // Once
     EXPECT_FALSE(t.start());
-    EXPECT_EQ(t.wait().error().code(), errc::process_done);
+    EXPECT_EQ(error_of(t.wait()).code(), errc::process_done);
 }
 
 TEST_F(IoExec_Tests, TheArgumentsTheDirectoryAndTheEnvironment) {
@@ -106,11 +113,11 @@ TEST_F(IoExec_Tests, TheArgumentsTheDirectoryAndTheEnvironment) {
     EXPECT_EQ(*out, "zero|one two|three|");
 
     io::command from_vector("printf", vector<string>{"%s-%s", "a", "b"});
-    EXPECT_EQ(from_vector.output().value(), "a-b");
+    EXPECT_EQ(value_of(from_vector.output()), "a-b");
 
     io::command argv0("sh", "-c", "echo $0");
     argv0.argv0 = "renamed";
-    EXPECT_EQ(argv0.output().value(), "renamed\n");
+    EXPECT_EQ(value_of(argv0.output()), "renamed\n");
 
     io::command pwd("pwd");
     pwd.dir = dir();
@@ -124,10 +131,10 @@ TEST_F(IoExec_Tests, TheArgumentsTheDirectoryAndTheEnvironment) {
 
     io::command env("sh", "-c", "echo \"$SGCL_EXEC_TEST-$HOME\"");
     env.env = vector<pair<string, string>>{{"SGCL_EXEC_TEST", "set"}};   // the whole environment: HOME is gone
-    EXPECT_EQ(env.output().value(), "set-\n");
+    EXPECT_EQ(value_of(env.output()), "set-\n");
     io::command inherited("sh", "-c", "echo \"$SGCL_EXEC_TEST\"");
     ::setenv("SGCL_EXEC_TEST", "inherited", 1);
-    EXPECT_EQ(inherited.output().value(), "inherited\n");
+    EXPECT_EQ(value_of(inherited.output()), "inherited\n");
     ::unsetenv("SGCL_EXEC_TEST");
 }
 
@@ -135,12 +142,12 @@ TEST_F(IoExec_Tests, TheStreamsAsFilesBuffersAndPipes) {
     // A buffer as the input: copied through a pipe by a task; a buffer as
     // the output: the pipe drained into it
     io::command tr("tr", "a-z", "A-Z");
-    tracked_ptr<buffer> input = make_tracked<buffer>(string("quiet please\n"));
-    tracked_ptr<buffer> output = make_tracked<buffer>();
+    buffer input(string("quiet please\n"));
+    buffer output;
     tr.in = input;
     tr.out = output;
     ASSERT_TRUE(tr.run()) << "tr";
-    EXPECT_EQ(output->text(), "QUIET PLEASE\n");
+    EXPECT_EQ(output.text(), "QUIET PLEASE\n");
 
     // A file as the output: the descriptor inherited, no task
     auto log = create(at("log"));
@@ -149,8 +156,8 @@ TEST_F(IoExec_Tests, TheStreamsAsFilesBuffersAndPipes) {
     to_file.out = *log;
     to_file.err = *log;                          // the same file for both: one descriptor
     ASSERT_TRUE(to_file.run());
-    (void)(*log)->close();
-    EXPECT_EQ(read_text(at("log")).value(), "to a file\nand an error\n");
+    (void)log->close();
+    EXPECT_EQ(value_of(read_text(at("log"))), "to a file\nand an error\n");
 
     // A file as the input
     ASSERT_TRUE(write_file(at("in"), string("3\n1\n2\n")));
@@ -158,19 +165,19 @@ TEST_F(IoExec_Tests, TheStreamsAsFilesBuffersAndPipes) {
     ASSERT_TRUE(in);
     io::command sort("sort");
     sort.in = *in;
-    EXPECT_EQ(sort.output().value(), "1\n2\n3\n");
+    EXPECT_EQ(value_of(sort.output()), "1\n2\n3\n");
 
     // combined_output: one pipe for both, in the order written
     io::command both("sh", "-c", "echo one; echo two >&2; echo three");
-    EXPECT_EQ(both.combined_output().value(), "one\ntwo\nthree\n");
+    EXPECT_EQ(value_of(both.combined_output()), "one\ntwo\nthree\n");
 
     // The same buffer in out and err: one pipe too
     io::command same("sh", "-c", "echo x; echo y >&2");
-    tracked_ptr<buffer> joined = make_tracked<buffer>();
+    buffer joined;
     same.out = joined;
     same.err = joined;
     ASSERT_TRUE(same.run());
-    EXPECT_EQ(joined->text(), "x\ny\n");
+    EXPECT_EQ(joined.text(), "x\ny\n");
 
     // More than a pipe holds, both ways: the copying tasks keep the child
     // from blocking on a full pipe
@@ -187,35 +194,35 @@ TEST_F(IoExec_Tests, ThePipesOfTheProgramsOwn) {
     io::command wc("wc", "-c");
     auto in = wc.stdin_pipe();
     ASSERT_TRUE(in) << in.error().message();
-    tracked_ptr<buffer> out = make_tracked<buffer>();
+    buffer out;
     wc.out = out;
     ASSERT_TRUE(wc.start());
-    ASSERT_TRUE((*in)->write("twelve chars"));
-    ASSERT_TRUE((*in)->close());                    // the end of the input
+    ASSERT_TRUE(in->write("twelve chars"));
+    ASSERT_TRUE(in->close());                    // the end of the input
     ASSERT_TRUE(wc.wait());
-    EXPECT_EQ(out->text().trim(), "12");
+    EXPECT_EQ(out.text().trim(), "12");
 
     // stdout_pipe: the child writes, the program reads it to the end, then waits
     io::command seq("sh", "-c", "for i in 1 2 3; do echo line $i; done");
     auto from = seq.stdout_pipe();
     ASSERT_TRUE(from);
     ASSERT_TRUE(seq.start());
-    tracked_ptr<buffered_reader> lines = make_tracked<buffered_reader>(*from);
+    buffered_reader lines(*from);
     size_t n = 0;
-    for (auto line : lines->lines()) {
+    for (auto line : lines.lines()) {
         EXPECT_TRUE(line.starts_with("line "));
         ++n;
     }
     EXPECT_EQ(n, 3u);
     ASSERT_TRUE(seq.wait());
-    EXPECT_TRUE((*from)->is_closed());              // wait closed it
+    EXPECT_TRUE(from->is_closed());              // wait closed it
 
     // stderr_pipe
     io::command err("sh", "-c", "echo to stderr >&2");
     auto e = err.stderr_pipe();
     ASSERT_TRUE(e);
     ASSERT_TRUE(err.start());
-    auto text = (*e)->read_all_text();
+    auto text = e->read_all_text();
     ASSERT_TRUE(text);
     EXPECT_EQ(*text, "to stderr\n");
     ASSERT_TRUE(err.wait());
@@ -230,8 +237,8 @@ TEST_F(IoExec_Tests, TheProcessItsSignalsAndTheStop) {
     io::command sleeping("sleep", "30");
     ASSERT_TRUE(sleeping.start());
     ASSERT_TRUE(sleeping.process);
-    EXPECT_GT(sleeping.process->pid(), 0);
-    EXPECT_TRUE(sleeping.process->signal(SIGTERM));
+    EXPECT_GT(sleeping.process.pid(), 0);
+    EXPECT_TRUE(sleeping.process.signal(SIGTERM));
     auto r = sleeping.wait();
     ASSERT_FALSE(r);
     EXPECT_TRUE(r.error().is_exit_status());
@@ -240,12 +247,12 @@ TEST_F(IoExec_Tests, TheProcessItsSignalsAndTheStop) {
     EXPECT_EQ(sleeping.state->signal(), SIGTERM);
     EXPECT_EQ(sleeping.state->exit_code(), -1);
     EXPECT_TRUE(sleeping.state->to_string().starts_with("signal: "));
-    EXPECT_EQ(sleeping.process->kill().error().code(), errc::process_done);   // waited for: no signal to it
+    EXPECT_EQ(error_of(sleeping.process.kill()).code(), errc::process_done);   // waited for: no signal to it
 
     // kill
     io::command killed("sleep", "30");
     ASSERT_TRUE(killed.start());
-    EXPECT_TRUE(killed.process->kill());
+    EXPECT_TRUE(killed.process.kill());
     EXPECT_FALSE(killed.wait());
     EXPECT_EQ(killed.state->signal(), SIGKILL);
 
@@ -277,9 +284,9 @@ TEST_F(IoExec_Tests, TheProcessItsSignalsAndTheStop) {
     // release: nothing more from the object
     io::command released("true");
     ASSERT_TRUE(released.start());
-    EXPECT_TRUE(released.process->release());
-    EXPECT_EQ(released.process->wait().error().code(), errc::process_done);
-    (void)::waitpid(released.process->pid(), nullptr, 0);   // reaped by hand, as release leaves it to the program
+    EXPECT_TRUE(released.process.release());
+    EXPECT_EQ(error_of(released.process.wait()).code(), errc::process_done);
+    (void)::waitpid(released.process.pid(), nullptr, 0);   // reaped by hand, as release leaves it to the program
 
     // A process group of its own: the shell and its child both end on
     // a signal to the group
@@ -287,7 +294,7 @@ TEST_F(IoExec_Tests, TheProcessItsSignalsAndTheStop) {
     group.set_pgid = true;
     ASSERT_TRUE(group.start());
     std::this_thread::sleep_for(50ms);
-    EXPECT_EQ(::kill(-group.process->pid(), SIGTERM), 0);
+    EXPECT_EQ(::kill(-group.process.pid(), SIGTERM), 0);
     EXPECT_FALSE(group.wait());
     EXPECT_EQ(group.state->signal(), SIGTERM);
 }
@@ -298,7 +305,7 @@ TEST_F(IoExec_Tests, TheWaitDelay) {
     // copying, reports the delay and closes the pipe
     io::command leaving("sh", "-c", "sleep 2 & echo started");
     leaving.wait_delay = 200ms;
-    tracked_ptr<buffer> out = make_tracked<buffer>();
+    buffer out;
     leaving.out = out;
     auto started = clock::now();
     auto r = leaving.run();
@@ -306,7 +313,7 @@ TEST_F(IoExec_Tests, TheWaitDelay) {
     EXPECT_EQ(r.error().code(), errc::wait_delay);
     EXPECT_TRUE(leaving.state && leaving.state->success());   // the shell itself exited 0
     EXPECT_LT(clock::now() - started, 5s);
-    EXPECT_EQ(out->text(), "started\n");
+    EXPECT_EQ(out.text(), "started\n");
 }
 
 namespace {
@@ -328,7 +335,7 @@ namespace {
         if (!sleeping.start()) {
             co_return "start";
         }
-        (void)sleeping.process->signal(SIGTERM);
+        (void)sleeping.process.signal(SIGTERM);
         auto sr = co_await sleeping.async_wait();
         co_return out->trim() + "|" + upper->trim() + "|" + to_string(failing.state->exit_code()) + "|" + (fr ? "ok" : "err") + "|" + to_string(sleeping.state->signal());
     }

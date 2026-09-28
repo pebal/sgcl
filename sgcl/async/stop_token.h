@@ -6,6 +6,7 @@
 #pragma once
 
 #include "../concurrent/queue.h"
+#include "../core/atomic.h"
 #include "../core/weak_ptr.h"
 #include "channel.h"
 #include "timer.h"
@@ -25,27 +26,66 @@ namespace sgcl::async {
     // own; the parent knows its children through weak pointers, so a
     // child that is gone costs nothing. The state is a managed object; a
     // source or a token is one word, copied freely, alive while any copy
-    // is or a timer holds it.
+    // is or an armed deadline holds it (a stop cancels the deadline).
     namespace detail {
+        struct StopDeadline;
+
         struct StopState {
-            channel<void> signal;                        // closed: the stop requested
+            ChannelState<void> signal;                   // closed: the stop requested
             tracked_ptr<StopState> parent;
             concurrent::queue<weak_ptr<StopState>> children;
+            atomic<tracked_ptr<StopDeadline>> deadline;  // the earliest deadline armed, if any: cancelled by the stop
 
             bool stopped() const noexcept {
                 return signal.closed();
             }
 
-            void stop() {
-                signal.close();
-                std::atomic_thread_fence(std::memory_order_seq_cst);   // the close before the look at the children, against a child registering (its push, then its look at the signal): one of the two sees the other (channel.h: _fence)
-                while (auto c = children.try_pop()) {   // the children stopped after the parent
-                    if (auto child = c->lock()) {
-                        child->stop();
-                    }
+            // The stop; `firing` the deadline whose timer calls it (its
+            // timer out of the heap already: nothing to cancel)
+            void stop(const StopDeadline* firing = nullptr);
+        };
+
+        // A source's deadline: the timer that requests the stop, holding
+        // this and not the state, which a cancel lets go of, so that a
+        // source stopped by hand is not kept by its timer while the
+        // cancelled timer waits in its heap for a sweep (Go's cancel()
+        // stops the timer of a WithDeadline the same way)
+        struct StopDeadline {
+            atomic<tracked_ptr<StopState>> state;        // null: cancelled, the timer's call does nothing
+            tracked_ptr<Timer> timer;                    // set before the deadline is published in the state
+            time_point when;
+
+            static void fire(void* p) {
+                auto d = static_cast<StopDeadline*>(p);
+                if (auto s = d->state.load()) {
+                    s->stop(d);
                 }
             }
+
+            // The timer cancelled (the flag the timer thread looks at, as a
+            // won race does in timeout.h: swept with the other cancelled,
+            // nothing done on the stop's path but a store), the state let go of
+            void cancel() noexcept {
+                state.store(nullptr);
+                timer->cancelled.store(true, std::memory_order_release);
+                timer_cancelled(*timer);
+            }
         };
+
+        inline void StopState::stop(const StopDeadline* firing) {
+            signal.close();
+            std::atomic_thread_fence(std::memory_order_seq_cst);   // the close before the look at the children, against a child registering (its push, then its look at the signal): one of the two sees the other (channel.h: _fence); and before the look at the deadline, against one being armed (stop_source::_arm)
+            if (auto d = deadline.exchange(nullptr)) {
+                if (d.get() != firing) {
+                    d->cancel();
+                }
+            }
+            while (auto c = children.try_pop()) {   // the children stopped after the parent
+                if (auto child = c->lock()) {
+                    child->stop();
+                }
+            }
+        }
     }
 
     class stop_token {
@@ -60,10 +100,11 @@ namespace sgcl::async {
             return (bool)_s;
         }
 
-        // The channel closed by the stop: a case of a select, or a wait
-        channel<void>& channel() const noexcept {
+        // The channel closed by the stop: a case of a select, or a wait; a
+        // handle to the channel inside the stop's state, which it keeps
+        async::channel<void> channel() const noexcept {
             assert(_s && "an empty stop_token has no channel: stop_possible() says");
-            return _s->signal;
+            return detail::ChannelAccess::make(tracked_ptr<detail::ChannelState<void>>(&_s->signal));
         }
 
         // The case of a select served by the stop: `token.on_stop([&] { running = false; })`
@@ -92,7 +133,7 @@ namespace sgcl::async {
         // which says nothing here)
         class stop_wait {
         public:
-            explicit stop_wait(async::channel<void>& ch) noexcept
+            explicit stop_wait(detail::ChannelState<void>& ch) noexcept
             : _op(ch.receive()) {
             }
 
@@ -110,7 +151,7 @@ namespace sgcl::async {
             }
 
         private:
-            decltype(std::declval<async::channel<void>&>().receive()) _op;
+            decltype(std::declval<detail::ChannelState<void>&>().receive()) _op;
         };
 
     public:
@@ -177,17 +218,57 @@ namespace sgcl::async {
 
         // The stop requested after d, by a timer (a deadline): the same
         // stop as request_stop, from the timer's thread, the channel
-        // closed and the children stopped in one step
+        // closed and the children stopped in one step. The stop, by hand
+        // or by the parent's, cancels the timer; a d that reaches the end
+        // of time (duration::max()) arms nothing, and a later deadline
+        // beside an earlier one neither: the earliest stops first
         void stop_after(duration d) {
-            detail::add_timer(d, _s, [](void* s) { static_cast<detail::StopState*>(s)->stop(); });
+            _arm(clock::now() + d);   // saturated: a span past the end of time is time_point::max()
         }
 
         // The same at a point of the module's clock
         void stop_at(time_point when) {
-            detail::add_timer(when, _s, [](void* s) { static_cast<detail::StopState*>(s)->stop(); });
+            _arm(when);
         }
 
     private:
+        // The deadline armed and published in the state, unless an earlier
+        // one is there; the one it replaces cancelled. A stop that looked at
+        // the state before the publication is seen by the look after it
+        // (the fences of StopState::stop and of this): the deadline taken
+        // back and cancelled, never left armed behind a stop
+        void _arm(time_point when) {
+            if (when == time_point::max() || _s->stopped()) {   // a point at max() never fires (timer.h)
+                return;
+            }
+            auto cur = _s->deadline.load();
+            if (cur && cur->when <= when) {
+                return;
+            }
+            tracked_ptr<detail::StopDeadline> d = make_tracked<detail::StopDeadline>();
+            d->state.store(_s, std::memory_order_relaxed);
+            d->when = when;
+            d->timer = detail::add_timer(when, d, &detail::StopDeadline::fire);
+            for (;;) {
+                if (cur && cur->when <= when) {   // an earlier one armed meanwhile
+                    d->cancel();
+                    return;
+                }
+                if (_s->deadline.compare_exchange_weak(cur, d)) {
+                    break;
+                }
+            }
+            if (cur) {
+                cur->cancel();
+            }
+            std::atomic_thread_fence(std::memory_order_seq_cst);   // the publication before the look at the signal (StopState::stop: the close before its look at the deadline)
+            if (_s->stopped()) {
+                if (auto x = _s->deadline.exchange(nullptr)) {
+                    x->cancel();
+                }
+            }
+        }
+
         tracked_ptr<detail::StopState> _s;
     };
 }

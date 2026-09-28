@@ -17,12 +17,11 @@ The waiting is done by a thread, on an atomic of its own, or by a coroutine: `co
 
 ## Rules
 
-- The channel holds its queues by `tracked_ptr`s, so it lives where one may: on a thread's stack or inside a managed object ([The rules](../core/README.md#the-rules), 1).
+- A channel is a handle: one word, a tracked word to the channel's state (the ring, the lists), which copies share (`==` says whether two are the same). Made by the constructor, `channel<T> ch;` a rendezvous and `channel<T> ch(n)` a buffer of n; there is no empty channel. It lies on a stack, in a task (a parameter by value: `async::task<> worker(async::channel<Job> jobs)`, the copy keeping the channel for as long as the task runs), in a managed object; in a global or a std container, as a `rooted<async::channel<T>>` ([rooted](../core/rooted.md)), the same channel reached with `->`. A root is never part of a cycle: never a `rooted` in a managed object or a task's frame, where a waiting task would hold its own root ([The rules](../core/README.md#the-rules), 1).
 - Every operation is lock-free on the channel's side; `send` and `receive` wait only for the other side, `try_send` and `try_receive` never. Elements are delivered in the order each sender sent them; between senders sending at the same moment the order is theirs.
 - A coroutine that awaits a channel must have a managed frame (a [task](coroutine.md), or a promise derived from `managed_frame`; a `static_assert` says so otherwise), so that the tracked pointers of its frame are roots while it waits; the channel's waiter holds the frame for the length of the wait, so a detached task may wait. A coroutine's waiter is on the list before the coroutine looks at the channel one last time (a send or a receive that came meanwhile), and is published to the serving side only after that look: nothing serves it before, so the coroutine cannot be resumed, finished and its channel destroyed while the look still reads it; a thread's wait has no such window, since the thread blocks and its channel stays. The thread that serves the wait makes the coroutine ready on the scheduler and goes on; a worker runs the coroutine.
 - A send to a closed channel returns `false` (Go panics); a send waiting when the channel closes returns `false` with its element undelivered. `close()` twice is nothing.
 - `size()` is the elements in the buffer; `empty()` is no element in the buffer and no sender waiting with one.
-- Non-copyable, non-movable.
 
 ## Members
 
@@ -37,17 +36,19 @@ class iterator;   // an input iterator that receives on each step, the end once 
 ### Constructors
 
 ```cpp
-explicit channel(size_type capacity = 0);   // 0: a rendezvous
-channel(const channel&) = delete;
+channel();                                  // a rendezvous
+explicit channel(size_type capacity);       // 0: a rendezvous
+channel(const channel&) noexcept;           // the same channel
+friend bool operator==(const channel&, const channel&) noexcept;   // the same state
 ```
 
 ### send, try_send, send
 
 ```cpp
-auto send(const T& value);   // an operation: co_await ch.send(v) in a task, ch.send(v).wait() on a thread; true when delivered
-auto send(T&& value);
-bool try_send(const T& value);
-bool try_send(T&& value);
+auto send(const T& value) const;   // an operation: co_await ch.send(v) in a task, ch.send(v).wait() on a thread; true when delivered
+auto send(T&& value) const;
+bool try_send(const T& value) const;
+bool try_send(T&& value) const;
 ```
 
 `send` delivers the element: to a waiting receiver, into the buffer when it has room, or after waiting for a receiver to make room (or, on a rendezvous, to take it); `true`, or `false` when the channel is closed. `try_send` delivers without waiting: `false` when closed, full, or, on a rendezvous, when no receiver waits.
@@ -55,8 +56,8 @@ bool try_send(T&& value);
 ### receive, try_receive, receive
 
 ```cpp
-auto receive();   // an operation: co_await ch.receive() in a task, ch.receive().wait() on a thread; optional<T>, nothing once closed and drained
-optional<T> try_receive();
+auto receive() const;   // an operation: co_await ch.receive() in a task, ch.receive().wait() on a thread; optional<T>, nothing once closed and drained
+optional<T> try_receive() const;
 ```
 
 `receive` takes the next element, waiting for one; nothing once the channel is closed and drained. `try_receive` takes without waiting; nothing when there is nothing.
@@ -64,7 +65,7 @@ optional<T> try_receive();
 ### close, closed, capacity, size, empty
 
 ```cpp
-void close();
+void close() const;
 bool closed() const noexcept;
 size_type capacity() const noexcept;
 size_type size() const noexcept;
@@ -74,8 +75,8 @@ bool empty() const noexcept;
 ### begin, end
 
 ```cpp
-iterator begin();
-iterator end() noexcept;
+iterator begin() const;
+iterator end() const noexcept;
 ```
 
 `for (auto v : ch)` receives until the channel is closed and drained.
@@ -83,11 +84,11 @@ iterator end() noexcept;
 ### channel<void>
 
 ```cpp
-auto send();     // operations, as above: co_await or  gives a bool
-auto receive();  // whether a signal came, false once closed
-bool try_send();
-bool try_receive();
-void close(); bool closed() const noexcept; size_type capacity() const noexcept; size_type size() const noexcept; bool empty() const noexcept;
+auto send() const;     // operations, as above: co_await or .wait() gives a bool
+auto receive() const;  // whether a signal came, false once closed
+bool try_send() const;
+bool try_receive() const;
+void close() const; bool closed() const noexcept; size_type capacity() const noexcept; size_type size() const noexcept; bool empty() const noexcept;
 ```
 
 A channel that carries nothing but the fact of a send: a signal of readiness, a cancellation.
@@ -96,7 +97,6 @@ A channel that carries nothing but the fact of a send: a signal of readiness, a 
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -108,7 +108,7 @@ struct Job {
     int id;
 };
 
-async::task<> worker(async::channel<tracked_ptr<Job>>& jobs, async::channel<int>& results) {
+async::task<> worker(async::channel<tracked_ptr<Job>> jobs, async::channel<int> results) {   // by value: the copies are the same channels
     while (auto job = co_await jobs.receive()) {     // suspends while jobs is empty
         co_await results.send((*job)->id * 2);       // suspends while results is full
     }
@@ -118,7 +118,7 @@ async::task<> worker(async::channel<tracked_ptr<Job>>& jobs, async::channel<int>
 int main() {
     async::channel<tracked_ptr<Job>> jobs(8);
     async::channel<int> results(8);
-    async::task w = async::spawn(worker(jobs, results));   // on the scheduler: runs whenever a job comes
+    async::task w = async::spawn(worker(jobs, results));                 // on the scheduler: runs whenever a job comes
     vector<thread> producers;
     for (int p : range(4)) {
         producers.emplace_back([&, p] {
@@ -139,7 +139,7 @@ int main() {
     jobs.close();
     w.wait();                                              // the worker's loop ended with the close
     collector.join();
-    std::cout << sum << "\n";
+    println("{}", sum);
     return sum == 2 * 399 * 400 / 2 ? 0 : 1;
 }
 ```

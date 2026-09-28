@@ -187,7 +187,7 @@ size_type capacity() const noexcept;
 void shrink_to_fit();
 ```
 
-`reserve` moves the elements into a buffer of at least the requested capacity when it is above the current one; it never shrinks. `capacity()` is what the size class granted, which may be a little more than asked. `shrink_to_fit` replaces the buffer by one sized for the elements, and drops the buffer altogether when the vector is empty (`clear()` keeps it).
+`reserve` moves the elements into a buffer of at least the requested capacity when it is above the current one; it never shrinks. `capacity()` is what the size class granted, which may be a little more than asked; past a page, what the pages hold next to the buffer's header (a vector of 16 384 `int`s, 64 KB and the header, takes two pages and gets the capacity of two, 32 764), so that a doubling fills whole pages again. A program that compares `capacity()` with the `n` it passed to `reserve` sees the larger number (`reserve(131072)` of `int`s gives 147 452), as the standard allows. `shrink_to_fit` replaces the buffer by one sized for the elements, and drops the buffer altogether when the vector is empty (`clear()` keeps it).
 
 ```cpp
 vector<int> v;
@@ -397,7 +397,6 @@ owned.pop_back();                                  // the int is destroyed here,
 ```cpp
 #include "sgcl/sgcl.h"
 #include <algorithm>
-#include <iostream>
 
 using namespace sgcl;
 
@@ -407,6 +406,8 @@ struct Node {
 };
 
 int main() {
+    println("values and a graph in vectors");
+    auto base = collector::get_live_object_count();   // after the first line: io's own objects are not the example's
     // A vector of values, on the stack: the buffer is on the managed heap
     vector numbers = {5, 3, 9, 1};
     numbers.push_back(7);
@@ -432,9 +433,8 @@ int main() {
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
     collector::force_collect(true);
-    std::cout << nodes.size() << " nodes kept, "
-              << nodes.front()->edges.front()->edges.front()->value << " reachable through the cycle\n";
-    std::cout << collector::get_live_object_count() << " live objects\n";
+    println("{} nodes kept, {} reachable through the cycle", nodes.size(), nodes.front()->edges.front()->edges.front()->value);
+    println("{} live objects", collector::get_live_object_count() - base);
     return numbers.size() == 3 && nodes.size() == 10 ? 0 : 1;
 }
 ```
@@ -442,6 +442,7 @@ int main() {
 The output:
 
 ```
+values and a graph in vectors
 10 nodes kept, 2 reachable through the cycle
 26 live objects
 ```

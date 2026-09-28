@@ -7,6 +7,8 @@
 
 #include "array_base.h"
 
+#include <typeinfo>
+
 namespace sgcl::detail {
     // What a buffer's header names about its elements (array_base.h): the
     // element type's pointer map, for the marking of the elements, its

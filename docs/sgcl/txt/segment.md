@@ -75,7 +75,6 @@ Unlike the other three, `line_breaks` carries state in its iterator: rule LB15a 
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -83,25 +82,23 @@ using namespace sgcl;
 // over it by characters rather than by bytes
 int main() {
     string text = "Zażółć gęślą jaźń — a potem 漢字 i 🇵🇱 na koniec.";
-    std::cout << text.size() << " bytes, " << text.rune_count() << " code points, "
-              << txt::grapheme_count(text) << " characters, " << txt::columns(text) << " columns\n";
+    println("{} bytes, {} code points, {} characters, {} columns", text.size(), text.rune_count(), txt::grapheme_count(text), txt::columns(text));
 
     for (auto line : txt::wrap(text, 24)) {
-        std::cout << '|' << line;
+        print("|{}", line);
         for (auto n : range(24 - txt::columns(line))) {
             (void)n;
-            std::cout << ' ';
+            print(" ");
         }
-        std::cout << "|\n";
+        println("|");
     }
-    std::cout << txt::truncate(text, 20) << '\n';
+    println("{}", txt::truncate(text, 20));
 
     // The caret steps over the flag as one character, not four bytes
     size_t caret = text.find("🇵🇱");
-    std::cout << caret << " -> " << txt::grapheme_next(text, caret) << '\n';
+    println("{} -> {}", caret, txt::grapheme_next(text, caret));
 
-    std::cout << txt::words(text).count() << " words, "
-              << txt::sentences(text).count() << " sentence\n";
+    println("{} words, {} sentence", txt::words(text).count(), txt::sentences(text).count());
     return 0;
 }
 ```

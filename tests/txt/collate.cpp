@@ -442,6 +442,112 @@ TEST(Collate_Tests, TheCaseOnALevelOfItsOwn) {
               danish.compare(string("æble"), string("øl")));      // the letters are still Danish
 }
 
+// Found by the fuzzer against ICU (tests/txt/fuzz/txt_icu_fuzz.cpp): kana
+// have no case, and CLDR gives them one from the third weight of the root
+// — the small kana are small letters, the normal ones capitals — which
+// case_level and upper_first read, and only they. The answers are ICU
+// 78.3's (each pair asked of it; over every pair of the 714 kana of
+// Unicode 16 the two agree but for the half-width voiced marks, which
+// are no letters: collate.md)
+TEST(Collate_Tests, SmallAndNormalKanaAsCases) {
+    txt::collator cased{txt::options{.strength = txt::strength::primary, .case_level = true}};
+    txt::collator upper{txt::options{.case_order = txt::case_order::upper_first}};
+    txt::collator plain;
+    struct Pair {
+        const char* small;
+        const char* normal;
+    };
+    for (auto [s, n] : {Pair{"ぁ", "あ"}, Pair{"ァ", "ア"}, Pair{"ｧ", "ｱ"},
+                        Pair{"っ", "つ"}, Pair{"\U0001B167", "ン"}, Pair{"っか", "つか"}}) {
+        EXPECT_LT(cased.compare(string(s), string(n)), 0) << s;          // ICU: -1, the small letter first
+        EXPECT_NE(cased.key(string(s)), cased.key(string(n))) << s;
+        EXPECT_GT(upper.compare(string(s), string(n)), 0) << s;          // ICU: 1, the capital first
+        EXPECT_GT(by_bytes(upper.key(string(s)), upper.key(string(n))), 0) << s;
+        EXPECT_LT(plain.compare(string(s), string(n)), 0) << s;          // without them, the root's order
+    }
+    // hiragana and katakana are one case: the third level tells them apart
+    EXPECT_EQ(cased.compare(string("あ"), string("ア")), 0);
+    EXPECT_LT(upper.compare(string("あ"), string("ア")), 0);
+    EXPECT_GT(cased.compare(string("が"), string("ぁ")), 0);    // the letters settle it first
+}
+
+// Found by the fuzzer against ICU: a composed letter whose decomposition
+// is a letter a language moves and one more mark — ǻ is å and an acute —
+// took the fast path with the root's weights, since the canonical closure
+// makes the forms of a key and not of what extends it: Finnish put ǻ
+// before z and its decomposed spelling after. The generator now sends
+// such letters to the window (tools/unicode_tables.py, extending_letters)
+TEST(Collate_Tests, AComposedLetterThatExtendsOneALanguageMoves) {
+    for (auto tag : {"fi", "sv", "da", "no"}) {
+        txt::collator c{txt::locale(string(tag))};
+        EXPECT_GT(c.compare(string("ǻ"), string("z")), 0) << tag;   // ICU: 1
+        EXPECT_EQ(c.compare(string("ǻ"), string("ǻ")), 0) << tag;
+        EXPECT_EQ(c.key(string("ǻ")), c.key(string("ǻ"))) << tag;
+    }
+    txt::collator sv{txt::locale(string("sv"))};
+    EXPECT_GT(sv.compare(string("ǟ"), string("z")), 0);            // ǟ: ä and a macron
+    EXPECT_EQ(sv.compare(string("ǟ"), string("ǟ")), 0);
+}
+
+// Found by the fuzzer against ICU, held for the auditor (DESIGN 248): a
+// language's contraction was matched only where its code points stood
+// together, while UCA S2.1 lets a mark reach its base past marks of a
+// lower class between them, as the root's contractions already did.
+// Swedish sorts ô after z; Ô with U+0334 after it is O U+0334 U+0302
+// decomposed and in canonical order, and U+0334 (class 1) does not block
+// U+0302 (class 230), so it is ô. A mark of the same class does block
+// (o U+0306 U+0302 is an o). The answers are ICU 78.3's, with its
+// normalization on (the library always normalizes)
+TEST(Collate_Tests, ALanguagesContractionPastAMarkOfALowerClass) {
+    txt::collator sv{txt::locale(string("sv"))};
+    EXPECT_LT(sv.compare(string("Z"), string("ô̴")), 0);        // ICU: -1
+    EXPECT_LT(sv.compare(string("Z"), string("Ô̴")), 0);         // ICU: -1, the composed spelling
+    EXPECT_LT(sv.compare(string("ô"), string("ô̴")), 0);   // ICU: -1, the same letter and one more mark
+    EXPECT_GT(sv.compare(string("Z"), string("ŏ̂")), 0);        // ICU: 1, blocked by a mark of the same class
+    EXPECT_LT(by_bytes(sv.key(string("Z")), sv.key(string("ô̴"))), 0);
+    txt::collator sv_primary{txt::locale(string("sv")), txt::options{.strength = txt::strength::primary}};
+    EXPECT_EQ(sv_primary.compare(string("ô"), string("ô̴")), 0);   // ICU: 0
+    EXPECT_EQ(sv_primary.key(string("ô")), sv_primary.key(string("ô̴")));
+    txt::collator fi{txt::locale(string("fi"))};
+    EXPECT_LT(fi.compare(string("z"), string("ạ̊")), 0);        // ICU: -1, å past a dot below (class 220)
+    txt::collator da{txt::locale(string("da"))};
+    EXPECT_LT(da.compare(string("z"), string("å̴")), 0);        // ICU: -1
+    txt::collator pl{txt::locale(string("pl")), txt::options{.strength = txt::strength::primary}};
+    EXPECT_EQ(pl.compare(string("ę"), string("ę̴")), 0);  // ICU: 0, ę past a tilde overlay
+    txt::collator cs{txt::locale(string("cs")), txt::options{.strength = txt::strength::primary}};
+    EXPECT_EQ(cs.compare(string("č"), string("č̣")), 0);  // ICU: 0, č past a dot below
+}
+
+// Found by the fuzzer against ICU, held for the auditor (DESIGN 248): the
+// case settings gave a letter one case, read from its code points, where
+// ICU gives every element of the root its own, from the band of its third
+// weight. ǅ expands to a capital D and a small ž, which is what Dž is:
+// the case level cannot tell them apart (the third level still can, by
+// the compatibility weight). Ⓐ and Ⅰ are no Lu but capitals by their
+// weights, and ㍱ is a small h, a capital P and a small a. The answers
+// are ICU 78.3's
+TEST(Collate_Tests, TheCaseOfEachElementOfALetterThatExpands) {
+    txt::collator cased{txt::options{.strength = txt::strength::primary, .case_level = true}};
+    txt::collator cased_upper{txt::options{.strength = txt::strength::primary, .case_order = txt::case_order::upper_first,
+                                           .case_level = true}};
+    txt::collator upper{txt::options{.case_order = txt::case_order::upper_first}};
+    EXPECT_EQ(cased.compare(string("ǅ"), string("Dž")), 0);           // ICU: 0
+    EXPECT_EQ(cased.key(string("ǅ")), cased.key(string("Dž")));
+    EXPECT_EQ(cased_upper.compare(string("ǅ"), string("Dž")), 0);     // ICU: 0
+    EXPECT_GT(upper.compare(string("ǅ"), string("Dž")), 0);           // ICU: 1, the third level
+    EXPECT_EQ(cased.compare(string("Ⓐ"), string("A")), 0);                 // ICU: 0, Ⓐ
+    EXPECT_EQ(cased.compare(string("Ⅰ"), string("I")), 0);                 // ICU: 0, Ⅰ
+    EXPECT_LT(upper.compare(string("Ⓐ"), string("ⓐ")), 0);            // ICU: -1, Ⓐ before ⓐ
+    EXPECT_LT(by_bytes(upper.key(string("Ⓐ")), upper.key(string("ⓐ"))), 0);
+    EXPECT_EQ(cased.compare(string("㍱"), string("hPa")), 0);               // ICU: 0, ㍱
+    // a language's own letter keeps the case of its code points: Danish
+    // "Aa" is neither a capital nor a small letter (ICU: 1 and -1)
+    txt::collator da_cased{txt::locale(string("da")), txt::options{.strength = txt::strength::primary, .case_level = true}};
+    EXPECT_GT(da_cased.compare(string("Aa"), string("Å")), 0);
+    txt::collator da_upper{txt::locale(string("da")), txt::options{.case_order = txt::case_order::upper_first}};
+    EXPECT_LT(da_upper.compare(string("Aa"), string("å")), 0);
+}
+
 TEST(Collate_Tests, AccentsFromTheEndOfTheWord) {
     // The rule of Canadian French, and the four words every account of
     // it uses: read from the front, an accent early in the word settles

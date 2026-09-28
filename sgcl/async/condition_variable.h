@@ -72,8 +72,8 @@ namespace sgcl::async {
 
     private:
         void _wait(mutex::guard& g) {
-            auto& m = g.owner();
-            tracked_ptr<channel<void>> w = _register();
+            mutex m = g.owner();
+            tracked_ptr<detail::ChannelState<void>> w = _register();
             m.unlock();
             (void)w->receive().wait();
             m.lock();
@@ -83,7 +83,7 @@ namespace sgcl::async {
         template<class Lock>
             requires (!std::is_same_v<Lock, mutex::guard>)
         void wait(Lock& lock) {
-            tracked_ptr<channel<void>> w = _register();
+            tracked_ptr<detail::ChannelState<void>> w = _register();
             lock.unlock();
             (void)w->receive().wait();
             lock.lock();
@@ -100,21 +100,21 @@ namespace sgcl::async {
         }
 
     private:
-        tracked_ptr<channel<void>> _register() {
-            tracked_ptr<channel<void>> w = make_tracked<channel<void>>(1);
+        tracked_ptr<detail::ChannelState<void>> _register() {
+            tracked_ptr<detail::ChannelState<void>> w = make_tracked<detail::ChannelState<void>>(1);
             _waiters.push(w);
             return w;
         }
 
-        concurrent::queue<tracked_ptr<channel<void>>> _waiters;
+        concurrent::queue<tracked_ptr<detail::ChannelState<void>>> _waiters;
 
         // the two halves of the operations above: a thread's and a task's
         task<> _co_wait(mutex::guard& g) {
-            auto& m = g.owner();
-            tracked_ptr<channel<void>> w = _register();
+            mutex m = g.owner();
+            tracked_ptr<detail::ChannelState<void>> w = _register();
             m.unlock();
             co_await w->receive();
-            co_await m._ch.receive();
+            co_await m._s->ch.receive();
         }
 
         template<class Pred>

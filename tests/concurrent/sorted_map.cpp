@@ -427,3 +427,62 @@ TEST(ConcurrentSortedMap_Test, ChurnManyThreads) {
     });
     EXPECT_EQ(collector::get_live_object_count(), before);
 }
+
+namespace {
+    // An order that looks at the heap once, while the map is built from a
+    // range: the bytes of the live buffers of size_t, the order of the
+    // build's elements
+    struct LookingLess {
+        inline static bool armed = false;
+        inline static size_t base = 0;
+        inline static size_t seen = 0;
+
+        bool operator()(long a, long b) const {
+            if (armed) {
+                armed = false;
+                seen = live_buffer_bytes<size_t>() - base;
+            }
+            return a < b;
+        }
+    };
+}
+
+// The order of a build from a range (the indices of the elements, sorted)
+// is scratch of the constructor: plain memory, never a managed buffer
+// (80 KB of one for 10 000 elements before)
+TEST(ConcurrentSortedMap_Test, TheBuildFromARangeKeepsItsOrderOffTheManagedHeap) {
+    std::vector<std::pair<long, long>> items;
+    for (long i = 10000; i > 0; --i) {
+        items.emplace_back(i, i);
+    }
+    items.emplace_back(7, -1);   // a key again: the first stays
+    LookingLess::base = live_buffer_bytes<size_t>();
+    LookingLess::seen = 0;
+    LookingLess::armed = true;
+    sgcl::concurrent::sorted_map<long, long, LookingLess> m(items.begin(), items.end());
+    EXPECT_FALSE(LookingLess::armed);   // the order looked
+    EXPECT_EQ(LookingLess::seen, 0u);
+    EXPECT_EQ(m.size(), 10000u);
+    EXPECT_EQ(m.find(7)->second, 7);
+    EXPECT_EQ(m.begin()->first, 1);
+}
+
+// value_or(key, fallback): the value under the key, or the fallback, by value;
+// a key of another type through the transparent lookup; a tracked value
+// comes back as the same object
+TEST(ConcurrentSortedMap_Test, ValueOrWithAFallback) {
+    sgcl::concurrent::sorted_map<sgcl::string, int> m = {{"a", 1}, {"b", 2}};
+    EXPECT_EQ(m.value_or("a", 0), 1);
+    EXPECT_EQ(m.value_or("z", -1), -1);
+    EXPECT_EQ(m.value_or(std::string_view("b"), 0), 2);
+    EXPECT_EQ(m.value_or(std::string_view("zz"), 7), 7);
+    const auto& c = m;
+    EXPECT_EQ(c.value_or("b", 0), 2);
+    sgcl::concurrent::sorted_map<int, sgcl::tracked_ptr<int>> p;
+    sgcl::tracked_ptr<int> one = sgcl::make_tracked<int>(1);
+    sgcl::tracked_ptr<int> none = sgcl::make_tracked<int>(0);
+    p.try_emplace(1, one);
+    EXPECT_EQ(p.value_or(1, none), one);
+    EXPECT_EQ(p.value_or(2, none), none);
+    static_assert(std::is_same_v<decltype(m.value_or("a", 0)), int>);
+}

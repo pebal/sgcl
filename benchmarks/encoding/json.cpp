@@ -204,14 +204,14 @@ int main(int argc, char** argv) {
                 rows.push_back({to_string(r.id), r.name, r.email, encoding::json(r.score).to_string(), string(r.active ? "true" : "false")});
             }
             ns = timed(seconds, count, [&] {
-                tracked_ptr<io::buffer> out = make_tracked<io::buffer>();
+                io::buffer out;
                 io::writer w = out;
                 encoding::csv::writer cw(w);
                 for (auto& r : rows) {
                     cw.write(r);
                 }
                 (void)cw.flush();
-                sink += out->size();
+                sink += out.size();
             });
         }
     } else {

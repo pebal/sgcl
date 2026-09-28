@@ -1462,3 +1462,23 @@ TEST(Map_Test, KeysAStrideApartSpreadOverTheBuckets) {
         EXPECT_EQ(seq.bucket(i), i);
     }
 }
+
+// value_or(key, fallback): the value under the key, or the fallback, by value;
+// a key of another type through the transparent lookup; a tracked value
+// comes back as the same object
+TEST(Map_Test, ValueOrWithAFallback) {
+    sgcl::map<sgcl::string, int> m = {{"a", 1}, {"b", 2}};
+    EXPECT_EQ(m.value_or("a", 0), 1);
+    EXPECT_EQ(m.value_or("z", -1), -1);
+    EXPECT_EQ(m.value_or(std::string_view("b"), 0), 2);
+    EXPECT_EQ(m.value_or(std::string_view("zz"), 7), 7);
+    const auto& c = m;
+    EXPECT_EQ(c.value_or("b", 0), 2);
+    sgcl::map<int, sgcl::tracked_ptr<int>> p;
+    sgcl::tracked_ptr<int> one = sgcl::make_tracked<int>(1);
+    sgcl::tracked_ptr<int> none = sgcl::make_tracked<int>(0);
+    p.try_emplace(1, one);
+    EXPECT_EQ(p.value_or(1, none), one);
+    EXPECT_EQ(p.value_or(2, none), none);
+    static_assert(std::is_same_v<decltype(m.value_or("a", 0)), int>);
+}

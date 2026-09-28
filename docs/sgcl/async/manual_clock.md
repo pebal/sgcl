@@ -55,10 +55,10 @@ auto t = async::spawn([]() -> async::task<int> {
 clock.advance(29s);                              // not yet
 clock.advance(1s);                               // the task ran to its end before this returned
 int one = t.wait();                              // 1, microseconds after the spawn
-auto every = async::tick(1s);
+async::channel<void> every = async::tick(1s);
 clock.advance(1s);
-bool ticked = every->try_receive();              // true: one tick per period advanced
-every->close();
+bool ticked = every.try_receive();               // true: one tick per period advanced
+every.close();
 clock.uninstall();                               // the steady clock again
 ```
 
@@ -66,7 +66,6 @@ clock.uninstall();                               // the steady clock again
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -75,7 +74,7 @@ using namespace std::chrono_literals;
 // A request that gives up after thirty seconds, and a heartbeat every
 // ten: the test of both under a manual clock, where thirty seconds are
 // three advances and no waiting at all
-async::task<const char*> request(async::channel<int>& reply) {
+async::task<const char*> request(async::channel<int> reply) {
     const char* result = "no reply";
     co_await async::select(
         reply.on_receive([&](int) { result = "replied"; }),
@@ -90,18 +89,18 @@ int main() {
     auto wall = std::chrono::steady_clock::now();
     async::channel<int> reply;
     auto r = async::spawn(request(reply));
-    auto heartbeat = async::tick(10s);
+    async::channel<void> heartbeat = async::tick(10s);
     int beats = 0;
     for (int i : range(3)) {
         (void)i;
         clock.advance(10s);                   // the tick fires; the third time, the timeout too
-        if (heartbeat->try_receive()) {
+        if (heartbeat.try_receive()) {
             ++beats;
         }
     }
-    heartbeat->close();
+    heartbeat.close();
     auto took = std::chrono::steady_clock::now() - wall;
-    std::cout << beats << " heartbeats, the request " << r.wait() << ", in " << (took < 1s ? "under" : "over") << " a second of wall time\n";
+    println("{} heartbeats, the request {}, in {} a second of wall time", beats, r.wait(), (took < 1s ? "under" : "over"));
     async::scheduler::stop();
 }
 ```

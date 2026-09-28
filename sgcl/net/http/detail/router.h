@@ -8,8 +8,11 @@
 #include "../headers.h"
 #include "../../url.h"
 #include "../../../core/aliases.h"
+#include "../../../core/string.h"
+#include "../../../core/vector.h"
 
 #include <algorithm>
+#include <cstring>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -257,27 +260,127 @@ namespace sgcl::net::http::detail {
         return combine(m, compare_paths(p, q));
     }
 
-    // The segments of an escaped path, each unescaped: "/" is [""], "/a/" is ["a", ""]
-    inline std::vector<std::string> path_segments(std::string_view path) {
-        std::vector<std::string> out;
-        if (path.empty() || path.front() != '/') {
-            out.push_back(net::detail::url_unescape(path));
-            return out;
-        }
-        path.remove_prefix(1);
-        for (;;) {
-            auto slash = path.find('/');
-            out.push_back(net::detail::url_unescape(path.substr(0, slash)));
-            if (slash == std::string_view::npos) {
-                break;
+    // The segments of an escaped path, each unescaped: "/" is [""], "/a/"
+    // is ["a", ""], as views, with no allocation of the system's: a
+    // segment without '%' is a view of the path itself, one with '%' is
+    // unescaped into a buffer of the object (512 bytes; past them into one
+    // managed block the size of the path); 32 segments are held in place,
+    // more in a managed array. The path outlives the object (a view of the
+    // request's head); the object is not copied or moved (its views may be
+    // of its own buffer). with_empty_end() is the same path with one empty
+    // segment more (the path with a '/' added), a view of this one.
+    class PathSegments {
+    public:
+        static constexpr size_t Inline = 32;
+        static constexpr size_t Buffer = 512;
+
+        explicit PathSegments(std::string_view path) {
+            size_t n = 1;
+            if (!path.empty() && path.front() == '/') {
+                n = size_t(std::count(path.begin() + 1, path.end(), '/')) + 1;
             }
-            path.remove_prefix(slash + 1);
+            if (n + 1 > Inline) {
+                _big.resize(n + 1);   // one more for with_empty_end
+                _views = _big.data();
+            }
+            if (path.empty() || path.front() != '/') {
+                _views[_n++] = _segment(path, path.size());
+                return;
+            }
+            path.remove_prefix(1);
+            for (;;) {
+                auto slash = path.find('/');
+                _views[_n++] = _segment(path.substr(0, slash), path.size());
+                if (slash == std::string_view::npos) {
+                    break;
+                }
+                path.remove_prefix(slash + 1);
+            }
         }
-        return out;
-    }
+
+        PathSegments(const PathSegments&) = delete;
+        PathSegments& operator=(const PathSegments&) = delete;
+
+        size_t size() const noexcept {
+            return _n;
+        }
+
+        std::string_view operator[](size_t i) const noexcept {
+            return _views[i];
+        }
+
+        // The segments with one empty segment more at the end
+        struct List {
+            const std::string_view* views;
+            size_t n;
+
+            size_t size() const noexcept {
+                return n;
+            }
+
+            std::string_view operator[](size_t i) const noexcept {
+                return i < n ? views[i] : std::string_view();
+            }
+        };
+
+        List list() const noexcept {
+            return List{_views, _n};
+        }
+
+        List with_empty_end() noexcept {
+            _views[_n] = std::string_view();   // room kept for it (Inline + 1, n + 1)
+            return List{_views, _n + 1};
+        }
+
+    private:
+        // One segment: itself when nothing in it is escaped, else unescaped
+        // (the standard's percent-decode, as url_unescape) into the buffer
+        std::string_view _segment(std::string_view s, size_t rest) {
+            if (s.find('%') == std::string_view::npos) {
+                return s;
+            }
+            char* out;
+            if (_used + s.size() <= Buffer) {
+                out = _buffer + _used;
+            } else {
+                if (_spill.empty()) {
+                    _spill.resize(rest + 1);   // what is left of the path: nothing unescaped is longer
+                }
+                out = _spill.data() + _spilled;
+            }
+            size_t k = 0;
+            for (size_t i = 0; i < s.size(); ++i) {
+                if (s[i] == '%' && i + 2 < s.size()) {
+                    int hi = net::detail::url_hex(uint8_t(s[i + 1]));
+                    int lo = net::detail::url_hex(uint8_t(s[i + 2]));
+                    if (hi >= 0 && lo >= 0) {
+                        out[k++] = char(hi * 16 + lo);
+                        i += 2;
+                        continue;
+                    }
+                }
+                out[k++] = s[i];
+            }
+            if (out == _buffer + _used) {
+                _used += k;
+            } else {
+                _spilled += k;
+            }
+            return std::string_view(out, k);
+        }
+
+        std::string_view _inline[Inline + 1];
+        std::string_view* _views = _inline;
+        size_t _n = 0;
+        char _buffer[Buffer];
+        size_t _used = 0;
+        vector<std::string_view> _big;   // managed: more than Inline segments
+        vector<char> _spill;             // managed: unescaped bytes past the buffer
+        size_t _spilled = 0;
+    };
 
     // Whether the path matches the pattern's, and the values of its wildcards
-    inline bool match_path(const RoutePattern& p, const std::vector<std::string>& segs, std::vector<std::pair<std::string, std::string>>* values) {
+    inline bool match_path(const RoutePattern& p, const PathSegments::List& segs, vector<pair<string, string>>* values) {
         for (size_t i = 0; i < p.segments.size(); ++i) {
             auto& s = p.segments[i];
             if (s.kind == RouteSegment::multi) {
@@ -285,14 +388,30 @@ namespace sgcl::net::http::detail {
                     return false;
                 }
                 if (values && !s.text.empty()) {
-                    std::string rest;
+                    // the rest of the path joined, on the stack (a longer
+                    // one in a managed buffer), then the value's string
+                    size_t length = 0;
+                    for (size_t k = i; k < segs.size(); ++k) {
+                        length += segs[k].size() + (k > i);
+                    }
+                    char joined[512];
+                    vector<char> long_join;
+                    char* out = joined;
+                    if (length > sizeof joined) {
+                        long_join.resize(length);
+                        out = long_join.data();
+                    }
+                    size_t at = 0;
                     for (size_t k = i; k < segs.size(); ++k) {
                         if (k > i) {
-                            rest += '/';
+                            out[at++] = '/';
                         }
-                        rest += segs[k];
+                        if (!segs[k].empty()) {
+                            std::memcpy(out + at, segs[k].data(), segs[k].size());
+                        }
+                        at += segs[k].size();
                     }
-                    values->emplace_back(s.text, std::move(rest));
+                    values->push_back(pair<string, string>(string(std::string_view(s.text)), string(std::string_view(out, at))));
                 }
                 return true;
             }
@@ -310,7 +429,7 @@ namespace sgcl::net::http::detail {
                         return false;
                     }
                     if (values) {
-                        values->emplace_back(s.text, segs[i]);
+                        values->push_back(pair<string, string>(string(std::string_view(s.text)), string(segs[i])));
                     }
                     break;
                 case RouteSegment::end:
@@ -352,7 +471,7 @@ namespace sgcl::net::http::detail {
         struct Found {
             enum Kind : uint8_t { route, not_found, method_not_allowed, redirect } kind = not_found;
             size_t index = 0;
-            std::vector<std::pair<std::string, std::string>> values;
+            vector<pair<string, string>> values;   // managed: the request's path values as they are
             std::string allow;          // 405: the methods that would do
             std::string location;       // 307: the path to go to
         };
@@ -366,7 +485,8 @@ namespace sgcl::net::http::detail {
         // match, the methods the path would match with make a 405
         Found find(std::string_view method, std::string_view host, std::string_view path) const {
             Found f;
-            auto segs = path_segments(path);
+            PathSegments parts(path);
+            auto segs = parts.list();
             for (size_t i = 0; i + 1 < segs.size(); ++i) {
                 if (segs[i].empty()) {
                     std::string clean;
@@ -381,24 +501,35 @@ namespace sgcl::net::http::detail {
                     return f;
                 }
             }
-            std::string h;
-            for (char c : host) {
-                h.push_back(ascii_lower(c));
+            // the host lower-cased without its port, on the stack (a longer
+            // one than the buffer, which no DNS name is, in a string)
+            char lowered[256];
+            std::string long_host;
+            std::string_view h;
+            if (host.size() <= sizeof lowered) {
+                for (size_t k = 0; k < host.size(); ++k) {
+                    lowered[k] = ascii_lower(host[k]);
+                }
+                h = std::string_view(lowered, host.size());
+            } else {
+                for (char c : host) {
+                    long_host.push_back(ascii_lower(c));
+                }
+                h = long_host;
             }
             if (!h.empty() && h.front() != '[') {
                 auto colon = h.rfind(':');
-                if (colon != std::string::npos) {
-                    h.erase(colon);
+                if (colon != std::string_view::npos) {
+                    h = h.substr(0, colon);
                 }
             } else if (!h.empty()) {
                 auto close = h.find(']');
-                if (close != std::string::npos) {
-                    h.erase(close + 1);
+                if (close != std::string_view::npos) {
+                    h = h.substr(0, close + 1);
                 }
             }
             bool slashless = !path.empty() && path.back() != '/';
-            auto more = segs;
-            more.push_back("");
+            auto more = parts.with_empty_end();
             auto best = _best(method, h, segs);
             if (slashless && (!best || !_exact(_patterns[*best], segs))) {
                 auto sub = _best(method, h, more);
@@ -461,7 +592,7 @@ namespace sgcl::net::http::detail {
     private:
         // A match without a multi wildcard, or with one that took only the
         // empty last segment
-        static bool _exact(const RoutePattern& p, const std::vector<std::string>& segs) noexcept {
+        static bool _exact(const RoutePattern& p, const PathSegments::List& segs) noexcept {
             if (p.segments.empty() || p.segments.back().kind != RouteSegment::multi) {
                 return true;
             }
@@ -469,7 +600,7 @@ namespace sgcl::net::http::detail {
             return segs.size() == k + 1 && segs[k].empty();
         }
 
-        optional<size_t> _best(std::string_view method, const std::string& host, const std::vector<std::string>& segs) const {
+        optional<size_t> _best(std::string_view method, std::string_view host, const PathSegments::List& segs) const {
             optional<size_t> best;
             bool best_host = false;
             for (size_t i = 0; i < _patterns.size(); ++i) {

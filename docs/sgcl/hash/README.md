@@ -1,6 +1,6 @@
 # sgcl::hash
 
-Checksums and hashes that are not cryptographic: what Go has in `hash/crc32`, `hash/crc64`, `hash/adler32`, `hash/fnv` and `hash/maphash`, and XXH3 and SipHash-2-4, which Go leaves to other packages. `#include "sgcl/hash/hash.h"` brings the module in; it depends on [`core`](../core/README.md) (the `array` a digest is among its containers) and [`io`](../io/README.md) (only for `copy_from`, which reads a stream), and `compress` (CRC-32 and Adler-32 for gzip, zip and zlib) and `crypto` (the same shape for SHA-2 and the rest) are to be built on it. The index of the whole interface is [`docs/sgcl/`](../README.md).
+Checksums and hashes that are not cryptographic: what Go has in `hash/crc32`, `hash/crc64`, `hash/adler32`, `hash/fnv` and `hash/maphash`, and XXH3 and SipHash-2-4, which Go leaves to other packages. `#include "sgcl/hash/hash.h"` brings the module in; it depends on [`core`](../core/README.md) (the `array` a digest is among its containers) and [`io`](../io/README.md) (only for `copy_from` and `of_file`, which read a stream and a file), and [`compress`](../compress/README.md) (CRC-32 and Adler-32 for gzip, zip and zlib) and [`crypto`](../crypto/README.md) (the same shape for SHA-2 and the rest) are built on it. The index of the whole interface is [`docs/sgcl/`](../README.md).
 
 ## One shape for every algorithm
 
@@ -22,12 +22,13 @@ h.reset();                                         // as new
 
 - **`update`** takes bytes as a [`slice<const byte>`](../core/slice.md) — a buffer of io, a `vector<byte>`, a `std::span` of bytes (const or not), a stack array, the digest of another hasher (`array<byte, N>`) — and text as a [`string`](../core/string.md), a `slice<const char>`, a literal or an array of `char`, a C string or a `std::string_view`, each hashed as its UTF-8 bytes where they lie. An array of `char` is read up to its first NUL or its end, so a literal with a NUL inside is cut there, as a `std::string_view` made from it would be. It never fails and never throws.
 - **`value()`** is the result in its natural type: `uint32_t` or `uint64_t` where it fits a number, `array<byte, 16>` for the 128-bit FNVs. It ends nothing: `update` may go on after it, as with Go's `Sum`.
-- **`digest()`** is the result as bytes, most significant first, as Go's `Sum` writes it, for code that takes any hasher and for the future `crypto::sha256`. gzip, zip and xz store their CRC the other way round; a format writes `value()` in its own order.
+- **`digest()`** is the result as bytes, most significant first, as Go's `Sum` writes it, for code that takes any hasher, [`crypto::sha256`](../crypto/sha256.md) among them. gzip, zip and xz store their CRC the other way round; a format writes `value()` in its own order.
 - **`of(data)`** is `T h; h.update(data); return h.value();`. A type with a seed or a key takes it after the data — `xxh3_64::of(data, seed)`, `siphash::of(data, key)` — and hashes in one call with no hasher made. It is the only one-shot form: no free function per algorithm, no template over the algorithm; and only those types take a second argument, so a CRC does not go on from a value through `of` (`resume(v)` does that; a one-argument constructor is a seed, for the types that have one).
+- **`of_file(path)`** is the same for a whole file, read a block at a time: `expected` of what `of` returns, or the file's error; `async_of_file` in a task.
 - **A copy is a branch**, Go's `Clone`: a common prefix hashed once, then two ways.
 - `digest_size` and `block_size` are the sizes Go calls `Size` and `BlockSize` and Python `digest_size` and `block_size`.
 
-A hasher is a plain value, trivially copyable, no pointer inside and nothing for the collector: four bytes for a CRC, sixteen for the widest FNV, eight words for SipHash, about 550 bytes for XXH3 and maphash, which keep a buffer of four stripes and a seed's secret. It lives on the stack, in a field, in a managed object. Nothing in the module allocates, except `copy_from`, which takes one block of io for the call.
+A hasher is a plain value, trivially copyable, no pointer inside and nothing for the collector: four bytes for a CRC, sixteen for the widest FNV, eight words for SipHash, about 550 bytes for XXH3 and maphash, which keep a buffer of four stripes and a seed's secret. It lives on the stack, in a field, in a managed object. Nothing in the module allocates, except `copy_from`, which takes one block of io for the call, and `of_file`, which opens the file as io does.
 
 ## The algorithms
 
@@ -78,24 +79,25 @@ async::task<uint32_t> parallel_crc(slice<const byte> data) {
 
 `combine` is static and works on values, since a CRC does not count its own length: counting it would cost every `update` an addition for the sake of a call made once per piece. A CRC saved earlier is also a start: `hash::crc32::resume(saved)` goes on from it, Go's `crc32.Update`.
 
-## A stream to its end
+## A file, a stream to its end
 
 ```cpp
 using namespace sgcl;
 
-auto f = io::open("archive.bin");
-if (!f) { /* f.error().message() */ }
-hash::crc32 h;
-auto n = h.copy_from(**f);                   // the bytes read, or the stream's error
-if (n) {
-    auto line = txt::format("{:08x}", h.value());
+auto sum = hash::crc32::of_file("archive.bin");       // the whole file, or the error of opening or reading it
+if (sum) {
+    println("{:08x}", *sum);
 }
 
 // in a task
-auto m = co_await h.async_copy_from(**f);
+auto digest = co_await hash::xxh3_64::async_of_file("archive.bin");
+
+// any stream (r: an io::reader — a connection, a pipe, a file already open)
+hash::crc32 h;
+auto n = h.copy_from(r);                              // the bytes read, or the stream's error
 ```
 
-`copy_from` is Go's `io.Copy(h, r)`: the stream read to its end in blocks of io's copy size, each handed to `update` where it lies. A hasher is not an [`io::writer`](../io/stream.md): a writer is a managed object with a virtual `write` and a coroutine behind `write`, which an update of a few bytes would pay for on every call. `copy_from` is the bridge instead.
+`of_file` is the one-shot form of a whole file: what `of(io::read_file(path))` gives, read through `copy_from` without the file held in memory. `copy_from` is Go's `io.Copy(h, r)`: the stream read to its end in blocks of io's copy size, each handed to `update` where it lies. A hasher is not an [`io::writer`](../io/stream.md): a writer is a managed object with a virtual `write` and a coroutine behind `write`, which an update of a few bytes would pay for on every call. `copy_from` is the bridge instead.
 
 ## Paths
 
@@ -105,7 +107,7 @@ On arm64 the CRCs fold the data 64 bytes at a time with carry-less multiplicatio
 
 | page | header | what it is |
 |---|---|---|
-| [hasher](hasher.md) | `sgcl/hash/mixin/hasher.h` | `mixin::hasher<D>`: the text overloads of `update`, `of`, `copy_from`; `req::hasher` |
+| [hasher](hasher.md) | `sgcl/hash/mixin/hasher.h` | `mixin::hasher<D>`: the text overloads of `update`, `of`, `copy_from`, `of_file`; `req::hasher` |
 | [crc32](crc32.md) | `sgcl/hash/crc32.h` | `crc32`, `crc32c` |
 | [crc64](crc64.md) | `sgcl/hash/crc64.h` | `crc64`, `crc64_iso` |
 | [adler32](adler32.md) | `sgcl/hash/adler32.h` | `adler32` |

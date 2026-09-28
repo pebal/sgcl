@@ -79,20 +79,20 @@ int main() {
         if (!entry) {
             break;
         }
-        io::stdout.write((*entry)["level"].as_string().value_or("?") + ": " + (*entry)["msg"].as_string().value_or("") + "\n");
+        println("{}: {}", (*entry)["level"].as_string("?"), (*entry)["msg"].as_string(""));
     }
 
     // The tokens of a text, with their depth
     encoding::json::reader tokens(string(R"({"id": 7, "tags": ["a", "b"]})"));
     while (auto t = tokens.next()) {
-        io::stdout.write(string(std::string(tokens.depth() * 2, ' ')) + string(t->text()) + "\n");
+        println("{}{}", string(tokens.depth() * 2, ' '), t->text());
     }
 
     // An error, with its line and column
-    encoding::json::reader bad(string("[1,\n 2,\n ]"));
+    encoding::json::reader bad("[1,\n 2,\n ]");
     while (bad.next()) {
     }
-    io::stdout.write(bad.last_error()->message() + "\n");
+    println(bad.last_error()->message());
 }
 ```
 
@@ -113,7 +113,7 @@ warn: slow disk
 3:2: invalid character ']' where a value was expected
 ```
 
-A stream is read the same way, a block at a time: `encoding::json::reader r(io::open("events.json").value());`.
+A stream is read the same way, a block at a time: `encoding::json::reader r(io::open("events.json"));`.
 
 ## SGCL and Go
 

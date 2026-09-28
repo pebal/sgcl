@@ -29,12 +29,21 @@ namespace {
             ::close(fd[1]);
         }
     };
+
+    // How a wait of the reactor ended: set by the readiness (the signal
+    // the reactor sends before the set, true) or ended with nothing (a
+    // cancel, a stop: the set alone, false). The event says only that it
+    // is set; the channel under it keeps the difference, which these
+    // tests check. Blocks until the event is set.
+    bool signalled(const sgcl::async::event& e) {
+        return sgcl::async::detail::EventAccess::state(e)->receive().wait();
+    }
 }
 
 TEST(Reactor_Test, ReadableWakesATaskWhenDataComes) {
     Pipe p;
     auto t = sgcl::async::spawn([](int fd) -> sgcl::async::task<int> {
-        co_await sgcl::async::readable(fd)->receive();       // suspended, no thread held
+        co_await sgcl::async::readable(fd);                  // suspended, no thread held
         char c = 0;
         [[maybe_unused]] auto n = ::read(fd, &c, 1);
         co_return c;
@@ -48,22 +57,22 @@ TEST(Reactor_Test, ReadableWakesATaskWhenDataComes) {
 
 TEST(Reactor_Test, WritableIsAtOnceOnAPipeWithRoom) {
     Pipe p;
-    EXPECT_TRUE(sgcl::async::writable(p.fd[1])->receive().wait());
+    EXPECT_TRUE(signalled(sgcl::async::writable(p.fd[1])));
     // and readable once the end of the stream comes
     ::close(p.fd[1]);
     p.fd[1] = ::dup(p.fd[0]);                                 // the destructor closes two descriptors
-    EXPECT_TRUE(sgcl::async::readable(p.fd[0])->receive().wait());          // readable: the end of the stream
+    EXPECT_TRUE(signalled(sgcl::async::readable(p.fd[0])));          // readable: the end of the stream
     sgcl::async::scheduler::stop();
 }
 
 TEST(Reactor_Test, AWaitBoundedByATimeoutAndCancelledByAToken) {
     Pipe p;
     bool timed = false;
-    EXPECT_EQ(sgcl::async::select(sgcl::async::readable(p.fd[0])->on_receive([] {}), sgcl::async::timeout(20ms, [&] { timed = true; })).wait(), 1u);
+    EXPECT_EQ(sgcl::async::select(sgcl::async::readable(p.fd[0]).on_set([] {}), sgcl::async::timeout(20ms, [&] { timed = true; })).wait(), 1u);
     EXPECT_TRUE(timed);
     sgcl::async::stop_source src;
     auto t = sgcl::async::spawn([](int fd, sgcl::async::stop_token tok) -> sgcl::async::task<int> {
-        co_return (int)co_await sgcl::async::select(sgcl::async::readable(fd)->on_receive([] {}), tok.on_stop([] {}));
+        co_return (int)co_await sgcl::async::select(sgcl::async::readable(fd).on_set([] {}), tok.on_stop([] {}));
     }(p.fd[0], src.token()));
     std::this_thread::sleep_for(10ms);
     src.request_stop();
@@ -79,7 +88,7 @@ TEST(Reactor_Test, ManyTasksOnManyPipes) {
     std::vector<sgcl::async::task<int>> tasks;
     for (int i = 0; i < N; ++i) {
         tasks.push_back(sgcl::async::spawn([](int fd) -> sgcl::async::task<int> {
-            co_await sgcl::async::readable(fd)->receive();
+            co_await sgcl::async::readable(fd);
             char c = 0;
             [[maybe_unused]] auto n = ::read(fd, &c, 1);
             co_return c;
@@ -101,7 +110,9 @@ TEST(Reactor_Test, ManyTasksOnManyPipes) {
 TEST(Reactor_Test, TwoWaitsOnOneDescriptorAreBothSignalled) {
     Pipe p;
     auto waiter = [](int fd) -> sgcl::async::task<bool> {
-        co_return co_await sgcl::async::readable(fd)->receive();   // true: signalled, not closed with nothing
+        sgcl::async::event ready = sgcl::async::readable(fd);
+        bool by_readiness = co_await sgcl::async::detail::EventAccess::state(ready)->receive();   // the signal taken: set by the readiness, not ended with nothing
+        co_return by_readiness && ready.is_set();
     };
     auto a = sgcl::async::spawn(waiter(p.fd[0]));
     auto b = sgcl::async::spawn(waiter(p.fd[0]));
@@ -123,11 +134,11 @@ TEST(Reactor_Test, AnEventOfACancelledRegistrationIsDropped) {
     Pipe p;
     auto ch = sgcl::async::readable(p.fd[0]);
     sgcl::async::cancel_waits(p.fd[0]);
-    EXPECT_FALSE(ch->receive().wait());                               // ended with nothing
+    EXPECT_FALSE(signalled(ch));                                      // ended with nothing
     [[maybe_unused]] auto n = ::write(p.fd[1], "x", 1);        // the kernel's entry fires
     std::this_thread::sleep_for(50ms);
     auto again = sgcl::async::readable(p.fd[0]);                      // a new registration on the number: signalled, the stale one not
-    EXPECT_TRUE(again->receive().wait());
+    EXPECT_TRUE(signalled(again));
     sgcl::async::scheduler::stop();
 }
 
@@ -168,7 +179,7 @@ namespace {
     struct GivenUp {
         GivenUp() { ++alive; }
         ~GivenUp() { --alive; }
-        sgcl::async::channel<void> ch{1};
+        sgcl::async::detail::ChannelState<void> ch{1};
         inline static std::atomic<int> alive = {0};
     };
 
@@ -191,7 +202,7 @@ TEST(Reactor_Test, WaitsGivenUpAreDropped) {
     }
     EXPECT_LE(GivenUp::alive.load(), 64);                      // was 2000: every one held by the registration
     [[maybe_unused]] auto n = ::write(p.fd[1], "x", 1);
-    EXPECT_TRUE(live->receive().wait());                              // the wait still open: signalled
+    EXPECT_TRUE(signalled(live));                                     // the wait still open: signalled
     sgcl::async::scheduler::stop();
 }
 
@@ -212,14 +223,14 @@ TEST(Reactor_Test, AQueueThatCannotBeMadeIsMadeByTheNextWait) {
     for (int fd; (fd = ::dup(p.fd[0])) >= 0;) {
         held.push_back(fd);
     }
-    sgcl::tracked_ptr first = sgcl::make_tracked<sgcl::async::channel<void>>(1);
+    sgcl::tracked_ptr first = sgcl::make_tracked<sgcl::async::detail::ChannelState<void>>(1);
     reactor.watch(p.fd[0], false, first, first.get());
     for (int fd : held) {
         ::close(fd);
     }
     ::setrlimit(RLIMIT_NOFILE, &old);
     EXPECT_FALSE(first->receive().wait());                            // ended with nothing: no queue to wait on
-    sgcl::tracked_ptr second = sgcl::make_tracked<sgcl::async::channel<void>>(1);
+    sgcl::tracked_ptr second = sgcl::make_tracked<sgcl::async::detail::ChannelState<void>>(1);
     reactor.watch(p.fd[0], false, second, second.get());
     std::this_thread::sleep_for(30ms);
     EXPECT_FALSE(second->closed());                            // waiting: nothing to read yet
@@ -248,10 +259,10 @@ TEST(Reactor_Test, AWaitBetweenCancelAndCloseDoesNotPoisonTheNumber) {
     [[maybe_unused]] auto n = ::write(q[1], "x", 1);
     auto waited = [](auto& ch) {
         auto start = std::chrono::steady_clock::now();
-        while (!ch->closed() && std::chrono::steady_clock::now() - start < 2s) {
+        while (!ch.is_set() && std::chrono::steady_clock::now() - start < 2s) {
             std::this_thread::sleep_for(1ms);
         }
-        return ch->closed();
+        return ch.is_set();
     };
     EXPECT_TRUE(waited(fresh));                                // signalled: the data is there
     auto later = sgcl::async::readable(fd);
@@ -278,7 +289,53 @@ TEST(Reactor_Test, TwoStopsAtOnce) {
         std::thread a(stopper), b(stopper);
         a.join();
         b.join();
-        EXPECT_FALSE(w->receive().wait());                            // ended with nothing by the stop
+        EXPECT_FALSE(signalled(w));                                   // ended with nothing by the stop
     }
     sgcl::async::scheduler::stop();
+}
+
+// The reactor's thread back in its wait holds nothing of what it woke: the
+// frame of a task it woke, finished since, is the collector's at once —
+// not at the reactor's next event. A guard, not a regression: it passes
+// on the code before the blocking pool's and the timers' threads were
+// made to clear their dead stacks before they park (DESIGN, the words of
+// a library thread before it parks), since no code of the user's runs on
+// the reactor's thread and the library's paths there null their tracked
+// words as they die; nothing is cleared there, and this says if that
+// stops being enough
+namespace {
+    struct InFrame {
+        InFrame() { ++alive; }
+        ~InFrame() { --alive; }
+        inline static std::atomic<int> alive = {0};
+    };
+}
+
+TEST(Reactor_Test, TheThreadInItsWaitHoldsNothingOfWhatItWoke) {
+    Pipe p;
+    static std::atomic<bool> done = {false};
+    done = false;
+    off_frame([&] {
+        sgcl::async::go([](int fd) -> sgcl::async::task<> {
+            sgcl::tracked_ptr held = sgcl::make_tracked<InFrame>();   // alive while the frame is
+            co_await sgcl::async::readable(fd);
+            char c = 0;
+            [[maybe_unused]] auto n = ::read(fd, &c, 1);
+            done = true;
+        }(p.fd[0]));
+    });
+    std::this_thread::sleep_for(20ms);
+    [[maybe_unused]] auto w = ::write(p.fd[1], "x", 1);
+    for (int i = 0; i < 5000 && !done.load(); ++i) {
+        std::this_thread::sleep_for(1ms);
+    }
+    ASSERT_TRUE(done.load());
+    bool gone = false;
+    for (int i = 0; i < 100 && !gone; ++i) {   // the frame's end and the reactor's wait a moment later
+        std::this_thread::sleep_for(5ms);
+        collector::clear_stack();
+        collector::force_collect(true);
+        gone = InFrame::alive.load() == 0;
+    }
+    EXPECT_TRUE(gone);   // no other event, no stop(): the frame gone
 }

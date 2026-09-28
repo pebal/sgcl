@@ -48,14 +48,14 @@ namespace {
 TEST_F(IoFile_Tests, CreateWriteReadBack) {
     auto f = create(at("a.txt"));
     ASSERT_TRUE(f) << f.error().message();
-    EXPECT_FALSE((*f)->is_nonblocking());
-    EXPECT_EQ((*f)->path(), at("a.txt"));
-    ASSERT_TRUE((*f)->write("hello\nworld\n"));
-    EXPECT_EQ(*(*f)->tell(), 12u);
-    ASSERT_TRUE((*f)->close());
-    EXPECT_TRUE((*f)->is_closed());
-    EXPECT_TRUE((*f)->close());   // again: nothing, no error
-    auto again = (*f)->write("x");
+    EXPECT_FALSE(f->is_nonblocking());
+    EXPECT_EQ(f->path(), at("a.txt"));
+    ASSERT_TRUE(f->write("hello\nworld\n"));
+    EXPECT_EQ(value_of(f->tell()), 12u);
+    ASSERT_TRUE(f->close());
+    EXPECT_TRUE(f->is_closed());
+    EXPECT_TRUE(f->close());   // again: nothing, no error
+    auto again = f->write("x");
     ASSERT_FALSE(again);
     EXPECT_TRUE(again.error().is_closed());
 
@@ -76,17 +76,17 @@ TEST_F(IoFile_Tests, CreateWriteReadBack) {
 TEST_F(IoFile_Tests, WriteFileAppendFileAndFlags) {
     ASSERT_TRUE(write_file(at("w"), "first"));
     ASSERT_TRUE(write_file(at("w"), "second"));   // truncated
-    EXPECT_EQ(std::string_view(*read_text(at("w"))), "second");
+    EXPECT_EQ(std::string_view(value_of(read_text(at("w")))), "second");
     ASSERT_TRUE(append_file(at("w"), " third"));
-    EXPECT_EQ(std::string_view(*read_text(at("w"))), "second third");
+    EXPECT_EQ(std::string_view(value_of(read_text(at("w")))), "second third");
     ASSERT_TRUE(append_file(at("new"), "made"));   // created by append
-    EXPECT_EQ(std::string_view(*read_text(at("new"))), "made");
+    EXPECT_EQ(std::string_view(value_of(read_text(at("new")))), "made");
     auto excl = io::open(at("w"), open_flags::write | open_flags::create | open_flags::exclusive);
     ASSERT_FALSE(excl);
     EXPECT_TRUE(excl.error().is_exists());
     auto ro = io::open(at("w"));
     ASSERT_TRUE(ro);
-    auto w = (*ro)->write("x");
+    auto w = ro->write("x");
     ASSERT_FALSE(w);
     EXPECT_EQ(w.error().code(), std::errc::bad_file_descriptor);
     auto wo = io::open(at("absent"), open_flags::write);   // write without create
@@ -97,54 +97,54 @@ TEST_F(IoFile_Tests, WriteFileAppendFileAndFlags) {
 TEST_F(IoFile_Tests, SeekReadAtWriteAtTruncateStat) {
     auto f = io::open(at("s"), open_flags::read | open_flags::write | open_flags::create);
     ASSERT_TRUE(f);
-    ASSERT_TRUE((*f)->write("0123456789"));
-    EXPECT_EQ(*(*f)->size(), 10u);
-    EXPECT_EQ(*(*f)->tell(), 10u);   // size() keeps the position
-    ASSERT_TRUE((*f)->rewind());
+    ASSERT_TRUE(f->write("0123456789"));
+    EXPECT_EQ(value_of(f->size()), 10u);
+    EXPECT_EQ(value_of(f->tell()), 10u);   // size() keeps the position
+    ASSERT_TRUE(f->rewind());
     byte b[4];
-    EXPECT_EQ(*(*f)->read_full(b), 4u);
+    EXPECT_EQ(value_of(f->read_full(b)), 4u);
     EXPECT_EQ(as_text(b), "0123");
-    EXPECT_EQ(*(*f)->seek(-2, seek_from::end), 8u);
-    EXPECT_EQ(*(*f)->read(b), 2u);
+    EXPECT_EQ(value_of(f->seek(-2, seek_from::end)), 8u);
+    EXPECT_EQ(value_of(f->read(b)), 2u);
     EXPECT_EQ(as_text(std::span<const byte>(b, 2)), "89");
-    EXPECT_EQ(*(*f)->read_at(b, 3), 4u);   // the position untouched
+    EXPECT_EQ(value_of(f->read_at(b, 3)), 4u);   // the position untouched
     EXPECT_EQ(as_text(b), "3456");
-    EXPECT_EQ(*(*f)->tell(), 10u);
+    EXPECT_EQ(value_of(f->tell()), 10u);
     std::string_view rep = "AB";
-    EXPECT_EQ(*(*f)->write_at(std::as_bytes(std::span(rep)), 1), 2u);
-    ASSERT_TRUE((*f)->truncate(6));
-    ASSERT_TRUE((*f)->sync());
-    auto info = (*f)->stat();
+    EXPECT_EQ(value_of(f->write_at(std::as_bytes(std::span(rep)), 1)), 2u);
+    ASSERT_TRUE(f->truncate(6));
+    ASSERT_TRUE(f->sync());
+    auto info = f->stat();
     ASSERT_TRUE(info);
     EXPECT_EQ(info->size, 6u);
     EXPECT_TRUE(info->is_regular());
     EXPECT_EQ(std::string_view(info->name), "s");
-    EXPECT_EQ(std::string_view(*read_text(at("s"))), "0AB345");
-    ASSERT_TRUE((*f)->chmod(permissions(0600)));
-    EXPECT_EQ(static_cast<unsigned>(io::stat(at("s"))->mode), 0600u);
+    EXPECT_EQ(std::string_view(value_of(read_text(at("s")))), "0AB345");
+    ASSERT_TRUE(f->chmod(permissions(0600)));
+    EXPECT_EQ(static_cast<unsigned>(value_of(io::stat(at("s"))).mode), 0600u);
 }
 
 TEST_F(IoFile_Tests, BufferedOverAFile) {
     {
         auto f = create(at("lines"));
         ASSERT_TRUE(f);
-        sgcl::tracked_ptr w = make_tracked<buffered_writer>(*f);
+        buffered_writer w(*f);
         for (int i = 0; i < 5000; ++i) {
-            ASSERT_TRUE(w->write(string("line " + std::to_string(i) + "\n")));
+            ASSERT_TRUE(w.write(string("line " + std::to_string(i) + "\n")));
         }
-        ASSERT_TRUE(w->close());   // flushes and closes the file
-        EXPECT_TRUE((*f)->is_closed());
+        ASSERT_TRUE(w.close());   // flushes and closes the file
+        EXPECT_TRUE(f->is_closed());
     }
     auto f = io::open(at("lines"));
     ASSERT_TRUE(f);
-    sgcl::tracked_ptr r = make_tracked<buffered_reader>(*f);
+    buffered_reader r(*f);
     int n = 0;
-    for (auto line : r->lines()) {
+    for (auto line : r.lines()) {
         ASSERT_EQ(line, "line " + std::to_string(n));
         ++n;
     }
     EXPECT_EQ(n, 5000);
-    EXPECT_FALSE(r->last_error());
+    EXPECT_FALSE(r.last_error());
 }
 
 // A file held as an io::reader is closed through the handle, as a writer
@@ -157,17 +157,17 @@ TEST_F(IoFile_Tests, AReaderHandleClosesItsStream) {
     io::reader h(*f);
     EXPECT_TRUE(h.has_close());
     ASSERT_TRUE(h.close());
-    EXPECT_TRUE((*f)->is_closed());
+    EXPECT_TRUE(f->is_closed());
     byte b[1];
     auto after = h.read(b);
     ASSERT_FALSE(after);
     EXPECT_TRUE(after.error().is_closed());
     auto g = io::open(at("r"));
     ASSERT_TRUE(g);
-    sgcl::tracked_ptr br = make_tracked<buffered_reader>(*g);
-    ASSERT_EQ(*br->read(b), 1u);
-    ASSERT_TRUE(br->close());
-    EXPECT_TRUE((*g)->is_closed());
+    buffered_reader br(*g);
+    ASSERT_EQ(value_of(br.read(b)), 1u);
+    ASSERT_TRUE(br.close());
+    EXPECT_TRUE(g->is_closed());
     io::reader none(make_tracked<buffer>(std::string_view("x")));
     EXPECT_FALSE(none.has_close());
     EXPECT_TRUE(none.close());
@@ -176,7 +176,7 @@ TEST_F(IoFile_Tests, AReaderHandleClosesItsStream) {
     ASSERT_TRUE(k);
     io::reader hk(*k);
     EXPECT_TRUE(sgcl::async::spawn(hk.async_close()).wait());
-    EXPECT_TRUE((*k)->is_closed());
+    EXPECT_TRUE(k->is_closed());
     EXPECT_TRUE(sgcl::async::spawn(none.async_close()).wait());
     EXPECT_TRUE(sgcl::async::spawn(io::reader().async_close()).wait());
     io::writer sink([](slice<const byte> d) { return d.size(); });
@@ -184,8 +184,8 @@ TEST_F(IoFile_Tests, AReaderHandleClosesItsStream) {
     EXPECT_TRUE(sgcl::async::spawn(sink.async_close()).wait());   // nothing to close: no pool
     auto tf = sgcl::async::spawn(async_temp_file(dir(), "t-*")).wait();
     ASSERT_TRUE(tf);
-    EXPECT_TRUE(std::string_view((*tf)->path()).starts_with(_dir));
-    (void)(*tf)->close();
+    EXPECT_TRUE(std::string_view(tf->path()).starts_with(_dir));
+    (void)tf->close();
     auto td = sgcl::async::spawn(async_make_temp_dir(dir(), "d-*")).wait();
     ASSERT_TRUE(td);
     EXPECT_TRUE(is_directory(*td));
@@ -195,28 +195,29 @@ TEST_F(IoFile_Tests, AReaderHandleClosesItsStream) {
 TEST_F(IoFile_Tests, TempFileAndPipe) {
     auto t = temp_file(dir(), "up-*.tmp");
     ASSERT_TRUE(t) << t.error().message();
-    auto name = path::base((*t)->path());
+    auto name = path::base(t->path());
     EXPECT_TRUE(name.starts_with("up-"));
     EXPECT_TRUE(name.ends_with(".tmp"));
     EXPECT_EQ(name.size(), 3 + 10 + 4);
-    EXPECT_TRUE(exists((*t)->path()));
-    EXPECT_EQ(static_cast<unsigned>((*t)->stat()->mode), 0600u);
-    ASSERT_TRUE((*t)->write("tmp"));
-    ASSERT_TRUE((*t)->rewind());
-    EXPECT_EQ(std::string_view(*(*t)->read_all_text()), "tmp");
+    EXPECT_TRUE(exists(t->path()));
+    EXPECT_EQ(static_cast<unsigned>(value_of(t->stat()).mode), 0600u);
+    ASSERT_TRUE(t->write("tmp"));
+    ASSERT_TRUE(t->rewind());
+    EXPECT_EQ(std::string_view(value_of(t->read_all_text())), "tmp");
 
     auto p = io::pipe();
     ASSERT_TRUE(p);
     auto& [rd, wr] = *p;
     EXPECT_EQ(p->read, rd);                                // the ends by name too
     EXPECT_EQ(p->write, wr);
-    EXPECT_TRUE(rd->is_nonblocking());
-    std::thread producer([w = sgcl::root_ptr<file>(wr)] {   // a thread's closure is unmanaged memory: a root_ptr
+    EXPECT_TRUE(rd.is_nonblocking());
+    sgcl::root_ptr<file> held = sgcl::make_tracked<file>(wr);
+    std::thread producer([w = held] {   // a thread's closure is unmanaged memory: a root_ptr to the handle
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
         w->write("through the pipe");
         w->close();
     });
-    auto got = rd->read_all_text();   // the synchronous form polls on EAGAIN
+    auto got = rd.read_all_text();   // the synchronous form polls on EAGAIN
     producer.join();
     ASSERT_TRUE(got);
     EXPECT_EQ(std::string_view(*got), "through the pipe");
@@ -227,7 +228,7 @@ namespace {
         return std::string_view(reinterpret_cast<const char*>(b.data()), b.size());
     }
 
-    task<void> delayed_ping(tracked_ptr<file> wr);
+    task<void> delayed_ping(file wr);
 
     task<std::string> async_case(string file, std::string big) {
         // a regular file: through the blocking pool
@@ -244,11 +245,11 @@ namespace {
             co_return "open";
         }
         byte head[6];
-        auto n = co_await (*f)->async_read_full(head);
+        auto n = co_await f->async_read_full(head);
         if (!n || *n != 6 || textof(head) != "qqqqqq") {
             co_return "read";
         }
-        auto at5 = co_await (*f)->async_read_at(head, big.size() - 3);
+        auto at5 = co_await f->async_read_at(head, big.size() - 3);
         if (!at5 || *at5 != 3) {
             co_return "read_at";
         }
@@ -259,29 +260,29 @@ namespace {
         }
         auto [rd, wr] = *p;
         sgcl::async::go(delayed_ping(wr));
-        auto got = co_await rd->async_read_all_text();
+        auto got = co_await rd.async_read_all_text();
         if (!got) {
             co_return "pipe read: " + got.error().message().str();
         }
         co_return got->str();
     }
 
-    task<void> delayed_ping(tracked_ptr<file> wr) {
+    task<void> delayed_ping(file wr) {
         co_await sgcl::async::sleep(std::chrono::milliseconds(5));
-        co_await wr->async_write("ping");
-        wr->close();
+        co_await wr.async_write("ping");
+        wr.close();
     }
 
-    task<void> write_big(tracked_ptr<file> wr, std::string big) {
-        co_await wr->async_write(string(big));
-        wr->close();
+    task<void> write_big(file wr, std::string big) {
+        co_await wr.async_write(string(big));
+        wr.close();
     }
 
     task<size_t> pipe_case(std::string big) {
         auto p = io::pipe();
         auto [rd, wr] = *p;
         auto writer = sgcl::async::spawn(write_big(wr, big));
-        auto got = co_await rd->async_read_all();
+        auto got = co_await rd.async_read_all();
         co_await writer;
         co_return got ? got->size() : 0;
     }
@@ -327,4 +328,66 @@ TEST_F(IoFile_Tests, AsyncFormsHoldTheirArguments) {
     ASSERT_TRUE(entries);
     EXPECT_EQ(entries->size(), 2u);
     sgcl::async::scheduler::stop();
+}
+
+// What io::open returns goes where a file or a handle is wanted, with no
+// `*` (DESIGN 220): a file, a stream handle, a task's co_return; a file
+// that is not there is thrown as bad_expected_access with the io::error,
+// whose what() names the operation and the path
+TEST_F(IoFile_Tests, AnOpenedFileGoesWhereAFileIsWanted) {
+    ASSERT_TRUE(write_file(at("r"), "abc"));
+    io::reader h(io::open(at("r")));
+    byte b[3];
+    EXPECT_EQ(value_of(h.read(b)), 3u);
+    io::file f = io::open(at("r"));
+    EXPECT_FALSE(f.is_closed());
+    string text = io::read_text(at("r"));
+    EXPECT_EQ(text, "abc");
+    auto opened = [](string p) -> sgcl::async::task<io::file> {
+        co_return io::open(p);
+    };
+    EXPECT_TRUE(sgcl::async::spawn(opened(at("r"))).wait());
+    try {
+        io::reader missing(io::open(at("none")));
+        ADD_FAILURE() << "no exception";
+    } catch (const sgcl::bad_expected_access<io::error>& e) {
+        EXPECT_TRUE(e.error().is_not_found());
+        EXPECT_NE(std::string(e.what()).find("none"), std::string::npos) << e.what();
+    }
+}
+
+// io::file is a handle: one tracked word to the state, the copies sharing
+// one file; a stream made of it binds the state, so the handle may be a
+// temporary; an empty handle makes an empty stream; a global or a std
+// container holds it through a root_ptr to the handle
+TEST_F(IoFile_Tests, TheFileIsAHandle) {
+    static_assert(sizeof(io::file) == sizeof(sgcl::tracked_ptr<void>));
+    ASSERT_TRUE(write_file(at("h"), "handle"));
+    io::file f = io::open(at("h"));
+    io::file copy = f;
+    EXPECT_TRUE(copy == f);
+    io::file other = io::open(at("h"));
+    EXPECT_FALSE(other == f);                           // another open, another file
+    byte b[3];
+    ASSERT_EQ(value_of(copy.read(b)), 3u);
+    ASSERT_EQ(value_of(f.read(b)), 3u);                          // one position: the copy read the first three
+    EXPECT_EQ(as_text(b), "dle");
+    ASSERT_TRUE(copy.close());
+    EXPECT_TRUE(f.is_closed());
+
+    io::reader from_temporary(io::file(io::open(at("h"))));
+    sgcl::collector::force_collect(true);
+    EXPECT_EQ(std::string_view(value_of(from_temporary.read_all_text())), "handle");
+    EXPECT_GE(from_temporary.fd(), 0);
+
+    io::file none;
+    EXPECT_FALSE(none);
+    EXPECT_FALSE(io::reader(none));
+    EXPECT_FALSE(io::writer(none));
+
+    sgcl::root_ptr<io::file> kept = sgcl::make_tracked<io::file>(io::open(at("h")));
+    sgcl::collector::force_collect(true);
+    EXPECT_EQ(std::string_view(value_of(kept->read_all_text())), "handle");
+    io::file again = *kept;
+    EXPECT_TRUE(again == *kept);
 }

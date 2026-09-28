@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../core/detail/handle_word.h"
 #include "error.h"
 #include "functions.h"
 #include "req.h"
@@ -79,6 +80,36 @@ namespace sgcl::io {
         template<class T>
         inline constexpr bool IsTrackedPtr = false;
 
+        // The handles of io (file, buffer, buffered_reader, buffered_writer):
+        // one tracked word to a state that the copies share. A stream made
+        // of a handle binds the state, not the handle, so that the handle
+        // may be a temporary or a local that goes before the stream does.
+        template<class T>
+        inline constexpr bool IsStreamHandle = false;
+
+        struct HandleAccess {
+            // The state of a handle, the word it holds its object by
+            template<class H>
+            static decltype(auto) state(const H& h) {
+                return h._stream_state();
+            }
+        };
+
+        template<class T, bool = IsStreamHandle<T>>
+        struct StreamOf {
+            using type = T;
+        };
+
+        template<class T>
+        struct StreamOf<T, true> {
+            using type = typename std::remove_cvref_t<decltype(HandleAccess::state(std::declval<const T&>()))>::element_type;
+        };
+
+        // What a stream argument's table is made for: the state of a handle
+        // (given as it is, or through a pointer to it), else the target
+        template<class R>
+        using Stream = typename StreamOf<std::remove_cv_t<Target<R>>>::type;
+
         template<class T>
         inline constexpr bool IsTrackedPtr<tracked_ptr<T>> = true;
 
@@ -95,7 +126,10 @@ namespace sgcl::io {
         Bound bind(R&& r) {
             using S = std::remove_cvref_t<R>;
             using T = Target<R>;
-            if constexpr (IsTrackedPtr<S>) {
+            if constexpr (IsStreamHandle<std::remove_cv_t<T>>) {
+                const auto& state = HandleAccess::state(target(r));
+                return Bound{tracked_ptr<const void>(state), const_cast<void*>(static_cast<const void*>(state.get()))};
+            } else if constexpr (IsTrackedPtr<S>) {
                 return Bound{tracked_ptr<const void>(r), const_cast<void*>(static_cast<const void*>(r.get()))};
             } else if constexpr (requires { typename S::element_type; requires std::is_rvalue_reference_v<R&&>; requires std::is_constructible_v<tracked_ptr<typename S::element_type>, S&&>; }) {
                 tracked_ptr<typename S::element_type> p(std::move(r));   // a unique_ptr from make_tracked: held from now on
@@ -181,7 +215,7 @@ namespace sgcl::io {
         template<class R>
         requires (!std::same_as<std::remove_cvref_t<R>, reader>) && (req::reader<R> || req::async_reader<R>)
         reader(R&& r)
-        : reader(detail::bind(std::forward<R>(r)), &detail::reader_table<detail::Target<R>>()) {
+        : reader(detail::bind(std::forward<R>(r)), &detail::reader_table<detail::Stream<R>>()) {
         }
 
         // const, as a call through a pointer is: the handle is not what a
@@ -237,8 +271,9 @@ namespace sgcl::io {
         }
 
     private:
+        // an empty handle, or a null pointer, makes an empty reader
         reader(detail::Bound b, const detail::ReaderTable* table) noexcept
-        : _owner(std::move(b.owner)), _object(b.object), _table(table) {
+        : _owner(std::move(b.owner)), _object(b.object), _table(b.object ? table : nullptr) {
         }
 
         tracked_ptr<const void> _owner;
@@ -261,7 +296,7 @@ namespace sgcl::io {
         template<class W>
         requires (!std::same_as<std::remove_cvref_t<W>, writer>) && (req::writer<W> || req::async_writer<W>)
         writer(W&& w)
-        : writer(detail::bind(std::forward<W>(w)), &detail::writer_table<detail::Target<W>>()) {
+        : writer(detail::bind(std::forward<W>(w)), &detail::writer_table<detail::Stream<W>>()) {
         }
 
         expected<size_t, error> write(const slice<const byte>& data) const {
@@ -313,7 +348,7 @@ namespace sgcl::io {
 
     private:
         writer(detail::Bound b, const detail::WriterTable* table) noexcept
-        : _owner(std::move(b.owner)), _object(b.object), _table(table) {
+        : _owner(std::move(b.owner)), _object(b.object), _table(b.object ? table : nullptr) {
         }
 
         tracked_ptr<const void> _owner;
@@ -644,19 +679,25 @@ namespace sgcl::io {
     // written at the back (bytes.Buffer), a vector inside the managed
     // object. A read consumes; data() is what remains, a view valid until
     // the next write, text() the same as a string.
-    class buffer final : public mixin::reader<buffer>, public mixin::writer<buffer> {
+    //
+    // It seeks as a file does, for writing: the write position counts from
+    // the first byte held (data()), follows the end until a seek moves it,
+    // and a write there overwrites what is held and runs on past the end;
+    // a seek past the end is allowed, and a write there fills the gap with
+    // zeros (os.File, pwrite). Reads still consume from the front, and the
+    // position moves back with the bytes they take. A seek before the first
+    // byte is std::errc::invalid_argument. What a writer that must come
+    // back to its start needs (7z's signature header), in memory.
+    //
+    // The state of a buffer, the object its handles share (io::buffer
+    // below): the bytes and the two positions.
+    namespace detail {
+    class BufferState final {
     public:
-        using mixin::writer<buffer>::write;
-        using mixin::writer<buffer>::async_write;
+        BufferState() = default;
 
-        buffer() = default;
-
-        explicit buffer(const slice<const byte>& initial)
+        explicit BufferState(const slice<const byte>& initial)
         : _data(initial.begin(), initial.end()) {
-        }
-
-        explicit buffer(const string& initial)
-        : buffer(detail::bytes_of(initial)) {
         }
 
         expected<size_t, error> read(const slice<byte>& out) {
@@ -667,8 +708,15 @@ namespace sgcl::io {
             if (n) {
                 sgcl::detail::copy_bytes(out.data(), _data.data() + _read, n);
                 _read += n;
+                if (!_at_end) {
+                    _put = _put > n ? _put - n : 0;
+                }
                 if (_read == _data.size()) {
+                    bool at_end = _at_end;
+                    size_t put = _put;
                     clear();
+                    _at_end = at_end;
+                    _put = put;
                 }
             }
             return n;
@@ -679,8 +727,34 @@ namespace sgcl::io {
         }
 
         expected<size_t, error> write(const slice<const byte>& in) {
-            _data.insert(_data.end(), in.begin(), in.end());
+            if (_at_end) {
+                _data.insert(_data.end(), in.begin(), in.end());
+                return in.size();
+            }
+            size_t at = _read + _put;
+            if (at > _data.size()) {
+                _data.resize(at);   // the gap a seek past the end left: zeros
+            }
+            size_t over = std::min(in.size(), _data.size() - at);
+            if (over) {
+                sgcl::detail::copy_bytes(_data.data() + at, in.data(), over);
+            }
+            _data.insert(_data.end(), in.begin() + over, in.end());
+            _put += in.size();
             return in.size();
+        }
+
+        // The write position moved: to offset from the first byte held, from
+        // the position, or from the end; the new position
+        expected<uint64_t, error> seek(int64_t offset, seek_from from = seek_from::begin) {
+            int64_t base = from == seek_from::begin ? 0 : from == seek_from::current ? int64_t(_at_end ? size() : _put) : int64_t(size());
+            int64_t at = base + offset;
+            if (at < 0) {
+                return detail::fail(error(std::make_error_code(std::errc::invalid_argument), "seek", "buffer"));
+            }
+            _put = size_t(at);
+            _at_end = _put == size();
+            return uint64_t(at);
         }
 
         async::task<expected<size_t, error>> async_write(slice<const byte> in) {
@@ -729,6 +803,8 @@ namespace sgcl::io {
         void clear() noexcept {
             _data.clear();
             _read = 0;
+            _put = 0;
+            _at_end = true;
         }
 
         void reserve(size_t n) {
@@ -745,5 +821,150 @@ namespace sgcl::io {
     private:
         vector<byte> _data;
         size_t _read = 0;   // the front: consumed up to here
+        size_t _put = 0;    // the write position from the front, when not at the end
+        bool _at_end = true;
     };
+    }
+
+    // A buffer as a handle: one tracked word to the state above, copied
+    // and passed by value, the copies sharing one buffer. `io::buffer out;`
+    // makes its state at once, as every other constructor does, so that a
+    // copy always shares it and the word is written only by the
+    // constructors and the assignments, as any tracked_ptr's. A handle is a
+    // tracked word: on a stack, in a task, in a managed object; in a global
+    // or a std container, a root_ptr to it, as to any managed object.
+    class buffer final : public mixin::reader<buffer>, public mixin::writer<buffer>, public mixin::seeker<buffer> {
+    public:
+        using mixin::writer<buffer>::write;
+        using mixin::writer<buffer>::async_write;
+
+        buffer()
+        : _state(make_tracked<detail::BufferState>()) {
+        }
+
+        buffer(const buffer&) noexcept = default;
+        buffer(buffer&&) noexcept = default;
+        buffer& operator=(const buffer&) noexcept = default;
+        buffer& operator=(buffer&&) noexcept = default;
+
+        explicit buffer(const slice<const byte>& initial)
+        : _state(make_tracked<detail::BufferState>(initial)) {
+        }
+
+        explicit buffer(const string& initial)
+        : buffer(detail::bytes_of(initial)) {
+        }
+
+        // A literal, a character array, a std::string_view: as a string
+        // (an exact match, else the conversions to a string and to bytes tie)
+        template<sgcl::detail::TextArgument T>
+        explicit buffer(const T& initial)
+        : buffer(slice<const byte>(initial)) {
+        }
+
+        // A read consumes from the front; of an empty buffer, 0
+        expected<size_t, error> read(const slice<byte>& out) const {
+            return _get()->read(out);
+        }
+
+        async::task<expected<size_t, error>> async_read(const slice<byte>& out) const {
+            return _get()->async_read(out);
+        }
+
+        expected<size_t, error> write(const slice<const byte>& in) const {
+            return _get()->write(in);
+        }
+
+        async::task<expected<size_t, error>> async_write(const slice<const byte>& in) const {
+            return _get()->async_write(in);
+        }
+
+        // The write position moved: to offset from the first byte held, from
+        // the position, or from the end; the new position
+        expected<uint64_t, error> seek(int64_t offset, seek_from from = seek_from::begin) const {
+            return _get()->seek(offset, from);
+        }
+
+        // What io::copy calls with a buffer as the source: what it holds,
+        // in one write
+        template<class W>
+        expected<size_t, error> write_to(W& w) const {
+            return _get()->write_to(w);
+        }
+
+        // The same in a task, what io::async_copy calls: the writer is the
+        // caller's to keep alive across the wait (async_copy's frame holds it)
+        template<class W>
+        async::task<expected<size_t, error>> async_write_to(W& w) const {
+            return _get()->async_write_to(w);
+        }
+
+        // What remains: a view valid until the next write; as a string (a copy)
+        slice<const byte> data() const noexcept {
+            return _get()->data();
+        }
+
+        string text() const {
+            return _get()->text();
+        }
+
+        size_t size() const noexcept {
+            return _get()->size();
+        }
+
+        bool empty() const noexcept {
+            return size() == 0;
+        }
+
+        void clear() const noexcept {
+            _get()->clear();
+        }
+
+        void reserve(size_t n) const {
+            _get()->reserve(n);
+        }
+
+        // Takes the bytes out, leaving the buffer empty
+        vector<byte> release() const {
+            return _get()->release();
+        }
+
+        // The same buffer: the same state
+        friend bool operator==(const buffer& a, const buffer& b) noexcept {
+            return a._state == b._state;
+        }
+
+    private:
+        friend struct detail::HandleAccess;
+
+        detail::BufferState* _get() const noexcept {
+            return _state.get();
+        }
+
+        const tracked_ptr<detail::BufferState>& _stream_state() const noexcept {
+            return _state;
+        }
+
+        // The handle's word, for the atomics (core/detail/handle_word.h)
+        friend struct sgcl::detail::HandleWord;
+
+        buffer(sgcl::detail::FromWord, const tracked_ptr<detail::BufferState>& w) noexcept
+        : _state(w) {
+        }
+
+        tracked_ptr<detail::BufferState>& _handle_word() noexcept {
+            return _state;
+        }
+
+        const tracked_ptr<detail::BufferState>& _handle_word() const noexcept {
+            return _state;
+        }
+
+        tracked_ptr<detail::BufferState> _state;
+    };
+
+    namespace detail {
+        template<>
+        inline constexpr bool IsStreamHandle<buffer> = true;
+    }
 }

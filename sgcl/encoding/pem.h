@@ -183,6 +183,14 @@ namespace sgcl::encoding {
             return std::move(**r);
         }
 
+        // The first block of a literal in the program: parse's value, or
+        // bad_expected_access<encoding::error> with parse's message. Input
+        // is parsed; a text the program itself wrote is constructed
+        // (DESIGN 234)
+        explicit pem(const string& text)
+        : pem(parse(text).value()) {
+        }
+
         // Every block of the text, none for a text with none
         static expected<vector<pem>, error> parse_all(const string& text) {
             vector<pem> out;
@@ -341,6 +349,11 @@ namespace sgcl::encoding {
                         auto key = detail::pem_trim(content.substr(0, colon));
                         if (key.empty()) {
                             return unexpected<error>(_fail(text, errc::syntax, line.begin, "a header without a name"));
+                        }
+                        if (key.starts_with("-----")) {
+                            // " -----: x": a name the block would write as a
+                            // boundary line, and no reader could read back
+                            return unexpected<error>(_fail(text, errc::syntax, line.begin, "a header name that reads as a boundary line"));
                         }
                         headers.emplace_back(std::string(key), std::string(detail::pem_trim(content.substr(colon + 1))));
                         at = line.next;

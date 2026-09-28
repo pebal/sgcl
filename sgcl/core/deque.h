@@ -225,12 +225,12 @@ namespace sgcl {
 
         private:
             // Without a map (an empty deque that never held anything) the
-            // iterator is the end, whatever the index: begin() + 0 and
-            // the like read no entry
+            // iterator is the end, whatever the index: begin() + 0,
+            // `it += 0` and the like read no entry (_block below)
             Iterator(BlockPtr* map, size_t index) noexcept
             : _map(map)
             , _index(index)
-            , _elem(map ? _elem_at(index) : nullptr) {
+            , _elem(_elem_at(index)) {
             }
 
             Iterator(BlockPtr* map, size_t index, value_type* elem) noexcept
@@ -241,13 +241,18 @@ namespace sgcl {
 
             // The first slot of the block holding the slot `index`: one
             // plain load of the map; null when the block is not allocated,
-            // which is the end at a block boundary.
+            // which is the end at a block boundary, and when there is no
+            // map at all (the end of a deque that never held anything).
             value_type* _block(size_t index) const noexcept {
-                return reinterpret_cast<value_type*>(_map[index / BlockSize].get());
+                return _map ? reinterpret_cast<value_type*>(_map[index / BlockSize].get()) : nullptr;
             }
 
+            // The slot `index`, or null for an end whose block is not
+            // there: no arithmetic on a null block (the end's _elem is
+            // null, compared by index and never dereferenced)
             value_type* _elem_at(size_t index) const noexcept {
-                return _block(index) + index % BlockSize;
+                value_type* b = _block(index);
+                return b ? b + index % BlockSize : nullptr;
             }
 
             BlockPtr* _map;

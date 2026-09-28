@@ -54,11 +54,11 @@ async::task<> echo(net::connection c) {
 async::task<> serve() {
     auto listener = co_await net::tcp::async_listen(":8080");
     if (!listener) {
-        std::cerr << listener.error().message() << '\n';
+        eprintln("{}", listener.error().message());
         co_return;
     }
     while (auto c = co_await listener->async_accept()) {
-        async::go(echo(*c));                   // a task per connection
+        async::go(echo(c));                   // a task per connection
     }
 }
 
@@ -86,8 +86,8 @@ static async::task<expected<net::listener, io::error>> async_listen(const string
 ```
 
 ```cpp
-auto l = net::unix_domain::listen("/tmp/app.sock");
-auto c = net::unix_domain::connect("/tmp/app.sock");
+net::listener l = net::unix_domain::listen("/tmp/app.sock");
+net::connection c = net::unix_domain::connect("/tmp/app.sock");
 ```
 
 ## See also

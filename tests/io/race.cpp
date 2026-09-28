@@ -25,10 +25,10 @@ namespace {
         std::atomic<size_t> read = {0};
     };
 
-    task<> read_until_closed(tracked_ptr<io::file> f, Round* round) {
+    task<> read_until_closed(io::file f, Round* round) {
         byte b[1];
         for (;;) {
-            auto r = co_await f->async_read(b);
+            auto r = co_await f.async_read(b);
             if (!r || *r == 0) {
                 co_return;
             }
@@ -59,13 +59,13 @@ TEST(IoRace_Tests, CloseAgainstAReadInProgress) {
         auto p = io::pipe();
         ASSERT_TRUE(p);
         auto [r, w] = *p;
-        fill(w->fd(), 'A', 512);   // enough for the reader to be inside its loop when the close comes
+        fill(w.fd(), 'A', 512);   // enough for the reader to be inside its loop when the close comes
         Round round;
         auto reader = spawn(read_until_closed(r, &round));
         for (int spin = 0; spin < (i % 64); ++spin) {
             std::this_thread::yield();
         }
-        (void)r->close();
+        (void)r.close();
         int fresh[4][2];
         for (auto& q : fresh) {   // the numbers taken again, 'B' waiting in each pipe
             ASSERT_EQ(::pipe(q), 0);
@@ -79,7 +79,7 @@ TEST(IoRace_Tests, CloseAgainstAReadInProgress) {
             ::close(q[0]);
             ::close(q[1]);
         }
-        (void)w->close();
+        (void)w.close();
     }
     EXPECT_EQ(foreign, 0u);
     EXPECT_GT(closed_while_reading, size_t(rounds / 10));   // the close did land inside the reads, often

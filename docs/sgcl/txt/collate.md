@@ -87,7 +87,7 @@ txt::collator names{txt::locale("da"), {.case_order = txt::case_order::lower_fir
 | `numeric` | a run of digits is compared as the number it spells, so `plik9` comes before `plik10`. The digits of any script count, the leading zeros do not (`007` and `7` are one number), and the number may be longer than any integer holds: what is compared is first how many digits are left after the zeros and then the digits themselves |
 | `punctuation` | `shifted` moves punctuation, spaces and symbols to a fourth level, so that `re-sume` and `resume` are one word — look as though the hyphen were not there. The fourth level itself is only compared at `strength::quaternary`, which keeps the two apart while keeping them together |
 | `case_level` | the case becomes a level of its own, between the accents and the third level, so that a collator can be asked for the letters and the case and nothing else: at primary strength with it, `resume` and `résumé` are one word and `RESUME` is not |
-| `case_order` | `upper_first` puts the capitals before the small letters. The case of a letter is read from the letter and not from its weights, so it holds for a letter a language moved as well: Danish `Œ` and Maltese `Għ` sort where ICU sorts them, and a letter written in both cases — Danish sorts `Aa` as one letter — falls between the two, as it does there |
+| `case_order` | `upper_first` puts the capitals before the small letters. The case of a letter is read from the letter and not from its weights, so it holds for a letter a language moved as well: Danish `Œ` and Maltese `Għ` sort where ICU sorts them, and a letter written in both cases — Danish sorts `Aa` as one letter — falls between the two, as it does there. Kana have no case, and here, for `case_level` and `case_order` only, they take the one CLDR gives them from the third weight of the root: a small kana (ぁ, ッ, ｧ) is a small letter and a normal one (あ, ツ, ｱ) a capital, as in ICU |
 | `backwards` | the accents are compared from the end of the word rather than from its start, which is what Canadian French asks for: `cote côte coté côté` rather than `cote coté côte côté` |
 
 Four of the five are things a language asks for, and those four are the ones left unset by default: a collator made for a locale starts with what that language's rules ask for, and what the caller writes is what it wants instead. Danish and Maltese ask for their capitals first, Thai for its punctuation shifted aside, Church Slavonic for all of the first three together with its accents read from the end. `numeric` is not among them because no language asks for it — it is a thing a program wants for its file names, never a thing a language wants for its words. The `optional` says "not given, so take the language's", which is a question about what was *asked for*; what the collator *settled on* is asked of it directly, and an answer is a `bool`: `c.case_level()`, `c.capitals_first()`, `c.shifts_punctuation()`, `c.backwards()`, `c.numeric()`. Each of the five has two values that matter once it is settled, so nothing is lost by saying so in a bool, and a name that reads as a question keeps the type names free — a member called `punctuation` would hide the type of that name inside the class.
@@ -211,12 +211,26 @@ The search is held to the same rules the folded one is: that a match takes whole
 
 The settings are held to ICU as well, and there in the way that catches what they invite: 29 settings of the collator over 46 texts, the order ICU puts them in and, for every neighbouring pair, whether it calls them different or equal. Both the comparison and the sort key are held to that, and a second test asks every combination of the settings about every pair of a list of texts made for the purpose — some four hundred thousand pairs — and requires the key to give the sign the comparison gives.
 
+## Where the collator differs from ICU
+
+A fuzzer asks the collator and ICU 78.3 the same questions about any text (`tests/txt/fuzz/txt_icu_fuzz.cpp`); where they part by design or by version, this is where, and the fuzzer leaves those cases out by name.
+
+| | |
+|---|---|
+| Unicode 16 and 17 | The tables are Unicode 16's and ICU 78's are 17's: a code point 17 assigned, a property 17 changed (`ʕ` is a cased letter in 16), and the ideographs, which UCA 17 weighs by radical and stroke where UCA 16 weighs them by block and code point, sort differently. |
+| DUCET and CLDR's root | The root is the DUCET, ICU's is CLDR's, which weighs a few things its own way: U+FFFE and U+FFFF are its lowest and highest letters where the DUCET weighs them as any noncharacter, and some marks outside U+0300–U+036F (U+05B3 against U+0334) come at the second level in another order. |
+| Shifted punctuation | `punctuation::shifted` shifts what the DUCET calls variable — spaces, punctuation and symbols; CLDR's groups give `ー` and `ｰ` to the symbols (the DUCET to the letters), and ICU's answers around a control between a variable element and its mark are no order at all (`_` < `_\x03\u0300` while each equals `_\u0300`). |
+| Numbers | With `numeric`, a number weighs from the first weight of its digit zero on here and below it in ICU, which parts only against the digits that are no decimal digits (`₀`, `¹`, `①`), whose first weight is a digit's. |
+| Half-width voiced marks | `ﾞ` and `ﾟ` weigh only at the second level; ICU gives them the case of a normal kana there, and `case_level` and `case_order` give an element with no first weight no case here. |
+| A letter of several elements with cases of their own | `case_level` and `case_order` read the case of a letter from its code points, ICU of each element from the root's third weight: `ǅ` is a titlecase letter here and a capital and a small letter to ICU. |
+| A language's contraction across a mark | A language's contraction is matched where its code points stand together, not across a mark of a lower class between them as UCA S2.1 lets it: Swedish `Ô` followed by U+0334 is `ô` to ICU and `O` here. |
+| `[reorder]` | Not honoured (above): a list that mixes scripts in a language that asks for it sorts in the root's order of scripts. |
+
 ## Example
 
 ```cpp
 #include "sgcl/sgcl.h"
 #include <algorithm>
-#include <iostream>
 
 using namespace sgcl;
 
@@ -228,11 +242,11 @@ int main() {
     auto show = [&](const char* what, auto&& less) {
         auto list = words;
         std::sort(list.begin(), list.end(), less);
-        std::cout << what;
+        print("{}", what);
         for (auto& w : list) {
-            std::cout << w << ' ';
+            print("{} ", w);
         }
-        std::cout << '\n';
+        println();
     };
     show("bajty  : ", [](const string& a, const string& b) { return a < b; });
     show("root   : ", txt::collator());
@@ -241,15 +255,13 @@ int main() {
     // At primary strength an accent and a case are not differences, which
     // is what a search box wants
     txt::collator search{txt::strength::primary};
-    std::cout << "\nresume == résumé == RESUME: "
-              << (search.equal("resume", "résumé") && search.equal("resume", "RESUME")) << '\n';
+    println("\nresume == résumé == RESUME: {}", (search.equal("resume", "résumé") && search.equal("resume", "RESUME")));
 
     // A key compares byte by byte the way the collator compares texts, so
     // an index can hold it instead of calling the collator again
     txt::collator polish{txt::locale("pl")};
-    std::cout << "klucz 'żaba' ma " << polish.key("żaba").size() << " bajtów\n";
-    std::cout << "czy biblioteka zna porządek języka: " << polish.tailored() << " (pl), "
-              << txt::collator(txt::locale("tlh")).tailored() << " (tlh)\n";
+    println("klucz 'żaba' ma {} bajtów", polish.key("żaba").size());
+    println("czy biblioteka zna porządek języka: {} (pl), {} (tlh)", polish.tailored(), txt::collator(txt::locale("tlh")).tailored());
     return 0;
 }
 ```

@@ -44,7 +44,6 @@ bool empty() const noexcept;
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -81,7 +80,7 @@ int main() {
         ++c->notices;
         ++reached;
     }
-    std::cout << reached << " connections reached, " << open.size() << " entries, " << open.sweep() << " swept, " << open.size() << " left\n";
+    println("{} connections reached, {} entries, {} swept, {} left", reached, open.size(), open.sweep(), open.size());
 }
 ```
 

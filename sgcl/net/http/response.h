@@ -23,6 +23,7 @@ namespace sgcl::net::http {
         struct ResponseImpl {
             int status = 0;
             int minor = 1;
+            bool h2 = false;                 // came over HTTP/2
             string head;
             http::headers fields;
             optional<net::url> url;
@@ -44,6 +45,12 @@ namespace sgcl::net::http {
     public:
         int status() const noexcept {
             return _impl->status;
+        }
+
+        // The protocol the response came over, as Go's resp.Proto:
+        // "HTTP/1.1", "HTTP/1.0" or "HTTP/2.0"
+        string proto() const {
+            return _impl->h2 ? "HTTP/2.0" : _impl->minor == 0 ? "HTTP/1.0" : "HTTP/1.1";
         }
 
         // 200 to 299

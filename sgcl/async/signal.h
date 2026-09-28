@@ -51,7 +51,7 @@ namespace sgcl::async {
         // One registration: the channel, through the object that holds it
         struct SignalWait {
             tracked_ptr<void> keep;
-            channel<int>* ch = nullptr;
+            ChannelState<int>* ch = nullptr;
         };
 
         class Signals {
@@ -63,7 +63,7 @@ namespace sgcl::async {
             // The channel registered for the numbers: their handler
             // installed (the disposition saved once, for reset), the
             // thread and the pipe started on the first registration
-            void notify(std::initializer_list<int> numbers, const tracked_ptr<void>& keep, channel<int>* ch) {
+            void notify(std::initializer_list<int> numbers, const tracked_ptr<void>& keep, ChannelState<int>* ch) {
 #if SGCL_SIGNALS_POSIX
                 std::lock_guard lock(_m);
                 _start();
@@ -249,10 +249,10 @@ namespace sgcl::async {
     // A channel that gets the number of every signal of `numbers`
     // delivered to the process from now on; `capacity` elements held
     // for a receiver that is not there yet, the rest dropped
-    inline tracked_ptr<channel<int>> signals(std::initializer_list<int> numbers, size_t capacity = 1) {
-        tracked_ptr<channel<int>> ch = make_tracked<channel<int>>(capacity);
+    inline channel<int> signals(std::initializer_list<int> numbers, size_t capacity = 1) {
+        tracked_ptr<detail::ChannelState<int>> ch = make_tracked<detail::ChannelState<int>>(capacity);
         detail::signals_instance().notify(numbers, ch, ch.get());
-        return ch;
+        return detail::ChannelAccess::make(std::move(ch));
     }
 
     // The disposition the numbers had before the first `signals` back,

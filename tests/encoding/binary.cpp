@@ -151,10 +151,10 @@ TEST(Binary_Tests, StreamOfVarints) {
         EXPECT_EQ(got, values);
     }
     auto t = sgcl::async::spawn([](std::string text, std::vector<int64_t> values) -> async::task<int> {
-        sgcl::tracked_ptr in = make_tracked<io::buffered_reader>(make_tracked<dribble>(text, 3));
+        io::buffered_reader in(make_tracked<dribble>(text, 3));
         std::vector<int64_t> got;
         for (;;) {
-            auto r = co_await varint::async_read_signed(*in);
+            auto r = co_await varint::async_read_signed(in);
             if (!r) {
                 co_return -1;
             }
@@ -163,7 +163,7 @@ TEST(Binary_Tests, StreamOfVarints) {
             }
             got.push_back(**r);
         }
-        auto u = co_await varint::async_read(*in);
+        auto u = co_await varint::async_read(in);
         if (!u || u->has_value()) {
             co_return -2;
         }
@@ -216,9 +216,14 @@ TEST(Binary_Tests, AsyncReadHoldsTheReadersObject) {
     sgcl::async::scheduler::stop();
 }
 
-TEST(Binary_Tests, BufferedStreamsAreNotCopied) {
-    static_assert(!std::is_copy_constructible_v<io::buffered_reader> && !std::is_copy_assignable_v<io::buffered_reader>);
-    static_assert(std::is_move_constructible_v<io::buffered_reader> && std::is_move_assignable_v<io::buffered_reader>);
-    static_assert(!std::is_copy_constructible_v<io::buffered_writer> && !std::is_copy_assignable_v<io::buffered_writer>);
-    static_assert(std::is_move_constructible_v<io::buffered_writer> && std::is_move_assignable_v<io::buffered_writer>);
+// The buffered streams are handles: one word, copied, the copies one
+// reader (one block, one position) or one writer
+TEST(Binary_Tests, BufferedStreamsAreHandles) {
+    static_assert(sizeof(io::buffered_reader) == sizeof(sgcl::tracked_ptr<void>) && std::is_copy_constructible_v<io::buffered_reader>);
+    static_assert(sizeof(io::buffered_writer) == sizeof(sgcl::tracked_ptr<void>) && std::is_copy_constructible_v<io::buffered_writer>);
+    io::buffered_reader in(make_tracked<dribble>(std::string("\x05\x06"), 1));
+    io::buffered_reader copy = in;
+    EXPECT_TRUE(copy == in);
+    EXPECT_EQ(**varint::read(in), 5u);
+    EXPECT_EQ(**varint::read(copy), 6u);   // the same position
 }

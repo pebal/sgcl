@@ -61,7 +61,7 @@ int main() {
     encoding::json::writer wrong(io::stdout);
     wrong.begin_array().key("x");
     auto r = wrong.flush();
-    io::stdout.write(r.error().message() + "\n");
+    println(r.error().message());
 }
 ```
 

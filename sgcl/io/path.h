@@ -250,7 +250,10 @@ namespace sgcl::io::path {
         }
         std::string_view brest = bi < bv.size() ? bv.substr(bi) : std::string_view();
         std::string_view trest = ti < tv.size() ? tv.substr(ti) : std::string_view();
-        if (brest == "..") {
+        // a ".." left in the base past the common part (a cleaned path has
+        // them only at its front) names a directory no lexical walk can
+        // come back from: "../z" to "." is not "../..", as Go says
+        if (brest == ".." || brest.starts_with("../")) {
             return io::detail::fail(error(errc::invalid_path, "rel", target));
         }
         std::string out;

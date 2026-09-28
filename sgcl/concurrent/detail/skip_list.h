@@ -21,6 +21,7 @@
 #include <iterator>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace sgcl::concurrent::detail {
     using namespace sgcl::detail;
@@ -263,7 +264,7 @@ namespace sgcl::concurrent::detail {
             for (; first != last; ++first) {
                 items.emplace_back(*first);
             }
-            vector<size_t> order;
+            std::vector<size_t> order;   // indices only, scratch of this call: plain memory
             order.reserve(items.size());
             for (size_t i = 0; i < items.size(); ++i) {
                 order.push_back(i);

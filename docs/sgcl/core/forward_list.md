@@ -11,7 +11,7 @@ namespace sgcl {
 
 `sgcl::forward_list<T>` is `std::forward_list` over managed nodes: singly linked nodes behind a sentinel, the one `before_begin()` addresses. The interface is the one of `std::forward_list` (constructors, `assign`, `front`, forward iterators, `insert_after`, `emplace_after`, `erase_after`, `push_front`, `merge`, `splice_after`, `remove`, `remove_if`, `reverse`, `unique`, `sort`, three-way comparison, `std::erase`/`std::erase_if`; no `size()`), and so is the behaviour: an element is constructed at insertion and destroyed at removal, references and iterators to the other elements stay valid through every insertion, erasure and relink.
 
-What differs is who frees the nodes. The links are `tracked_ptr`s, so the rooted sentinel keeps every node alive and the list walks them through raw pointers; an `erase_after` unlinks a node and destroys its element, and the collector reclaims the node later, once nothing refers to it. Nothing is ever freed by hand, so a cycle through a list is collected like any other cycle. The list object is one word, the sentinel, which every list owns from its construction on (a default-constructed list allocates it), so `insert_after` and `erase_after` work the same at any position; the sentinel is a bare link with no element. A node is as big as its `std` counterpart and pays no malloc rounding ([Benchmarks: Containers](benchmarks.md#containers): 14.5 ns per `push_front` against 22.1 ns for `std::forward_list`).
+What differs is who frees the nodes. The links are `tracked_ptr`s, so the sentinel keeps every node alive and the list walks them through raw pointers; an `erase_after` unlinks a node and destroys its element, and the collector reclaims the node later, once nothing refers to it. Nothing is ever freed by hand, so a cycle through a list is collected like any other cycle. The list object is one word, the sentinel: a bare link with no element inside the list itself, not a node of its own, so an empty list allocates nothing and `insert_after` and `erase_after` work the same at any position. A node is as big as its `std` counterpart and pays no malloc rounding ([Benchmarks: Containers](benchmarks.md#containers): 14.5 ns per `push_front` against 22.1 ns for `std::forward_list`).
 
 ## Rules
 
@@ -53,7 +53,7 @@ forward_list(const forward_list& other);
 forward_list(forward_list&& other);
 ```
 
-Every constructor allocates the sentinel. `forward_list(count)` holds `count` value-initialized elements, `forward_list(count, value)` `count` copies. A copy has nodes of its own; a move takes the chain of `other`, which keeps its sentinel and is empty. An element constructor that throws leaves the list empty and the exception propagates.
+The sentinel is inside the list: an empty list allocates nothing. `forward_list(count)` holds `count` value-initialized elements, `forward_list(count, value)` `count` copies. A copy has nodes of its own; a move takes the chain of `other`, which keeps its sentinel and is empty. An element constructor that throws leaves the list empty and the exception propagates.
 
 ```cpp
 forward_list<int> zeros(4);                          // 0 0 0 0
@@ -69,7 +69,7 @@ forward_list<int> taken = std::move(digits);         // digits is empty now
 ~forward_list();
 ```
 
-Destroys the elements, unless the list dies in a sweep: then its nodes are garbage of the same sweep and destroy their elements themselves. The nodes and the sentinel are left to the collector.
+Destroys the elements, unless the list dies in a sweep: then its nodes are garbage of the same sweep and destroy their elements themselves. The nodes are left to the collector.
 
 ### operator=
 
@@ -150,7 +150,7 @@ There is no `size()`, as in `std::forward_list`: `std::ranges::distance(l)` coun
 void clear() noexcept;
 ```
 
-Destroys every element and unlinks every node; the sentinel stays.
+Destroys every element and unlinks every node.
 
 ### insert_after, emplace_after
 
@@ -271,7 +271,7 @@ void swap(forward_list& other) noexcept;
 template<class T> void swap(forward_list<T>& lhs, forward_list<T>& rhs) noexcept;
 ```
 
-Exchanges the sentinels; no element is touched.
+Exchanges the chains the sentinels hold; no element is touched.
 
 ### merge
 
@@ -409,7 +409,6 @@ owned.pop_front();                                 // the int is destroyed here,
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 #include <ranges>
 
 using namespace sgcl;
@@ -420,6 +419,8 @@ struct Vertex {
 };
 
 int main() {
+    println("values and a graph in forward lists");
+    auto base = collector::get_live_object_count();   // after the first line: io's own objects are not the example's
     // A list of values on the stack: the nodes are on the managed heap
     forward_list numbers = {5, 3, 9, 1};
     numbers.push_front(7);
@@ -448,12 +449,11 @@ int main() {
     // to show the result at once
     collector::force_collect(true);
     int edges = int(std::ranges::distance(keep->edges));
-    std::cout << std::ranges::distance(numbers) << " numbers, vertex " << keep->id << " with "
-              << edges << " edges, " << collector::get_live_object_count() << " live objects\n";
+    println("{} numbers, vertex {} with {} edges, {} live objects", std::ranges::distance(numbers), keep->id, edges, collector::get_live_object_count() - base);
 
     keep = nullptr;                                 // the cycle is unreachable now: collected as a whole
     collector::force_collect(true);             // optional, as above
-    std::cout << collector::get_live_object_count() << " live objects after the graph is gone\n";
+    println("{} live objects after the graph is gone", collector::get_live_object_count() - base);
     return std::ranges::distance(numbers) == 3 && edges == 50 ? 0 : 1;
 }
 ```
@@ -461,8 +461,9 @@ int main() {
 The output:
 
 ```
-3 numbers, vertex 99 with 50 edges, 10056 live objects
-5 live objects after the graph is gone
+values and a graph in forward lists
+3 numbers, vertex 99 with 50 edges, 9954 live objects
+3 live objects after the graph is gone
 ```
 
 The list `numbers` dies at the end of `main` and destroys its elements then; its nodes are freed by the collector once nothing refers to them.

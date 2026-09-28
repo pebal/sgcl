@@ -9,29 +9,30 @@ namespace sgcl {
 
     class sleep;                                              // co_await sleep(d): the task suspended for d; sleep(d).wait() for a thread
     class sleep_until;                                        // co_await sleep_until(t): until a point; sleep_until(t).wait() for a thread
-    tracked_ptr<async::channel<void>> async::after(duration d);             // one signal after d, then closed
-    tracked_ptr<async::channel<void>> at(time_point t);              // one signal at t, then closed
-    tracked_ptr<async::channel<void>> async::tick(duration d);              // a signal every d, until closed
-    tracked_ptr<async::channel<void>> async::tick(duration d, time_point first);   // the first at a point, then every d
+    async::event async::after(duration d);                            // set after d
+    async::event async::at(time_point t);                             // set at t
+    async::channel<void> async::tick(duration d);                     // a signal every d, until closed
+    async::channel<void> async::tick(duration d, time_point first);   // the first at a point, then every d
     template<class F> auto async::timeout(duration d, F f);          // a case of a select, served after d
     template<class F> auto async::timeout(time_point t, F f);        // served at t
 }
 ```
 
-Time, the way Go has it. `co_await async::sleep(d)` suspends a task for `d` and holds no thread meanwhile: the task is a frame on the managed heap and a timer, and a worker runs it when the time comes; `co_await async::sleep_until(t)` the same until a point. `async::after(d)` is a channel that gets one signal after `d` and is closed then, for whoever wants to wait for a moment as for anything else: `async::after(1s)->receive()`, or a case of a select; `at(t)` the same at a point, at once for one that has passed. `async::tick(d)` is a channel that gets a signal every `d`: a loop that does something at a fixed rate receives on it; a tick nobody has taken yet is dropped rather than queued (the channel holds one), so a slow loop sees fewer ticks, not a backlog; closing the channel ends the ticks; `async::tick(d, first)` puts the first tick at a point (the next whole second, say) and the rest every `d` after it. `async::timeout(d, f)` is `async::after(d)` as a case of a [select](select.md), with `f` as the body: the way a wait is bounded; `async::timeout(t, f)` is `at(t)` as one, a deadline shared by several selects. A thread sleeps with `async::sleep(d).wait()` or `async::sleep_until(t).wait()`, which block on the timer's channel.
+Time, the way Go has it. `co_await async::sleep(d)` suspends a task for `d` and holds no thread meanwhile: the task is a frame on the managed heap and a timer, and a worker runs it when the time comes; `co_await async::sleep_until(t)` the same until a point. `async::after(d)` is an [event](event.md) set after `d`, for whoever wants to wait for a moment as for anything else: `co_await async::after(1s)` in a task, `async::after(1s).wait()` on a thread, `async::after(1s).on_set(f)` as a case of a select; `async::at(t)` the same at a point, at once for one that has passed. `async::tick(d)` is a channel that gets a signal every `d`: a loop that does something at a fixed rate receives on it; a tick nobody has taken yet is dropped rather than queued (the channel holds one), so a slow loop sees fewer ticks, not a backlog; closing the channel ends the ticks; `async::tick(d, first)` puts the first tick at a point (the next whole second, say) and the rest every `d` after it. `async::timeout(d, f)` is `async::after(d)` as a case of a [select](select.md), with `f` as the body: the way a wait is bounded; `async::timeout(t, f)` is `async::at(t)` as one, a deadline shared by several selects. A thread sleeps with `async::sleep(d).wait()` or `async::sleep_until(t).wait()`, which block on the timer's channel.
 
 A point is a `time_point` of the library's [clock](../core/clock.md), `sgcl::clock::now()`: the steady clock's time, unless a test has installed a manual clock, whose time moves only when the test advances it, and then every timer here, and every thread's `wait()`, goes by the test's time: a sleep of thirty seconds completes on `advance(30s)`, in microseconds.
 
-Under them one thread with a heap of timers, asleep until the earliest is due and woken when an earlier one is added; it starts with the first timer and stops with the scheduler (`async::scheduler::stop()`, or the end of the program). A timer is a managed object held by a `root_ptr` in the heap: the frame it will resume or the channel it will signal lives while the timer does, and nothing else holds them for it. Firing a timer is a push on the scheduler or a `try_send` on the channel; the thread never runs a body of the program.
+Under them one thread with a heap of timers, asleep until the earliest is due and woken when an earlier one is added; it starts with the first timer and stops with the scheduler (`async::scheduler::stop()`, or the end of the program). A timer is a managed object held by a `root_ptr` in the heap: the frame it will resume or the event or channel it will signal lives while the timer does, and nothing else holds them for it. Firing a timer is a push on the scheduler or a `try_send` on the channel; the thread never runs a body of the program.
 
 ## Rules
 
 - A `co_await` of a `sleep` or a `sleep_until` is for a coroutine with a managed frame ([coroutine](coroutine.md)); a thread sleeps with `async::sleep(d).wait()` or `async::sleep_until(t).wait()`, through the clock, or with `sgcl::this_thread::sleep_for`, the operating system's, which the manual clock does not serve.
 - A span is a [`sgcl::duration`](../core/duration.md), a class of the core module with Go's text and units (`d.seconds()`, `d.to_string()`); the literals of `<chrono>` and any integral `std::chrono` duration convert into it, and it converts into `std::chrono::nanoseconds`, so `async::sleep(500ms)` and `async::after(d)` read as they did when it was an alias of the steady clock's duration. A span too long for the clock saturates: `clock::now() + d` stops at `time_point::max()`, and a timer at that point never fires, so `async::sleep(duration::max())`, `async::after(duration::max())`, `async::tick(duration::max())` and a `timeout` of it wait forever, where the point would otherwise wrap into the past and fire at once.
+- A task that sleeps or waits with no stop token lives until its wait ends, even when nobody waits for it any more: its timer holds its frame, as a goroutine asleep is not collected either. One that may be abandoned (the loser of a [timeout](timeout.md) race, a task nobody awaits) should be given a token.
 - A point is of `sgcl::clock`, which is the steady clock's `time_point` (`sgcl::time_point`): a point of the system clock (a calendar time) is converted by the program, `sgcl::clock::now() + (when - system_clock::now())`.
 - The resolution is the steady clock's and the thread's wake-up: a timer fires at its time or a little after, never before.
-- `after` cannot be cancelled: the channel is signalled and closed at its time whether or not anyone receives; the channel and the timer are garbage after that. A `tick` ends when its channel is closed, by the program; the timer sees the close at its next tick and lets go.
-- The channel of `after` and `tick` is a managed object (`tracked_ptr<async::channel<void>>`): it lives where a `tracked_ptr` may, and as long as something holds it, the timer included.
+- `after` is set at its time whether or not anyone waits; the event and the timer are garbage after that. A `tick` ends when its channel is closed, by the program; the timer sees the close at its next tick and lets go.
+- The event of `after` and `at` and the channel of `tick` are handles ([event](event.md), [channel](channel.md)): one word, a tracked word — on a stack, in a task, in a managed object; in a global or a std container, a `rooted<async::event>` or `rooted<async::channel<void>>`. The state lives as long as something holds it, the timer included.
 - The timer thread is a thread of the program to the collector, like any other. It is woken by an arming only when the new timer is the earliest (a later one changes nothing it waits for). A timer armed while `async::scheduler::stop()` is joining the thread stays in the heap, as one not yet due does, and fires once the next arming starts the thread again. A `timeout` case gone before its time (its select served by another case) cancels its timer: the channel closed, the timer swept out of the heap once the cancelled are half of it, so a select with a long timeout in a loop keeps a bounded heap (a timer per iteration until the deadline before: 0.75 KB each, 300 MB for 400 k iterations, measured).
 
 ## Members
@@ -49,10 +50,10 @@ Suspends the task for `d`, or until `t`; a `d` of zero or less, or a `t` that ha
 ### after, at, tick
 
 ```cpp
-tracked_ptr<async::channel<void>> async::after(duration d);
-tracked_ptr<async::channel<void>> at(time_point t);
-tracked_ptr<async::channel<void>> async::tick(duration d);
-tracked_ptr<async::channel<void>> async::tick(duration d, time_point first);
+async::event async::after(duration d);
+async::event async::at(time_point t);
+async::channel<void> async::tick(duration d);
+async::channel<void> async::tick(duration d, time_point first);
 ```
 
 ### timeout
@@ -66,31 +67,30 @@ template<class F> auto async::timeout(time_point t, F f);   // the same at a poi
 auto t = async::spawn([]() -> async::task<> {
     co_await async::sleep(100ms);                                 // no thread held
 }());
-auto later = async::after(50ms);
-later->receive().wait();                                                // true, after 50 ms; false from then on
+async::event later = async::after(50ms);
+later.wait();                                                     // after 50 ms; at once from then on
 async::channel<int> data;
 async::select(
     data.on_receive([](int v) { /* came in time */ }),
     async::timeout(1s, [] { /* did not */ })
 );
-auto every = async::tick(10ms);
-for (int i = 0; i < 3 && every->receive().wait(); ++i) { /* at 10, 20, 30 ms */ }
-every->close();                                                  // no more ticks
+async::channel<void> every = async::tick(10ms);
+for (int i = 0; i < 3 && every.receive().wait(); ++i) { /* at 10, 20, 30 ms */ }
+every.close();                                                   // no more ticks
 auto deadline = clock::now() + 50ms;                       // a point: the same for a task and a thread
 auto u = async::spawn([](time_point deadline) -> async::task<> {
     co_await async::sleep_until(deadline);
 }(deadline));
 async::sleep_until(deadline).wait();                              // this thread, until the same point
-at(deadline)->receive().wait();                                   // true at once: the point has passed
-auto aligned = async::tick(1s, std::chrono::ceil<std::chrono::seconds>(clock::now()));   // on the whole seconds
-aligned->close();
+async::at(deadline).wait();                                       // at once: the point has passed
+async::channel<void> aligned = async::tick(1s, std::chrono::ceil<std::chrono::seconds>(clock::now()));   // on the whole seconds
+aligned.close();
 ```
 
 ## Example
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -100,18 +100,18 @@ using namespace std::chrono_literals;
 // up on a request that took too long. Nothing here holds a thread while
 // it waits: the sleeps, the ticks and the timeouts are timers, the task
 // a frame on the managed heap.
-async::task<int> poll(async::channel<int>& data, async::channel<void>& stop) {
-    auto every = async::tick(10ms);
+async::task<int> poll(async::channel<int> data, async::channel<void> stop) {
+    async::channel<void> every = async::tick(10ms);
     int seen = 0, ticks = 0, late = 0;
     bool running = true;
     while (running) {
         co_await async::select(
-            every->on_receive([&] { ++ticks; }),
+            every.on_receive([&] { ++ticks; }),
             data.on_receive([&](int) { ++seen; }),
             stop.on_receive([&] { running = false; })
         );
     }
-    every->close();
+    every.close();
     // a request with a deadline
     async::channel<int> reply;
     co_await async::select(
@@ -131,7 +131,7 @@ int main() {
     }
     stop.close();
     int result = p.wait();
-    std::cout << result % 1000 << " seen, " << result / 1000 << " late\n";   // 5 seen, 1 late
+    println("{} seen, {} late", result % 1000, result / 1000);   // 5 seen, 1 late
     return result == 1005 ? 0 : 1;
 }
 ```
@@ -144,5 +144,5 @@ The output:
 
 ## See also
 
-- [clock](../core/clock.md): the clock the points are of; [manual_clock](manual_clock.md): the manual clock of a test; [select](select.md): what `timeout` is a case of; [channel](channel.md): what `after`, `at` and `tick` are; [scheduler](scheduler.md): what runs a task after its sleep
+- [clock](../core/clock.md): the clock the points are of; [manual_clock](manual_clock.md): the manual clock of a test; [select](select.md): what `timeout` is a case of; [event](event.md) and [channel](channel.md): what `after`, `at` and `tick` are; [scheduler](scheduler.md): what runs a task after its sleep
 - `tests/async/timer.cpp` and `tests/async/clock.cpp`: every behaviour above, checked.

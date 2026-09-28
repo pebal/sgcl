@@ -99,6 +99,35 @@ TEST(Rational_Tests, ToDoubleAgainstPython) {
     EXPECT_TRUE(std::signbit(rational(-1, big_integer(1) << 1080).to_double()));
 }
 
+// A literal in the program is constructed, not parsed: the value parse
+// gives, or parse's error thrown (DESIGN 234); a number, the literal 0
+// among them, still goes to the constructor from a number
+TEST(Rational_Tests, LiteralsConstruct) {
+    rational q("3/4");
+    EXPECT_EQ(q, value_of(rational::parse("3/4")));
+    EXPECT_EQ(q, rational(3, 4));
+    EXPECT_EQ(rational("-0.125"), value_of(rational::parse("-0.125")));
+    EXPECT_EQ(rational("-0.125"), rational(-1, 8));
+    auto bad = rational::parse("1/0");
+    ASSERT_FALSE(bad);
+    try {
+        rational("1/0");
+        FAIL() << "a denominator of zero";
+    } catch (const bad_expected_access<math::parse_error>& x) {
+        EXPECT_EQ(x.error(), bad.error());
+        EXPECT_EQ(string(x.what()), bad.error().message());
+    }
+    static_assert(!std::is_convertible_v<const string&, rational>, "explicit");
+    static_assert(!std::is_convertible_v<const char*, rational>, "explicit");
+    static_assert(std::is_constructible_v<rational, int>);
+    static_assert(!std::is_constructible_v<rational, bool>);
+    static_assert(!std::is_constructible_v<rational, int*>);
+    EXPECT_EQ(rational(0), rational());   // the number, not a null text
+    EXPECT_EQ(rational(0).numerator(), 0);
+    EXPECT_EQ(rational(int64_t(-7)), rational(-7, 1));
+    EXPECT_EQ(rational(big_integer(0)), rational());
+}
+
 TEST(Rational_Tests, FromDoubleAgainstPython) {
     for (auto& t : rational_vectors::from_double) {
         rational a(t.value);
@@ -281,7 +310,7 @@ TEST(Rational_Tests, AlgebraicProperties) {
         ASSERT_LE(rational(a.floor()), a);
         ASSERT_GT(rational(a.floor()) + 1, a);
         ASSERT_GE(rational(a.ceil()), a);
-        ASSERT_EQ(*rational::parse(a.to_string()), a);
+        ASSERT_EQ(value_of(rational::parse(a.to_string())), a);
         // The decimal is within half a unit of the last place
         auto s = a.to_decimal(20);
         auto back = rational::parse(s);

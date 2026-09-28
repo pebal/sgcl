@@ -12,21 +12,24 @@ An event: set once, waited for by any number, and a wait after the set does not 
 
 ## Rules
 
-- It lives where a `tracked_ptr` may: on a stack or inside a managed object ([The rules](../core/README.md#the-rules), 1); not copyable, not movable.
+- A handle: one word, a tracked word to the state, which copies share (`==` says whether two are the same). Made by the constructor; there is no empty event. It lies on a stack, in a task (a parameter by value), in a managed object; in a global or a std container, as a `rooted<async::event>` ([rooted](../core/rooted.md)), the same object reached with `->`. A root is never part of a cycle: never a `rooted` in a managed object or a task's frame ([The rules](../core/README.md#the-rules), 1).
 - Set once: there is no reset. A wait after the set returns at once.
+- What the [reactor](reactor.md) and the [timers](timer.md) give (`readable`, `writable`, `exited`, `after`, `at`) is an event: `co_await async::readable(fd)` in a task, `async::after(1s).wait()` on a thread, `.on_set(f)` in a select. It is set when the moment comes or when the wait is ended with nothing (a cancel, a stop): a wait woken by it looks at its source again.
 
 ## Members
 
 ```cpp
-void set();  bool is_set() const noexcept;
-void wait();                                   // a thread
-wait_op operator co_await();             // co_await e: the task resumed by the set
-template<class F> auto on_set(F f);            // a case of a select
+event();                                             // not set
+void set() const;  bool is_set() const noexcept;
+void wait() const;                                   // a thread
+wait_op operator co_await() const;                   // co_await e: the task resumed by the set
+template<class F> auto on_set(F f) const;            // a case of a select
+friend bool operator==(const event&, const event&) noexcept;   // the same event
 ```
 
 ```cpp
 async::event ready;
-auto worker = [](async::event& ready) -> async::task<> {
+auto worker = [](async::event ready) -> async::task<> {   // by value: a copy is the same event
     co_await ready;                // all start together
 };
 ready.set();

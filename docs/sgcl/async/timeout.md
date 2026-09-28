@@ -64,7 +64,6 @@ async::task<> caller(async::stop_token tok) {
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -75,24 +74,24 @@ using namespace std::chrono_literals;
 // deadline and runs on. Nothing here holds a thread while it waits.
 async::task<string> lookup(string name, int ms, async::stop_token tok) {
     size_t which = co_await async::select(
-        async::timeout(std::chrono::milliseconds(ms), [] {}),       // the work
+        async::timeout(std::chrono::milliseconds(ms), [] {}),              // the work
         tok.on_stop([] {})                                         // or the stop
     );
     if (which == 1) {
-        std::cout << name << " stopped\n";
+        println("{} stopped", name);
     }
     co_return name + " found";
 }
 
 int main() {
     async::stop_source fast, slow, late;
-    auto a = async::with_timeout(lookup("fast", 10, fast.token()), 100ms, fast).wait();
-    std::cout << (a ? *a : a.error().message()) << "\n";
-    auto b = async::with_timeout(lookup("slow", 500, slow.token()), 50ms, slow).wait();
+    auto a = with_timeout(lookup("fast", 10, fast.token()), 100ms, fast).wait();
+    println("{}", (a ? *a : a.error().message()));
+    auto b = with_timeout(lookup("slow", 500, slow.token()), 50ms, slow).wait();
     this_thread::sleep_for(20ms);                            // the slow one sees its stop
-    std::cout << (b ? *b : "slow " + b.error().message()) << "\n";
-    auto c = async::with_timeout(lookup("late", 500, late.token()), 50ms).wait();   // not stopped: runs on
-    std::cout << "late: " << (c ? *c : c.error().message()) << "\n";
+    println("{}", (b ? *b : "slow " + b.error().message()));
+    auto c = with_timeout(lookup("late", 500, late.token()), 50ms).wait();          // not stopped: runs on
+    println("late: {}", (c ? *c : c.error().message()));
     this_thread::sleep_for(500ms);                           // the late one finishes on its own, unseen
     return a && !b && !c && slow.stop_requested() ? 0 : 1;
 }

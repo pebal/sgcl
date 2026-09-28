@@ -116,7 +116,6 @@ async::task<> on_click(async::executor& ui) {   // a handler on the UI thread
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 #include <thread>
 
 using namespace sgcl;
@@ -134,7 +133,7 @@ static bool on_main() {
     return std::this_thread::get_id() == main_thread;
 }
 
-async::task<long> compute(int n) {                // an awaited task runs where its awaiter runs
+async::task<long> compute(int n) {                       // an awaited task runs where its awaiter runs
     long sum = 0;
     for (int i : range(n)) {
         sum += i;
@@ -142,25 +141,24 @@ async::task<long> compute(int n) {                // an awaited task runs where 
     co_return sum;
 }
 
-async::task<> increment(int& counter, int n) {    // on a strand: a plain int, no lock
+async::task<> increment(int& counter, int n) {           // on a strand: a plain int, no lock
     for (int i : range(n)) {
         ++counter;
         if (i % 100 == 99) {
-            co_await async::yield();              // leaves the strand to the next task, comes back in its turn
+            co_await async::yield();                     // leaves the strand to the next task, comes back in its turn
         }
     }
 }
 
 async::task<int> program(async::executor& main, async::strand& serial) {
-    std::cout << std::boolalpha;
-    std::cout << "starts on the main thread: " << on_main() << "\n";
+    println("starts on the main thread: {}", on_main());
     co_await async::on_workers();
-    std::cout << "computes on a worker: " << async::scheduler::on_worker() << "\n";
+    println("computes on a worker: {}", async::scheduler::on_worker());
     long sum = co_await compute(1000);
     co_await async::on(main);
-    std::cout << "back on the main thread: " << on_main() << ", the sum " << sum << "\n";
+    println("back on the main thread: {}, the sum {}", on_main(), sum);
     co_await async::sleep(1ms);                   // the timer thread wakes it: on the main thread
-    std::cout << "after a sleep, on the main thread: " << on_main() << "\n";
+    println("after a sleep, on the main thread: {}", on_main());
     int counter = 0;
     vector<async::task<>> tasks;
     for (int t : range(3)) {
@@ -170,7 +168,7 @@ async::task<int> program(async::executor& main, async::strand& serial) {
     for (auto& t : tasks) {
         co_await t;                              // the end of a task on the strand: resumed on the main thread
     }
-    std::cout << "the counter, three tasks on a strand, no lock: " << counter << ", on the main thread: " << on_main() << "\n";
+    println("the counter, three tasks on a strand, no lock: {}, on the main thread: {}", counter, on_main());
     co_return counter == 3000 ? 0 : 1;
 }
 

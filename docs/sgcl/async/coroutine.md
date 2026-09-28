@@ -219,13 +219,13 @@ bool done() const noexcept;
 A generator that may wait: a coroutine that `co_yield`s values and `co_await`s between them (a channel, a sleep, a task), consumed from a task with `while (auto v = co_await g.next())`. The consumer and the generator hand control to each other directly, without the scheduler's queue: `next()` resumes the generator on the consumer's worker, a `co_yield` resumes the consumer where the generator is, and while the generator waits for something the consumer waits with it, no thread held by either. The generator runs as part of its consumer: at every `next()` its frame takes the consumer's executor and task-locals, so a wait of its own resumes it where the consumer runs (an [executor](executor.md), a strand) and the functions under it, and the consumer resumed by the yield, see the consumer's [task-locals](task_local.md); a local the generator sets itself lasts until its next yield. Both frames are on the managed heap: the generator's held by the `async::generator` object, the consumer's by the generator's promise while it waits, and a value yielded is held by the promise until the consumer takes it. Move-only; single pass; `next()` past the end gives nothing again; an exception the generator throws comes out of the `next()` that ran into it.
 
 ```cpp
-async::generator<int> tens(async::channel<int>& in) {
+async::generator<int> tens(async::channel<int> in) {
     while (auto v = co_await in.receive()) {    // waits between yields
         co_yield *v * 10;
     }
 }
 
-async::task<int> consume(async::channel<int>& in) {
+async::task<int> consume(async::channel<int> in) {
     auto g = tens(in);
     int sum = 0;
     while (auto v = co_await g.next()) {              // nothing once in is closed and drained
@@ -241,7 +241,6 @@ async::task<int> consume(async::channel<int>& in) {
 #include "sgcl/sgcl.h"
 
 #include <coroutine>
-#include <iostream>
 
 using namespace sgcl;
 
@@ -253,7 +252,7 @@ struct Node {
 
 // Yields the nodes of a chain it builds as it goes: the local keeps
 // the whole chain alive while the generator is suspended
-generator<tracked_ptr<Node>> chain(int count) {
+sgcl::generator<tracked_ptr<Node>> chain(int count) {
     tracked_ptr<Node> last;                         // a local in a managed frame: a root
     for (int i : range(1, count + 1)) {
         tracked_ptr n = make_tracked<Node>(i, last);
@@ -285,7 +284,7 @@ int main() {
         t.resume();
         collector::force_collect();                 // optional: the chain survives every cycle
     }
-    std::cout << t.result() << '\n';                    // 10
+    println("{}", t.result());                    // 10
 }
 ```
 

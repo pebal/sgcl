@@ -66,7 +66,6 @@ normalize(s, nfc).data() == s.data();      // true: the same object
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -75,27 +74,22 @@ using namespace sgcl;
 int main() {
     string typed = "Zaz\u0307o\u0301\u0142c\u0301 ge\u0328s\u0301la\u0328 jaz\u0301n\u0301";   // every letter that has a mark, written with it
     string pasted = "Zażółć gęślą jaźń";                                                        // the precomposed form
-    std::cout << typed.size() << " vs " << pasted.size() << " bytes, "
-              << typed.rune_count() << " vs " << pasted.rune_count() << " code points, "
-              << txt::grapheme_count(typed) << " vs " << txt::grapheme_count(pasted) << " characters\n";
-    std::cout << "equal as bytes: " << (typed == pasted)
-              << ", as text: " << txt::equal_normalized(typed, pasted) << '\n';
+    println("{} vs {} bytes, {} vs {} code points, {} vs {} characters", typed.size(), pasted.size(), typed.rune_count(), pasted.rune_count(), txt::grapheme_count(typed), txt::grapheme_count(pasted));
+    println("equal as bytes: {}, as text: {}", (typed == pasted), txt::equal_normalized(typed, pasted));
 
     map<size_t, string> names;
     names[txt::hash_normalized(typed)] = pasted;
-    std::cout << "found: " << names[txt::hash_normalized(pasted)] << '\n';
+    println("found: {}", names[txt::hash_normalized(pasted)]);
 
     // The compatibility forms fold what only looks different
-    for (auto s : {string("ﬁ"), string("①"), string("Ａ"), string("½")}) {
-        std::cout << s << " -> " << txt::normalize(s, txt::nfkc) << "   ";
+    for (auto s : {"ﬁ", "①", "Ａ", "½"}) {
+        print("{} -> {}   ", s, txt::normalize(s, txt::nfkc));
     }
-    std::cout << '\n';
+    println();
 
     // A Korean syllable is one code point or three
     string syllable = "각";
-    std::cout << syllable << ": " << syllable.rune_count() << " code point, "
-              << txt::normalize(syllable, txt::nfd).rune_count() << " decomposed, "
-              << "back: " << (txt::normalize(txt::normalize(syllable, txt::nfd), txt::nfc) == syllable) << '\n';
+    println("{}: {} code point, {} decomposed, back: {}", syllable, syllable.rune_count(), txt::normalize(syllable, txt::nfd).rune_count(), (txt::normalize(txt::normalize(syllable, txt::nfd), txt::nfc) == syllable));
     return 0;
 }
 ```
@@ -104,10 +98,10 @@ The output:
 
 ```
 34 vs 26 bytes, 25 vs 17 code points, 17 vs 17 characters
-equal as bytes: 0, as text: 1
+equal as bytes: false, as text: true
 found: Zażółć gęślą jaźń
 ﬁ -> fi   ① -> 1   Ａ -> A   ½ -> 1⁄2   
-각: 1 code point, 3 decomposed, back: 1
+각: 1 code point, 3 decomposed, back: true
 ```
 
 ## What it is held to

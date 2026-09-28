@@ -53,7 +53,6 @@ key_equal key_eq() const;
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -72,7 +71,7 @@ int main() {
     for (auto& th : threads) {
         th.join();
     }
-    std::cout << wins << " claims, " << claimed.size() << " ids\n";
+    println("{} claims, {} ids", wins.load(), claimed.size());
     return wins == 10000 && claimed.size() == 10000 ? 0 : 1;
 }
 ```

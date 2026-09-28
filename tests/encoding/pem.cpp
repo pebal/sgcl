@@ -48,6 +48,38 @@ namespace {
     }
 }
 
+// A literal in the program is constructed, not parsed: the first block
+// parse gives, or parse's error thrown (DESIGN 234). The constructor of a
+// block from its parts, with two or three arguments, is another overload
+TEST(Pem_Tests, LiteralsConstruct) {
+    const char* text = "-----BEGIN MESSAGE-----\naGVsbG8=\n-----END MESSAGE-----\n";
+    pem block(text);
+    auto parsed = pem::parse(text);
+    ASSERT_TRUE(parsed);
+    EXPECT_EQ(block.type(), parsed->type());
+    EXPECT_EQ(block.type(), "MESSAGE");
+    EXPECT_EQ(bytes_of(block.bytes()), bytes_of(parsed->bytes()));
+    EXPECT_EQ(block.to_string(), text);
+    pem made("MESSAGE", block.bytes());   // from the parts, as before
+    EXPECT_EQ(made.to_string(), text);
+    const char* broken = "-----BEGIN MESSAGE-----\naGVsbG8=\n";   // no END
+    auto bad = pem::parse(broken);
+    ASSERT_FALSE(bad);
+    try {
+        pem{broken};
+        FAIL() << "a block with no end";
+    } catch (const bad_expected_access<error>& x) {
+        EXPECT_EQ(x.error().code(), bad.error().code());
+        EXPECT_EQ(x.error().line(), bad.error().line());
+        EXPECT_EQ(x.error().column(), bad.error().column());
+        EXPECT_EQ(string(x.what()), bad.error().message());
+    }
+    EXPECT_THROW(pem("no block here"), bad_expected_access<error>);
+    static_assert(!std::is_convertible_v<const string&, pem>, "explicit");
+    static_assert(!std::is_convertible_v<const char*, pem>, "explicit");
+    static_assert(!std::is_constructible_v<pem, int>);
+}
+
 TEST(Pem_Tests, WritesAsGoWrites) {
     for (auto& c : oracle::PemEncodes) {
         pem block(c.type, managed(input(c.bytes)), headers_of(c.headers));
@@ -107,7 +139,7 @@ TEST(Pem_Tests, ExamplesOfRfc7468) {
         EXPECT_EQ(head + length, bytes.size()) << c.figure;
         auto text = std::string_view(c.text);
         EXPECT_EQ(r->to_string(), text.substr(text.find("-----BEGIN "))) << c.figure;
-        EXPECT_EQ(pem::parse_all(c.text).value().size(), 1u) << c.figure;
+        EXPECT_EQ(value_of(pem::parse_all(c.text)).size(), 1u) << c.figure;
     }
 }
 
@@ -130,7 +162,7 @@ TEST(Pem_Tests, LabelsOfRfc7468) {
         EXPECT_TRUE((*all)[i].headers().empty());
     }
     // no block at all: parse_all has none, parse fails at the end
-    EXPECT_TRUE(pem::parse_all("just text\n").value().empty());
+    EXPECT_TRUE(value_of(pem::parse_all("just text\n")).empty());
     auto none = pem::parse("just text\n");
     ASSERT_FALSE(none.has_value());
     EXPECT_EQ(none.error().code(), encoding::errc::unexpected_end);
@@ -149,9 +181,9 @@ TEST(Pem_Tests, LaxGrammar) {
     auto r = pem::parse(string(lax));
     ASSERT_TRUE(r.has_value()) << r.error().message();
     EXPECT_EQ(bytes_of(r->bytes()), in);
-    EXPECT_TRUE(pem::parse("-----BEGIN X-----\n-----END X-----\n").value().bytes().empty());
+    EXPECT_TRUE(value_of(pem::parse("-----BEGIN X-----\n-----END X-----\n")).bytes().empty());
     // an empty label is a label
-    EXPECT_EQ(pem::parse("-----BEGIN -----\nQQ==\n-----END -----\n").value().type(), "");
+    EXPECT_EQ(value_of(pem::parse("-----BEGIN -----\nQQ==\n-----END -----\n")).type(), "");
 }
 
 // The headers of RFC 1421: in their order, a folded value, Proc-Type
@@ -226,10 +258,31 @@ TEST(Pem_Tests, Errors) {
         EXPECT_EQ(e.line(), c.line) << c.text << ": " << e.message();
         EXPECT_EQ(e.column(), c.column) << c.text << ": " << e.message();
     }
-    EXPECT_EQ(pem::parse("x\n-----BEGIN A-----\nQUJD\n-----END B-----\n").error().message(), "4:10: END B does not match BEGIN A");
-    EXPECT_EQ(pem::parse("-----BEGIN A-----\nQU*D\n-----END A-----\n").error().message(), "2:3: invalid character '*'");
+    EXPECT_EQ(error_of(pem::parse("x\n-----BEGIN A-----\nQUJD\n-----END B-----\n")).message(), "4:10: END B does not match BEGIN A");
+    EXPECT_EQ(error_of(pem::parse("-----BEGIN A-----\nQU*D\n-----END A-----\n")).message(), "2:3: invalid character '*'");
     // a BEGIN that does not start a line is text
-    EXPECT_TRUE(pem::parse_all("x -----BEGIN A-----\n").value().empty());
+    EXPECT_TRUE(value_of(pem::parse_all("x -----BEGIN A-----\n")).empty());
+}
+
+// Found by the fuzzer of the codecs (tests/encoding/fuzz/codecs_fuzz.cpp): a
+// header whose name, its white space trimmed, begins with five dashes was
+// read, and the block then wrote "-----: " as a line no reader takes (the
+// constructor refuses such a name; the parser went round it). Refused as
+// the constructor refuses it
+TEST(Pem_Tests, AHeaderNameThatReadsAsABoundary) {
+    for (auto text : {"-----BEGIN RS-----\n -----:\n-----END RS-----", "-----BEGIN A-----\n  -----x: v\nQUJD\n-----END A-----\n"}) {
+        auto r = pem::parse(text);
+        ASSERT_FALSE(r) << text;
+        EXPECT_EQ(r.error().code(), encoding::errc::syntax);
+        EXPECT_EQ(r.error().line(), 2u);
+        EXPECT_NE(r.error().message().view().find("a header name that reads as a boundary line"), std::string_view::npos) << r.error().message();
+    }
+    // a header that only holds dashes further on is a header
+    auto fine = pem::parse("-----BEGIN A-----\nX-----: v\n\nQUJD\n-----END A-----\n");
+    ASSERT_TRUE(fine);
+    auto again = pem::parse(fine->to_string());
+    ASSERT_TRUE(again);
+    EXPECT_EQ(again->headers().size(), 1u);
 }
 
 // What could not be written and read back is refused when the block is made

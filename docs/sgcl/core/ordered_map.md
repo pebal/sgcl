@@ -112,7 +112,6 @@ assert(m.value_or("c", 0) == 0 && m.index_of(std::pair<const string, int>{"a", 1
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -148,9 +147,9 @@ int main() {
     cache.get("a");                               // a is newer than b now
     cache.put("c", "3");                          // full: b, the oldest, is dropped
     for (const auto& [key, value] : cache.entries) {
-        std::cout << key << "=" << value << " ";
+        print("{}={} ", key, value);
     }
-    std::cout << "\n" << (cache.get("b") ? "b kept" : "b evicted") << "\n";
+    println("\n{}", (cache.get("b") ? "b kept" : "b evicted"));
     return 0;
 }
 ```

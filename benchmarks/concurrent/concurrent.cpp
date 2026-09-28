@@ -46,6 +46,7 @@
 // ArrayBlockingQueue, SynchronousQueue for capacity 0.
 // Prints nanoseconds per operation and the process CPU time.
 #include "benchmarks/common.h"
+#include "benchmarks/placement.h"
 #include "sgcl/sgcl.h"
 
 using namespace sgcl::async;

@@ -87,7 +87,7 @@ template<class K> const_iterator find(const K& key) const;   // when Hash and Ke
 ```cpp
 immutable::map<string, int> ports = {{"http", 80}, {"https", 443}};
 if (auto p = ports.try_get("https")) {       // a literal: transparent, no string made
-    std::cout << *p << '\n';
+    println("{}", *p);
 }
 string url = "ftp://host";
 bool known = ports.contains(url.as_slice(0, 3)); // false: a view of another string, nothing built
@@ -193,7 +193,6 @@ assert(*m.get(1) == 10 && !m.get(2) && m.value_or(2, 0) == 0 && m.contains_key(1
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -227,7 +226,7 @@ int main() {
         r.join();
     }
     auto final = limits.load();
-    std::cout << reads << " reads, " << inconsistent << " inconsistent, connections " << final->at("connections") << ", " << final->size() << " keys\n";
+    println("{} reads, {} inconsistent, connections {}, {} keys", reads.load(), inconsistent.load(), final->at("connections"), final->size());
     return inconsistent == 0 && final->at("requests") == 100000 ? 0 : 1;
 }
 ```

@@ -6,8 +6,10 @@
 #pragma once
 
 #include "async/async.h"
+#include "compress/compress.h"
 #include "concurrent/concurrent.h"
 #include "core/core.h"
+#include "crypto/crypto.h"
 #include "encoding/encoding.h"
 #include "hash/hash.h"
 #include "immutable/immutable.h"
@@ -15,5 +17,6 @@
 #include "math/math.h"
 #include "net/net.h"
 #include "net/http/http.h"
+#include "net/tls.h"
 #include "time/time.h"
 #include "txt/txt.h"

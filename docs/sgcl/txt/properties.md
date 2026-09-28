@@ -66,7 +66,6 @@ Every name is a `static constexpr` object, not a function ([the shape core's `un
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -80,21 +79,18 @@ int main() {
     }
     for (auto& w : words) {
         string pad(width - txt::columns(w), ' ');
-        std::cout << w << pad << " | " << w.size() << " bytes, " << w.rune_count() << " code points, "
-                  << w.runes().count_of(txt::is_alpha) << " letters";
+        print("{}{} | {} bytes, {} code points, {} letters", w, pad, w.size(), w.rune_count(), w.runes().count_of(txt::is_alpha));
         if (w.runes().exists(txt::is_emoji)) {
-            std::cout << ", an emoji";
+            print(", an emoji");
         }
-        std::cout << '\n';
+        println();
     }
     string digits = "٣ ١ ٤";
     int sum = 0;
     for (char32_t c : digits.runes()) {
         sum += std::max(0, txt::numeric_value_of(c));
     }
-    std::cout << digits << " sums to " << sum << ", written in "
-              << (digits.runes().exists([](char32_t c) { return txt::script_of(c) == txt::script::arabic; }) ? "Arabic" : "?")
-              << '\n';
+    println("{} sums to {}, written in {}", digits, sum, (digits.runes().exists([](char32_t c) { return txt::script_of(c) == txt::script::arabic; }) ? "Arabic" : "?"));
     return 0;
 }
 ```

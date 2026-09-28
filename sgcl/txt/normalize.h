@@ -7,6 +7,7 @@
 
 #include "../core/vector.h"
 #include "properties.h"
+#include "detail/lent.h"
 #include "detail/normalize_tables.h"
 
 // The same text can be written in more than one way: "é" is one code
@@ -38,6 +39,17 @@ namespace sgcl::txt {
     inline constexpr nfkd_t nfkd {};
 
     namespace detail {
+        // The code points of a text while a call works on it: the
+        // decomposed text of a normalization, the mapped one of a case
+        // mapping, of IDNA and of the searches. None of them leaves the
+        // call as it is, and none holds anything the collector has to
+        // see, so they live in plain memory, lent by the thread
+        // (detail/lent.h): in a vector of the library they were a
+        // managed buffer and its garbage per call — a kilobyte of
+        // combining text normalized left 6.8 KB behind it. What leaves is
+        // the string encoded() makes of them, which is made once.
+        using code_points = scratch_vector<char32_t>;
+
         // The Hangul syllables are not in any table: they decompose and
         // compose by arithmetic, eleven thousand of them from nineteen
         // leading jamo, twenty-one vowels and twenty-seven finals
@@ -212,7 +224,7 @@ namespace sgcl::txt {
         // the last starter, and put back together what is not blocked
         // from it — a character is blocked when something between it and
         // the starter has a combining class of its own that is not lower
-        inline void compose_buffer(vector<char32_t>& buffer) {
+        inline void compose_buffer(code_points& buffer) {
             if (buffer.empty()) {
                 return;
             }
@@ -264,8 +276,7 @@ namespace sgcl::txt {
         }
 
         template<class Form>
-        vector<char32_t> normalized_points(std::string_view text, Form form) {
-            vector<char32_t> buffer;
+        void normalized_points(std::string_view text, Form form, code_points& buffer) {
             buffer.reserve(text.size());
             for (size_t i = 0; i < text.size();) {
                 auto [c, n] = utf8::decode(text, i);
@@ -276,7 +287,6 @@ namespace sgcl::txt {
             if constexpr (composes(form)) {
                 compose_buffer(buffer);
             }
-            return buffer;
         }
 
         // A string is immutable, so the bytes are laid out first and the
@@ -286,7 +296,7 @@ namespace sgcl::txt {
         // is the common exit of every normalization, of the full case
         // mappings and of decompose(), and appending cost 1021 ns over
         // two hundred code points where writing costs 355.
-        inline string encoded(const vector<char32_t>& points) {
+        inline string encoded(const code_points& points) {
             size_t bytes = 0;
             for (auto c : points) {
                 bytes += utf8::width(c);
@@ -312,7 +322,9 @@ namespace sgcl::txt {
         if (!maybe) {
             return true;
         }
-        return detail::encoded(detail::normalized_points(text.view(), form)) == text;
+        detail::lent<detail::code_points> points;
+        detail::normalized_points(text.view(), form, *points);
+        return detail::encoded(*points) == text;
     }
 
     // The text in the form. A text that is in it already comes back as
@@ -328,7 +340,9 @@ namespace sgcl::txt {
         if (detail::quick_check_text(text.view(), detail::form_index(form), maybe) && !maybe) {
             return text;
         }
-        auto made = detail::encoded(detail::normalized_points(text.view(), form));
+        detail::lent<detail::code_points> points;
+        detail::normalized_points(text.view(), form, *points);
+        auto made = detail::encoded(*points);
         // The same text keeps the object it came in, which a shared and
         // immutable string is worth holding on to
         return made == text ? text : made;
@@ -340,15 +354,23 @@ namespace sgcl::txt {
         if (a == b) {
             return true;
         }
-        return detail::normalized_points(a.view(), nfd) == detail::normalized_points(b.view(), nfd);
+        detail::lent<detail::code_points> x;
+        detail::lent<detail::code_points> y;
+        detail::normalized_points(a.view(), nfd, *x);
+        detail::normalized_points(b.view(), nfd, *y);
+        return *x == *y;
     }
 
     // The order of two texts, blind to the way they are written: negative
     // when a comes first, zero when they are the same text. Not a
     // language's order — that is what a collator is for
     inline int compare_normalized(const string& a, const string& b) {
-        auto x = detail::normalized_points(a.view(), nfd);
-        auto y = detail::normalized_points(b.view(), nfd);
+        detail::lent<detail::code_points> xs;
+        detail::lent<detail::code_points> ys;
+        detail::normalized_points(a.view(), nfd, *xs);
+        detail::normalized_points(b.view(), nfd, *ys);
+        auto& x = *xs;
+        auto& y = *ys;
         size_t n = std::min(x.size(), y.size());
         for (size_t i = 0; i < n; ++i) {
             if (x[i] != y[i]) {
@@ -362,7 +384,9 @@ namespace sgcl::txt {
     // key of a map that must not care which form a name arrived in
     inline size_t hash_normalized(const string& text) {
         size_t h = 14695981039346656037ull;
-        for (auto c : detail::normalized_points(text.view(), nfd)) {
+        detail::lent<detail::code_points> points;
+        detail::normalized_points(text.view(), nfd, *points);
+        for (auto c : *points) {
             h = (h ^ size_t(c)) * 1099511628211ull;
         }
         return h;
@@ -378,10 +402,10 @@ namespace sgcl::txt {
 
     // One code point taken apart as far as it goes, canonically
     inline string decompose(char32_t c) {
-        vector<char32_t> out;
-        detail::decompose_into<false>(out, c);
-        detail::canonical_order(out);
-        return detail::encoded(out);
+        detail::lent<detail::code_points> out;
+        detail::decompose_into<false>(*out, c);
+        detail::canonical_order(*out);
+        return detail::encoded(*out);
     }
 
     // The text with its accents taken off: decomposed canonically, the
@@ -420,16 +444,20 @@ namespace sgcl::txt {
         if (utf8::all_ascii(v)) {
             return text;
         }
-        auto points = detail::normalized_points(v, nfd);
-        vector<char32_t> out;
-        out.reserve(points.size());
-        for (auto c : points) {
+        detail::lent<detail::code_points> points;
+        detail::normalized_points(v, nfd, *points);
+        // the marks dropped in place: what is kept never runs ahead of
+        // what is read
+        auto& p = *points;
+        size_t kept = 0;
+        for (auto c : p) {
             if (detail::category_of_fn(c) != category::nonspacing_mark) {
-                out.push_back(c);
+                p[kept++] = c;
             }
         }
-        detail::compose_buffer(out);
-        auto made = detail::encoded(out);
+        p.resize(kept);
+        detail::compose_buffer(p);
+        auto made = detail::encoded(p);
         return made == text ? text : made;
     }
 }

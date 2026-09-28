@@ -185,7 +185,7 @@ namespace sgcl::net {
             : results(n) {
             }
 
-            async::channel<RaceAttempt> results;   // room for every attempt: a send never waits
+            async::detail::ChannelState<RaceAttempt> results;   // room for every attempt: a send never waits
             std::mutex m;                   // `over` and the sends: none after the winner's drain
             bool over = false;
         };

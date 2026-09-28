@@ -427,7 +427,6 @@ owned.pop_front();                                 // the int is destroyed here,
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -441,6 +440,8 @@ struct Registry {
 };
 
 int main() {
+    println("values and a registry in lists");
+    auto base = collector::get_live_object_count();   // after the first line: io's own objects are not the example's
     // A list of values on the stack: the nodes are on the managed heap
     list numbers = {5, 3, 9, 1};
     numbers.push_front(7);
@@ -466,9 +467,7 @@ int main() {
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
     collector::force_collect(true);
-    std::cout << numbers.size() << " odd numbers, " << r->items.size() << " items left in the registry, "
-              << "item " << (*kept)->key << " moved out; "
-              << collector::get_live_object_count() << " live objects\n";
+    println("{} odd numbers, {} items left in the registry, item {} moved out; {} live objects", numbers.size(), r->items.size(), (*kept)->key, collector::get_live_object_count() - base);
     return numbers.size() == 5 && r->items.size() == 499 && moved.front()->key == 500 ? 0 : 1;
 }
 ```
@@ -476,6 +475,7 @@ int main() {
 The output:
 
 ```
+values and a registry in lists
 5 odd numbers, 499 items left in the registry, item 500 moved out; 1010 live objects
 ```
 

@@ -9,10 +9,13 @@
 #include "response_writer.h"
 #include "status.h"
 #include "detail/router.h"
+#include "detail/server_state.h"
+#include "detail/h2/serve.h"
 #include "detail/wire.h"
 #include "../connection.h"
 #include "../error.h"
 #include "../socket.h"
+#include "../tls.h"
 #include "../../async/coroutine.h"
 #include "../../async/stop_token.h"
 #include "../../async/wait_group.h"
@@ -37,170 +40,32 @@ namespace sgcl::net::http {
     class server;
 
     namespace detail {
-        struct Handler {
-            function<void(request, response_writer)> plain;
-            function<async::task<>(request, response_writer)> awaited;
-        };
-
-        // What a serve() runs with: the server's fields as they were when
-        // it was called
-        struct ServerSettings {
-            duration read_header_timeout;
-            duration read_timeout;
-            duration write_timeout;
-            duration idle_timeout;
-            size_t max_header_bytes = 0;
-            uint64_t max_body_bytes = 0;
-            function<void(const string&)> on_error;
-
-            void report(const string& what) const {
-                if (on_error) {
-                    on_error(what);
-                } else {
-                    std::cerr << "http: " << what << '\n';
+        // A TLS config's ALPN list as serve_tls() uses it (Go's
+        // adjustNextProtos): h2 added at the end when on and absent, or
+        // taken out when off; http/1.1 added at the end when absent
+        inline net::tls::config adjusted_alpn(net::tls::config c, bool http2) {
+            vector<string> out;
+            bool h2 = false;
+            bool h1 = false;
+            for (auto& p : c.alpn) {
+                if (p == "h2") {
+                    if (!http2) {
+                        continue;
+                    }
+                    h2 = true;
+                } else if (p == "http/1.1") {
+                    h1 = true;
                 }
+                out.push_back(p);
             }
-        };
-
-        // One connection of the server, in its list: the state the loop
-        // and shutdown() hand it between with a compare-and-swap
-        struct ServerConn {
-            enum : int { active = 0, idle = 1, closed = 2 };
-            net::connection c;
-            std::atomic<int> state = {active};
-            async::stop_source stop;
-            tracked_ptr<ServerConn> prev;
-            tracked_ptr<ServerConn> next;
-
-            ServerConn(net::connection c, const async::stop_token& parent)
-            : c(std::move(c)), stop(parent) {
+            if (http2 && !h2) {
+                out.push_back(string("h2"));
             }
-        };
-
-        struct ServerImpl {
-            std::mutex lock;
-            tracked_ptr<ServerConn> connections;      // the list's head
-            vector<net::listener> listeners;
-            RouteTable routes;
-            vector<Handler> handlers;
-            Handler not_found;
-            async::wait_group running;
-            async::stop_source closing;               // close(): every request's stop
-            std::atomic<bool> shutting_down = {false};
-            std::atomic<bool> closed = {false};
-
-            void link(const tracked_ptr<ServerConn>& n) {
-                std::lock_guard<std::mutex> g(lock);
-                n->next = connections;
-                if (connections) {
-                    connections->prev = n;
-                }
-                connections = n;
+            if (!h1) {
+                out.push_back(string("http/1.1"));
             }
-
-            void unlink(const tracked_ptr<ServerConn>& n) {
-                std::lock_guard<std::mutex> g(lock);
-                if (n->prev) {
-                    n->prev->next = n->next;
-                } else if (connections == n) {
-                    connections = n->next;
-                }
-                if (n->next) {
-                    n->next->prev = n->prev;
-                }
-                n->prev = tracked_ptr<ServerConn>();
-                n->next = tracked_ptr<ServerConn>();
-            }
-
-            vector<tracked_ptr<ServerConn>> snapshot() {
-                std::lock_guard<std::mutex> g(lock);
-                vector<tracked_ptr<ServerConn>> all;
-                for (auto n = connections; n; n = n->next) {
-                    all.push_back(n);
-                }
-                return all;
-            }
-
-            void close_listeners() {
-                vector<net::listener> ls;
-                {
-                    std::lock_guard<std::mutex> g(lock);
-                    ls = listeners;
-                }
-                for (auto& l : ls) {
-                    (void)l.close();
-                }
-            }
-        };
-
-        inline time_point deadline_after(duration d) {
-            return d > duration::zero() ? sgcl::clock::now() + d : time_point();
-        }
-
-        inline time_point earlier(time_point a, time_point b) {
-            if (a == time_point()) {
-                return b;
-            }
-            if (b == time_point()) {
-                return a;
-            }
-            return a < b ? a : b;
-        }
-
-        // A response the server makes itself, before a handler: the status,
-        // its reason as the body, and the end of the connection
-        inline std::string refusal(int code, std::string_view extra = {}) {
-            std::string body = std::to_string(code) + " " + reason(code) + "\n";
-            std::string h = "HTTP/1.1 " + std::to_string(code) + " " + reason(code) + "\r\n";
-            h += "Content-Type: text/plain; charset=utf-8\r\n";
-            h += date_line();
-            h += extra;
-            h += "Connection: close\r\nContent-Length: " + std::to_string(body.size()) + "\r\n\r\n";
-            return h + body;
-        }
-
-        inline async::task<> linger(net::connection c);
-
-        // The refusal sent, and the connection lingered on: whatever the
-        // client was still sending must not reset the connection under it
-        inline async::task<> send_refusal(net::connection c, int code) {
-            std::string bytes = refusal(code);
-            slice<const byte> data(reinterpret_cast<const byte*>(bytes.data()), bytes.size());
-            if (co_await c.async_write(data)) {
-                co_await linger(c);
-            }
-        }
-
-        inline async::task<expected<void, io::error>> send_continue(net::connection c) {
-            static constexpr std::string_view line = "HTTP/1.1 100 Continue\r\n\r\n";
-            slice<const byte> data(reinterpret_cast<const byte*>(line.data()), line.size());
-            auto r = co_await c.async_write(data);
-            if (!r) {
-                co_return io::detail::fail(r);
-            }
-            co_return expected<void, io::error>();
-        }
-
-        enum class Next : uint8_t { again, end, hijacked };
-
-        // A connection ended with a request's body unread: the writing half
-        // closed first and the rest read and dropped for a while (half a
-        // second, 1 MB at most), so that the client reads the response
-        // before the close, which with its bytes still unread would be a
-        // reset that loses it (Go's closeWrite and wait)
-        inline async::task<> linger(net::connection c) {
-            (void)c.close_write();
-            c.set_read_deadline(sgcl::clock::now() + std::chrono::milliseconds(500));
-            tracked_ptr block = make_tracked<io::detail::IoBlock>();
-            size_t dropped = 0;
-            while (dropped < (size_t(1) << 20)) {
-                slice<byte> room(block, block->data(), block->size());
-                auto n = co_await c.async_read(room);
-                if (!n || *n == 0) {
-                    break;
-                }
-                dropped += *n;
-            }
+            c.alpn = std::move(out);
+            return c;
         }
 
         // One exchange: the head read and checked, the handler run, the
@@ -228,45 +93,60 @@ namespace sgcl::net::http {
             int refused = check_request_head(req->head, line, req->fields, framing);
             auto host = HeadersAccess::find(req->fields, "host");
             if (refused) {
-                co_await send_refusal(c, refused);
+                // the method is known when the request line was read (a
+                // refusal for the framing or Host): a HEAD gets no body
+                bool head_request = line.method_size == 4 && req->head.view().substr(line.method_at, 4) == "HEAD";
+                co_await send_refusal(c, refused, head_request);
                 co_return Next::end;
             }
-            req->method = string(req->head.as_slice(line.method_at, line.method_size));
-            req->target = string(req->head.as_slice(line.target_at, line.target_size));
+            req->method = method_name(req->head.view().substr(line.method_at, line.method_size));
+            req->target = req->head.as_slice(line.target_at, line.target_size);
             req->minor = line.minor;
             std::string_view method = req->method.view();
             std::string_view target = req->target.view();
-            std::string host_text(host ? *host : std::string_view());
-            if (target.front() == '/') {
-                if (auto u = net::url::parse(string("http://" + (host_text.empty() ? std::string("localhost") : host_text) + std::string(target)))) {
+            std::string_view host_text = host ? *host : std::string_view();
+            if (host) {   // a slice of the head, for the url made later
+                req->host = req->head.as_slice(size_t(host->data() - req->head.data()), host->size());
+            }
+            string route_path;   // the full parse's path, when the fast one refused
+            std::string_view path;
+            if (auto fast = net::detail::origin_form_path(host_text.empty() ? std::string_view("localhost") : host_text, target)) {
+                path = *fast;   // the url itself made only if the handler asks (RequestImpl::url_of)
+                req->url_later = true;
+            } else if (target.front() == '/') {
+                if (auto u = net::url::parse(string("http://" + (host_text.empty() ? std::string("localhost") : std::string(host_text)) + std::string(target)))) {
                     req->url = std::move(*u);
                 }
             } else if (target == "*" || method == "CONNECT") {
-                if (auto u = net::url::parse(string("http://" + (method == "CONNECT" ? std::string(target) : (host_text.empty() ? std::string("localhost") : host_text)) + "/"))) {
+                if (auto u = net::url::parse(string("http://" + (method == "CONNECT" ? std::string(target) : (host_text.empty() ? std::string("localhost") : std::string(host_text))) + "/"))) {
                     req->url = std::move(*u);
                 }
             } else {
-                if (auto u = net::url::parse(req->target)) {
+                if (auto u = net::url::parse(string(req->target))) {
                     req->url = std::move(*u);
                 }
             }
-            if (!req->url) {
-                co_await send_refusal(c, 400);
-                co_return Next::end;
+            if (!req->url_later) {
+                if (!req->url) {
+                    co_await send_refusal(c, 400, method == "HEAD");
+                    co_return Next::end;
+                }
+                route_path = req->url->path();
+                path = route_path.view();
             }
             bool expect_continue = false;
             if (auto expect = HeadersAccess::find(req->fields, "expect")) {
                 if (iequal(trim_ows(*expect), "100-continue") && line.minor == 1) {
                     expect_continue = true;
                 } else {
-                    co_await send_refusal(c, 417);
+                    co_await send_refusal(c, 417, method == "HEAD");
                     co_return Next::end;
                 }
             }
             if (framing.kind == Framing::length) {
                 req->content_length.emplace(framing.length);
                 if (cfg->max_body_bytes && framing.length > cfg->max_body_bytes) {
-                    co_await send_refusal(c, 413);
+                    co_await send_refusal(c, 413, method == "HEAD");
                     co_return Next::end;
                 }
             } else if (framing.kind == Framing::none) {
@@ -290,7 +170,9 @@ namespace sgcl::net::http {
             if (s->shutting_down.load()) {
                 w->close_after = true;
             }
-            req->body = make_tracked<Body>(wire, framing, cfg->max_body_bytes, false);
+            if (framing.kind != Framing::none) {   // a request without a body has no Body: body() hands out an empty stream
+                req->body = make_tracked<Body>(wire, framing, cfg->max_body_bytes, false);
+            }
             if (expect_continue && framing.kind != Framing::none) {
                 net::connection conn = c;
                 req->body->set_before_first_read([conn]() { return send_continue(conn); });
@@ -300,58 +182,14 @@ namespace sgcl::net::http {
 
             auto r = RequestAccess::make(req);
             auto writer = WriterAccess::make(w);
-            auto found = s->routes.find(method, host_text, req->url->path().view());
             try {
-                switch (found.kind) {
-                    case RouteTable::Found::route: {
-                        for (auto& v : found.values) {
-                            req->path_values.push_back(pair<string, string>(string(std::string_view(v.first)), string(std::string_view(v.second))));
-                        }
-                        auto& h = s->handlers[found.index];
-                        if (h.plain) {
-                            h.plain(r, writer);
-                        } else {
-                            co_await h.awaited(r, writer);
-                        }
-                        break;
-                    }
-                    case RouteTable::Found::redirect: {
-                        std::string to = found.location;
-                        if (req->url->has_query()) {
-                            to += '?';
-                            to += req->url->query().view();
-                        }
-                        writer.redirect(string(std::string_view(to)), status::temporary_redirect);
-                        break;
-                    }
-                    case RouteTable::Found::method_not_allowed:
-                        writer.set_header("Allow", string(std::string_view(found.allow)));
-                        writer.error(status::method_not_allowed);
-                        break;
-                    case RouteTable::Found::not_found:
-                        if (s->not_found.plain) {
-                            s->not_found.plain(r, writer);
-                        } else if (s->not_found.awaited) {
-                            co_await s->not_found.awaited(r, writer);
-                        } else {
-                            writer.error(status::not_found);
-                        }
-                        break;
+                if (auto t = dispatch(*s, req, r, writer, method, host_text, path)) {
+                    co_await *t;
                 }
             } catch (const std::exception& e) {
-                cfg->report(string("a handler of ") + req->method + " " + req->target + " threw: " + e.what());
-                w->close_after = true;
-                if (!w->head_sent && !w->hijacked) {
-                    w->fields = http::headers();
-                    writer.error(status::internal_server_error);
-                }
+                handler_threw(*cfg, *req, *w, writer, e.what());
             } catch (...) {
-                cfg->report(string("a handler of ") + req->method + " " + req->target + " threw");
-                w->close_after = true;
-                if (!w->head_sent && !w->hijacked) {
-                    w->fields = http::headers();
-                    writer.error(status::internal_server_error);
-                }
+                handler_threw(*cfg, *req, *w, writer, nullptr);
             }
             if (w->hijacked) {
                 co_return Next::hijacked;
@@ -359,7 +197,7 @@ namespace sgcl::net::http {
             // a body read past the limit, or broken, with nothing written
             // for it: the server answers 413 or 400
             auto& body = req->body;
-            if (body->failed()) {
+            if (body && body->failed()) {
                 w->close_after = true;
                 if (!w->head_sent && !w->touched) {
                     writer.error(body->error_status() == 413 ? status::content_too_large : status::bad_request);
@@ -369,19 +207,36 @@ namespace sgcl::net::http {
             // up to 256 KB (Go's bound); a declared rest past that closes the
             // connection, and the response says so
             constexpr uint64_t DrainBound = 256 * 1024;
-            if (!body->done() && !body->failed() && framing.kind == Framing::length && framing.length - body->read_total() > DrainBound) {
+            if (body && !body->done() && !body->failed() && framing.kind == Framing::length && framing.length - body->read_total() > DrainBound) {
                 w->close_after = true;
             }
             if (s->shutting_down.load()) {
                 w->close_after = true;
             }
-            auto sent = co_await w->finish();
+            // fields that cannot be written (a value of a user's with CR or
+            // LF would split the response): the handler's mistake, answered
+            // as a throw is, with a 500 of the server's own fields, and the
+            // connection ends. The error a flush of the handler's gave back
+            // is dropped with them: nothing of that head was sent
+            if (!w->head_sent && !w->hijacked) {
+                if (auto e = invalid_field(w->fields)) {
+                    cfg->report(string("a handler of ") + req->method + " " + string(req->target) + " wrote " + *e);
+                    w->close_after = true;
+                    w->failed.reset();
+                    w->fields = http::headers();
+                    writer.error(status::internal_server_error);
+                }
+            }
+            expected<void, io::error> sent;
+            if (auto rest = w->finish_start(sent)) {   // a frame only when the connection would wait
+                sent = co_await *rest;
+            }
             if (!sent) {
                 node->stop.request_stop();
                 co_return Next::end;
             }
-            bool drained = body->done() && !body->failed();
-            if (!body->done() && !body->failed() && !w->close_after) {
+            bool drained = !body || (body->done() && !body->failed());
+            if (body && !body->done() && !body->failed() && !w->close_after) {
                 drained = co_await body->discard(DrainBound);
             }
             if (!drained) {
@@ -396,14 +251,43 @@ namespace sgcl::net::http {
             s->link(node);
             tracked_ptr wire = make_tracked<Wire>(c);
             bool hijacked = false;
+            // HTTP/2: chosen by ALPN on TLS, or the client's preface first on
+            // a plain connection when h2c is on (by prior knowledge, RFC
+            // 9113 §3.3); anything else is HTTP/1.1
+            bool h2 = false;
+            if (cfg->http2) {
+                if (auto st = net::tls::state_of(c); st && st->alpn == "h2") {
+                    h2 = true;
+                }
+            }
+            bool first = true;
             for (;;) {
+                if (h2) {
+                    co_await h2::serve(s, cfg, node, wire);
+                    break;
+                }
                 if (wire->buffered() == 0) {
                     node->state.store(ServerConn::idle);
                     if (s->shutting_down.load()) {
                         break;
                     }
                     c.set_read_deadline(deadline_after(cfg->idle_timeout));
-                    auto r = co_await wire->fill();
+                    expected<size_t, io::error> r = size_t(0);
+                    for (;;) {   // wire->fill() in this frame (Wire::try_fill)
+                        auto step = wire->try_fill();
+                        if (step.done) {
+                            r = std::move(step.result);
+                            break;
+                        }
+                        if (step.slow) {
+                            r = co_await wire->fill();
+                            break;
+                        }
+                        if (auto ready = co_await step.ready; !ready) {
+                            r = fail(ready);
+                            break;
+                        }
+                    }
                     if (!r || *r == 0) {
                         break;
                     }
@@ -414,6 +298,30 @@ namespace sgcl::net::http {
                 } else {
                     node->state.store(ServerConn::active);
                 }
+                if (first && cfg->h2c && !net::tls::state_of(c)) {
+                    // the preface's first bytes decide (a request of HTTP/1.1
+                    // never begins "PRI * HTTP/2.0"); the machine reads the rest
+                    const std::string_view preface(h2::Preface, h2::PrefaceSize);
+                    for (;;) {
+                        auto v = wire->view();
+                        const size_t k = std::min(v.size(), preface.size());
+                        if (v.substr(0, k) != preface.substr(0, k)) {
+                            break;
+                        }
+                        if (k == preface.size()) {
+                            h2 = true;
+                            break;
+                        }
+                        auto more = co_await wire->fill();   // a preface cut short: the rest decides
+                        if (!more || *more == 0) {
+                            break;
+                        }
+                    }
+                    if (h2) {
+                        continue;
+                    }
+                }
+                first = false;
                 auto next = co_await serve_one(s, cfg, node, wire);
                 if (next == Next::hijacked) {
                     hijacked = true;
@@ -492,6 +400,23 @@ namespace sgcl::net::http {
             return _co_serve_address(_impl, _settings(), address);
         }
 
+        // Listens over TLS on the address with the config and serves (Go's
+        // ListenAndServeTLS). The config's ALPN list is completed as Go
+        // completes NextProtos: "h2" added when http2 is on and the list
+        // has none ("h2" taken out when http2 is off), "http/1.1" added
+        // when missing, the protocols already there kept in their order.
+        // The server's order is the preference (tls: the first of ours the
+        // client offers), so {"http/1.1"} given stays HTTP/1.1 for a client
+        // offering both. A listener of the program's own (serve(listener))
+        // keeps the ALPN it was made with.
+        expected<void, io::error> serve_tls(const string& address, const net::tls::config& c) const {
+            return async_serve_tls(address, c).wait();
+        }
+
+        async::task<expected<void, io::error>> async_serve_tls(const string& address, const net::tls::config& c) const {
+            return _co_serve_tls(_impl, _settings(), address, detail::adjusted_alpn(c, http2));
+        }
+
         // The connections of a listener the program made
         expected<void, io::error> serve(const net::listener& l) const {
             return async_serve(l).wait();
@@ -533,6 +458,15 @@ namespace sgcl::net::http {
         size_t max_header_bytes = 32 * 1024;                       // past it: 431
         uint64_t max_body_bytes = uint64_t(32) << 20;              // past it: 413; zero: none
         function<void(const string&)> on_error;                    // a handler's exception, an accept's failure; a line on stderr by default
+        // HTTP/2 (RFC 9113) for a connection whose TLS agreed on "h2" by
+        // ALPN: the listener's tls::config names it (alpn {"h2", "http/1.1"});
+        // the same handlers, request::proto() "HTTP/2.0"
+        bool http2 = true;
+        // HTTP/2 on a plain connection by prior knowledge (h2c): the
+        // client's preface recognised by its first bytes, HTTP/1.1 served
+        // on the same port as before (tests, a network of one's own)
+        bool h2c = false;
+        uint32_t max_concurrent_streams = 250;                     // HTTP/2: the streams a client may have open, the handlers of a connection (Go: 250)
 
     private:
         template<class H>
@@ -556,6 +490,9 @@ namespace sgcl::net::http {
             cfg->idle_timeout = idle_timeout;
             cfg->max_header_bytes = max_header_bytes ? max_header_bytes : 1;
             cfg->max_body_bytes = max_body_bytes;
+            cfg->http2 = http2;
+            cfg->h2c = h2c;
+            cfg->max_concurrent_streams = max_concurrent_streams ? max_concurrent_streams : 1;
             cfg->on_error = on_error;
             return cfg;
         }
@@ -586,6 +523,15 @@ namespace sgcl::net::http {
                 impl->running.add();
                 async::go(detail::serve_connection(impl, cfg, *c));
             }
+        }
+
+        static async::task<expected<void, io::error>> _co_serve_tls(tracked_ptr<detail::ServerImpl> impl, tracked_ptr<detail::ServerSettings> cfg, string address,
+                                                                    net::tls::config c) {
+            auto l = co_await net::tls::async_listen(address, c);
+            if (!l) {
+                co_return io::detail::fail(l);
+            }
+            co_return co_await _co_serve(impl, cfg, *l);
         }
 
         static async::task<expected<void, io::error>> _co_serve_address(tracked_ptr<detail::ServerImpl> impl, tracked_ptr<detail::ServerSettings> cfg, string address) {

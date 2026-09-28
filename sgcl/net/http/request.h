@@ -30,6 +30,7 @@ namespace sgcl::net::http {
             optional<net::url> url;          // parsed: at construction (client), from the head (server)
             http::headers fields;
             int minor = 1;
+            bool h2 = false;                 // came over HTTP/2 (a server's) or goes over it (a client's, once sent)
 
             // a client's body
             enum class BodyKind : uint8_t { none, text, bytes, stream };
@@ -41,7 +42,38 @@ namespace sgcl::net::http {
 
             // a server's
             string head;                     // the block the fields are slices of
-            string target;                   // the request-target as it came
+            slice<const char> target;        // the request-target as it came: a slice of the head
+            slice<const char> host;          // the Host field's value, a slice of the head (empty: none)
+            bool url_later = false;          // url left to the first url() (the head routed by net::detail::origin_form_path)
+            sgcl::atomic<tracked_ptr<net::url>> url_made;   // that url, once made: by whichever first asks, published with a compare-exchange
+
+            // The url of a server's request, made on the first use when the
+            // head was routed without it: "http://" + Host + the target, as
+            // at the head; one made by two readers at once is one of theirs
+            const net::url* url_of() {
+                if (url) {
+                    return &*url;
+                }
+                if (!url_later) {
+                    return nullptr;
+                }
+                if (auto made = url_made.load()) {
+                    return made.get();
+                }
+                std::string text = "http://";
+                text += host.empty() ? std::string_view("localhost") : host.view();
+                text += target.view();
+                auto parsed = net::url::parse(string(text));
+                if (!parsed) {
+                    return nullptr;   // not reached: the fast path answers only what the parse takes (url.h)
+                }
+                tracked_ptr<net::url> fresh = make_tracked<net::url>(std::move(*parsed));
+                tracked_ptr<net::url> none;
+                if (!url_made.compare_exchange_strong(none, fresh)) {
+                    return none.get();   // another reader's, made first
+                }
+                return fresh.get();
+            }
             tracked_ptr<Body> body;
             vector<pair<string, string>> path_values;
             net::endpoint remote;
@@ -78,15 +110,22 @@ namespace sgcl::net::http {
             return _impl->method;
         }
 
+        // The protocol the request came over, as Go's r.Proto: "HTTP/1.1",
+        // "HTTP/1.0" or "HTTP/2.0"
+        string proto() const {
+            return _impl->h2 ? "HTTP/2.0" : _impl->minor == 0 ? "HTTP/1.0" : "HTTP/1.1";
+        }
+
         // The URL: the client's as parsed, or, on the server, the one the
         // request was for ("http://" + Host + the target, or the target in
         // absolute form). A client request whose URL did not parse has
         // none: invalid_argument (the send reports it as invalid_url first)
         net::url url() const {
-            if (!_impl->url) {
+            auto u = _impl->url_of();
+            if (!u) {
                 throw invalid_argument("http::request: the URL does not parse");
             }
-            return *_impl->url;
+            return *u;
         }
 
         // A field of the head, "" when there is none
@@ -143,10 +182,11 @@ namespace sgcl::net::http {
 
         // The first value of the name in the query, "" when there is none
         string query(const string& name) const {
-            if (!_impl->url || !_impl->url->has_query()) {
+            auto u = _impl->url_of();
+            if (!u || !u->has_query()) {
                 return string();
             }
-            return _impl->url->query_params().get(name);
+            return u->query_params().get(name);
         }
 
         // The value of the first cookie of the name in the Cookie fields
@@ -194,7 +234,7 @@ namespace sgcl::net::http {
         // stream for a request without a body
         io::reader body() const {
             if (!_impl->body) {
-                _impl->body = make_tracked<detail::Body>(tracked_ptr<detail::Wire>(), detail::BodyFraming{}, 0, false);
+                return io::reader(detail::no_body);
             }
             return io::reader(_impl->body);
         }

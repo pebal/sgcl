@@ -33,7 +33,7 @@ template<class T, class = void> struct formatter;
 
 ```cpp
 char room[64];
-size_t needed = txt::format_to(slice<char>(room, room + sizeof room), "{} left", n);
+size_t needed = txt::format_to(room, "{} left", n);
 if (needed > sizeof room) { /* the text was cut; ask for that much */ }
 ```
 
@@ -62,15 +62,15 @@ Two reasons, and the second is the real one.
 
 An unqualified `format(...)` next to a [`string`](../core/string.md) of ours **is not ours**. `basic_string` names `std::char_traits` among its arguments, so `std` is an associated namespace of it and the call is found there — and it does not announce a clash, it simply wins, and fails later on a `std::string` that will not convert. Written as `txt::format`, nothing is ambiguous and `format` left bare still means the standard's.
 
-And a field of text cannot be measured without the tables that live here. **The width and the precision count columns, not bytes** — the same thing [`columns`](properties.md) counts, which is what the standard means by its estimated field width:
+And a field of text cannot be measured without the tables that live here. **The width and the precision count what the standard counts, not bytes**: width counts grapheme clusters as std::format does; for terminal columns use txt::columns. A cluster is one, or two when its first code point is East Asian Wide or Fullwidth or in the blocks the standard names ([format.string.std]/13); a control, a format character and a mark that begins a cluster are one as well, where [`columns`](properties.md) gives them none:
 
 ```cpp
-txt::format("[{:>10}]", "żółć");    // [      żółć]   eight bytes, four columns
-txt::format("[{:>8}]",  "日本");     // [    日本]     two characters, four columns
-txt::format("{:.3}",    "żółć");    // żół            stops on a code point
+txt::format("[{:>10}]", "żółć");    // [      żółć]   eight bytes, four clusters
+txt::format("[{:>8}]",  "日本");     // [    日本]     two clusters, four wide
+txt::format("{:.3}",    "żółć");    // żół            stops on a cluster
 ```
 
-Cut by its bytes, the last of those would leave a lead byte with nothing behind it, which is not text any more. A combining mark takes no column of its own, and an East Asian wide character takes two.
+Cut by its bytes, the last of those would leave a lead byte with nothing behind it, which is not text any more; cut by its code points, a letter would lose its accent. The output is held to the standard's own implementation, with two exceptions by name: libc++ counts CR LF as two clusters where UAX #29 (GB3) makes it one, and it counts the zero before the point of a value below one among the digits of `{:#g}` (`{:#.3g}` of 0.5 is `0.50` there), where printf and this header write `0.500`.
 
 ## What a specification may say
 

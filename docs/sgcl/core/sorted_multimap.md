@@ -395,7 +395,6 @@ From an iterator pair or an initializer list, as for `std::multimap`; an initial
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -405,6 +404,8 @@ struct Entry {
 };
 
 int main() {
+    println("a log, by day");
+    auto base = collector::get_live_object_count();   // after the first line: io's own objects are not the example's
     // A multimap on the stack: several events per day, in the order they came
     sorted_multimap<int, tracked_ptr<Entry>> log;
     tracked_ptr first = make_tracked<Entry>("boot");
@@ -416,11 +417,11 @@ int main() {
 
     // The run of one key, in insertion order
     auto [from, to] = log.equal_range(1);
-    std::cout << "day 1:";
+    print("day 1:");
     for (auto it = from; it != to; ++it) {
-        std::cout << ' ' << it->second->what;                  // boot login late entry
+        print(" {}", it->second->what);                  // boot login late entry
     }
-    std::cout << '\n';
+    println();
 
     // Erasing a whole key destroys its elements (the tracked_ptrs) at once;
     // the Events they pointed at are collected, except "boot", still held by `first`
@@ -429,8 +430,7 @@ int main() {
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
     collector::force_collect(true);
-    std::cout << erased << " erased, " << log.size() << " left, "
-              << collector::get_live_object_count() << " live objects\n";
+    println("{} erased, {} left, {} live objects", erased, log.size(), collector::get_live_object_count() - base);
     return erased == 3 && log.count(2) == 2 ? 0 : 1;
 }
 ```
@@ -438,6 +438,7 @@ int main() {
 The output:
 
 ```
+a log, by day
 day 1: boot login late entry
 3 erased, 2 left, 7 live objects
 ```

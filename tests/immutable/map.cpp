@@ -633,3 +633,40 @@ TEST(ImMap_Tests, InsertKeepsSetReplaces) {
     sgcl::immutable::set<std::string> s = {"x"};
     EXPECT_EQ(s.insert("x"), s);
 }
+
+namespace {
+    // A hash that looks at the heap once, while the map is built from a
+    // range: the managed objects then alive whose type is the order of
+    // the build
+    struct LookingHash {
+        inline static long trigger = -1;
+        inline static size_t seen = 0;
+
+        size_t operator()(long k) const {
+            if (k == trigger) {
+                trigger = -1;
+                seen = live_objects_named("6Placed");
+            }
+            return std::hash<long>()(k);
+        }
+    };
+}
+
+// The order of a build from a range (the hashes sorted, a key's first
+// occurrence kept) is scratch of the constructor: plain memory, never a
+// managed buffer (240 KB of one for 10 000 elements before)
+TEST(ImmutableMap_Test, TheBuildFromARangeKeepsItsOrderOffTheManagedHeap) {
+    std::vector<std::pair<long, long>> items;
+    for (long i = 0; i < 10000; ++i) {
+        items.emplace_back(i, i);
+    }
+    items.emplace_back(7, -1);   // a key again: the first stays
+    LookingHash::trigger = 5000;
+    LookingHash::seen = 0;
+    immutable::map<long, long, LookingHash> m(items.begin(), items.end());
+    EXPECT_EQ(LookingHash::trigger, -1);   // the hash looked
+    EXPECT_EQ(LookingHash::seen, 0u);
+    EXPECT_EQ(m.size(), 10000u);
+    EXPECT_EQ(*m.try_get(7), 7);
+    EXPECT_EQ(*m.try_get(9999), 9999);
+}

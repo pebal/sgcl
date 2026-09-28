@@ -70,7 +70,7 @@ weak_map<Node, string> names;
 tracked_ptr node = make_tracked<Node>(1);
 names[node] = "one";
 for (auto [key, value] : names) {   // key: tracked_ptr<Node>, value: string&
-    std::cout << key->value << ' ' << value << '\n';
+    println("{} {}", key->value, value);
 }
 ```
 
@@ -154,7 +154,6 @@ std::pair<iterator, iterator> equal_range(const key_pointer& object);
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -171,12 +170,12 @@ int main() {
         meta.insert(node, "created by the parser");
         meta.insert(node, "checked");
         for (auto [first, last] = meta.equal_range(node); first != last; ++first) {
-            std::cout << first->key->value << ": " << first->value << "\n";
+            println("{}: {}", first->key->value, first->value);
         }
     }   // the last strong pointer is gone
     collector::clear_stack();          // the dead frame zeroed, so that the conservative scan keeps nothing
     collector::force_collect(true);    // optional, for the demonstration: the cycle clears the key
-    std::cout << meta.size() << " entries, " << meta.sweep() << " swept, " << meta.size() << " left\n";
+    println("{} entries, {} swept, {} left", meta.size(), meta.sweep(), meta.size());
 }
 ```
 

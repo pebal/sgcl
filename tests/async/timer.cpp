@@ -7,11 +7,25 @@
 
 using namespace sgcl::async;
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <thread>
+#include <vector>
 
 namespace {
+    // The won races' timers swept, shard by shard: each shard below
+    // max(66, 2 x what it held before + 3). A shard sweeps its cancelled
+    // once they outnumber its live timers past 64 (timer.h: _push), and its
+    // live ones are what it held before at most (other tests' deadlines an
+    // hour away, which a run of the whole program leaves behind: the fixed
+    // bound of 64 failed there, at 65 to 100) and the one race in flight
+    void expect_swept(const std::vector<size_t>& before) {
+        auto after = sgcl::async::detail::timers_instance().shard_sizes();
+        for (size_t i = 0; i < after.size(); ++i) {
+            EXPECT_LE(after[i], std::max<size_t>(66, 2 * before[i] + 3)) << "shard " << i << ", before " << before[i];
+        }
+    }
     using namespace std::chrono_literals;
     using Clock = std::chrono::steady_clock;
 }
@@ -52,11 +66,12 @@ TEST(Timer_Test, ManySleepersInOrder) {
 
 TEST(Timer_Test, AfterIsOneSignalThenClosed) {
     auto t0 = Clock::now();
-    auto ch = sgcl::async::after(20ms);
-    EXPECT_TRUE(ch->receive().wait());
+    sgcl::async::event ev = sgcl::async::after(20ms);
+    ev.wait();
+    EXPECT_TRUE(ev.is_set());
     EXPECT_GE(Clock::now() - t0, 20ms);
-    EXPECT_FALSE(ch->receive().wait());   // closed
-    EXPECT_TRUE(ch->closed());
+    ev.wait();                        // set: a wait after it does not wait
+    EXPECT_TRUE(ev.is_set());
     sgcl::async::scheduler::stop();
 }
 
@@ -87,24 +102,26 @@ TEST(Timer_Test, TickUntilClosed) {
     auto tk = sgcl::async::tick(5ms);
     int n = 0;
     while (n < 5) {
-        if (tk->receive().wait()) {
+        if (tk.receive().wait()) {
             ++n;
         }
     }
     EXPECT_GE(Clock::now() - t0, 25ms);
-    tk->close();                       // the timer sees the close and lets go
+    tk.close();                       // the timer sees the close and lets go
     std::this_thread::sleep_for(20ms);
-    EXPECT_FALSE(tk->receive().wait());
+    EXPECT_FALSE(tk.receive().wait());
     sgcl::async::scheduler::stop();
     sgcl::collector::force_collect(true);
 }
 
 TEST(Timer_Test, TheTimersStopWithTheScheduler) {
-    auto ch = sgcl::async::after(10ms);
-    EXPECT_TRUE(ch->receive().wait());
+    sgcl::async::event ev = sgcl::async::after(10ms);
+    ev.wait();
+    EXPECT_TRUE(ev.is_set());
     sgcl::async::scheduler::stop();           // the timer thread joined
     auto again = sgcl::async::after(10ms);    // and started again by the next timer
-    EXPECT_TRUE(again->receive().wait());
+    again.wait();
+    EXPECT_TRUE(again.is_set());
     sgcl::async::scheduler::stop();
 }
 
@@ -113,6 +130,7 @@ TEST(Timer_Test, TheTimersStopWithTheScheduler) {
 // channel in a loop keeps a bounded heap, not a timer per iteration
 // until the deadline (0.75 KB each, measured, for an hour)
 TEST(Timer_Test, ATimeoutCaseGoneCancelsItsTimer) {
+    const auto before = sgcl::async::detail::timers_instance().shard_sizes();
     sgcl::async::channel<int> ch(1);
     auto t = sgcl::async::spawn([](sgcl::async::channel<int>& ch) -> sgcl::async::task<> {
         for (int i = 0; i < 5000; ++i) {
@@ -123,6 +141,143 @@ TEST(Timer_Test, ATimeoutCaseGoneCancelsItsTimer) {
         ch.send(i).wait();
     }
     t.wait();
-    EXPECT_LT(sgcl::async::detail::timers_instance().size(), 200u);   // swept once the cancelled are half the heap: a few dozen live at most
+    expect_swept(before);
     sgcl::async::scheduler::stop();
+}
+
+// The timers live in shards, one per worker and one for every other thread,
+// and one thread fires them (timer.h: Timers). An add from a thread that is
+// no worker, made exactly between the timer thread's pass over the heaps and
+// its sleep (the test hook), with its point earlier than anything the pass
+// saw: the thread must not sleep past it. Then a thousand rounds of the same
+// without the hook, from a plain thread, while the timer thread goes to
+// sleep and wakes on the others; under the thread sanitizer as well.
+TEST(Timer_Test, AnAddBetweenThePassAndTheSleepWakesTheThread) {
+    auto far = after(1h);                                        // the thread asleep towards an hour
+    std::this_thread::sleep_for(5ms);
+    static std::atomic<int> fired = {0};
+    static std::atomic<bool> woke = {false};
+    static std::atomic<bool> armed = {false};
+    fired = 0;
+    woke = false;
+    sgcl::async::detail::timers_test_hook.store([] {
+        if (woke.load() && armed.exchange(false)) {              // the pass that fired the wake below: what it left is the hour
+            std::thread([] {                                     // a thread that is no worker: the shared shard
+                sgcl::async::detail::add_timer(sgcl::clock::now() + 2ms, tracked_ptr<void>(), [](void*) { fired.fetch_add(1); });
+            }).join();
+        }
+    });
+    armed = true;
+    sgcl::async::detail::add_timer(sgcl::clock::now() + 1ms, tracked_ptr<void>(), [](void*) { woke = true; });
+    auto end = Clock::now() + 2s;
+    while (fired.load() == 0 && Clock::now() < end) {
+        std::this_thread::sleep_for(1ms);
+    }
+    EXPECT_FALSE(armed.load());                                  // the hook did add, after the pass
+    EXPECT_EQ(fired.load(), 1);                                  // not an hour later
+    sgcl::async::detail::timers_test_hook.store(nullptr);
+    fired = 0;
+    const int rounds = 1000;
+    for (int i = 0; i < rounds; ++i) {
+        std::thread([] {
+            sgcl::async::detail::add_timer(sgcl::clock::now() + std::chrono::microseconds(50), tracked_ptr<void>(), [](void*) { fired.fetch_add(1); });
+        }).join();
+        if (i % 16 == 0) {
+            std::this_thread::sleep_for(100us);                  // the timer thread asleep again, now and then
+        }
+    }
+    end = Clock::now() + 5s;
+    while (fired.load() < rounds && Clock::now() < end) {
+        std::this_thread::sleep_for(1ms);
+    }
+    EXPECT_EQ(fired.load(), rounds);
+    far.set();
+    sgcl::async::scheduler::stop();
+}
+
+// A timer from every kind of thread fires: a worker's (its own shard), a
+// thread blocked in spawn_blocking's pool, the main thread (the shared
+// shard); and a timer added on one thread and cancelled on another does
+// not fire
+TEST(Timer_Test, TimersFromEveryKindOfThreadAndACancelFromAnother) {
+    static std::atomic<int> fired = {0};
+    fired = 0;
+    auto bump = [](void*) { fired.fetch_add(1); };
+    auto from_task = spawn([](void (*f)(void*)) -> task<> {
+        sgcl::async::detail::add_timer(sgcl::clock::now() + 5ms, tracked_ptr<void>(), f);
+        co_return;
+    }(bump));
+    from_task.wait();
+    spawn_blocking([bump] { sgcl::async::detail::add_timer(sgcl::clock::now() + 5ms, tracked_ptr<void>(), bump); }).wait();
+    sgcl::async::detail::add_timer(sgcl::clock::now() + 5ms, tracked_ptr<void>(), bump);
+    auto end = Clock::now() + 2s;
+    while (fired.load() < 3 && Clock::now() < end) {
+        std::this_thread::sleep_for(1ms);
+    }
+    EXPECT_EQ(fired.load(), 3);
+    // added on a worker, cancelled from a plain thread
+    fired = 0;
+    auto armed = spawn([](void (*f)(void*)) -> task<tracked_ptr<sgcl::async::detail::Timer>> {
+        co_return sgcl::async::detail::add_timer(sgcl::clock::now() + 20ms, tracked_ptr<void>(), f);
+    }(bump));
+    tracked_ptr<sgcl::async::detail::Timer> timer = armed.wait();
+    std::thread([&] {
+        timer->cancelled.store(true, std::memory_order_release);
+        sgcl::async::detail::timer_cancelled(*timer);
+    }).join();
+    std::this_thread::sleep_for(60ms);
+    EXPECT_EQ(fired.load(), 0);
+    sgcl::async::scheduler::stop();
+}
+
+// The timers' thread asleep after a pass holds nothing of what it fired:
+// the dead frames of the pass are cleared before the sleep, so the last
+// timer fired and what it kept are the collector's at once — not at the
+// thread's next pass, which with no other timer due is never (the words
+// of a thread of the library before it parks, as the blocking pool's)
+namespace {
+    struct Kept {
+        Kept() { ++alive; }
+        ~Kept() { --alive; }
+        inline static std::atomic<int> alive = {0};
+    };
+
+    // What a timer's call does on the timer's thread, as deep as a stop
+    // that closes a channel and wakes its waiters goes: the pointer it was
+    // given left in frames a kilobyte and more below the pass, where the
+    // thread's own wait does not reach
+    SGCL_NOINLINE void deep(void* p, int n) {
+        volatile uintptr_t words[16];
+        for (auto& w : words) {
+            w = (uintptr_t)p;
+        }
+        if (n > 0) {
+            deep(p, n - 1);
+        }
+        (void)words[0];
+    }
+}
+
+TEST(Timer_Test, TheThreadAsleepHoldsNothingOfTheLastTimer) {
+    static std::atomic<bool> fired = {false};
+    fired = false;
+    off_frame([] {
+        sgcl::tracked_ptr kept = sgcl::make_tracked<Kept>();
+        (void)sgcl::async::detail::add_timer(sgcl::clock::now() + 5ms, kept, [](void* p) {
+            deep(p, 6);
+            fired = true;
+        });
+    });
+    for (int i = 0; i < 5000 && !fired.load(); ++i) {
+        std::this_thread::sleep_for(1ms);
+    }
+    ASSERT_TRUE(fired.load());
+    bool gone = false;
+    for (int i = 0; i < 100 && !gone; ++i) {   // the thread reaches its sleep a moment after the call
+        std::this_thread::sleep_for(5ms);
+        collector::clear_stack();
+        collector::force_collect(true);
+        gone = Kept::alive.load() == 0;
+    }
+    EXPECT_TRUE(gone);   // no other timer, no stop(): what the timer kept gone with it
 }

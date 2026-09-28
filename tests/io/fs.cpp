@@ -59,7 +59,7 @@ TEST_F(IoFs_Tests, MkdirRemoveRename) {
     EXPECT_FALSE(exists(at("x/f")));
     EXPECT_TRUE(is_regular(at("x/g")));
     ASSERT_TRUE(copy_file(at("x/g"), at("x/h")));
-    EXPECT_EQ(std::string_view(*read_text(at("x/h"))), "f");
+    EXPECT_EQ(std::string_view(value_of(read_text(at("x/h")))), "f");
 
     auto full = io::remove(at("x"));   // not empty
     ASSERT_FALSE(full);
@@ -82,14 +82,14 @@ TEST_F(IoFs_Tests, StatLstatSymlinkChmod) {
     auto now = std::chrono::system_clock::now();
     EXPECT_LT(now - s->modified, std::chrono::seconds(60));
     ASSERT_TRUE(io::symlink(at("t"), at("l")));
-    EXPECT_TRUE(io::stat(at("l"))->is_regular());     // followed
-    EXPECT_TRUE(io::lstat(at("l"))->is_symlink());    // not followed
-    EXPECT_EQ(std::string_view(*read_link(at("l"))), at("t"));
+    EXPECT_TRUE(value_of(io::stat(at("l"))).is_regular());     // followed
+    EXPECT_TRUE(value_of(io::lstat(at("l"))).is_symlink());    // not followed
+    EXPECT_EQ(std::string_view(value_of(read_link(at("l")))), at("t"));
     ASSERT_TRUE(io::chmod(at("t"), permissions::owner_read | permissions::owner_write));
-    EXPECT_EQ(static_cast<unsigned>(io::stat(at("t"))->mode), 0600u);
+    EXPECT_EQ(static_cast<unsigned>(value_of(io::stat(at("t"))).mode), 0600u);
     file_time then(std::chrono::seconds(1000000000));
     ASSERT_TRUE(set_modified(at("t"), then));
-    EXPECT_EQ(io::stat(at("t"))->modified, then);
+    EXPECT_EQ(value_of(io::stat(at("t"))).modified, then);
     auto missing = io::stat(at("none"));
     ASSERT_FALSE(missing);
     EXPECT_TRUE(missing.error().is_not_found());
@@ -112,7 +112,7 @@ TEST_F(IoFs_Tests, ReadDirSortedWithTypes) {
     EXPECT_EQ(std::string_view((*entries)[3].name), "sub");
     EXPECT_TRUE((*entries)[3].is_directory());
     EXPECT_EQ(std::string_view((*entries)[3].path), at("sub"));
-    EXPECT_TRUE((*entries)[3].info()->is_directory());
+    EXPECT_TRUE(value_of((*entries)[3].info()).is_directory());
     auto none = read_dir(at("none"));
     ASSERT_FALSE(none);
     EXPECT_TRUE(none.error().is_not_found());
@@ -165,13 +165,13 @@ namespace {
             co_return "mkdir_all";
         }
         auto f = co_await async_create(path::join(sub, "f"));
-        if (!f || !(*f)->write(string("hello"))) {
+        if (!f || !f->write(string("hello"))) {
             co_return "create";
         }
-        if (!co_await (*f)->async_sync() || !co_await (*f)->async_truncate(4)) {
+        if (!co_await f->async_sync() || !co_await f->async_truncate(4)) {
             co_return "sync, truncate";
         }
-        (void)(*f)->close();
+        (void)f->close();
         auto st = co_await async_stat(path::join(sub, "f"));
         if (!st || st->size != 4) {
             co_return "stat";
@@ -183,7 +183,7 @@ namespace {
         if (!g) {
             co_return "open";
         }
-        (void)(*g)->close();
+        (void)g->close();
         auto copied = read_text(path::join(d, "g"));
         if (!copied || *copied != "hell") {
             co_return "the copy";
@@ -214,6 +214,65 @@ namespace {
 TEST_F(IoFs_Tests, AsyncFormsOnThePool) {
     auto t = sgcl::async::spawn(fs_in_a_task(dir()));
     EXPECT_EQ(t.wait(), "g x x/y x/y/f ");
+    sgcl::async::scheduler::stop();
+}
+
+namespace {
+    // The single-call forms added beside the sync ones (DESIGN 224):
+    // mkdir, symlink, chmod of a path and of a file, rename, remove
+    task<std::string> single_calls_in_a_task(string d) {
+        string sub = path::join(d, "m");
+        if (!co_await async_mkdir(sub)) {
+            co_return "mkdir";
+        }
+        if (auto again = co_await async_mkdir(sub); again || !again.error().is_exists()) {
+            co_return "mkdir of an existing directory";
+        }
+        auto f = co_await async_create(path::join(sub, "f"));
+        if (!f) {
+            co_return "create";
+        }
+        if (!co_await f->async_chmod(permissions(0600))) {
+            co_return "file chmod";
+        }
+        (void)f->close();
+        auto st = stat(path::join(sub, "f"));
+        if (!st || (static_cast<unsigned>(st->mode) & 0777) != 0600) {
+            co_return "file chmod's mode";
+        }
+        if (!co_await async_chmod(path::join(sub, "f"), permissions(0640))) {
+            co_return "chmod";
+        }
+        st = stat(path::join(sub, "f"));
+        if (!st || (static_cast<unsigned>(st->mode) & 0777) != 0640) {
+            co_return "chmod's mode";
+        }
+        if (!co_await async_symlink("f", path::join(sub, "l"))) {
+            co_return "symlink";
+        }
+        auto target = read_link(path::join(sub, "l"));
+        if (!target || *target != "f") {
+            co_return "symlink's target";
+        }
+        if (!co_await async_rename(path::join(sub, "f"), path::join(sub, "g"))) {
+            co_return "rename";
+        }
+        if (exists(path::join(sub, "f")) || !exists(path::join(sub, "g"))) {
+            co_return "rename's result";
+        }
+        if (!co_await async_remove(path::join(sub, "l")) || !co_await async_remove(path::join(sub, "g"))) {
+            co_return "remove";
+        }
+        if (auto gone = co_await async_remove(path::join(sub, "g")); gone || !gone.error().is_not_found()) {
+            co_return "remove of a missing file";
+        }
+        co_return "ok";
+    }
+}
+
+TEST_F(IoFs_Tests, AsyncSingleCallsOnThePool) {
+    auto t = sgcl::async::spawn(single_calls_in_a_task(dir()));
+    EXPECT_EQ(t.wait(), "ok");
     sgcl::async::scheduler::stop();
 }
 

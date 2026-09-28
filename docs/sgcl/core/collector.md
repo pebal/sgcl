@@ -68,7 +68,7 @@ Runs a full collection, waits for it and returns the addresses of the objects it
 {
     auto [guard, objects] = collector::get_live_objects();
     for (void* object : objects) {
-        std::cout << object << '\n';
+        println("{}", object);
     }
 }   // the guard is destroyed: the collector resumes
 ```
@@ -146,12 +146,9 @@ Counters of the collector's work, read without stopping it and without waiting f
 
 ```cpp
 auto s = collector::get_statistics();
-std::cout << s.cycles << " cycles (" << s.full_cycles << " full), "
-          << s.live_objects << " objects, " << s.live_bytes / 1048576 << " MB live, "
-          << s.committed_bytes / 1048576 << " MB committed, last cycle "
-          << s.last_cycle_ms << " ms with " << s.last_helpers_used << " helpers\n";
+println("{} cycles ({} full), {} objects, {} MB live, {} MB committed, last cycle {} ms with {} helpers", s.cycles, s.full_cycles, s.live_objects, s.live_bytes / 1048576, s.committed_bytes / 1048576, s.last_cycle_ms, s.last_helpers_used);
 for (int i : range(8)) {
-    std::cout << collector::phase_names[i] << ' ' << s.phases_ms[i] << " ms\n";
+    println("{} {} ms", collector::phase_names[i], s.phases_ms[i]);
 }
 ```
 
@@ -174,12 +171,11 @@ The live objects by type after a full cycle: what a heap that grows is made of. 
 
 ```cpp
 for (auto& t : collector::get_type_statistics()) {
-    std::cout << (t.buffers ? "buffers of " : "") << t.type->name() << ": "
-              << t.live_objects << " x " << t.object_size << " B = " << t.live_bytes << " B";
+    print("{}{}: {} x {} B = {} B", (t.buffers ? "buffers of " : ""), t.type->name(), t.live_objects, t.object_size, t.live_bytes);
     if (!t.buffers) {
-        std::cout << ", " << t.pages << " pages";
+        print(", {} pages", t.pages);
     }
-    std::cout << '\n';
+    println();
 }
 ```
 
@@ -192,17 +188,20 @@ static size_t get_committed_memory() noexcept;
 Bytes of managed memory committed right now: the part of the heap's reserved range backed by physical memory, in 2 MB chunks, free chunks kept for reuse included ([Memory](../../garbage_collector/overview.md#memory)). The reservation itself (the process's virtual size) is not counted.
 
 ```cpp
-std::cout << collector::get_committed_memory() / 1048576 << " MB committed\n";
+println("{} MB committed", collector::get_committed_memory() / 1048576);
 ```
 
-### get_memory_limit, set_memory_limit
+### get_memory_limit, set_memory_limit, set_memory_limit_percent
 
 ```cpp
 static size_t get_memory_limit() noexcept;
 static void set_memory_limit(size_t bytes) noexcept;
+static void set_memory_limit_percent(unsigned percent) noexcept;   // 1..100 of the memory the process may use
 ```
 
 The ceiling on committed managed memory, in bytes: by default 90% of the cgroup memory limit on Linux, or of the physical memory elsewhere (`config::heap_limit_percent`). Above 75% of it (`config::heap_pressure_percent`) the collector cycles every 100 ms and returns every free chunk to the system at once. When an allocation would cross it, the allocation first forces a full collection and waits for it (not on a thread that is sweeping: a destructor run by the sweep gets the `bad_alloc` at once, since the cycle it would wait for is the one it is part of); if that does not free enough, it throws `bad_alloc` instead of letting the process run into the OOM killer. `set_memory_limit(0)` disables the ceiling. The setting takes effect for the next chunk committed; it does not shrink what is committed already.
+
+The environment sets the default without a change to the program, as Go's `GOMEMLIMIT` does: `SGCL_MEMORY_LIMIT` holds bytes (`536870912`, or with a suffix of powers of 1024: `512K`, `512M`, `2G`) or a percentage of the cgroup or physical limit (`50%`). It is read once, when the heap is first used, and nowhere else; a call of `set_memory_limit` or `set_memory_limit_percent` wins over it. A value that does not read (`12Q`, `0`, `150%`) is ignored with one line on stderr, and the 90% taken. `SGCL_MEMORY_LIMIT=64M ./tool` runs the tool with a 64 MB ceiling.
 
 ```cpp
 auto limit = collector::get_memory_limit();             // the default ceiling
@@ -297,7 +296,6 @@ s.finish_cycle();                                    // registered now, found th
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -316,14 +314,14 @@ static void build_and_drop(size_t count) {
         node->value = int(i);
         head = node;
     }
-    std::cout << "with the list: " << collector::get_live_object_count() << " live objects\n";
+    println("with the list: {} live objects", collector::get_live_object_count());
 }   // head is gone: the whole list is garbage
 
 int main() {
     size_t before = collector::get_live_object_count();
     build_and_drop(1000);
     // the count runs a full cycle first and zeroes the frames build_and_drop left behind
-    std::cout << "after the list: " << collector::get_live_object_count() - before << " new live objects\n";
+    println("after the list: {} new live objects", collector::get_live_object_count() - before);
 
     vector<tracked_ptr<Node>> kept;
     for (int i : range(10)) {
@@ -332,16 +330,13 @@ int main() {
     // what the live heap is made of, by type: the ten nodes and the vector's buffer
     for (auto& t : collector::get_type_statistics()) {
         if (*t.type == typeid(Node) || *t.type == typeid(tracked_ptr<Node>[])) {
-            std::cout << (t.buffers ? "buffers of " : "") << t.type->name() << ": "
-                      << t.live_objects << " x " << t.object_size << " B\n";
+            println("{}{}: {} x {} B", (t.buffers ? "buffers of " : ""), t.type->name(), t.live_objects, t.object_size);
         }
     }
 
     collector::force_collect(true);     // optional, for the demonstration only: the collector runs its cycles by itself
     auto s = collector::get_statistics();
-    std::cout << s.cycles << " cycles, " << s.live_objects << " live objects, last cycle "
-              << s.last_cycle_ms << " ms, " << collector::get_committed_memory() / 1048576
-              << " MB committed of a " << collector::get_memory_limit() / 1048576 << " MB ceiling\n";
+    println("{} cycles, {} live objects, last cycle {} ms, {} MB committed of a {} MB ceiling", s.cycles, s.live_objects, s.last_cycle_ms, collector::get_committed_memory() / 1048576, collector::get_memory_limit() / 1048576);
     return 0;
 }
 ```

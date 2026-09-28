@@ -56,6 +56,7 @@ public:
 #include "sgcl/core/range.h"
 #include "sgcl/encoding/xml.h"
 #include "sgcl/io/os.h"
+#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
@@ -63,7 +64,7 @@ int main() {
     encoding::xml::writer w(io::stdout, encoding::xml::style{2, true});
     w.start("svg").attribute("xmlns", "http://www.w3.org/2000/svg").attribute("width", "40");
     for (auto i : range(2)) {
-        w.start("circle").attribute("r", string(std::to_string(5 + 5 * i))).end();
+        w.start("circle").attribute("r", to_string(5 + 5 * i)).end();
     }
     w.start("text").text("5 < 10 & \"quoted\"").end();
     w.comment(" made by hand ");
@@ -75,7 +76,7 @@ int main() {
 
     encoding::xml::writer bad(io::stdout);
     bad.start("a").text("t").attribute("late", "1");
-    io::stdout.write("\n" + bad.last_error()->message() + "\n");
+    println("\n{}", bad.last_error()->message());
 }
 ```
 

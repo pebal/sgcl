@@ -22,6 +22,7 @@
 #include <new>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace sgcl::immutable::detail {
     // The hash array mapped trie of Bagwell (Ideal Hash Trees, 2001) as
@@ -345,7 +346,7 @@ namespace sgcl::immutable::detail {
             for (; first != last; ++first) {
                 items.emplace_back(*first);
             }
-            sgcl::vector<Placed> order;
+            std::vector<Placed> order;   // numbers only, scratch of this call: plain memory
             order.reserve(items.size());
             for (size_t i = 0; i < items.size(); ++i) {
                 auto h = _hash(Traits::key(items[i]));

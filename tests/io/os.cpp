@@ -60,17 +60,17 @@ TEST(IoOs_Tests, ProcessAndDirectories) {
     auto now = working_dir();
     ASSERT_TRUE(now);
     // the temporary directory may be reached through a symlink (/tmp on macOS)
-    EXPECT_EQ(io::stat(*now)->modified, io::stat(*tmp)->modified);
+    EXPECT_EQ(value_of(io::stat(*now)).modified, value_of(io::stat(*tmp)).modified);
     ASSERT_TRUE(io::chdir(*wd));
     io::remove_all(*tmp);
 }
 
 TEST(IoOs_Tests, StandardStreams) {
     EXPECT_EQ(io::stdout.fd(), 1);
-    EXPECT_FALSE(io::stdout.file()->is_closed());
+    EXPECT_FALSE(io::stdout.file().is_closed());
     EXPECT_EQ(io::stdout.file(), io::stdout.file());   // one file, made once
     EXPECT_EQ(io::stderr.fd(), 2);
-    EXPECT_EQ(io::stderr.file()->path(), "stderr");
+    EXPECT_EQ(io::stderr.file().path(), "stderr");
     EXPECT_EQ(io::stdin.fd(), 0);
     // the C streams under their names in the same unit
     EXPECT_EQ(fileno(::stderr), 2);

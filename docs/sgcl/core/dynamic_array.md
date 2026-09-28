@@ -163,7 +163,6 @@ dynamic_array(InputIt, InputIt) -> dynamic_array<std::iter_value_t<InputIt>>;
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 #include <numeric>
 
 using namespace sgcl;
@@ -188,8 +187,7 @@ int main() {
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
     collector::force_collect(true);
-    std::cout << "sum of squares " << std::accumulate(h->values.begin(), h->values.end(), 0)
-              << ", reversed copy starts with " << copy.front() << ", third " << *third << "\n";
+    println("sum of squares {}, reversed copy starts with {}, third {}", std::accumulate(h->values.begin(), h->values.end(), 0), copy.front(), *third);
     return *third == 9 && squares.empty() ? 0 : 1;
 }
 ```

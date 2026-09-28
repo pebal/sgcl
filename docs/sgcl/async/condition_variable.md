@@ -30,7 +30,7 @@ template<class Lock, class Pred> void wait(Lock& lock, Pred pred);   // until pr
 async::mutex m;
 async::condition_variable changed;
 bool flag = false;                              // guarded by m
-auto wait_for_flag = [](async::mutex& m, async::condition_variable& changed, bool& flag) -> async::task<> {
+auto wait_for_flag = [](async::mutex m, async::condition_variable& changed, bool& flag) -> async::task<> {
     auto guard = co_await m.scoped_lock();
     co_await changed.wait(guard, [&] { return flag; });   // the mutex held again here
 };

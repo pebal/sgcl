@@ -255,7 +255,7 @@ TEST(JsonStrings_Tests, EscapesDecoded) {
     EXPECT_EQ(v[2].as_string()->size(), 1u);
     EXPECT_EQ(v[3].as_string(), sgcl::string("a/b"));
     // the raw DEL and every byte of UTF-8 are taken as they are
-    EXPECT_EQ(json::parse(text("\"\x7f\xc5\xbc\"")).value().as_string(), sgcl::string("\x7f\xc5\xbc"));
+    EXPECT_EQ(value_of(json::parse(text("\"\x7f\xc5\xbc\""))).as_string(), sgcl::string("\x7f\xc5\xbc"));
 }
 
 // What a string may not hold, and where the error is; with
@@ -594,7 +594,7 @@ TEST(JsonReader_Tests, ErrorsAndTheirPlaces) {
         EXPECT_EQ(p.error().column(), c.column) << c.text;
     }
     // the message
-    auto e = json::parse(text("{\"a\": [1, 2,]}")).error();
+    auto e = error_of(json::parse(text("{\"a\": [1, 2,]}")));
     EXPECT_EQ(e.message(), "1:13: invalid character ']' where a value was expected");
     // an error is kept: every call after it says nothing more
     json::reader r(text("[1, x, 2]"));
@@ -634,17 +634,17 @@ TEST(JsonReader_Tests, DepthLimit) {
     }
     // the default is 512
     EXPECT_TRUE(json::parse(text(std::string(512, '[') + std::string(512, ']'))));
-    EXPECT_EQ(json::parse(text(std::string(513, '[') + std::string(513, ']'))).error().code(), errc::depth_limit);
+    EXPECT_EQ(error_of(json::parse(text(std::string(513, '[') + std::string(513, ']')))).code(), errc::depth_limit);
     // a million brackets fail at 513 without a stack of calls
-    EXPECT_EQ(json::parse(text(std::string(1000000, '['))).error().offset(), 512u);
+    EXPECT_EQ(error_of(json::parse(text(std::string(1000000, '[')))).offset(), 512u);
 }
 
 TEST(JsonReader_Tests, EmptyAndTrailing) {
-    EXPECT_EQ(json::parse(text("")).error().code(), errc::unexpected_end);
-    EXPECT_EQ(json::parse(text("  \n ")).error().code(), errc::unexpected_end);
-    EXPECT_EQ(json::parse(text("{} x")).error().code(), errc::syntax);
-    EXPECT_EQ(json::parse(text("{} x")).error().offset(), 3u);
-    EXPECT_EQ(json::parse(text("1 2")).error().offset(), 2u);
+    EXPECT_EQ(error_of(json::parse(text(""))).code(), errc::unexpected_end);
+    EXPECT_EQ(error_of(json::parse(text("  \n "))).code(), errc::unexpected_end);
+    EXPECT_EQ(error_of(json::parse(text("{} x"))).code(), errc::syntax);
+    EXPECT_EQ(error_of(json::parse(text("{} x"))).offset(), 3u);
+    EXPECT_EQ(error_of(json::parse(text("1 2"))).offset(), 2u);
     EXPECT_TRUE(json::parse(text(" \t\r\n1 \t\r\n")));
     json::reader r(text("  "));
     EXPECT_FALSE(r.next());
@@ -653,8 +653,9 @@ TEST(JsonReader_Tests, EmptyAndTrailing) {
 }
 
 TEST(JsonReader_Tests, DuplicateKeys) {
-    EXPECT_EQ(json::parse(text(R"({"a": 1, "b": {"a": 2}, "c": 3})")).value()["b"]["a"].as_int(), 2);   // not the same object
+    EXPECT_EQ(value_of(json::parse(text(R"({"a": 1, "b": {"a": 2}, "c": 3})")))["b"]["a"].as_int(), 2);   // not the same object
     auto e = json::parse(text(R"({"a": 1, "\u0061": 2})"));
+    ASSERT_FALSE(e);
     EXPECT_EQ(e.error().code(), errc::duplicate_key);
     EXPECT_EQ(e.error().offset(), 9u);
     json::options allow;
@@ -671,8 +672,8 @@ TEST(JsonReader_Tests, DuplicateKeys) {
     std::string ok = big + "\"z\": 0}";
     std::string dup = big + "\"k500\": 0}";
     EXPECT_TRUE(json::parse(text(ok)));
-    EXPECT_EQ(json::parse(text(dup)).error().code(), errc::duplicate_key);
-    EXPECT_EQ(json::parse(text(dup)).error().offset(), big.size());
+    EXPECT_EQ(error_of(json::parse(text(dup))).code(), errc::duplicate_key);
+    EXPECT_EQ(error_of(json::parse(text(dup))).offset(), big.size());
     json::reader r(text(dup));
     EXPECT_FALSE(all_tokens(r));
     EXPECT_EQ(r.last_error()->code(), errc::duplicate_key);
@@ -694,6 +695,7 @@ TEST(JsonReader_Tests, ParseOfAStream) {
         auto two = json::parse(sgcl::make_tracked<dribble>(std::string("1 2"), n));
         EXPECT_FALSE(two);
         auto none = json::parse(sgcl::make_tracked<dribble>(std::string("  "), n));
+        ASSERT_FALSE(none);
         EXPECT_EQ(none.error().code(), errc::unexpected_end);
     }
     auto failed = json::parse(sgcl::make_tracked<failing>(std::string("[1, 2")));
@@ -838,7 +840,7 @@ TEST(JsonWriter_Tests, AsyncFlush) {
 // memory would have grown with whatever the network sent
 TEST(JsonReader_Tests, ATokenPastTheBoundIsAnError) {
     std::string text = "[\"" + std::string(100000, 'a') + "\", 1]";
-    sgcl::tracked_ptr src = sgcl::make_tracked<sgcl::io::buffer>(sgcl::string(text));
+    sgcl::io::buffer src{sgcl::string(text)};
     sgcl::encoding::json::options o;
     o.max_token_size = 20000;
     sgcl::encoding::json::reader r(src, o);
@@ -846,7 +848,7 @@ TEST(JsonReader_Tests, ATokenPastTheBoundIsAnError) {
     }
     ASSERT_TRUE(r.last_error());
     EXPECT_EQ(r.last_error()->code(), sgcl::encoding::errc::out_of_range);
-    sgcl::tracked_ptr again = sgcl::make_tracked<sgcl::io::buffer>(sgcl::string(text));
+    sgcl::io::buffer again{sgcl::string(text)};
     sgcl::encoding::json::reader whole(again);                      // the default, 64 MB, takes it
     size_t n = 0;
     while (whole.next()) {

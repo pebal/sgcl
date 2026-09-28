@@ -59,6 +59,7 @@ operator view_type() const noexcept;                      // a std::string_view 
 slice<const CharT> as_slice() const noexcept;  slice<const CharT> as_slice(size_type pos, size_type n = npos) const;   // a slice that holds the object: the whole, a range (out_of_range past the end)
 operator slice<const CharT>() const noexcept;             // as_slice()
 explicit basic_string(const slice<const CharT>& v);       // the slice's own object when it is the whole of a string, a copy otherwise
+template<class B> explicit basic_string(const B& bytes);  // bytes (a slice of bytes, a vector<byte>, an array<byte, N>) taken for characters: string text(opened); not checked for UTF-8
 view_type view() const noexcept;                          // the characters as a std::string_view, borrowed
 std::basic_string<CharT, Traits> str() const;             // a copy, to build on
 const CharT& operator[](size_type) const noexcept;  const CharT& at(size_type) const;   // at: out_of_range
@@ -123,7 +124,7 @@ assert(ages.find(std::string_view("alice")) != ages.end() && !ages.contains("bob
 
 `to_string` makes a string of a number, `parse<T>` a number of a text: `parse<int>("42")`, `parse<double>("2.5")`, `parse<bool>("true")`, `parse<int>("ff", 16)`, an `expected` whose error, a `number_error`, says why the text is not exactly one number of the type (no white space, no `+`, no sign for an unsigned type, nothing after the digits, in range) and the byte it stopped on, `std::from_chars` under it, so no locale and no allocation: C#'s `TryParse`, Go's `strconv`, Java's `parseInt` without the exception. A `string` converts to the view, so `parse<int>(s)` reads a string.
 
-The operations past `std::string` return a new string, or the same object when there is nothing to change (`trim` of a string without white space at its ends, `replace` of what does not occur, `to_lower` of a string with no upper-case letter — by Unicode's case, `"łódź"` has none), so a result may be compared by `object()` as by `==`. `split` and `fields` return `pieces`: a value of a few words (the string, the separator as a copy, the limit) that is a forward range of [`string_slice`](slice.md)s into the string, each piece found as the walk reaches it, one `find` per step and no allocation, as `std::views::split` and Go's `strings.SplitSeq`. Each piece holds the string's object, so it is valid on its own, wherever it is kept: `for (sgcl::string_slice piece : s.split(','))` walks them, `sgcl::vector<sgcl::string_slice> parts(s.split(','))` keeps them (every sequence has a constructor from a range), `sgcl::vector<sgcl::string> strings(s.split(','))` makes a string of each, and `join` takes the range as it is. `split` keeps an empty piece where two separators meet or one ends the string, as Go's `strings.Split` does and Java's `split` does not; with `max_parts` the last piece holds the rest of the string; an empty separator splits into characters; an empty string splits into nothing. `fields` drops the empty pieces: the words. `replace` goes left to right without overlapping and never looks into what it has put in; an empty `from` changes nothing. `join` takes any range whose elements a `std::string_view` is made of: strings, slices, literals, `std::string`.
+The operations past `std::string` return a new string, or the same object when there is nothing to change (`trim` of a string without white space at its ends, `replace` of what does not occur, `to_lower` of a string with no upper-case letter — by Unicode's case, `"łódź"` has none), so a result may be compared by `object()` as by `==`. `split` and `fields` return `pieces`: a value of a few words (the string, the separator as a copy, one of up to 16 bytes inside the value and a longer one in a string of its own, the limit) that is a forward range of [`string_slice`](slice.md)s into the string, each piece found as the walk reaches it, one `find` per step and no allocation, as `std::views::split` and Go's `strings.SplitSeq`. Each piece holds the string's object, so it is valid on its own, wherever it is kept: `for (sgcl::string_slice piece : s.split(','))` walks them, `sgcl::vector<sgcl::string_slice> parts(s.split(','))` keeps them (every sequence has a constructor from a range), `sgcl::vector<sgcl::string> strings(s.split(','))` makes a string of each, and `join` takes the range as it is. `split` keeps an empty piece where two separators meet or one ends the string, as Go's `strings.Split` does and Java's `split` does not; with `max_parts` the last piece holds the rest of the string; an empty separator splits into characters; an empty string splits into nothing. `fields` drops the empty pieces: the words. `replace` goes left to right without overlapping and never looks into what it has put in; an empty `from` changes nothing. `join` takes any range whose elements a `std::string_view` is made of: strings, slices, literals, `std::string`.
 
 ```cpp
 string line = "  name = alice, bob ,carol  ";
@@ -165,7 +166,6 @@ for (char32_t c : city.runes()) {                           // the code points, 
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -199,12 +199,12 @@ int main() {
     for (int i : range(3)) {
         tracked_ptr section = make(div);
         for (int j : range(4)) {
-            section->children.push_back(make(p, "paragraph " + string(std::to_string(j))));
+            section->children.push_back(make(p, "paragraph " + to_string(j)));
         }
         root->children.push_back(section);
     }
-    std::cout << count(root, p) << " paragraphs, " << count(root, "div") << " divs\n";   // 12 paragraphs, 4 divs
-    std::cout << root->children[0]->children[1]->text << "\n";                            // paragraph 1
+    println("{} paragraphs, {} divs", count(root, p), count(root, "div"));   // 12 paragraphs, 4 divs
+    println("{}", root->children[0]->children[1]->text);                            // paragraph 1
     return 0;
 }
 ```

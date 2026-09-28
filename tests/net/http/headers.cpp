@@ -38,12 +38,25 @@ TEST(HttpHeaders_Tests, TheList) {
     h.erase("CONTENT-TYPE");
     EXPECT_FALSE(h.contains("content-type"));
     EXPECT_EQ(h.get("content-type"), "");
+    // kept as given, and judged where they are written: the client's send
+    // and the server's response refuse what invalid_field names
+    EXPECT_FALSE(net::http::detail::invalid_field(h));
     h.set("X", sgcl::string(std::string("a\r\nb\0c", 6)));
-    EXPECT_EQ(h.get("x"), "a  b c");
+    EXPECT_EQ(h.get("x"), sgcl::string(std::string("a\r\nb\0c", 6)));
+    EXPECT_EQ(net::http::detail::invalid_field(h), "invalid header value: X");
+    h.erase("x");
+    h.set("X", "a\tb \x80");                                     // a tab, a space, obs-text: a value may
+    EXPECT_FALSE(net::http::detail::invalid_field(h));
     for (auto bad : {"", "a b", "a:b", "a\r\n", "caf\xC3\xA9", "(x)"}) {
-        EXPECT_THROW(h.set(bad, "v"), std::invalid_argument) << bad;
-        EXPECT_THROW(h.add(bad, "v"), std::invalid_argument) << bad;
+        net::http::headers one;
+        one.add(bad, "v");
+        auto e = net::http::detail::invalid_field(one);
+        ASSERT_TRUE(e) << bad;
+        EXPECT_EQ(e->view().substr(0, 21), "invalid header name: ") << bad;
     }
+    net::http::headers named;
+    named.add("a\r\n", "v");
+    EXPECT_EQ(net::http::detail::invalid_field(named), "invalid header name: a\\x0D\\x0A");   // no line break into a log
 }
 
 TEST(HttpHeaders_Tests, Status) {
@@ -89,6 +102,7 @@ TEST(HttpHeaders_Tests, CookieRead) {
     EXPECT_FALSE(net::http::cookie::parse("novalue"));
     EXPECT_FALSE(net::http::cookie::parse("=x"));
     auto none = net::http::cookie::parse("novalue");
+    ASSERT_FALSE(none);
     EXPECT_EQ(none.error().code(), net::errc::invalid_cookie);   // the reason, as every parse of the library gives one
     EXPECT_EQ(none.error().message(), "parse cookie novalue: invalid cookie");
     auto neg = net::http::cookie::parse("a=b; Max-Age=-5; Path=relative; SameSite=weird");
@@ -98,6 +112,59 @@ TEST(HttpHeaders_Tests, CookieRead) {
     EXPECT_EQ(neg->same_site, "");
     auto junk = net::http::cookie::parse("a=b; Max-Age=12x");
     EXPECT_FALSE(junk->max_age);
+}
+
+// A Set-Cookie literal constructs (DESIGN 234): parse's value, or its
+// bad_expected_access with parse's message; explicit, so no text becomes a
+// cookie by itself
+TEST(HttpHeaders_Tests, CookieFromALiteral) {
+    net::http::cookie c("id=42; Domain=.Example.COM; Secure; Max-Age=60");
+    EXPECT_EQ(c.name, "id");
+    EXPECT_EQ(c.value, "42");
+    EXPECT_EQ(c.domain, "example.com");
+    EXPECT_TRUE(c.secure);
+    EXPECT_EQ(c.max_age->nanoseconds(), 60'000'000'000);
+    EXPECT_EQ(c.to_string(), net::http::cookie::parse("id=42; Domain=.Example.COM; Secure; Max-Age=60")->to_string());
+    try {
+        net::http::cookie bad("novalue");
+        FAIL() << "a cookie without '=' is none";
+    } catch (const bad_expected_access<io::error>& x) {
+        EXPECT_EQ(x.error().code(), net::errc::invalid_cookie);
+        EXPECT_STREQ(x.what(), "parse cookie novalue: invalid cookie");
+    }
+    net::http::cookie pair("session", "abc");                   // the two-argument form: name and value, not parsed
+    EXPECT_EQ(pair.to_string(), "session=abc");
+    static_assert(!std::is_convertible_v<const char*, net::http::cookie>, "explicit: no text becomes a cookie by itself");
+    static_assert(!std::is_convertible_v<string, net::http::cookie>, "explicit");
+}
+
+// Found by the fuzzer of the fields (tests/net/http/fuzz/http_fields_fuzz.cpp):
+// a Max-Age of more than 18 digits went on being summed past the int64
+// (signed overflow, UBSan's report; the attribute was ignored either way).
+// Past 18 digits it is ignored without the sum; 18 nines saturate
+// Found by the fuzzer of the fields: a Domain of several leading dots lost
+// one at every reading and one more at every writing, so a cookie written
+// and read back was never the same twice. What is left after the one dot a
+// reader takes off must be a host name, and "..x" is none: left out
+TEST(HttpHeaders_Tests, CookieDomainOfLeadingDots) {
+    auto c = net::http::cookie::parse("a=b; Domain=...x");
+    ASSERT_TRUE(c);
+    EXPECT_EQ(c->domain, "..x");                                   // RFC 6265 §5.2.3 takes one dot off
+    EXPECT_EQ(c->to_string(), "a=b");
+    net::http::cookie d("a", "b");
+    d.domain = "..example.com";
+    EXPECT_EQ(d.to_string(), "a=b");
+    d.domain = ".example.com";
+    EXPECT_EQ(d.to_string(), "a=b; Domain=example.com");
+}
+
+TEST(HttpHeaders_Tests, CookieMaxAgeOfManyDigits) {
+    auto many = net::http::cookie::parse("a=b; Max-Age=" + sgcl::string(std::string(40, '9')));
+    ASSERT_TRUE(many);
+    EXPECT_FALSE(many->max_age);
+    auto most = net::http::cookie::parse("a=b; Max-Age=" + sgcl::string(std::string(18, '9')));
+    ASSERT_TRUE(most && most->max_age);
+    EXPECT_EQ(*most->max_age, duration::max());
 }
 
 // The dates of HTTP through time (decision A7): IMF-fixdate written,

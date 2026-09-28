@@ -484,7 +484,6 @@ From an iterator pair or an initializer list, as for `std::map`; an initializer 
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -501,6 +500,8 @@ struct Bank {
 };
 
 int main() {
+    println("a bank's accounts, by name");
+    auto base = collector::get_live_object_count();   // after the first line: io's own objects are not the example's
     tracked_ptr bank = make_tracked<Bank>();
     for (const char* name : {"carol", "alice", "bob"}) {
         // operator[] inserts a null tracked_ptr; the object is made afterwards
@@ -517,7 +518,7 @@ int main() {
     auto bob = balances.find("bob");
     balances.erase("alice");                                   // the int and the string die here
     balances.insert_or_assign("carol", 250);
-    std::cout << bob->first << " still there, " << balances.size() << " balances\n";
+    println("{} still there, {} balances", bob->first, balances.size());
 
     // Erasing from the bank drops the node; alice and bob keep each other
     // reachable only through their cycle, which the collector breaks
@@ -526,8 +527,7 @@ int main() {
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
     collector::force_collect(true);
-    std::cout << bank->accounts.size() << " account left, "
-              << collector::get_live_object_count() << " live objects\n";
+    println("{} account left, {} live objects", bank->accounts.size(), collector::get_live_object_count() - base);
     return balances.size() == 2 && bank->accounts.size() == 1 ? 0 : 1;
 }
 ```
@@ -535,6 +535,7 @@ int main() {
 The output:
 
 ```
+a bank's accounts, by name
 bob still there, 2 balances
 1 account left, 10 live objects
 ```

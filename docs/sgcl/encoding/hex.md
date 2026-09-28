@@ -20,6 +20,7 @@ Hexadecimal, base16 of [RFC 4648](https://www.rfc-editor.org/rfc/rfc4648) sectio
 - `dump` writes Go's `hex.Dump` line for line: the offset in eight hexadecimal digits (more past 4 GB), two spaces, sixteen bytes in two columns of eight, and the bytes as characters between bars, a dot for what is not printable ASCII; the short line at the end keeps the columns where they are. There is no closing line with the total that `hexdump -C` writes.
 - The sizes, the caller's buffers and the streams are as [base64's](base64.md#rules): `encode_to` and `decode_to` allocate nothing and are `length_error` into a buffer too small, `encoder_to(w)` writes lower-case digits and leaves `w` open at `close()`, `decoder_from(r)` takes its digits in pieces of any size.
 - `dumper_to(w)` writes a line to `w` as soon as its sixteen bytes are there; `close()` writes the short line and leaves `w` open. A failure of `w` is kept for good: every later `write` and `close` reports it.
+- **The streams are handles.** An encoder, a decoder or a dumper is one word, a tracked word to the stream's state, made by the codec (`encoding::hex::dumper wire = encoding::hex::dumper_to(w);`) and shared by its copies (`==` says whether two are the same); a default-constructed one holds none (`!s`), and an operation on it is a contract violation. A stream made of one (`io::writer w = armored;`, `io::copy`) binds the state, so the handle may go first. It lies on a stack, in a task, in a managed object; in a global or a std container, a [`rooted`](../core/rooted.md) of it.
 
 ## Members
 
@@ -38,18 +39,21 @@ public:
     static constexpr size_t max_decoded_size(size_t n) noexcept;       // n / 2
     static size_t encode_to(const slice<char>& out, const slice<const byte>& data);                // into the caller's buffer
     static expected<size_t, error> decode_to(const slice<byte>& out, const string& text);
-    static tracked_ptr<encoder> encoder_to(const io::writer& out);     // lower case, as base64's streams
-    static tracked_ptr<decoder> decoder_from(const io::reader& in);
+    static encoder encoder_to(const io::writer& out);     // lower case, as base64's streams
+    static decoder decoder_from(const io::reader& in);
     static string dump(const slice<const byte>& data);
     static string dump(const string& text);
-    static tracked_ptr<dumper> dumper_to(const io::writer& out);
+    static dumper dumper_to(const io::writer& out);       // encoding::hex::dumper wire = encoding::hex::dumper_to(w);
 };
 
-class hex::dumper final : public io::mixin::writer<hex::dumper> {
-    expected<size_t, io::error> write(const slice<const byte>& data);
-    async::task<expected<size_t, io::error>> async_write(slice<const byte> data);
-    expected<void, io::error> close();  async::task<expected<void, io::error>> async_close();   // the short line; the writer under it stays open
+class hex::dumper final {   // a handle; and everything of io::mixin::writer
+    dumper() noexcept;                                      // holds none
+    expected<size_t, io::error> write(const slice<const byte>& data) const;
+    async::task<expected<size_t, io::error>> async_write(const slice<const byte>& data) const;
+    expected<void, io::error> close() const;  async::task<expected<void, io::error>> async_close() const;   // the short line; the writer under it stays open
     bool is_closed() const noexcept;
+    explicit operator bool() const noexcept;
+    friend bool operator==(const dumper&, const dumper&) noexcept;
 };
 ```
 
@@ -58,25 +62,26 @@ class hex::dumper final : public io::mixin::writer<hex::dumper> {
 ```cpp
 #include "sgcl/encoding/hex.h"
 #include "sgcl/io/os.h"
+#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
 int main() {
     vector<byte> digest = {byte(0xDE), byte(0xAD), byte(0xBE), byte(0xEF)};
-    io::stdout.write(encoding::hex::encode(digest) + "\n");          // deadbeef
-    io::stdout.write(encoding::hex::encode_upper(digest) + "\n");    // DEADBEEF
-    auto back = encoding::hex::decode("DeadBeef");                           // either case
-    io::stdout.write(string(std::to_string(back->size())) + " bytes\n");   // 4 bytes
-    io::stdout.write(encoding::hex::decode("abc").error().message() + "\n");         // offset 3: the input ends inside a byte
-    io::stdout.write(encoding::hex::decode("0x12").error().message() + "\n");        // offset 1: invalid character 'x'
+    println(encoding::hex::encode(digest));                    // deadbeef
+    println(encoding::hex::encode_upper(digest));              // DEADBEEF
+    auto back = encoding::hex::decode("DeadBeef");                                     // either case
+    println("{} bytes", back->size());   // 4 bytes
+    println(encoding::hex::decode("abc").error().message());                   // offset 3: the input ends inside a byte
+    println(encoding::hex::decode("0x12").error().message());                  // offset 1: invalid character 'x'
 
-    io::stdout.write(encoding::hex::dump("Hello, World!\n"));
+    print(encoding::hex::dump("Hello, World!\n"));
     // 00000000  48 65 6c 6c 6f 2c 20 57  6f 72 6c 64 21 0a        |Hello, World!.|
 
     // what goes over a wire, dumped as it goes
-    auto d = encoding::hex::dumper_to(io::stdout);
-    d->write("a line of twenty bytes");
-    d->close();// the short line at the end
+    encoding::hex::dumper wire = encoding::hex::dumper_to(io::stdout);
+    wire.write("a line of twenty bytes");
+    wire.close();// the short line at the end
 }
 ```
 

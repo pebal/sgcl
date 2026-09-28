@@ -17,11 +17,15 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 namespace sgcl {
+    template<class CharT, class Traits>
+    class basic_string;
+
     namespace detail {
         // A character type: slice<const CharT> gets the text interface
         template<class T>
@@ -65,6 +69,16 @@ namespace sgcl {
 
         template<class T>
         using TextString = typename TextStringOf<T>::type;
+
+        // A text that a string and a slice of bytes are both made from: a
+        // literal or another array of char, a std::string_view. Where one
+        // name takes a text (const string&) and bytes (const slice<const
+        // byte>&), each is a conversion of its own and the call is
+        // ambiguous; an overload of the text for these, an exact match,
+        // keeps the text's overload chosen
+        template<class T>
+        concept TextArgument = (std::is_array_v<T> && std::is_same_v<std::remove_cv_t<std::remove_extent_t<T>>, char>)
+                            || std::is_same_v<std::remove_cv_t<T>, std::string_view>;
     }
 
     // A slice: the elements [begin, end) of some contiguous storage, and
@@ -202,6 +216,50 @@ namespace sgcl {
         requires (!std::is_same_v<U, T>) && std::is_convertible_v<U (*)[], T (*)[]>
         slice(const slice<U>& o) noexcept
         : slice(o.owner(), o.data(), o.data() + o.size()) {
+        }
+
+        // Data from a text or from raw bytes (slice<const byte> alone):
+        // what is written, hashed, compressed or encrypted is given as it
+        // is, the bytes where they lie. A string and a text slice give
+        // their owner; a std::string_view and an array have none. An array
+        // of char is text: up to its first NUL or its end, whichever comes
+        // first (a literal without its terminator, a buffer filled to the
+        // brim not read past); an array of unsigned char (uint8_t) is bytes,
+        // all of it
+        template<class U>
+        requires std::is_same_v<T, const byte> && std::is_same_v<std::remove_const_t<U>, char>
+        slice(const slice<U>& text) noexcept
+        : slice(text.owner(), reinterpret_cast<const byte*>(text.data()), reinterpret_cast<const byte*>(text.data() + text.size()), Unchecked{}) {
+        }
+
+        template<class Traits>
+        requires std::is_same_v<T, const byte>
+        slice(const basic_string<char, Traits>& text) noexcept
+        : slice(text.as_slice()) {
+        }
+
+        template<class Traits>
+        requires std::is_same_v<T, const byte>
+        slice(std::basic_string_view<char, Traits> text) noexcept
+        : slice(reinterpret_cast<const byte*>(text.data()), text.size()) {
+        }
+
+        template<size_t N>
+        requires std::is_same_v<T, const byte>
+        slice(const char (&text)[N]) noexcept
+        : slice(reinterpret_cast<const byte*>(text), _up_to_nul(text, N)) {
+        }
+
+        template<size_t N>
+        requires std::is_same_v<T, const byte>
+        slice(const unsigned char (&data)[N]) noexcept
+        : slice(reinterpret_cast<const byte*>(data), N) {
+        }
+
+        template<size_t N>
+        requires std::is_same_v<T, const byte>
+        slice(const std::array<unsigned char, N>& data) noexcept
+        : slice(reinterpret_cast<const byte*>(data.data()), N) {
         }
 
         // The copy: a null owner without the registration, an owner
@@ -439,6 +497,12 @@ namespace sgcl {
 
     private:
         struct Unchecked {};
+
+        // The characters of an array before its first NUL, all n without one
+        static size_t _up_to_nul(const char* text, size_t n) noexcept {
+            const char* nul = std::char_traits<char>::find(text, n, '\0');
+            return nul ? size_t(nul - text) : n;
+        }
 
         slice(const tracked_ptr<const void>& owner, T* first, T* last, Unchecked) noexcept
         : _object(owner ? tracked_ptr<const void>(owner) : tracked_ptr<const void>(nullptr, detail::unregistered))

@@ -28,6 +28,7 @@ static uint32_t of(/* bytes or text */) noexcept;
 static constexpr uint32_t combine(uint32_t first, uint32_t second, uint64_t second_length) noexcept;
 
 expected<size_t, io::error> copy_from(const io::reader& r);  async::task<expected<size_t, io::error>> async_copy_from(const io::reader& r);
+static expected<uint32_t, io::error> of_file(const string& path);  static async::task<expected<uint32_t, io::error>> async_of_file(const string& path);   // of() of the whole file, through copy_from
 ```
 
 ```cpp
@@ -51,17 +52,16 @@ The bytes go in blocks of 32. Over a block, `a` grows by the sum of its bytes an
 
 ```cpp
 #include "sgcl/hash/adler32.h"
-#include "sgcl/io/os.h"
-#include "sgcl/txt/format.h"
+#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
 int main() {
-    io::stdout.write(txt::format("{:08x}\n", hash::adler32::of("Wikipedia")));
+    println("{:08x}", hash::adler32::of("Wikipedia"));
     // two pieces hashed apart, then joined
     uint32_t a = hash::adler32::of("Wiki");
     uint32_t b = hash::adler32::of("pedia");
-    io::stdout.write(txt::format("{:08x}\n", hash::adler32::combine(a, b, 5)));
+    println("{:08x}", hash::adler32::combine(a, b, 5));
 }
 ```
 

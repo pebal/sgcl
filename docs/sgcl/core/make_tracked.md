@@ -49,7 +49,6 @@ assert(*number == 42 && point->y == 2 && node->next->next == node && !owned->nex
 ```cpp
 #include "sgcl/sgcl.h"
 #include <cassert>
-#include <iostream>
 
 using namespace sgcl;
 
@@ -74,14 +73,14 @@ int main() {
     // Deterministic: a unique_ptr, destroyed at the end of the scope
     {
         unique_ptr circle = make_tracked<Circle>(1.0);       // unique_ptr<Circle>
-        std::cout << "area " << circle->area() << '\n';
+        println("area {}", circle->area());
     }   // the Circle is destroyed here, on this thread
 
     // Collected: the unique_ptr moved into a tracked_ptr of the base class
     tracked_ptr<Shape> shape = make_tracked<Circle>(2.0);
     tracked_ptr label = make_tracked<Label>("big", shape);       // arguments forwarded to the constructor
     shape = nullptr;                                                     // the Circle lives on: the Label holds it
-    std::cout << label->text << ": area " << label->shape->area() << '\n';
+    println("{}: area {}", label->text, label->shape->area());
 
     // The dynamic type is the one the object was created with
     assert(label->shape.is<Circle>());
@@ -96,7 +95,7 @@ The output:
 
 ```
 area 3.14159
-big: area 12.5664
+big: area 12.56636
 ```
 
 ## See also

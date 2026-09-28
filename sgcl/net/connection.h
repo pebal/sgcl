@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../core/detail/handle_word.h"
 #include "detail/fd.h"
 #include "detail/sockaddr.h"
 #include "error.h"
@@ -49,7 +50,7 @@ namespace sgcl::net {
     // reactor (reactor.h), so that a close from another task or thread
     // ends either at once, and a deadline on the module's clock ends
     // either when it passes (manual_clock included): the blocking form
-    // waits on the readiness channel with the thread, where io::file's
+    // parks the thread in the descriptor's slot on the reactor, where io::file's
     // polls the descriptor, which neither a close nor the manual clock
     // could interrupt.
     //
@@ -70,11 +71,24 @@ namespace sgcl::net {
         }
 
         // A wait that did not end in readiness, as the operation's error
-        inline io::error wait_error(WaitResult r, const char* op, const string& what) {
+        inline io::error wait_error(WaitResult r, const Descriptor& d, const char* op, const string& what) {
             if (r == WaitResult::closed) {
                 return closed_error(op, what);
             }
+            if (r == WaitResult::failed) {
+                return io::error(d.wait_failure(), op, what);
+            }
             return system_error(r == WaitResult::timed_out ? ETIMEDOUT : ECANCELED, op, what);
+        }
+
+        // The same as an errno value, for the connect, whose error is one:
+        // ENOTSUP for a number the reactor has no slot for
+        inline int wait_errno(WaitResult r, const Descriptor& d) noexcept {
+            if (r == WaitResult::failed) {
+                auto e = d.wait_failure();
+                return e.category() == std::system_category() ? e.value() : ENOTSUP;
+            }
+            return r == WaitResult::timed_out ? ETIMEDOUT : ECANCELED;
         }
 
         // TCP_KEEPALIVE is macOS's name of what Linux calls TCP_KEEPIDLE
@@ -112,6 +126,50 @@ namespace sgcl::net {
         }
 
         class ConnImpl;
+
+        // The readiness of a transport to be read, awaited without a frame
+        // of its own (`co_await impl.raw_readable()`: expected<void,
+        // io::error>, the error of a close or of the read deadline): a
+        // descriptor's wait (io::detail::Descriptor::async_wait) in the
+        // awaiting coroutine's frame. A transport with no descriptor to
+        // wait on gives none (supported() false), and its reader reads the
+        // waiting way
+        class readiness {
+        public:
+            readiness() noexcept = default;
+
+            readiness(Descriptor& d, const ConnImpl& c) noexcept
+            : _d(&d)
+            , _c(&c) {
+            }
+
+            bool supported() const noexcept {
+                return _d != nullptr;
+            }
+
+            bool await_ready() {
+                _op.emplace(_d->async_wait(Descriptor::Read));
+                return _op->await_ready();
+            }
+
+            template<class P>
+            bool await_suspend(std::coroutine_handle<P> h) {
+                return _op->await_suspend(h);
+            }
+
+            expected<void, io::error> await_resume();   // below ConnImpl
+
+        private:
+            Descriptor* _d = nullptr;
+            const ConnImpl* _c = nullptr;
+            optional<Descriptor::wait_op> _op;
+        };
+
+        // The implementation under a connection handle, for the modules
+        // built on net (http: a write begun without a frame)
+        struct ConnectionAccess {
+            static ConnImpl& impl(const connection& c) noexcept;
+        };
 
         // The raw side of a connection, under the buffer read_line puts in
         // front of it
@@ -171,6 +229,67 @@ namespace sgcl::net {
                 co_return co_await awaited_raw_write(data);
             }
 
+            // A read without a frame, for a reader that waits for the
+            // transport's readiness itself (raw_readable): the bytes there
+            // now (n > 0), 0 at the end of the stream, nothing (nullopt)
+            // when the transport would wait; or its error. `slow` set, and
+            // nothing read, when this way does not serve: a transport that
+            // cannot try, a read in progress, a line buffer that may hold
+            // bytes (read_line was used). The caller then reads the waiting
+            // way (async_read). Through the same checks as a read that
+            // waits (the transport's try_raw_read). A server's head read
+            // this way costs one frame, the reader's, where the waiting way
+            // was three (the fill's, this class's, the transport's)
+            expected<optional<size_t>, io::error> try_read(const slice<byte>& buffer, bool& slow) {
+                slow = false;
+                if (!raw_readable().supported() || !_read_lock.try_lock()) {
+                    slow = true;
+                    return optional<size_t>();
+                }
+                if (_buffered) {
+                    _read_lock.unlock();
+                    slow = true;
+                    return optional<size_t>();
+                }
+                auto r = try_raw_read(buffer);
+                _read_lock.unlock();
+                return r;
+            }
+
+            // A write begun without a frame: what the transport takes at
+            // once, when no other write is in progress (try_raw_write), and
+            // a task for the rest only when it would wait. done is the
+            // write's result when it ended now (all of it taken, or an
+            // error); rest, when set, is the write going on, which holds
+            // the write lock from here to its end, so that no other write
+            // lands between the two parts. A server's response that the
+            // socket takes whole costs no coroutine frame (four of them
+            // per response before: the writer's, the send's, this class's
+            // and the transport's).
+            struct started_write {
+                expected<size_t, io::error> done = size_t(0);
+                optional<async::task<expected<size_t, io::error>>> rest;
+            };
+
+            started_write start_write(const slice<const byte>& data) {
+                started_write s;
+                if (data.empty()) {
+                    return s;
+                }
+                if (!_write_lock.try_lock()) {   // another write in progress: this one after it, the whole of it
+                    s.rest.emplace(_write_rest(tracked_ptr<ConnImpl>(this), data, 0, nullopt));
+                    return s;
+                }
+                auto r = try_raw_write(data);
+                if (!r || *r == data.size()) {
+                    _write_lock.unlock();
+                    s.done = std::move(r);
+                    return s;
+                }
+                s.rest.emplace(_write_rest(tracked_ptr<ConnImpl>(this), data, *r, sgcl::async::mutex::guard(_write_lock)));   // the lock handed to the task
+                return s;
+            }
+
             // A line without its "\n" (or "\r\n"), copied out of the
             // buffer; nullopt at the end of the stream
             // `c.read_line()` on this thread, `co_await c.async_read_line()` in a task
@@ -192,6 +311,13 @@ namespace sgcl::net {
                 co_return _line_of(co_await _buffer().async_read_line());
             }
 
+            // The close in a task, as the handle's async_close: an io::reader
+            // or io::writer made of a connection binds this object, and its
+            // async_close comes here rather than to the blocking pool
+            virtual async::task<expected<void, io::error>> async_close() {
+                co_return close();
+            }
+
             // Takes no lock: a read in progress keeps the bound it started
             // with, the next read_line takes the new one
             void set_max_line(size_t n) noexcept {
@@ -202,6 +328,28 @@ namespace sgcl::net {
             virtual async::task<expected<size_t, io::error>> awaited_raw_read(slice<byte> buffer) = 0;
             virtual expected<size_t, io::error> raw_write(const slice<const byte>& data) = 0;
             virtual async::task<expected<size_t, io::error>> awaited_raw_write(slice<const byte> data) = 0;
+
+            // What the transport has for buffer without waiting: n > 0, 0 at
+            // the end of the stream, nullopt when it would wait; or its
+            // error. The default has nothing (a transport without it is
+            // read the waiting way: raw_readable says it cannot tell)
+            virtual expected<optional<size_t>, io::error> try_raw_read(const slice<byte>&) {
+                return optional<size_t>();
+            }
+
+            // The transport's readiness to be read, as an awaitable without
+            // a frame; the default cannot tell (readiness::supported false)
+            virtual readiness raw_readable() {
+                return readiness();
+            }
+
+            // What the transport takes of data without waiting: all of it,
+            // a part, or none (0: it would wait); or its error. Through the
+            // same checks as a write that waits (a close, the deadline).
+            // The default takes none: the write goes the waiting way
+            virtual expected<size_t, io::error> try_raw_write(const slice<const byte>&) {
+                return size_t(0);
+            }
 
             // Ends the connection both ways; the operations in progress end
             // with io::errc::closed
@@ -234,10 +382,26 @@ namespace sgcl::net {
             virtual string describe() const = 0;
 
         private:
+            // The rest of a write begun by start_write, from `done` on;
+            // `held`: the write lock taken by start_write, a parameter, so
+            // that a task dropped without being awaited lets go of it with
+            // its frame
+            static async::task<expected<size_t, io::error>> _write_rest(tracked_ptr<ConnImpl> self, slice<const byte> data, size_t done, optional<sgcl::async::mutex::guard> held) {
+                if (!held) {
+                    held.emplace(co_await self->_write_lock.scoped_lock());
+                }
+                auto r = co_await self->awaited_raw_write(slice<const byte>(data.data() + done, data.size() - done));
+                held.reset();   // at the write's end, not the frame's: the frame lives as long as whoever holds the task
+                if (!r) {
+                    co_return fail(r);
+                }
+                co_return done + *r;
+            }
+
             // Under the read lock
-            io::buffered_reader& _buffer() {
+            io::detail::BufferedReaderState& _buffer() {
                 if (!_buffered) {
-                    _buffered = make_tracked<io::buffered_reader>(io::reader(tracked_ptr<ConnRawReader>(make_tracked<ConnRawReader>(tracked_ptr<ConnImpl>(this)))));
+                    _buffered = make_tracked<io::detail::BufferedReaderState>(io::reader(tracked_ptr<ConnRawReader>(make_tracked<ConnRawReader>(tracked_ptr<ConnImpl>(this)))), io::detail::UnmanagedBlock());
                 }
                 _buffered->set_max_line(_max_line.load(std::memory_order_relaxed));
                 return *_buffered;
@@ -255,9 +419,17 @@ namespace sgcl::net {
 
             sgcl::async::mutex _read_lock;
             sgcl::async::mutex _write_lock;
-            tracked_ptr<io::buffered_reader> _buffered;   // made by the first read_line
+            tracked_ptr<io::detail::BufferedReaderState> _buffered;   // made by the first read_line; its block unmanaged, every line copied out under the lock
             std::atomic<size_t> _max_line = {64 * 1024};  // a line from the network is bounded
         };
+
+        inline expected<void, io::error> readiness::await_resume() {
+            auto r = _op->await_resume();
+            if (r == WaitResult::ready) {
+                return expected<void, io::error>();
+            }
+            return fail(wait_error(r, *_d, "read", _c->describe()));
+        }
 
         inline expected<size_t, io::error> ConnRawReader::read(const slice<byte>& buffer) {
             return _c->raw_read(buffer);
@@ -286,25 +458,20 @@ namespace sgcl::net {
                 if (!op) {
                     return fail(closed_error("read", describe()));
                 }
+                bool look = true;   // this try reads the clock for the deadline; the next one not (the wait between them looked: its _result, or its start when this try did not), so one read of the clock a try and a wait instead of two
                 for (;;) {
-                    if (auto e = _check(Descriptor::Read, "read")) {
-                        return fail(*e);
+                    auto n = _recv_now(b, look);
+                    if (!n) {
+                        return fail(n);
                     }
-                    ssize_t n = ::recv(_d.fd(), b.data(), b.size(), 0);
-                    if (n >= 0) {
-                        return size_t(n);
+                    if (*n) {
+                        return **n;
                     }
-                    int e = errno;
-                    if (e == EINTR) {
-                        continue;
-                    }
-                    if (e != EAGAIN && e != EWOULDBLOCK) {
-                        return fail(system_error(e, "read", describe()));
-                    }
-                    auto r = _d.wait(Descriptor::Read);
+                    auto r = _d.wait(Descriptor::Read, look);
                     if (r != WaitResult::ready) {
-                        return fail(wait_error(r, "read", describe()));
+                        return fail(wait_error(r, _d, "read", describe()));
                     }
+                    look = !look;
                 }
             }
 
@@ -316,30 +483,36 @@ namespace sgcl::net {
                 if (!op) {
                     co_return fail(closed_error("read", describe()));
                 }
+                bool look = true;   // this try reads the clock for the deadline; the next one not (the wait between them looked: its _result, or its start when this try did not), so one read of the clock a try and a wait instead of two
                 for (;;) {
-                    if (auto e = _check(Descriptor::Read, "read")) {
-                        co_return fail(*e);
+                    auto n = _recv_now(b, look);
+                    if (!n) {
+                        co_return fail(n);
                     }
-                    ssize_t n = ::recv(_d.fd(), b.data(), b.size(), 0);
-                    if (n >= 0) {
-                        co_return size_t(n);
+                    if (*n) {
+                        co_return **n;
                     }
-                    int e = errno;
-                    if (e == EINTR) {
-                        continue;
-                    }
-                    if (e != EAGAIN && e != EWOULDBLOCK) {
-                        co_return fail(system_error(e, "read", describe()));
-                    }
-                    auto w = _d.begin_wait(Descriptor::Read);
-                    auto r = w.result;
-                    if (!w.done) {
-                        r = _d.end_wait(w, co_await w.channel->receive());
-                    }
+                    auto r = co_await _d.async_wait(Descriptor::Read, look);
                     if (r != WaitResult::ready) {
-                        co_return fail(wait_error(r, "read", describe()));
+                        co_return fail(wait_error(r, _d, "read", describe()));
                     }
+                    look = !look;
                 }
+            }
+
+            expected<optional<size_t>, io::error> try_raw_read(const slice<byte>& b) override {
+                if (b.empty()) {
+                    return optional<size_t>(size_t(0));
+                }
+                Operation op(_d);
+                if (!op) {
+                    return fail(closed_error("read", describe()));
+                }
+                return _recv_now(b);
+            }
+
+            readiness raw_readable() override {
+                return readiness(_d, *this);
             }
 
             expected<size_t, io::error> raw_write(const slice<const byte>& data) override {
@@ -348,28 +521,21 @@ namespace sgcl::net {
                     return fail(closed_error("write", describe()));
                 }
                 size_t written = 0;
-                while (written < data.size()) {
-                    if (auto e = _check(Descriptor::Write, "write")) {
-                        return fail(*e);
+                bool look = true;   // this try reads the clock for the deadline; the next one not (the wait between them looked: its _result, or its start when this try did not), so one read of the clock a try and a wait instead of two
+                for (;;) {
+                    auto would_wait = _send_now(data, written, look);
+                    if (!would_wait) {
+                        return fail(would_wait);
                     }
-                    ssize_t n = ::send(_d.fd(), data.data() + written, data.size() - written, SendFlags);
-                    if (n >= 0) {
-                        written += size_t(n);
-                        continue;
+                    if (!*would_wait) {
+                        return written;
                     }
-                    int e = errno;
-                    if (e == EINTR) {
-                        continue;
-                    }
-                    if (e != EAGAIN && e != EWOULDBLOCK) {
-                        return fail(system_error(e, "write", describe()));
-                    }
-                    auto r = _d.wait(Descriptor::Write);
+                    auto r = _d.wait(Descriptor::Write, look);
                     if (r != WaitResult::ready) {
-                        return fail(wait_error(r, "write", describe()));
+                        return fail(wait_error(r, _d, "write", describe()));
                     }
+                    look = !look;
                 }
-                return written;
             }
 
             async::task<expected<size_t, io::error>> awaited_raw_write(slice<const byte> data) override {
@@ -378,32 +544,34 @@ namespace sgcl::net {
                     co_return fail(closed_error("write", describe()));
                 }
                 size_t written = 0;
-                while (written < data.size()) {
-                    if (auto e = _check(Descriptor::Write, "write")) {
-                        co_return fail(*e);
+                bool look = true;   // this try reads the clock for the deadline; the next one not (the wait between them looked: its _result, or its start when this try did not), so one read of the clock a try and a wait instead of two
+                for (;;) {
+                    auto would_wait = _send_now(data, written, look);
+                    if (!would_wait) {
+                        co_return fail(would_wait);
                     }
-                    ssize_t n = ::send(_d.fd(), data.data() + written, data.size() - written, SendFlags);
-                    if (n >= 0) {
-                        written += size_t(n);
-                        continue;
+                    if (!*would_wait) {
+                        co_return written;
                     }
-                    int e = errno;
-                    if (e == EINTR) {
-                        continue;
-                    }
-                    if (e != EAGAIN && e != EWOULDBLOCK) {
-                        co_return fail(system_error(e, "write", describe()));
-                    }
-                    auto w = _d.begin_wait(Descriptor::Write);
-                    auto r = w.result;
-                    if (!w.done) {
-                        r = _d.end_wait(w, co_await w.channel->receive());
-                    }
+                    auto r = co_await _d.async_wait(Descriptor::Write, look);
                     if (r != WaitResult::ready) {
-                        co_return fail(wait_error(r, "write", describe()));
+                        co_return fail(wait_error(r, _d, "write", describe()));
                     }
+                    look = !look;
                 }
-                co_return written;
+            }
+
+            expected<size_t, io::error> try_raw_write(const slice<const byte>& data) override {
+                Operation op(_d);
+                if (!op) {
+                    return fail(closed_error("write", describe()));
+                }
+                size_t written = 0;
+                auto would_wait = _send_now(data, written);
+                if (!would_wait) {
+                    return fail(would_wait);
+                }
+                return written;
             }
 
             expected<void, io::error> close() override {
@@ -497,7 +665,7 @@ namespace sgcl::net {
                     }
                     auto r = _d.wait(Descriptor::Write);
                     if (r != WaitResult::ready) {
-                        return r == WaitResult::timed_out ? ETIMEDOUT : ECANCELED;
+                        return wait_errno(r, _d);
                     }
                 }
             }
@@ -515,26 +683,23 @@ namespace sgcl::net {
                     if (stop.stop_requested()) {
                         co_return ECANCELED;
                     }
-                    auto w = _d.begin_wait(Descriptor::Write);
-                    auto r = w.result;
-                    if (!w.done) {
-                        if (stop.stop_possible()) {
+                    WaitResult r;
+                    if (stop.stop_possible()) {   // the wait as a channel, a case of a select beside the stop
+                        auto w = _d.begin_wait(Descriptor::Write);
+                        r = w.result;
+                        if (!w.done) {
                             bool stopped = false;
                             co_await sgcl::async::select(w.channel->on_receive([] {}), stop.on_stop([&] { stopped = true; }));
-                            r = _d.end_wait(w, false);   // a signal and a close are one case of the select: the socket says which
+                            r = _d.end_wait(w);
                             if (stopped) {
                                 co_return ECANCELED;
                             }
-                            if (r == WaitResult::cancelled) {   // no close, no deadline: the readiness came, or the reactor stopped
-                                int now = _connect_state();
-                                co_return now == EINPROGRESS ? ECANCELED : now;
-                            }
-                        } else {
-                            r = _d.end_wait(w, co_await w.channel->receive());
                         }
+                    } else {
+                        r = co_await _d.async_wait(Descriptor::Write);
                     }
                     if (r != WaitResult::ready) {
-                        co_return r == WaitResult::timed_out ? ETIMEDOUT : ECANCELED;
+                        co_return wait_errno(r, _d);
                     }
                 }
             }
@@ -549,6 +714,61 @@ namespace sgcl::net {
             }
 
         private:
+            // One receive without waiting, for the three reads (the blocking,
+            // the awaited, the try): the descriptor's state looked at first
+            // (a close, the read deadline), then the call. The bytes (0 at
+            // the end of the stream), nullopt when the socket would wait,
+            // or the error
+            expected<optional<size_t>, io::error> _recv_now(const slice<byte>& b, bool deadline = true) {
+                for (;;) {
+                    if (auto e = _check(Descriptor::Read, "read", deadline)) {
+                        return fail(*e);
+                    }
+                    _d.prepare(Descriptor::Read);
+                    ssize_t n = ::recv(_d.fd(), b.data(), b.size(), 0);
+                    if (n >= 0) {
+                        return optional<size_t>(size_t(n));
+                    }
+                    int e = errno;
+                    if (e == EINTR) {
+                        continue;
+                    }
+                    if (e != EAGAIN && e != EWOULDBLOCK) {
+                        return fail(system_error(e, "read", describe()));
+                    }
+                    return optional<size_t>();
+                }
+            }
+
+            // The part of a write that goes without waiting, from `written`
+            // on, for the three writes (the blocking, the awaited, the
+            // try): the descriptor's state looked at before every send (a
+            // close, the deadline of the direction), then the send. false:
+            // everything written; true: the socket would wait; or the error
+            expected<bool, io::error> _send_now(const slice<const byte>& data, size_t& written, bool deadline = true) {
+                while (written < data.size()) {
+                    if (auto e = _check(Descriptor::Write, "write", deadline)) {
+                        return fail(*e);
+                    }
+                    deadline = true;   // a send after a partial one: the clock read as before
+                    _d.prepare(Descriptor::Write);
+                    ssize_t n = ::send(_d.fd(), data.data() + written, data.size() - written, SendFlags);
+                    if (n >= 0) {
+                        written += size_t(n);
+                        continue;
+                    }
+                    int e = errno;
+                    if (e == EINTR) {
+                        continue;
+                    }
+                    if (e != EAGAIN && e != EWOULDBLOCK) {
+                        return fail(system_error(e, "write", describe()));
+                    }
+                    return true;
+                }
+                return false;
+            }
+
             // 0 connected, EINPROGRESS still connecting, else the error
             int _connect_state() noexcept {
                 int err = 0;
@@ -566,12 +786,14 @@ namespace sgcl::net {
                 return errno == ENOTCONN ? EINPROGRESS : errno;
             }
 
-            // Before a system call: closing, or the deadline passed
-            optional<io::error> _check(int dir, const char* op) const {
+            // Before a system call: closing, or the deadline passed (the
+            // clock read unless `deadline` is false: the wait just before
+            // looked at it)
+            optional<io::error> _check(int dir, const char* op, bool deadline = true) const {
                 if (_d.closing()) {
                     return closed_error(op, describe());
                 }
-                if (_d.expired(dir)) {
+                if (deadline && _d.expired(dir)) {
                     return system_error(ETIMEDOUT, op, describe());
                 }
                 return nullopt;
@@ -590,10 +812,10 @@ namespace sgcl::net {
         // copied twice; the writer's close and the reader's close are
         // channels closed, which every wait of the other side selects on
         struct MemoryPipe {
-            async::channel<slice<const byte>> data;   // capacity 0: the writer waits for the reader
-            async::channel<size_t> taken;                  // how much of the element the reader took
-            async::channel<void> writer_done;              // closed by the writing end: close, close_write
-            async::channel<void> reader_done;              // closed by the reading end: close
+            async::detail::ChannelState<slice<const byte>> data;   // capacity 0: the writer waits for the reader
+            async::detail::ChannelState<size_t> taken;                  // how much of the element the reader took
+            async::detail::ChannelState<void> writer_done;              // closed by the writing end: close, close_write
+            async::detail::ChannelState<void> reader_done;              // closed by the reading end: close
         };
 
         class MemoryConn final : public ConnImpl {
@@ -601,7 +823,7 @@ namespace sgcl::net {
             MemoryConn(tracked_ptr<MemoryPipe> in, tracked_ptr<MemoryPipe> out)
             : _in(std::move(in))
             , _out(std::move(out))
-            , _rearm(make_tracked<async::channel<void>>()) {
+            , _rearm(make_tracked<async::detail::ChannelState<void>>()) {
             }
 
             expected<size_t, io::error> raw_read(const slice<byte>& b) override {
@@ -785,7 +1007,7 @@ namespace sgcl::net {
 
             struct WaitState {
                 time_point deadline;
-                tracked_ptr<async::channel<void>> rearm;
+                tracked_ptr<async::detail::ChannelState<void>> rearm;
             };
 
             WaitState _wait_state(int dir) {
@@ -796,11 +1018,11 @@ namespace sgcl::net {
             // The waits in progress woken to look at their state again: the
             // channel they select on closed, a new one for the next waits
             void _wake() {
-                tracked_ptr<async::channel<void>> old;
+                tracked_ptr<async::detail::ChannelState<void>> old;
                 {
                     std::lock_guard lock(_m);
                     old = _rearm;
-                    _rearm = make_tracked<async::channel<void>>();
+                    _rearm = make_tracked<async::detail::ChannelState<void>>();
                 }
                 old->close();
             }
@@ -838,7 +1060,7 @@ namespace sgcl::net {
             tracked_ptr<MemoryPipe> _out;
             std::mutex _m;                               // the deadlines and the rearm channel
             time_point _deadline[2] = {};
-            tracked_ptr<async::channel<void>> _rearm;
+            tracked_ptr<async::detail::ChannelState<void>> _rearm;
             std::atomic<bool> _closed = {false};
         };
 
@@ -933,6 +1155,19 @@ namespace sgcl::net {
 
         async::task<expected<size_t, io::error>> async_write(const string& text) const {
             return _co_write(text);
+        }
+
+        // A literal, a character array, a std::string_view: as a string
+        // (an exact match, else the conversions to a string and to bytes
+        // tie); the async form copies the text, which the task then holds
+        template<sgcl::detail::TextArgument T>
+        expected<size_t, io::error> write(const T& text) const {
+            return _block_write(slice<const byte>(text));
+        }
+
+        template<sgcl::detail::TextArgument T>
+        async::task<expected<size_t, io::error>> async_write(const T& text) const {
+            return _co_write(string(slice<const byte>(text)));
         }
 
         // Everything to the end of this stream, written to other (an echo
@@ -1039,13 +1274,37 @@ namespace sgcl::net {
         }
 
     private:
+        friend struct detail::ConnectionAccess;
+        friend struct io::detail::HandleAccess;
+
+        // What an io::reader or io::writer made of the handle binds: the
+        // connection itself, not the handle, which may go first
+        const tracked_ptr<detail::ConnImpl>& _stream_state() const noexcept {
+            return _impl;
+        }
+
         static async::task<expected<void, io::error>> _close(tracked_ptr<detail::ConnImpl> c) {
-            co_return c->close();
+            co_return co_await c->async_close();
         }
 
         detail::ConnImpl& _get() const noexcept {
             assert(_impl && "an empty net::connection");
             return *_impl;
+        }
+
+        // The handle's word, for the atomics (core/detail/handle_word.h)
+        friend struct sgcl::detail::HandleWord;
+
+        connection(sgcl::detail::FromWord, const tracked_ptr<detail::ConnImpl>& w) noexcept
+        : _impl(w) {
+        }
+
+        tracked_ptr<detail::ConnImpl>& _handle_word() noexcept {
+            return _impl;
+        }
+
+        const tracked_ptr<detail::ConnImpl>& _handle_word() const noexcept {
+            return _impl;
         }
 
         tracked_ptr<detail::ConnImpl> _impl;
@@ -1085,6 +1344,22 @@ namespace sgcl::net {
     };
 
     namespace detail {
+        inline ConnImpl& ConnectionAccess::impl(const connection& c) noexcept {
+            return c._get();
+        }
+    }
+}
+
+namespace sgcl::io::detail {
+    // A connection is a stream handle (io/stream.h): a stream made of one
+    // binds its ConnImpl, as one made of an io::file binds the file's state
+    template<>
+    inline constexpr bool IsStreamHandle<net::connection> = true;
+}
+
+namespace sgcl::net {
+
+    namespace detail {
         // A listening socket, TCP or unix
         class ListenerImpl {
         public:
@@ -1096,6 +1371,8 @@ namespace sgcl::net {
             , _unlink(unlink_on_close) {
             }
 
+            virtual ~ListenerImpl() = default;
+
             // `co_await c.async_accept()` in a task, `c.accept().wait()` on a thread
             expected<connection, io::error> accept() {
                 return _block_accept();
@@ -1105,7 +1382,7 @@ namespace sgcl::net {
                 return _co_accept();
             }
 
-            expected<connection, io::error> _block_accept()  {
+            virtual expected<connection, io::error> _block_accept()  {
                 Operation op(_d);
                 if (!op) {
                     return fail(closed_error("accept", describe()));
@@ -1116,6 +1393,7 @@ namespace sgcl::net {
                         return fail(closed_error("accept", describe()));
                     }
                     SockAddr from;
+                    _d.prepare(Descriptor::Read);
                     int s = ::accept(_d.fd(), from.get(), &from.size);
                     if (s >= 0) {
                         return _accepted(s, from);
@@ -1127,7 +1405,7 @@ namespace sgcl::net {
                     if (e == EAGAIN || e == EWOULDBLOCK) {
                         auto r = _d.wait(Descriptor::Read);
                         if (r != WaitResult::ready) {
-                            return fail(wait_error(r, "accept", describe()));
+                            return fail(wait_error(r, _d, "accept", describe()));
                         }
                         continue;
                     }
@@ -1140,7 +1418,7 @@ namespace sgcl::net {
                 }
             }
 
-            async::task<expected<connection, io::error>> _co_accept()  {
+            virtual async::task<expected<connection, io::error>> _co_accept()  {
                 Operation op(_d);
                 if (!op) {
                     co_return fail(closed_error("accept", describe()));
@@ -1151,6 +1429,7 @@ namespace sgcl::net {
                         co_return fail(closed_error("accept", describe()));
                     }
                     SockAddr from;
+                    _d.prepare(Descriptor::Read);
                     int s = ::accept(_d.fd(), from.get(), &from.size);
                     if (s >= 0) {
                         co_return _accepted(s, from);
@@ -1160,13 +1439,9 @@ namespace sgcl::net {
                         continue;
                     }
                     if (e == EAGAIN || e == EWOULDBLOCK) {
-                        auto w = _d.begin_wait(Descriptor::Read);
-                        auto r = w.result;
-                        if (!w.done) {
-                            r = _d.end_wait(w, co_await w.channel->receive());
-                        }
+                        auto r = co_await _d.async_wait(Descriptor::Read);
                         if (r != WaitResult::ready) {
-                            co_return fail(wait_error(r, "accept", describe()));
+                            co_return fail(wait_error(r, _d, "accept", describe()));
                         }
                         continue;
                     }
@@ -1181,7 +1456,7 @@ namespace sgcl::net {
 
             // The descriptor first, then the channel of the pause: an accept
             // woken from its pause finds the closing bit set
-            expected<void, io::error> close() {
+            virtual expected<void, io::error> close() {
                 int e = _d.close();
                 _closed.close();
                 if (_unlink && !_unlinked.exchange(true, std::memory_order_acq_rel)) {
@@ -1193,20 +1468,28 @@ namespace sgcl::net {
                 return {};
             }
 
-            bool is_closed() const noexcept {
+            virtual bool is_closed() const noexcept {
                 return _d.closing();
             }
 
-            endpoint local_endpoint() const noexcept {
+            virtual endpoint local_endpoint() const noexcept {
                 return _local;
             }
 
-            string path() const {
+            virtual string path() const {
                 return _path;
             }
 
-            string describe() const {
+            virtual string describe() const {
                 return _tcp ? string("tcp ") + _local.to_string() : string("unix ") + _path;
+            }
+
+        protected:
+            // A listener over another (TLS's): no socket of its own
+            ListenerImpl() noexcept
+            : _d(-1, false)
+            , _tcp(false)
+            , _unlink(false) {
             }
 
         private:
@@ -1242,7 +1525,7 @@ namespace sgcl::net {
             }
 
             Descriptor _d;
-            async::channel<void> _closed;   // closed by close(): ends the pause after EMFILE
+            async::detail::ChannelState<void> _closed;   // closed by close(): ends the pause after EMFILE
             endpoint _local;
             string _path;
             bool _tcp;
@@ -1310,6 +1593,21 @@ namespace sgcl::net {
             return *_impl;
         }
 
+        // The handle's word, for the atomics (core/detail/handle_word.h)
+        friend struct sgcl::detail::HandleWord;
+
+        listener(sgcl::detail::FromWord, const tracked_ptr<detail::ListenerImpl>& w) noexcept
+        : _impl(w) {
+        }
+
+        tracked_ptr<detail::ListenerImpl>& _handle_word() noexcept {
+            return _impl;
+        }
+
+        const tracked_ptr<detail::ListenerImpl>& _handle_word() const noexcept {
+            return _impl;
+        }
+
         tracked_ptr<detail::ListenerImpl> _impl;
 
         // the two halves of the operations above: a thread's and a task's
@@ -1374,7 +1672,7 @@ namespace sgcl::net {
                     }
                     auto r = _d.wait(Descriptor::Read);
                     if (r != WaitResult::ready) {
-                        return fail(wait_error(r, "read", describe()));
+                        return fail(wait_error(r, _d, "read", describe()));
                     }
                 }
             }
@@ -1399,13 +1697,9 @@ namespace sgcl::net {
                     if (e != EAGAIN && e != EWOULDBLOCK) {
                         co_return fail(system_error(e, "read", describe()));
                     }
-                    auto w = _d.begin_wait(Descriptor::Read);
-                    auto r = w.result;
-                    if (!w.done) {
-                        r = _d.end_wait(w, co_await w.channel->receive());
-                    }
+                    auto r = co_await _d.async_wait(Descriptor::Read);
                     if (r != WaitResult::ready) {
-                        co_return fail(wait_error(r, "read", describe()));
+                        co_return fail(wait_error(r, _d, "read", describe()));
                     }
                 }
             }
@@ -1424,6 +1718,7 @@ namespace sgcl::net {
                     if (auto e = _check(Descriptor::Write, "write")) {
                         return fail(*e);
                     }
+                    _d.prepare(Descriptor::Write);
                     ssize_t n = to.is_valid() ? ::sendto(_d.fd(), data.data(), data.size(), SendFlags, sa.get(), sa.size) : ::send(_d.fd(), data.data(), data.size(), SendFlags);
                     if (n >= 0) {
                         return size_t(n);
@@ -1437,7 +1732,7 @@ namespace sgcl::net {
                     }
                     auto r = _d.wait(Descriptor::Write);
                     if (r != WaitResult::ready) {
-                        return fail(wait_error(r, "write", describe()));
+                        return fail(wait_error(r, _d, "write", describe()));
                     }
                 }
             }
@@ -1455,6 +1750,7 @@ namespace sgcl::net {
                     if (auto e = _check(Descriptor::Write, "write")) {
                         co_return fail(*e);
                     }
+                    _d.prepare(Descriptor::Write);
                     ssize_t n = to.is_valid() ? ::sendto(_d.fd(), data.data(), data.size(), SendFlags, sa.get(), sa.size) : ::send(_d.fd(), data.data(), data.size(), SendFlags);
                     if (n >= 0) {
                         co_return size_t(n);
@@ -1466,13 +1762,9 @@ namespace sgcl::net {
                     if (e != EAGAIN && e != EWOULDBLOCK) {   // ENOBUFS an error, as in Go: the socket has room, so a wait for writability would spin
                         co_return fail(system_error(e, "write", describe()));
                     }
-                    auto w = _d.begin_wait(Descriptor::Write);
-                    auto r = w.result;
-                    if (!w.done) {
-                        r = _d.end_wait(w, co_await w.channel->receive());
-                    }
+                    auto r = co_await _d.async_wait(Descriptor::Write);
                     if (r != WaitResult::ready) {
-                        co_return fail(wait_error(r, "write", describe()));
+                        co_return fail(wait_error(r, _d, "write", describe()));
                     }
                 }
             }
@@ -1522,6 +1814,7 @@ namespace sgcl::net {
                 m.msg_namelen = sizeof(from.storage);
                 m.msg_iov = &iov;
                 m.msg_iovlen = 1;
+                _d.prepare(Descriptor::Read);
                 ssize_t n = ::recvmsg(_d.fd(), &m, 0);
                 if (n < 0) {
                     return errno;

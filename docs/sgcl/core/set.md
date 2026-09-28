@@ -410,7 +410,6 @@ set from_list = {1, 2, 3};                   // set<int>
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -420,6 +419,8 @@ struct Node {
 };
 
 int main() {
+    println("a graph whose edges are sets");
+    auto base = collector::get_live_object_count();   // after the first line: io's own objects are not the example's
     // A graph whose edges are sets: each node is reachable from its peers
     tracked_ptr a = make_tracked<Node>("a");
     tracked_ptr b = make_tracked<Node>("b");
@@ -435,7 +436,7 @@ int main() {
         names.insert(peer->name);
     }
     names.insert("b");
-    std::cout << names.size() << " names, " << names.bucket_count() << " buckets\n";
+    println("{} names, {} buckets", names.size(), names.bucket_count());
 
     // Dropping the stack roots: a and b keep each other alive only through
     // their sets, which the collector sees as a cycle
@@ -443,7 +444,7 @@ int main() {
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
     collector::force_collect(true);
-    std::cout << collector::get_live_object_count() << " live objects\n";     // the nodes, buckets and sentinel of `names`
+    println("{} live objects", collector::get_live_object_count() - base);     // the nodes, buckets and sentinel of `names`
     return !again && names.size() == 3 ? 0 : 1;
 }
 ```
@@ -451,6 +452,7 @@ int main() {
 The output:
 
 ```
+a graph whose edges are sets
 3 names, 8 buckets
 8 live objects
 ```

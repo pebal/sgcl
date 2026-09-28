@@ -14,7 +14,9 @@
 #include "detail/regex_vm.h"
 #include "format.h"
 
+#include <algorithm>
 #include <memory>
+#include <vector>
 
 // Patterns, in the style of RE2: everything a pattern can ask for here can
 // be answered in one pass over the text, and nothing else is offered.
@@ -58,6 +60,71 @@ namespace sgcl::txt {
             program prog;
             string pattern;
         };
+
+        // Where the groups of a match begin and end, two positions to a
+        // group. Up to four groups they are in the match itself and past
+        // that in plain memory: positions are no pointers, so nothing
+        // here is the collector's, and a match with groups — every one
+        // that is found — no longer makes a managed buffer to carry them.
+        //
+        // Only the positions there are are written and copied: a match of
+        // a pattern without groups — most of the ones a loop over all()
+        // makes — carries the room and does nothing with it.
+        class match_slots {
+        public:
+            match_slots() noexcept {
+            }
+
+            match_slots(const match_slots& other) {
+                _copy(other);
+            }
+
+            match_slots& operator=(const match_slots& other) {
+                if (this != &other) {
+                    _copy(other);
+                }
+                return *this;
+            }
+
+            void assign(const size_t* from, size_t n) {
+                _size = n;
+                if (n <= Inline) {
+                    std::copy(from, from + n, _inline);
+                } else {
+                    _more.reset(new size_t[n]);
+                    std::copy(from, from + n, _more.get());
+                }
+            }
+
+            size_t size() const noexcept {
+                return _size;
+            }
+
+            size_t operator[](size_t i) const noexcept {
+                return _size <= Inline ? _inline[i] : _more[i];
+            }
+
+        private:
+            static constexpr size_t Inline = 8;
+
+            void _copy(const match_slots& other) {
+                if (other._size <= Inline) {
+                    _size = other._size;
+                    std::copy(other._inline, other._inline + _size, _inline);
+                } else {
+                    assign(other._more.get(), other._size);
+                }
+            }
+
+            size_t _inline[Inline];    // the first _size of them, when there are no more than Inline
+            size_t _size = 0;
+            std::unique_ptr<size_t[]> _more;
+        };
+
+        // The positions a walk fills on the stack, the whole match's two
+        // and the groups' that a match keeps inline; a pattern with more
+        // groups takes them from plain memory
+        inline constexpr size_t InlineCaps = 10;
     }
 
     // Why a pattern is not one: the sentence and where in the pattern it
@@ -187,10 +254,7 @@ namespace sgcl::txt {
             m._end = caps[1];
             size_t groups = state->prog.groups;
             if (groups) {
-                m._slots = vector<size_t>(2 * groups);
-                for (size_t k = 0; k < 2 * groups; ++k) {
-                    m._slots[k] = caps[k + 2];
-                }
+                m._slots.assign(caps + 2, 2 * groups);
             }
             if (groups || !state->prog.names.empty()) {
                 m._state = state;
@@ -200,7 +264,7 @@ namespace sgcl::txt {
 
         slice<const char> _subject;
         tracked_ptr<const detail::regex_state> _state;
-        vector<size_t> _slots;
+        detail::match_slots _slots;
         size_t _begin = 0;
         size_t _end = 0;
     };
@@ -297,11 +361,11 @@ namespace sgcl::txt {
                     return;
                 }
                 size_t ncap = 2 * (size_t(_state->prog.groups) + 1);
-                size_t room[8];
-                vector<size_t> wider;
+                size_t room[detail::InlineCaps];
+                std::vector<size_t> wider;
                 size_t* caps = room;
-                if (ncap > 8) {
-                    wider = vector<size_t>(ncap);
+                if (ncap > detail::InlineCaps) {
+                    wider.resize(ncap);
                     caps = wider.data();
                 }
                 if (!_machine->run(from, caps)) {
@@ -482,11 +546,11 @@ namespace sgcl::txt {
             }
             size_t ncap = _ncap();
             detail::matcher machine(_state->prog, _view(text), ncap);
-            size_t room[8];
-            vector<size_t> wider;
+            size_t room[detail::InlineCaps];
+            std::vector<size_t> wider;
             size_t* caps = room;
-            if (ncap > 8) {
-                wider = vector<size_t>(ncap);
+            if (ncap > detail::InlineCaps) {
+                wider.resize(ncap);
                 caps = wider.data();
             }
             if (!machine.run(from, caps)) {
@@ -732,11 +796,11 @@ namespace sgcl::txt {
             std::string_view view = _view(text);
             size_t ncap = _ncap();
             detail::matcher machine(_state->prog, view, ncap);
-            size_t room[8];
-            vector<size_t> wider;
+            size_t room[detail::InlineCaps];
+            std::vector<size_t> wider;
             size_t* caps = room;
-            if (ncap > 8) {
-                wider = vector<size_t>(ncap);
+            if (ncap > detail::InlineCaps) {
+                wider.resize(ncap);
                 caps = wider.data();
             }
             size_t at = 0;

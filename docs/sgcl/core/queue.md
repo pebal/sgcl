@@ -215,7 +215,6 @@ Swaps the containers and the comparators; no element is touched. There are no co
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -234,6 +233,8 @@ struct Heavier {
 };
 
 int main() {
+    println("a graph walked breadth first");
+    auto base = collector::get_live_object_count();   // after the first line: io's own objects are not the example's
     // A ring of vertices with a chord every fourth: the whole graph is one cycle
     vector<tracked_ptr<Vertex>> vertices;
     for (int i : range(64)) {
@@ -275,8 +276,7 @@ int main() {
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
     collector::force_collect(true);
-    std::cout << visited << " vertices visited, heaviest " << first << " then " << second << ", "
-              << by_weight.size() << " still queued; " << collector::get_live_object_count() << " live objects\n";
+    println("{} vertices visited, heaviest {} then {}, {} still queued; {} live objects", visited, first, second, by_weight.size(), collector::get_live_object_count() - base);
     return visited == 64 && first == 63 && second == 62 && by_weight.size() == 62 ? 0 : 1;
 }
 ```
@@ -284,6 +284,7 @@ int main() {
 The output:
 
 ```
+a graph walked breadth first
 64 vertices visited, heaviest 63 then 62, 62 still queued; 131 live objects
 ```
 

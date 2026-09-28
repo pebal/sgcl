@@ -44,6 +44,8 @@ static datetime from_unix_micro(int64_t microseconds, const time::zone& z = time
 static datetime from_unix_nano(int64_t nanoseconds, const time::zone& z = time::zone::local()) noexcept;
 static expected<datetime, error> parse(const string& text, layout format);                   // layout.md
 static expected<datetime, error> parse(const string& text, const string& pattern, const time::zone& z = time::zone::utc());
+explicit datetime(const string& text, layout format);   // a literal: parse(text, format), or bad_expected_access<time::error> with its message (DESIGN 234)
+explicit datetime(const string& text, const string& pattern, const time::zone& z = time::zone::utc());   // a literal: parse(text, pattern, z), the same
 
 int64_t unix() const noexcept;                   // seconds since 1970, rounded down
 int64_t unix_milli() const noexcept;
@@ -100,46 +102,45 @@ datetime now();
 ```cpp
 #include "sgcl/sgcl.h"
 #include "sgcl/time/time.h"
-#include <iostream>
 
 using namespace sgcl;
 
 int main() {
-    auto warsaw = time::zone::load("Europe/Warsaw").value();
-    auto new_york = time::zone::load("America/New_York").value();
+    time::zone warsaw("Europe/Warsaw");
+    time::zone new_york("America/New_York");
 
     // A meeting in New York, seen in Warsaw
     auto meeting = time::date(2026, 10, 30).at(9, 30, new_york);
-    std::cout << meeting << " is " << meeting.in(warsaw).format("%A %H:%M") << " in Warsaw\n";
-    std::cout << (meeting == meeting.utc()) << "\n";                 // the same instant
+    println("{} is {} in Warsaw", meeting, meeting.in(warsaw).format("%A %H:%M"));
+    println(meeting == meeting.utc());                               // the same instant
 
     // A day later is not always 24 hours later
     auto before = time::date(2026, 10, 24).at(12, 0, warsaw);
-    std::cout << (before.add_days(1) - before) << " " << (before + 24 * hour) << "\n";
+    println("{} {}", before.add_days(1) - before, before + 24 * hour);
 
     // The hour skipped in spring and the one repeated in autumn
-    std::cout << time::date(2026, 3, 29).at(2, 30, warsaw) << " "
-              << time::date(2026, 3, 29).at(2, 30, warsaw, time::earlier) << "\n";
-    std::cout << time::date(2026, 10, 25).at(2, 30, warsaw) << " "
-              << time::date(2026, 10, 25).at(2, 30, warsaw, time::later) << " "
-              << time::date(2026, 10, 25).try_at(2, 30, 0, warsaw).has_value() << "\n";
+    println("{} {}", time::date(2026, 3, 29).at(2, 30, warsaw),
+            time::date(2026, 3, 29).at(2, 30, warsaw, time::earlier));
+    println("{} {} {}", time::date(2026, 10, 25).at(2, 30, warsaw),
+            time::date(2026, 10, 25).at(2, 30, warsaw, time::later),
+            time::date(2026, 10, 25).try_at(2, 30, 0, warsaw).has_value());
 
     // A month from the 31st, the start of a day, a step of time
     auto invoice = time::date(2026, 1, 31).at(10, 0, warsaw);
-    std::cout << invoice.add_months(1) << " " << invoice.start_of_day() << "\n";
+    println("{} {}", invoice.add_months(1), invoice.start_of_day());
     auto t = time::datetime::from_unix_nano(1790246475122575000, warsaw);
-    std::cout << t << " " << t.truncate(15 * minute) << " " << t.round(second) << "\n";
+    println("{} {} {}", t, t.truncate(15 * minute), t.round(second));
 
     // Before 1970 the division goes down
     auto half = time::datetime::from_unix_milli(-500, time::zone::utc());
-    std::cout << half << " " << half.unix() << "\n";
+    println("{} {}", half, half.unix());
 
     // The time now follows a test's clock
     async::manual_clock clock;
     clock.install();
     auto start = time::now();
     clock.advance(90 * minute);
-    std::cout << (time::now() - start) << "\n";
+    println(time::now() - start);
     return 0;
 }
 ```
@@ -148,10 +149,10 @@ Output:
 
 ```text
 2026-10-30T09:30:00-04:00 is Friday 14:30 in Warsaw
-1
+true
 25h0m0s 2026-10-25T11:00:00+01:00
 2026-03-29T03:30:00+02:00 2026-03-29T03:00:00+02:00
-2026-10-25T02:30:00+02:00 2026-10-25T02:30:00+01:00 0
+2026-10-25T02:30:00+02:00 2026-10-25T02:30:00+01:00 false
 2026-02-28T10:00:00+01:00 2026-01-31T00:00:00+01:00
 2026-09-24T12:41:15.122575+02:00 2026-09-24T12:30:00+02:00 2026-09-24T12:41:15+02:00
 1969-12-31T23:59:59.5Z -1

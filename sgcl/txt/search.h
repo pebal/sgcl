@@ -126,14 +126,33 @@ namespace sgcl::txt {
         // cutting a character in two needs no word of its own. And the
         // positions ascend in every text, so the search can bisect them
         // wherever it starts.
-        struct mapped_text {
-            vector<char32_t> points;
-            vector<size_t> at;
+        //
+        // Two kinds, one layout. A text mapped for an object that keeps
+        // it (a folded_text, the state of a match range) is in vectors of
+        // the library: that is the object's data, and building it there
+        // measured a quarter faster than in fresh plain memory over
+        // sixty-four kilobytes. A text mapped for one call (find,
+        // contains, count, the pattern of a searcher) is scratch and is
+        // in plain memory lent by the thread (detail/lent.h): as managed
+        // buffers it was 262 KB of garbage for every search through ten
+        // kilobytes, and in fresh plain memory the call a quarter slower.
+        template<class Points, class At>
+        struct basic_mapped_text {
+            Points points;
+            At at;
         };
 
+        using mapped_text = basic_mapped_text<vector<char32_t>, vector<size_t>>;
+        using mapped_scratch = basic_mapped_text<code_points, scratch_vector<size_t>>;
+
         template<class F>
-        mapped_text mapped(std::string_view text, F&& each) {
-            mapped_text out;
+        void lent_each(mapped_scratch& t, F& f) {
+            f(t.points);
+            f(t.at);
+        }
+
+        template<class Text, class F>
+        SGCL_ALWAYS_INLINE void mapped_into(Text& out, std::string_view text, F&& each) {
             out.points.reserve(text.size());
             out.at.reserve(text.size() + 1);
             for (size_t i = 0; i < text.size();) {
@@ -146,7 +165,6 @@ namespace sgcl::txt {
                 i += n;
             }
             out.at.push_back(text.size());
-            return out;
         }
 
         // The two mappings, each a per-code-point step and what has to be
@@ -154,7 +172,8 @@ namespace sgcl::txt {
         // functions so that the classes below are one class over them, as
         // the ranges of segment.h are one class over the end of a segment.
         struct fold_mapping {
-            static void point(vector<char32_t>& out, char32_t c) {
+            template<class Points>
+            static void point(Points& out, char32_t c) {
                 // Nothing below 0x80 has a folding of its own beyond the
                 // ASCII lowercase, and the table of the full ones is a
                 // bisection — where the decomposition of the normalizing
@@ -172,12 +191,14 @@ namespace sgcl::txt {
                 }
             }
 
-            static void whole(mapped_text&) noexcept {
+            template<class Text>
+            static void whole(Text&) noexcept {
             }
         };
 
         struct nfd_mapping {
-            static void point(vector<char32_t>& out, char32_t c) {
+            template<class Points>
+            static void point(Points& out, char32_t c) {
                 decompose_into<false>(out, c);
             }
 
@@ -186,26 +207,25 @@ namespace sgcl::txt {
             // one run. The points move and the positions stay, as the
             // text above says, and it is the same ordering normalize()
             // and the collator's window use.
-            static void whole(mapped_text& out) {
+            template<class Text>
+            static void whole(Text& out) {
                 canonical_order(out.points);
             }
         };
 
-        template<class Map>
-        mapped_text map_text(std::string_view text) {
-            auto out = mapped(text, [](vector<char32_t>& points, std::string_view, size_t, size_t, char32_t c) {
+        template<class Map, class Text>
+        SGCL_ALWAYS_INLINE void map_text_into(Text& out, std::string_view text) {
+            mapped_into(out, text, [](auto& points, std::string_view, size_t, size_t, char32_t c) {
                 Map::point(points, c);
             });
             Map::whole(out);
+        }
+
+        template<class Map>
+        mapped_text map_text(std::string_view text) {
+            mapped_text out;
+            map_text_into<Map>(out, text);
             return out;
-        }
-
-        inline mapped_text folded(std::string_view text) {
-            return map_text<fold_mapping>(text);
-        }
-
-        inline mapped_text decomposed(std::string_view text) {
-            return map_text<nfd_mapping>(text);
         }
 
         // The first place in the mapped text at or after the byte
@@ -217,7 +237,8 @@ namespace sgcl::txt {
         // text with one pair of marks out of order needed an index of its
         // own built beside them, or had its every search begin at the
         // front — over a hundred kilobytes 306 ms against 973 us.
-        inline size_t point_at(const mapped_text& t, size_t from) noexcept {
+        template<class Text>
+        size_t point_at(const Text& t, size_t from) noexcept {
             size_t lo = 0, hi = t.points.size();
             while (lo < hi) {
                 size_t mid = (lo + hi) / 2;
@@ -249,13 +270,15 @@ namespace sgcl::txt {
         // It is asked of the two ends of a match that has already been
         // found and not of every place scanned, so it costs two reads a
         // match and nothing on the walk.
-        inline bool whole_here(const mapped_text& text, size_t i) noexcept {
+        template<class Text>
+        bool whole_here(const Text& text, size_t i) noexcept {
             return i == 0 || (text.at[i] != text.at[i - 1] && opens_sequence(text.points[i]));
         }
 
         // The pattern's code points inside the text's, from the code
         // point `i` on, and the index where the match begins, or npos
-        inline size_t match_from(const mapped_text& text, const vector<char32_t>& pattern, size_t i) noexcept {
+        template<class Text, class Pattern>
+        size_t match_from(const Text& text, const Pattern& pattern, size_t i) noexcept {
             if (pattern.empty() || pattern.size() > text.points.size()) {
                 return pattern.empty() && i <= text.points.size() ? i : npos;
             }
@@ -317,7 +340,8 @@ namespace sgcl::txt {
         }
 
         // The byte position in the original text where the match begins
-        inline size_t find_points(const mapped_text& text, const vector<char32_t>& pattern, size_t from) {
+        template<class Text, class Pattern>
+        size_t find_points(const Text& text, const Pattern& pattern, size_t from) {
             if (pattern.empty()) {
                 // As it is in a std::string and in the searcher above: an
                 // empty pattern is found where it is looked for, and
@@ -343,7 +367,8 @@ namespace sgcl::txt {
 
     namespace detail {
         // The first match at or after the byte `from`, with the bytes it covers
-        inline optional<occurrence> find_occurrence(const mapped_text& text, const vector<char32_t>& pattern, size_t from) {
+        template<class Text, class Pattern>
+        optional<occurrence> find_occurrence(const Text& text, const Pattern& pattern, size_t from) {
             if (pattern.empty()) {
                 if (from <= text.at.back()) {
                     return occurrence{from, 0};
@@ -366,7 +391,7 @@ namespace sgcl::txt {
         public:
             explicit mapped_searcher(const string& pattern)
             : _pattern(pattern)
-            , _points(map_text<Map>(pattern.view()).points) {
+            , _points(_mapped_pattern(pattern)) {
             }
 
             const string& pattern() const noexcept {
@@ -389,7 +414,9 @@ namespace sgcl::txt {
 
             // The first occurrence in the text at or after the byte `from`
             optional<occurrence> find(const string& text, size_t from = 0) const {
-                return find_occurrence(map_text<Map>(text.view()), _points, from);
+                lent<mapped_scratch> mapped;
+                map_text_into<Map>(*mapped, text.view());
+                return find_occurrence(*mapped, _points, from);
             }
 
             bool contains(const string& text) const {
@@ -401,7 +428,9 @@ namespace sgcl::txt {
                 if (_points.empty()) {
                     return 0;
                 }
-                auto mapped = map_text<Map>(text.view());
+                lent<mapped_scratch> lent_mapped;
+                auto& mapped = *lent_mapped;
+                map_text_into<Map>(mapped, text.view());
                 size_t n = 0;
                 for (size_t i = match_from(mapped, _points, 0); i != npos; i = match_from(mapped, _points, i + _points.size())) {
                     ++n;
@@ -410,6 +439,14 @@ namespace sgcl::txt {
             }
 
         private:
+            // The pattern mapped in scratch and kept at its size: the
+            // positions of its code points are of no use to a pattern
+            static vector<char32_t> _mapped_pattern(const string& pattern) {
+                lent<mapped_scratch> mapped;
+                map_text_into<Map>(*mapped, pattern.view());
+                return vector<char32_t>(mapped->points.begin(), mapped->points.end());
+            }
+
             string _pattern;
             vector<char32_t> _points;
         };
@@ -702,9 +739,11 @@ namespace sgcl::txt {
     // of one pattern is quadratic: fold_matches, or a folded_text kept,
     // is the way to ask more than once.
     inline optional<occurrence> find_fold(const string& text, const string& pattern, size_t from = 0) {
-        auto t = detail::folded(text.view());
-        auto p = detail::folded(pattern.view());
-        return detail::find_occurrence(t, p.points, from);
+        detail::lent<detail::mapped_scratch> t;
+        detail::lent<detail::mapped_scratch> p;
+        detail::map_text_into<detail::fold_mapping>(*t, text.view());
+        detail::map_text_into<detail::fold_mapping>(*p, pattern.view());
+        return detail::find_occurrence(*t, p->points, from);
     }
 
     inline bool contains_fold(const string& text, const string& pattern) {
@@ -717,9 +756,11 @@ namespace sgcl::txt {
     // the original text, and its size there. normalized_matches is the
     // way to ask for all of them, for the same reason.
     inline optional<occurrence> find_normalized(const string& text, const string& pattern, size_t from = 0) {
-        auto t = detail::decomposed(text.view());
-        auto p = detail::decomposed(pattern.view());
-        return detail::find_occurrence(t, p.points, from);
+        detail::lent<detail::mapped_scratch> t;
+        detail::lent<detail::mapped_scratch> p;
+        detail::map_text_into<detail::nfd_mapping>(*t, text.view());
+        detail::map_text_into<detail::nfd_mapping>(*p, pattern.view());
+        return detail::find_occurrence(*t, p->points, from);
     }
 
     inline bool contains_normalized(const string& text, const string& pattern) {

@@ -6,13 +6,15 @@
 #pragma once
 
 #include "detail/atomic_word.h"
+#include "detail/handle_word.h"
 #include "tracked_ptr.h"
 
 #include <atomic>
 
 namespace sgcl {
     // sgcl::atomic_ref<T> is std::atomic_ref<T> for every T but a
-    // tracked_ptr, as sgcl::atomic<T> is std::atomic<T> (atomic.h)
+    // tracked_ptr and a handle (req::handle), as sgcl::atomic<T> is
+    // std::atomic<T> (atomic.h)
     template<class T>
     class atomic_ref
     : public std::atomic_ref<T> {
@@ -72,6 +74,115 @@ namespace sgcl {
 
         const detail::Pointer& _ptr() const noexcept {
             return *ref._ptr();
+        }
+    };
+
+    // The atomic view of a handle (req::handle, detail/handle_word.h): the
+    // operations of detail::AtomicWord on the word of a handle that lives
+    // elsewhere — a member of a managed object, or the one a rooted<H>
+    // holds (`atomic_ref a(*rooted)`). The handle must not be moved or
+    // destroyed while a view of it exists. Identity, as atomic<H>: the
+    // compare-exchanges compare the object, not its contents.
+    template<req::handle H>
+    class atomic_ref<H>
+    : public detail::AtomicWord<atomic_ref<H>, detail::HandleStateOf<H>> {
+        using State = detail::HandleStateOf<H>;
+        using Base = detail::AtomicWord<atomic_ref, State>;
+        using Word = tracked_ptr<State>;
+
+    public:
+        using value_type = H;
+
+        atomic_ref& operator=(const atomic_ref&) = delete;
+
+        explicit atomic_ref(H& h) noexcept
+        : ref(h) {
+        }
+
+        atomic_ref(const atomic_ref& a) noexcept
+        : ref(a.ref) {
+        }
+
+        H load(const std::memory_order m = std::memory_order_seq_cst) const noexcept {
+            return _handle(Base::load(m));
+        }
+
+        operator H() const noexcept {
+            return load();
+        }
+
+        void store(const H& h, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+            Base::store(_word(h), m);
+        }
+
+        H operator=(const H& h) noexcept {
+            store(h);
+            return h;
+        }
+
+        H exchange(const H& h, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+            return _handle(Base::exchange(_word(h), m));
+        }
+
+        bool compare_exchange_strong(H& expected, const H& desired, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+            Word e = _word(expected);
+            bool done = Base::compare_exchange_strong(e, _word(desired), m);
+            if (!done) {
+                expected = _handle(e);
+            }
+            return done;
+        }
+
+        bool compare_exchange_strong(H& expected, const H& desired, const std::memory_order s, const std::memory_order f) noexcept {
+            Word e = _word(expected);
+            bool done = Base::compare_exchange_strong(e, _word(desired), s, f);
+            if (!done) {
+                expected = _handle(e);
+            }
+            return done;
+        }
+
+        bool compare_exchange_weak(H& expected, const H& desired, const std::memory_order m = std::memory_order_seq_cst) noexcept {
+            Word e = _word(expected);
+            bool done = Base::compare_exchange_weak(e, _word(desired), m);
+            if (!done) {
+                expected = _handle(e);
+            }
+            return done;
+        }
+
+        bool compare_exchange_weak(H& expected, const H& desired, const std::memory_order s, const std::memory_order f) noexcept {
+            Word e = _word(expected);
+            bool done = Base::compare_exchange_weak(e, _word(desired), s, f);
+            if (!done) {
+                expected = _handle(e);
+            }
+            return done;
+        }
+
+        void wait(const H& h, std::memory_order m = std::memory_order_seq_cst) const noexcept {
+            Base::wait(_word(h), m);
+        }
+
+        H& ref;
+
+    private:
+        friend Base;
+
+        static Word _word(const H& h) noexcept {
+            return const_pointer_cast<State>(detail::HandleWord::word(h));
+        }
+
+        static H _handle(const Word& w) noexcept {
+            return detail::HandleWord::make<H>(detail::HandleWordOf<H>(w));
+        }
+
+        detail::Pointer& _ptr() noexcept {
+            return *detail::HandleWord::word(ref)._ptr();
+        }
+
+        const detail::Pointer& _ptr() const noexcept {
+            return *detail::HandleWord::word(ref)._ptr();
         }
     };
 

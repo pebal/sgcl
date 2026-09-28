@@ -54,16 +54,19 @@ if (!parsed) {
 big_integer() noexcept;                                    // 0
 template<std::integral T> big_integer(T value);            // implicit, any whole number but bool, __int128 too
 explicit big_integer(double value);                        // the whole part, cut towards zero; NaN, ±∞ → domain_error
-big_integer(bool) = delete;
+template<std::same_as<bool> B> big_integer(B) = delete;   // a bool alone: a pointer is not taken for one
 explicit big_integer(long double) = delete;                // on x86-64 it would arrive rounded to a double
 
 static expected<big_integer, parse_error> parse(const string& text, int base = 10);
+explicit big_integer(const string& text, int base = 10);   // a literal: parse(text, base), or bad_expected_access<parse_error> with its message (DESIGN 234)
 static big_integer from_bytes(const slice<const byte>& big_endian);
 ```
 
 The constructor from a whole number is implicit, so that `a * 2`, `4 * a` and `a == 0` work with no second set of operators; it allocates nothing for any value `int64_t` holds, and so is `noexcept` for every type but the unsigned ones of 64 bits (`uint64_t`, `size_t`, `unsigned long long`, which on macOS are not all one type) and the 128-bit ones.
 
 `parse` reads an optional `+` or `-` and the digits of the base, letters in either case, and nothing else: no prefix, no space, no separator — `parse("ff", 16)`, never a base guessed from `0x`. Leading zeros are allowed, and `-0` is zero. The error's `offset()` is the byte where reading stopped: 0 for empty text, the end when there was only a sign, otherwise the first byte that is not a digit of the base (for a letter past ASCII, the byte its encoding starts at).
+
+A number the program itself writes as text is constructed from it, `math::big_integer p("115792089237316195423570985008687907853269984665640564039457584007908834671663")`, `math::big_integer mask("ffff0000", 16)`, and a text that is not one throws `bad_expected_access<parse_error>` with `parse`'s message; text from outside is parsed. The constructor is explicit, and the literal `0` still goes to the constructor from a number. The `_big` literal is the other way to write a constant, in decimal or with `0x`, `0b`, `0`.
 
 `from_bytes` is the unsigned number of the bytes, most significant first, as Go's `SetBytes`; no bytes are zero.
 
@@ -197,7 +200,7 @@ The multiplication is the schoolbook one up to a few dozen limbs, Karatsuba's ab
 
 ```cpp
 #include "sgcl/math/math.h"
-#include <iostream>
+#include "sgcl/io/print.h"
 
 using namespace sgcl;
 using namespace math::literals;
@@ -206,7 +209,7 @@ int main() {
     // 100!, and its digits
     auto f = math::big_integer::factorial(100);
     string digits = f.to_string();
-    std::cout << digits.size() << " digits, " << f.trailing_zeros() << " twos\n";
+    println("{} digits, {} twos", digits.size(), f.trailing_zeros());
 
     // A toy RSA: two primes, a key, a message there and back
     auto p = 0xd5bbb96d30086ec484eba3d7f9caeb07_big;
@@ -223,20 +226,16 @@ int main() {
     if (!d) {
         return 1;
     }
-    auto text = math::big_integer::parse("hello", 36);
-    if (!text) {
-        std::cout << text.error().message() << '\n';
-        return 1;
-    }
-    math::big_integer sealed = text->mod_pow(e, n);
+    math::big_integer text("hello", 36);                      // a literal: constructed
+    math::big_integer sealed = text.mod_pow(e, n);
     math::big_integer opened = sealed.mod_pow(*d, n);
-    std::cout << opened.to_string(36) << '\n';
+    println(opened.to_string(36));
 
-    // Text that is not a number is an answer, not an exception
+    // Text that may not be a number is parsed: an answer, not an exception
     auto bad = math::big_integer::parse("12x4");
-    std::cout << bad.error().message() << '\n';
+    println(bad.error().message());
 
-    std::cout << txt::format("{:#x} {}", math::big_integer(2).pow(100), math::big_integer(10).pow(40).sqrt()) << '\n';
+    println("{:#x} {}", math::big_integer(2).pow(100), math::big_integer(10).pow(40).sqrt());
 }
 ```
 

@@ -49,8 +49,9 @@ TEST(Hash_Crc, Catalogue) {
 // The arm64 path (folding, the CRC-32 instructions) against slicing by
 // eight, called side by side in one program: every length 0…2100 at every
 // offset 0…15, random lengths to 64 KB, and a start register that is not
-// the initial one. The build with SGCL_HASH_PORTABLE runs the whole program
-// on the portable path as well; this test is where the two meet.
+// the initial one. tests_hash_portable, built with SGCL_HASH_PORTABLE, runs
+// the whole program on the portable path as well; this test is where the
+// two meet.
 TEST(Hash_Crc, TheTwoPathsAgree) {
 #if defined(SGCL_HASH_ARM64)
     using namespace sgcl::hash::detail;

@@ -85,7 +85,7 @@ namespace sgcl::async {
         // exception, and the channel closed then
         template<class T>
         struct TimeoutSlot {
-            channel<void> done;
+            detail::ChannelState<void> done;
             optional<T> value;
             std::exception_ptr error;
 
@@ -109,7 +109,7 @@ namespace sgcl::async {
 
         template<>
         struct TimeoutSlot<void> {
-            channel<void> done;
+            detail::ChannelState<void> done;
             std::exception_ptr error;
 
             void take() {
@@ -155,7 +155,7 @@ namespace sgcl::async {
         // would reach the slot after the timer). The channel is held by
         // the caller's frame for the length of the race
         template<class T>
-        task<bool> race(tracked_ptr<TimeoutSlot<T>> slot, task<T> t, channel<void>& deadline) {
+        task<bool> race(tracked_ptr<TimeoutSlot<T>> slot, task<T> t, detail::ChannelState<void>& deadline) {
             if (t.done()) {
                 slot->finish(t);
                 co_return true;
@@ -199,7 +199,7 @@ namespace sgcl::async {
                 }
                 if (who == TaskWon && timer) {
                     timer->cancelled.store(true, std::memory_order_release);
-                    timer_cancelled();
+                    timer_cancelled(*timer);
                 }
                 enqueue(waiter, next);
                 waiter = nullptr;
@@ -233,7 +233,7 @@ namespace sgcl::async {
                     int e = Racing;   // done already: the race is the task's, unless the deadline of zero fired meanwhile
                     if (r->state.compare_exchange_strong(e, TaskWon, std::memory_order_acq_rel, std::memory_order_acquire)) {
                         r->timer->cancelled.store(true, std::memory_order_release);
-                        timer_cancelled();
+                        timer_cancelled(*r->timer);
                         r->waiter = nullptr;
                         return false;
                     }
@@ -321,7 +321,7 @@ namespace sgcl::async {
             }
         }
         tracked_ptr<detail::TimeoutSlot<T>> slot = make_tracked<detail::TimeoutSlot<T>>();
-        if (!co_await detail::race(slot, std::move(t), token.channel())) {
+        if (!co_await detail::race(slot, std::move(t), *detail::ChannelAccess::state(token.channel()))) {
             co_return unexpected(stopped());
         }
         co_return detail::race_won<stopped>(*slot);

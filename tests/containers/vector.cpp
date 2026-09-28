@@ -1127,6 +1127,8 @@ TEST(Vector_Test, InPlaceInsertThatThrowsLeavesNothingUnaccounted) {
 
 TEST(Vector_Test, ResizeGrowsGeometricallyAndUndoesAThrowingConstruction) {
     sgcl::vector<int> v(20000);
+    v.resize(v.capacity());   // full: a buffer past a page holds what its pages hold, more than the 20 000
+    const size_t full = v.size();
     int reallocations = 0;
     auto data = v.data();
     for (int i = 0; i < 2000; ++i) {
@@ -1137,9 +1139,9 @@ TEST(Vector_Test, ResizeGrowsGeometricallyAndUndoesAThrowingConstruction) {
         }
     }
     EXPECT_EQ(reallocations, 1);   // as a push_back: the capacity doubled
-    EXPECT_GE(v.capacity(), 40000u);
-    EXPECT_EQ(v.size(), 22000u);
-    EXPECT_EQ(v[21999], 0);
+    EXPECT_GE(v.capacity(), 2 * full);
+    EXPECT_EQ(v.size(), full + 2000);
+    EXPECT_EQ(v[full + 1999], 0);
     DefaultThrower::alive = 0;
     {
         sgcl::vector<DefaultThrower> w(2);
@@ -1187,4 +1189,157 @@ TEST(Vector_Test, InsertOfACountNearTheRangeThrowsLengthError) {
     EXPECT_THROW(v.insert(v.begin(), v.max_size(), 2), std::length_error);
     EXPECT_THROW(v.resize(v.max_size() + 1, 2), std::length_error);
     EXPECT_EQ(v.size(), 1u);
+}
+
+// stable_sort of elements that hold tracked pointers: the order is stable
+// and no element passes through memory the collector does not see (the
+// standard's stable_sort moves them into a buffer of operator new, which a
+// debug build's registration check refuses). The heap audit of 2026-09-26.
+TEST(Vector_Test, StableSortOfTrackedPointers) {
+    struct Item {
+        int key;
+        int order;
+    };
+    vector<tracked_ptr<Item>> v;
+    for (int i = 0; i < 200; ++i) {
+        v.push_back(make_tracked<Item>(Item{(i * 7) % 13, i}));
+    }
+    v.stable_sort([](const tracked_ptr<Item>& a, const tracked_ptr<Item>& b) { return a->key < b->key; });
+    for (size_t i = 1; i < v.size(); ++i) {
+        ASSERT_LE(v[i - 1]->key, v[i]->key);
+        if (v[i - 1]->key == v[i]->key) {
+            ASSERT_LT(v[i - 1]->order, v[i]->order);   // stable
+        }
+    }
+    vector<pair<int, tracked_ptr<Item>>> pairs;
+    for (int i = 0; i < 100; ++i) {
+        pairs.push_back({i % 5, make_tracked<Item>(Item{i % 5, i})});
+    }
+    pairs.stable_sort();
+    for (size_t i = 1; i < pairs.size(); ++i) {
+        ASSERT_LE(pairs[i - 1].first, pairs[i].first);
+    }
+}
+
+// The in-place stable sort against std::stable_sort on plain pairs: the
+// same order for random keys of every length up to 1000, through vector,
+// deque and a slice of a vector
+TEST(Vector_Test, StableSortOfTrackedPointersAgreesWithTheStandard) {
+    struct Item {
+        int key;
+        int order;
+    };
+    std::mt19937 rng(7);
+    for (int n : {0, 1, 2, 15, 16, 17, 31, 64, 65, 100, 333, 1000}) {
+        std::vector<std::pair<int, int>> oracle;
+        vector<tracked_ptr<Item>> v;
+        deque<tracked_ptr<Item>> d;
+        for (int i = 0; i < n; ++i) {
+            int key = int(rng() % 10);
+            oracle.push_back({key, i});
+            v.push_back(make_tracked<Item>(Item{key, i}));
+            d.push_back(make_tracked<Item>(Item{key, i}));
+        }
+        std::stable_sort(oracle.begin(), oracle.end(), [](auto& a, auto& b) { return a.first < b.first; });
+        auto by_key = [](const tracked_ptr<Item>& a, const tracked_ptr<Item>& b) { return a->key < b->key; };
+        v.stable_sort(by_key);
+        d.stable_sort(by_key);
+        for (int i = 0; i < n; ++i) {
+            ASSERT_EQ(v[i]->order, oracle[i].second) << "vector n=" << n << " i=" << i;
+            ASSERT_EQ(d[i]->order, oracle[i].second) << "deque n=" << n << " i=" << i;
+        }
+        // a slice sorts the part of its vector it spans
+        if (n >= 4) {
+            vector<tracked_ptr<Item>> w;
+            for (int i = 0; i < n; ++i) {
+                w.push_back(make_tracked<Item>(Item{n - i, i}));
+            }
+            slice<tracked_ptr<Item>> part = w.as_slice(1, size_t(n) - 2);
+            part.stable_sort(by_key);
+            ASSERT_EQ(w[0]->order, 0);
+            ASSERT_EQ(w[n - 1]->order, n - 1);
+            for (int i = 2; i < n - 1; ++i) {
+                ASSERT_LE(w[i - 1]->key, w[i]->key);
+            }
+        }
+    }
+}
+
+// The cycles of the permutation: already sorted (cycles of one), reversed
+// (cycles of two) and one long cycle (a rotation by one)
+TEST(Vector_Test, StableSortOfTrackedPointersCycles) {
+    struct Item {
+        int key;
+    };
+    auto keys = [](const vector<tracked_ptr<Item>>& v) {
+        std::vector<int> k;
+        for (auto& p : v) {
+            k.push_back(p->key);
+        }
+        return k;
+    };
+    auto by_key = [](const tracked_ptr<Item>& a, const tracked_ptr<Item>& b) { return a->key < b->key; };
+    for (int n : {1, 2, 3, 100, 1001}) {
+        std::vector<int> want(n);
+        std::iota(want.begin(), want.end(), 0);
+        vector<tracked_ptr<Item>> sorted, reversed, rotated;
+        for (int i = 0; i < n; ++i) {
+            sorted.push_back(make_tracked<Item>(Item{i}));
+            reversed.push_back(make_tracked<Item>(Item{n - 1 - i}));
+            rotated.push_back(make_tracked<Item>(Item{(i + 1) % n}));
+        }
+        sorted.stable_sort(by_key);
+        reversed.stable_sort(by_key);
+        rotated.stable_sort(by_key);
+        EXPECT_EQ(keys(sorted), want) << n;
+        EXPECT_EQ(keys(reversed), want) << n;
+        EXPECT_EQ(keys(rotated), want) << n;
+    }
+}
+
+// A buffer past a page takes the pages its bytes need and no more:
+// 20 000 ints and the header, 80 016 bytes, are two pages (the alias
+// array.h gives Array<> was not the one TypeInfo reads, and the inherited
+// allocator of Array<PageDataSize> added 65 520 bytes: three)
+TEST(Vector_Test, ABufferPastAPageTakesItsPagesOnly) {
+    const size_t before = live_buffer_bytes<int>();
+    sgcl::vector<int> odd;
+    off_frame([&] {
+        odd = sgcl::vector<int>(20000);
+    });
+    EXPECT_EQ(live_buffer_bytes<int>() - before, 2 * config::page_size);
+}
+
+// A vector past a page holds what its pages hold: 16384 ints and the
+// header take two pages, and the capacity is all of them (it was the
+// 16384 asked for), so that the growth doubles into four pages where it
+// went to three and then five
+TEST(Vector_Test, AVectorPastAPageFillsItsPages) {
+    const size_t before = live_buffer_bytes<int>();
+    sgcl::vector<int> v;
+    off_frame([&] {
+        v = sgcl::vector<int>(16384);
+    });
+    EXPECT_EQ(v.capacity(), (2 * config::page_size - sizeof(detail::ArrayBase)) / sizeof(int));
+    EXPECT_EQ(live_buffer_bytes<int>() - before, 2 * config::page_size);
+    off_frame([&] {
+        while (v.size() < 40000) {
+            v.push_back(int(v.size()));
+        }
+    });
+    EXPECT_EQ(v.capacity(), (4 * config::page_size - sizeof(detail::ArrayBase)) / sizeof(int));
+    EXPECT_EQ(live_buffer_bytes<int>() - before, 4 * config::page_size);
+    EXPECT_EQ(v[16384], 16384);
+    EXPECT_EQ(v[39999], 39999);
+    sgcl::vector<int> odd(20000);
+    EXPECT_EQ(odd.capacity(), (2 * config::page_size - sizeof(detail::ArrayBase)) / sizeof(int));
+    sgcl::vector<tracked_ptr<int>> pointers(9000);   // 72 KB: two pages, the rest of them zeroed and traced too
+    EXPECT_EQ(pointers.capacity(), (2 * config::page_size - sizeof(detail::ArrayBase)) / sizeof(tracked_ptr<int>));
+    pointers.resize(pointers.capacity());
+    for (auto& p : pointers) {
+        EXPECT_FALSE(p);
+    }
+    pointers.back() = make_tracked<int>(7);
+    collector::force_collect(true);
+    EXPECT_EQ(*pointers.back(), 7);
 }

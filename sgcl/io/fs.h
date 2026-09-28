@@ -197,6 +197,11 @@ namespace sgcl::io {
         return {};
     }
 
+    // `mkdir(...)` on this thread, `co_await async_mkdir(...)` in a task
+    inline async::task<expected<void, error>> async_mkdir(const string& path, permissions p = permissions(0777)) {
+        return detail::on_pool([path, p] { return mkdir(path, p); });
+    }
+
     inline expected<void, error> mkdir_all(const string& path, permissions p = permissions(0777)) {
         string clean = io::path::clean(path);
         size_t pos = 0;
@@ -236,6 +241,11 @@ namespace sgcl::io {
         return {};
     }
 
+    // `remove(...)` on this thread, `co_await async_remove(...)` in a task
+    inline async::task<expected<void, error>> async_remove(const string& path) {
+        return detail::on_pool([path] { return remove(path); });
+    }
+
     inline expected<void, error> remove_all(const string& path) {
         error_code ec;
         detail::fs::remove_all(detail::fs_path(path), ec);
@@ -259,6 +269,11 @@ namespace sgcl::io {
         return {};
     }
 
+    // `rename(...)` on this thread, `co_await async_rename(...)` in a task
+    inline async::task<expected<void, error>> async_rename(const string& from, const string& to) {
+        return detail::on_pool([from, to] { return rename(from, to); });
+    }
+
     inline expected<void, error> copy_file(const string& from, const string& to) {
         error_code ec;
         detail::fs::copy_file(detail::fs_path(from), detail::fs_path(to), detail::fs::copy_options::overwrite_existing, ec);
@@ -280,6 +295,11 @@ namespace sgcl::io {
         return {};
     }
 
+    // `symlink(...)` on this thread, `co_await async_symlink(...)` in a task
+    inline async::task<expected<void, error>> async_symlink(const string& target, const string& link) {
+        return detail::on_pool([target, link] { return symlink(target, link); });
+    }
+
     inline expected<string, error> read_link(const string& link) {
         error_code ec;
         auto target = detail::fs::read_symlink(detail::fs_path(link), ec);
@@ -294,6 +314,11 @@ namespace sgcl::io {
             return detail::fail(last_error("chmod", path));
         }
         return {};
+    }
+
+    // `chmod(...)` on this thread, `co_await async_chmod(...)` in a task
+    inline async::task<expected<void, error>> async_chmod(const string& path, permissions p) {
+        return detail::on_pool([path, p] { return chmod(path, p); });
     }
 
     inline expected<void, error> set_modified(const string& path, file_time t) {

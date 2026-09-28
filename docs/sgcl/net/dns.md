@@ -39,11 +39,11 @@ async::task<> show(string host) {
     src.stop_after(2s);                                 // a lookup of two seconds at most
     auto found = co_await net::dns::async_lookup(host, src.token());
     if (!found) {
-        std::cerr << found.error().message() << '\n';   // "lookup nothing.invalid: no such host"
+        eprintln("{}", found.error().message());   // "lookup nothing.invalid: no such host"
         co_return;
     }
     for (auto& a : *found) {
-        std::cout << a.to_string() << '\n';
+        println("{}", a.to_string());
     }
 }
 ```

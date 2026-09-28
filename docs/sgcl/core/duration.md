@@ -24,6 +24,7 @@ Arithmetic saturates at the ends of the range instead of wrapping: a sum, a diff
 - `seconds()`, `minutes()` and `hours()` are `double`, with the fraction; `nanoseconds()`, `microseconds()` and `milliseconds()` are whole `int64_t`, the last two truncated toward zero. The names are Go's (`Seconds() float64`, `Milliseconds() int64`), and so are the types.
 - A duration times or divided by an integer is a duration; a duration divided by a duration is an `int64_t`, how many whole times the second fits in the first; `%` leaves the rest with the sign of the first, as for an `int`. A division by zero is a division by zero.
 - A duration never becomes a bare number implicitly and never comes from one: `duration(5)` does not compile, `5 * second` does.
+- A text the program itself writes is constructed, `duration d("1h30m")`, and a wrong one throws `bad_expected_access<duration_error>` with `parse`'s message; a text from outside (a setting, the user) is parsed, and its error is a value.
 - `truncate(step)` goes toward zero to a multiple of `step`, `round(step)` to the nearest, a half away from zero; a step of zero or less leaves the duration as it is (Go's `Truncate` and `Round`).
 - `abs()` of the smallest duration, which has no positive counterpart, is the largest.
 - `operator<<` writes `to_string()`.
@@ -58,6 +59,7 @@ static constexpr duration max() noexcept;                  // some 292 years: ne
 static constexpr duration min() noexcept;
 
 static expected<duration, duration_error> parse(const string& text);   // Go's text
+explicit duration(const string& text);                     // a literal: parse(text), or bad_expected_access<duration_error> with its message (DESIGN 234)
 string to_string() const;                                   // Go's text
 
 constexpr int64_t nanoseconds() const noexcept;
@@ -89,36 +91,35 @@ size_t offset() const noexcept;                             // the byte of the t
 ```cpp
 #include "sgcl/sgcl.h"
 #include <chrono>
-#include <iostream>
 
 using namespace sgcl;
 using namespace std::chrono_literals;
 
 int main() {
-    auto d = duration::parse("1h30m").value();
-    std::cout << d << " " << d.minutes() << "\n";                   // 1h30m0s 90
+    duration d("1h30m");                                            // a literal: constructed
+    println("{} {}", d, d.minutes());                               // 1h30m0s 90
 
     duration lap = 1500ms;                                          // a literal of <chrono>
-    std::cout << lap << " " << lap.seconds() << " " << lap.milliseconds() << "\n";
+    println("{} {} {}", lap, lap.seconds(), lap.milliseconds());
 
-    std::cout << d + 90 * second << " " << d / 4 << " " << d / lap << "\n";
+    println("{} {} {}", d + 90 * second, d / 4, d / lap);
     duration small = 1234567ns;
-    std::cout << small << " " << small.round(millisecond) << " " << small.truncate(millisecond) << "\n";
+    println("{} {} {}", small, small.round(millisecond), small.truncate(millisecond));
     duration back = -1500us;
-    std::cout << back << " " << back.abs() << "\n";
+    println("{} {}", back, back.abs());
 
-    auto bad = duration::parse("1d");
-    std::cout << bad.error().message() << " (byte " << bad.error().offset() << ")\n";
+    auto bad = duration::parse("1d");                               // a text that may be wrong: parsed
+    println("{} (byte {})", bad.error().message(), bad.error().offset());
 
     duration total;
     for (int i : range(1, 5)) {
         total += i * 250 * millisecond;
     }
-    std::cout << total << "\n";                                     // 2.5s
+    println(total);                                                 // 2.5s
 
     auto deadline = std::chrono::steady_clock::now() + total;      // a point of any clock
     std::chrono::nanoseconds n = total;                             // into the standard's type
-    std::cout << (deadline > std::chrono::steady_clock::now()) << " " << n.count() << "\n";
+    println("{} {}", deadline > std::chrono::steady_clock::now(), n.count());
     return 0;
 }
 ```
@@ -133,7 +134,7 @@ The output:
 -1.5ms 1.5ms
 an unknown unit: ns, us, ms, s, m or h expected (byte 1)
 2.5s
-1 2500000000
+true 2500000000
 ```
 
 ## See also

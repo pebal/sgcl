@@ -7,6 +7,7 @@
 
 #include "../concurrent/queue.h"
 #include "../core/config.h"
+#include "../core/detail/env.h"
 #include "../core/make_tracked.h"
 #include "../core/root_ptr.h"
 #include "../core/tracked_ptr.h"
@@ -77,7 +78,7 @@ namespace sgcl::async {
         // A job with its result: the promise the task awaits
         template<class T>
         struct BlockingJob : BlockingJobBase {
-            promise<T> result;
+            PromiseState<T> result;   // the state itself, in the job: one object
         };
 
         // A job with its closure: what it returns or throws goes to the promise
@@ -194,15 +195,33 @@ namespace sgcl::async {
                 return _idle_time;
             }
 
-            static unsigned cap() noexcept {
+            // The most threads the pool grows to: set_threads', else
+            // SGCL_BLOCKING_THREADS (read once, at the first need), else
+            // config::blocking_threads; 0 in any of them the larger of 64
+            // and four times the hardware concurrency. A smaller number
+            // stops the growth at once; the threads over it exit as they
+            // run out of work (the idle time)
+            unsigned cap() {
+                std::lock_guard lock(_m);
                 return _cap();
+            }
+
+            void set_cap(unsigned n) {
+                std::lock_guard lock(_m);
+                _cap_set = true;
+                _cap_asked = n;
             }
 
         private:
             using Threads = std::list<std::thread>;
 
-            static unsigned _cap() noexcept {
-                return config::blocking_threads ? config::blocking_threads : std::max(64u, 4 * std::thread::hardware_concurrency());
+            // Under _m
+            unsigned _cap() noexcept {
+                if (!_cap_set && !_cap_env_read) {
+                    _cap_env_read = true;
+                    _cap_asked = env_unsigned("SGCL_BLOCKING_THREADS", config::blocking_threads);
+                }
+                return _cap_asked ? _cap_asked : std::max(64u, 4 * std::thread::hardware_concurrency());
             }
 
             // A thread started, under the lock: the handles of the threads
@@ -225,12 +244,9 @@ namespace sgcl::async {
             // seen by the look under the lock, since the push comes before
             // the submitter's own lock.
             void _run(Threads::iterator it) {
+                const uintptr_t floor = dead_stack_floor();
                 for (;;) {
-                    unsigned ran = 0;
-                    while (auto job = _queue->jobs.try_pop()) {
-                        (*job)->run();
-                        ++ran;
-                    }
+                    unsigned ran = _run_jobs();
                     std::unique_lock lock(_m);
                     if ((_pending -= ran) == 0) {
                         _idle_cv.notify_all();   // wait_idle: every job queued so far ran
@@ -242,6 +258,7 @@ namespace sgcl::async {
                         _leave(it);
                         return;
                     }
+                    clear_dead_stack(floor);   // the words the jobs' frames left: the job, and through its closure what it holds (scheduler.h)
                     ++_idle;
                     auto deadline = std::chrono::steady_clock::now() + _idle_time;
                     bool credited = false;
@@ -264,6 +281,20 @@ namespace sgcl::async {
                         }
                     }
                 }
+            }
+
+            // The jobs queued, run while there are any; how many. A frame
+            // of its own below _run's, so that everything of a job — its
+            // pointer and the temporaries of the call, which an unoptimized
+            // build keeps in the frame and not in a register — is in the
+            // dead stack clear_dead_stack zeroes, not in _run's live frame
+            SGCL_NOINLINE unsigned _run_jobs() {
+                unsigned ran = 0;
+                while (auto job = _queue->jobs.try_pop()) {
+                    (*job)->run();
+                    ++ran;
+                }
+                return ran;
             }
 
             // The thread's exit, under the lock its decision was taken
@@ -292,6 +323,9 @@ namespace sgcl::async {
             size_t _pending = 0;                // jobs queued or running
             bool _stop = false;
             duration _idle_time = std::chrono::milliseconds(config::blocking_idle_milliseconds);
+            unsigned _cap_asked = 0;         // set_cap, or SGCL_BLOCKING_THREADS, or config::blocking_threads (under _m)
+            bool _cap_set = false;
+            bool _cap_env_read = false;
         };
 
         inline BlockingPool& blocking_pool_instance() {
@@ -361,7 +395,7 @@ namespace sgcl::async {
             }
 
             tracked_ptr<detail::BlockingJob<T>> _job;   // held here too: the awaiter outlives the handle it came from
-            typename promise<T>::awaiter _aw;
+            typename detail::PromiseState<T>::awaiter _aw;
         };
 
         awaiter operator co_await() noexcept {
@@ -418,9 +452,19 @@ namespace sgcl::async {
             return detail::blocking_pool_instance().statistics();
         }
 
-        // The most threads the pool grows to (config::blocking_threads)
-        static unsigned max_threads() noexcept {
-            return detail::BlockingPool::cap();
+        // The most threads the pool grows to: set_threads', else
+        // SGCL_BLOCKING_THREADS from the environment (read once), else
+        // config::blocking_threads; 0 in any of them the larger of 64 and
+        // four times the hardware concurrency
+        static unsigned max_threads() {
+            return detail::blocking_pool_instance().cap();
+        }
+
+        // The most threads from now on (0: the default above). A smaller
+        // number stops the growth at once; threads over it exit as they
+        // run out of work, after the idle time
+        static void set_threads(unsigned n) {
+            detail::blocking_pool_instance().set_cap(n);
         }
 
         // How long an idle thread waits for a job before it exits

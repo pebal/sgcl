@@ -55,6 +55,6 @@ namespace sgcl::async {
         }
 
     private:
-        channel<void> _ch;
+        detail::ChannelState<void> _ch;
     };
 }

@@ -17,7 +17,40 @@ namespace sgcl {
 
 `sgcl::expected<T, E>` is `std::expected` (C++23) for a value or an error that holds a tracked pointer. `std::expected` keeps the two in a union, where a `tracked_ptr` value shares its word with the error's data (the offset leaves the collector's pointer map by elimination: [README: Pointer maps](../../garbage_collector/overview.md#pointer-maps)). Here they lie in a [`variant`](variant.md): a pointer word (`tracked_ptr` of either kind, [`weak_ptr`](weak_ptr.md)) in a word of its own, a value or an error that may hold pointers among its data in a place of its own, the pointer-free ones in the shared data storage. The library is C++20, so `unexpected`, `unexpect`, `unexpect_t` and `bad_expected_access` are the library's own, with the interfaces of the `std` ones.
 
-The interface is that of `std::expected`: the constructors (from a value, from an `unexpected`, from an `expected<U, G>`, `in_place`, `unexpect`), the assignments, `emplace`, `swap`, `operator->`, `operator*`, `operator bool`, `has_value`, `value` (`bad_expected_access<E>` carrying the error when there is none), `error`, `value_or`, `error_or`, the monadic `and_then`, `or_else`, `transform`, `transform_error`, the comparisons with an `expected`, a value and an `unexpected`; `expected<void, E>` for a success without a value. Not `constexpr`, and the `expected` of pointer-free types is what `std::expected` is for.
+The interface is that of `std::expected`, with two departures that make it simpler to use (below): the value goes wherever a `T` is wanted, with no `*`, and `*` and `->` are checked. The rest is `std::expected`'s: the constructors (from a value, from an `unexpected`, from an `expected<U, G>`, `in_place`, `unexpect`), the assignments, `emplace`, `swap`, `operator->`, `operator*`, `operator bool`, `has_value`, `value` (`bad_expected_access<E>` carrying the error when there is none), `error`, `value_or`, `error_or`, the monadic `and_then`, `or_else`, `transform`, `transform_error`, the comparisons with an `expected`, a value and an `unexpected`; `expected<void, E>` for a success without a value. Not `constexpr`, and the `expected` of pointer-free types is what `std::expected` is for.
+
+## The value, with no `*`
+
+An `expected<T, E>` converts to its value, and to anything its value converts to, so that a result is passed on as it comes:
+
+```cpp
+compress::gzip::reader r(io::open("log.gz"));          // an io::reader is wanted: the file goes in
+string text = io::read_text("notes.txt");
+io::file out = io::create("out.txt");
+```
+
+When there is no value, the conversion throws `bad_expected_access<E>` with the error, as `value()` does, and its `what()` is the error's `message()` ("open log.gz: No such file or directory"). So there are two ways, and both read naturally:
+
+```cpp
+auto config = io::read_text("app.conf");               // auto: the expected itself, error and all
+if (!config) {
+    return defaults();                                 // a missing file is a normal case here
+}
+use(*config);
+
+compress::gzip::reader log(io::open("access.log.gz"));  // no file, nothing to do: the exception says why
+```
+
+The rule of thumb: in `auto` there is the `expected`, in a named type the value. What the conversion does not do, and where `*` (or `value()`) is still written:
+
+- **a deduced template** sees the `expected` itself: `sha256::of(io::read_text(p))`, `io::stdout.write(io::read_text(p))`;
+- **an overload set of types that convert to each other** is ambiguous: `hasher.update(io::read_text(p))` (a `string`, a `slice<const char>`, a `std::string_view`);
+- **arithmetic**: `n + 1` for an `expected<int, E>` is ambiguous; `*n + 1`;
+- **a `variant`** of the value's type: `variant<string, int> v = *e`;
+- **`bool`**: never, so that `if (e)` asks whether there is a value, an `expected<bool, E>` included; and an `expected<bool, E>` converts to no number either;
+- **another `expected`** takes the value or the error as they are (`expected<long, E> l = expected<int, E>(…)` carries an error on), and an `optional<expected<T, E>>` takes the `expected` whole.
+
+Each of these is an error at compile time, never a quiet change of meaning. `std::expected` has no such conversion, and its `*` without a value is undefined behaviour; here `*` and `->` check, as `value()` does (DESIGN 220).
 
 The `expected` has no word of its own. Where it may live is decided by its value and its error: with a `tracked_ptr` inside, where a `tracked_ptr` may.
 
@@ -26,7 +59,7 @@ The `expected` has no word of its own. Where it may live is decided by its value
 - The value and the error follow their own rules where the `expected` lives ([The rules](README.md#the-rules), 1).
 - A value replaced by an error, or the other way round, is destroyed: a pointer value's object is unreferenced from then on.
 - An assignment or a `swap` never leaves the `expected` with neither a value nor an error, as `std::expected` does not: when the construction of the new one may throw, it is made in a temporary first if it moves without throwing, else the old one is moved out and put back on a throw. So an assignment is offered only when the value or the error moves without throwing (the constraints of `std::expected`), and `emplace` only for a construction that cannot throw; a value or an error that the standard library would refuse is refused here.
-- `value()` without a value throws a `bad_expected_access<E>` that carries a copy of the error. An exception object lives in unmanaged memory, where a tracked pointer may not ([The rules](README.md#the-rules), 1), so the exception holds its copy in a managed object through a [`rooted<E>`](rooted.md): an error type with a `tracked_ptr` or a `string` in it is thrown and caught like any other, the error alive for as long as the exception is, its copies included. One managed allocation per throw.
+- `value()`, `*`, `->` and the conversion without a value throw a `bad_expected_access<E>` that carries a copy of the error; its `what()` is the error's `message()` when it has one. An exception object lives in unmanaged memory, where a tracked pointer may not ([The rules](README.md#the-rules), 1), so the exception holds its copy in a managed object through a [`rooted<E>`](rooted.md): an error type with a `tracked_ptr` or a `string` in it is thrown and caught like any other, the error alive for as long as the exception is, its copies included. One managed allocation per throw: the text of `what()` is made from `message()` when `what()` is first called, in plain memory, not at the throw.
 - Thread safety is that of `std::expected` ([The rules](README.md#the-rules), 6).
 
 ## Members
@@ -56,9 +89,10 @@ template<class G> expected& operator=(unexpected<G>&&);
 template<class... A> T& emplace(A&&...);                               // and with an initializer_list
 void swap(expected&);
 
-const T* operator->() const noexcept;  T* operator->() noexcept;
-const T& operator*() const& noexcept;  T& operator*() & noexcept;  T&& operator*() && noexcept;   // and const&&
+const T* operator->() const;  T* operator->();                        // bad_expected_access<E> without a value
+const T& operator*() const&;  T& operator*() &;  T&& operator*() &&;   // the same; and const&&
 explicit operator bool() const noexcept;
+template<class U> operator U() const&;  template<class U> operator U() &&;   // the value where a T, or what a T converts to, is wanted
 bool has_value() const noexcept;
 const T& value() const&;  T& value() &;  T&& value() &&;              // bad_expected_access<E> without one; and const&&
 const E& error() const& noexcept;  E& error() & noexcept;  E&& error() && noexcept;   // and const&&
@@ -107,7 +141,6 @@ try {
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -139,7 +172,7 @@ int main() {
     users["bob"] = make_tracked<User>(User{"bob", users["ann"]});
     for (auto name : {"bob", "ann", "eve"}) {
         auto result = find(users, name).and_then(manager_of).transform([](const tracked_ptr<User>& m) { return m->name; });
-        std::cout << name << ": " << (result ? *result : result.error()) << "\n";
+        println("{}: {}", name, (result ? *result : result.error()));
     }
     // bob: ann / ann: ann has no manager / eve: no user eve
     return 0;

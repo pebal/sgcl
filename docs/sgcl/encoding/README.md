@@ -60,7 +60,7 @@ A codec is plain data — the characters of its alphabet and a table back — an
 | `ascii85.Encode`, `Decode`, `NewEncoder`, `NewDecoder` | `encoding::ascii85::encode`, `decode`, `encoder_to`, `decoder_from` | a group past 32 bits refused |
 | `pem.Block`, `Decode`, `Encode`, `EncodeToMemory` | `pem`, `encoding::pem::parse`, `parse_all`, `to_string()` | a malformed block is an error with a line and a column, not skipped; the headers in their order |
 | `binary.BigEndian.Uint32`, `PutUint32`, `AppendUint32` (and 16, 64, `LittleEndian`) | `encoding::big_endian::read_u32`, `write_u32`, `append_u32` (and 16, 64, `little_endian`) | |
-| `binary.AppendUvarint`, `PutUvarint`, `Uvarint`, `ReadUvarint` | `encoding::varint::append`, `write`, `read(bytes)`, `read(buffered_reader&)` | the signed forms with `_signed`; the end of a stream before a number is `nullopt` |
+| `binary.AppendUvarint`, `PutUvarint`, `Uvarint`, `ReadUvarint` | `encoding::varint::append`, `write`, `read(bytes)`, `read(const buffered_reader&)` | the signed forms with `_signed`; the end of a stream before a number is `nullopt` |
 | `binary.Read`, `binary.Write` of structures | — | with the mapping of types, after JSON |
 | `json.Unmarshal` into `any`, `json.Marshal` | `encoding::json::parse`, `to_string` | immutable; integers exact; the defaults are v2's |
 | `json.Decoder`, `Token`, `More`, v2 `jsontext` | `encoding::json::reader`: `next`, `more`, `read`, `skip` | a key is a token of its own kind |

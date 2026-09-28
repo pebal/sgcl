@@ -153,7 +153,6 @@ static_assert(req::ordered<immutable::vector<int>> && !req::sequence<immutable::
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -170,7 +169,7 @@ int main() {
     text = text.set(0, 'P');
     history.push_back(text);
     for (auto& version : history) {
-        std::cout << string(version.begin(), version.end()) << '\n';
+        println("{}", string(version.begin(), version.end()));
     }
     // the versions differing in one element share the rest: a hundred
     // thousand ints twice costs the one vector plus a path
@@ -179,7 +178,7 @@ int main() {
         big = big.push_back(i);
     }
     auto changed = big.set(50000, -1);
-    std::cout << big[50000] << ' ' << changed[50000] << ' ' << big.depth() << " levels\n";
+    println("{} {} {} levels", big[50000], changed[50000], big.depth());
     return history.size() == 11 && changed.size() == big.size() ? 0 : 1;
 }
 ```

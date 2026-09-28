@@ -502,7 +502,6 @@ map from_list = {std::pair{1, 2.5}};         // map<int, double>
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -518,6 +517,8 @@ struct Registry {
 };
 
 int main() {
+    println("a registry of nodes, by id");
+    auto base = collector::get_live_object_count();   // after the first line: io's own objects are not the example's
     tracked_ptr registry = make_tracked<Registry>();
     for (int id : range(100)) {
         // operator[] inserts a null tracked_ptr; the object is made afterwards
@@ -532,7 +533,7 @@ int main() {
     names.emplace(registry->by_id[1], "one");
     auto one = names.find(registry->by_id[1]);
     names.rehash(256);                                         // `one` is still valid
-    std::cout << one->second << " is node " << one->first->id << '\n';
+    println("{} is node {}", one->second, one->first->id);
 
     // Erasing from the registry destroys the tracked_ptr elements at once;
     // nodes 0 and 1 stay reachable through `names`, the rest is garbage
@@ -540,8 +541,7 @@ int main() {
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
     collector::force_collect(true);
-    std::cout << registry->by_id.size() << " in the registry, "
-              << collector::get_live_object_count() << " live objects\n";
+    println("{} in the registry, {} live objects", registry->by_id.size(), collector::get_live_object_count() - base);
     return registry->by_id.size() == 2 && names.size() == 2 ? 0 : 1;
 }
 ```
@@ -549,6 +549,7 @@ int main() {
 The output:
 
 ```
+a registry of nodes, by id
 one is node 1
 2 in the registry, 13 live objects
 ```

@@ -51,7 +51,7 @@ if (!c) {
     if (e.code() == net::errc::host_not_found) { /* a name nobody knows */ }
     else if (e.is_timeout()) { /* nobody answered in 3 s */ }
     else if (e.code() == std::errc::connection_refused) { /* nothing listens there */ }
-    std::cerr << e.message() << '\n';   // "lookup db.internal: no such host", "dial tcp 10.0.0.7:5432: Connection refused"
+    eprintln("{}", e.message());   // "lookup db.internal: no such host", "dial tcp 10.0.0.7:5432: Connection refused"
 }
 ```
 

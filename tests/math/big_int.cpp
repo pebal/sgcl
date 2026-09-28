@@ -64,6 +64,37 @@ namespace {
     }
 }
 
+// A literal in the program is constructed, not parsed: the value parse
+// gives, or parse's error thrown (DESIGN 234); a number, the literal 0
+// among them, still goes to the constructor from a number
+TEST(BigInt_Tests, LiteralsConstruct) {
+    big_integer a("123456789012345678901234567890");
+    EXPECT_EQ(a, value_of(big_integer::parse("123456789012345678901234567890")));
+    big_integer h("-ff", 16);
+    EXPECT_EQ(h, value_of(big_integer::parse("-ff", 16)));
+    EXPECT_EQ(h, -255);
+    auto bad = big_integer::parse("12x");
+    ASSERT_FALSE(bad);
+    try {
+        big_integer("12x");
+        FAIL() << "not a number";
+    } catch (const bad_expected_access<math::parse_error>& x) {
+        EXPECT_EQ(x.error(), bad.error());
+        EXPECT_EQ(string(x.what()), bad.error().message());
+    }
+    EXPECT_THROW(big_integer("12", 2), bad_expected_access<math::parse_error>);
+    EXPECT_THROW(big_integer("12", 37), std::invalid_argument);   // as parse
+    static_assert(!std::is_convertible_v<const string&, big_integer>, "explicit");
+    static_assert(!std::is_convertible_v<const char*, big_integer>, "explicit");
+    static_assert(std::is_constructible_v<big_integer, int>);
+    static_assert(!std::is_constructible_v<big_integer, bool>);
+    static_assert(!std::is_constructible_v<big_integer, int*>);
+    EXPECT_EQ(big_integer(0), big_integer());   // the number, not a null text
+    EXPECT_EQ(big_integer(0).sign(), 0);
+    EXPECT_EQ(big_integer(int64_t(-7)), -7);
+    EXPECT_EQ(big_integer(int64_t(INT64_MAX)).to_string(), "9223372036854775807");
+}
+
 TEST(BigInt_Tests, SixteenBytes) {
     static_assert(sizeof(big_integer) == 16);
     static_assert(std::is_nothrow_constructible_v<big_integer, int>);
@@ -239,14 +270,14 @@ TEST(BigInt_Tests, TextInEveryBase) {
         for (char& c : upper) {
             c = char(std::toupper((unsigned char)c));
         }
-        ASSERT_EQ(*big_integer::parse(string(upper), t.base), a);
+        ASSERT_EQ(value_of(big_integer::parse(string(upper), t.base)), a);
     }
 }
 
 TEST(BigInt_Tests, LongDecimal) {
     big_integer p = H(math_vectors::power_of_three_hex);
     EXPECT_EQ(dec(p), math_vectors::power_of_three_decimal);
-    EXPECT_EQ(*big_integer::parse(math_vectors::power_of_three_decimal), p);
+    EXPECT_EQ(value_of(big_integer::parse(math_vectors::power_of_three_decimal)), p);
     // A hundred thousand digits both ways: a one and zeros, nines, and
     // the round trip of a number with all digits in it
     big_integer ten = 10;
@@ -264,11 +295,11 @@ TEST(BigInt_Tests, LongDecimal) {
     EXPECT_EQ(s[0], '1');
     std::string nines = dec(e - 1);
     EXPECT_EQ(nines, std::string(100000, '9'));
-    EXPECT_EQ(*big_integer::parse(string(nines)), e - 1);
+    EXPECT_EQ(value_of(big_integer::parse(string(nines))), e - 1);
     big_integer mixed = (e - 1) / 7;
-    EXPECT_EQ(*big_integer::parse(mixed.to_string()), mixed);
-    EXPECT_EQ(*big_integer::parse(mixed.to_string(36), 36), mixed);
-    EXPECT_EQ(*big_integer::parse(mixed.to_string(2), 2), mixed);
+    EXPECT_EQ(value_of(big_integer::parse(mixed.to_string())), mixed);
+    EXPECT_EQ(value_of(big_integer::parse(mixed.to_string(36), 36)), mixed);
+    EXPECT_EQ(value_of(big_integer::parse(mixed.to_string(2), 2)), mixed);
 }
 
 TEST(BigInt_Tests, ParseErrors) {
@@ -293,27 +324,28 @@ TEST(BigInt_Tests, ParseErrors) {
     EXPECT_EQ(error("z", 35), 0u);
     EXPECT_EQ(error("12345678901234567890123456789012345678901234567890a"), 50u);
     auto r = big_integer::parse("12x4");
+    ASSERT_FALSE(r);
     auto m = r.error().message();
     EXPECT_EQ(std::string(m.data(), m.size()), "not a digit in base 10 at byte 2");
-    m = big_integer::parse("").error().message();
+    m = error_of(big_integer::parse("")).message();
     EXPECT_EQ(std::string(m.data(), m.size()), "empty text at byte 0");
-    m = big_integer::parse("-").error().message();
+    m = error_of(big_integer::parse("-")).message();
     EXPECT_EQ(std::string(m.data(), m.size()), "no digits after the sign at byte 1");
     EXPECT_THROW(big_integer::parse("1", 1), std::invalid_argument);
     EXPECT_THROW(big_integer::parse("1", 37), std::invalid_argument);
     EXPECT_THROW(big_integer(5).to_string(1), std::invalid_argument);
     EXPECT_THROW(big_integer(5).to_string(37), std::invalid_argument);
-    EXPECT_EQ(*big_integer::parse("-0"), 0);
-    EXPECT_EQ(big_integer::parse("-0")->sign(), 0);
-    EXPECT_EQ(*big_integer::parse("+5"), 5);
-    EXPECT_EQ(*big_integer::parse("z", 36), 35);
-    EXPECT_EQ(*big_integer::parse("Z", 36), 35);
-    EXPECT_EQ(*big_integer::parse("0000000000000000000000000000000000000000000000000000001"), 1);
-    EXPECT_EQ(*big_integer::parse("-0000000000000000000000000000000000000000009223372036854775808"), INT64_MIN);
-    EXPECT_EQ(*big_integer::parse("9223372036854775808"), big_integer(INT64_MAX) + 1);
-    EXPECT_EQ(*big_integer::parse("18446744073709551615"), UINT64_MAX);
-    EXPECT_EQ(*big_integer::parse("18446744073709551616"), big_integer(UINT64_MAX) + 1);
-    EXPECT_EQ(*big_integer::parse("-18446744073709551616"), -(big_integer(UINT64_MAX) + 1));
+    EXPECT_EQ(value_of(big_integer::parse("-0")), 0);
+    EXPECT_EQ(value_of(big_integer::parse("-0")).sign(), 0);
+    EXPECT_EQ(value_of(big_integer::parse("+5")), 5);
+    EXPECT_EQ(value_of(big_integer::parse("z", 36)), 35);
+    EXPECT_EQ(value_of(big_integer::parse("Z", 36)), 35);
+    EXPECT_EQ(value_of(big_integer::parse("0000000000000000000000000000000000000000000000000000001")), 1);
+    EXPECT_EQ(value_of(big_integer::parse("-0000000000000000000000000000000000000000009223372036854775808")), INT64_MIN);
+    EXPECT_EQ(value_of(big_integer::parse("9223372036854775808")), big_integer(INT64_MAX) + 1);
+    EXPECT_EQ(value_of(big_integer::parse("18446744073709551615")), UINT64_MAX);
+    EXPECT_EQ(value_of(big_integer::parse("18446744073709551616")), big_integer(UINT64_MAX) + 1);
+    EXPECT_EQ(value_of(big_integer::parse("-18446744073709551616")), -(big_integer(UINT64_MAX) + 1));
 }
 
 TEST(BigInt_Tests, FromDouble) {
@@ -712,7 +744,7 @@ TEST(BigInt_Tests, AlgebraicProperties) {
         big_integer floor_div = a / p - ((a % p) < 0 ? 1 : 0);
         ASSERT_EQ(a >> k, floor_div);
         int base = int(rng() % 35) + 2;
-        ASSERT_EQ(*big_integer::parse(a.to_string(base), base), a);
+        ASSERT_EQ(value_of(big_integer::parse(a.to_string(base), base)), a);
         size_t bit = size_t(rng() % 900);
         ASSERT_EQ(a.bit(bit), ((a >> int64_t(bit)) & 1) == 1);
     }
@@ -943,7 +975,7 @@ TEST(BigInt_Tests, UnderTheCollector) {
                 texts.push_back(p.to_string(i % 50 == 0 ? 16 : 10));
             }
             for (size_t i = 0; i < kept.size(); ++i) {
-                ASSERT_EQ(*big_integer::parse(texts[i], i % 50 == 0 ? 16 : 10), kept[i]);
+                ASSERT_EQ(value_of(big_integer::parse(texts[i], i % 50 == 0 ? 16 : 10)), kept[i]);
                 if (kept[i] != 0) {
                     ASSERT_EQ((kept[i] / kept[i]), 1);
                 }

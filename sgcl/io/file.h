@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../core/detail/handle_word.h"
 #include "fs.h"
 #include "stream.h"
 #include "../async/blocking.h"
@@ -44,11 +45,10 @@ namespace sgcl::io {
     }
 
     class file;
-    expected<tracked_ptr<file>, error> open(const string& path, open_flags flags, permissions p);
-    tracked_ptr<file> from_fd(int fd, const string& name);
 
     namespace detail {
-        tracked_ptr<file> std_stream(int fd, const string& name);
+        class FileState;
+        struct FileAccess;
     }
 
     // A file: one class for every descriptor (a regular file, a pipe, a
@@ -65,19 +65,16 @@ namespace sgcl::io {
     // without a seek between them. The descriptor is released by
     // close() or, failing that, by the destructor on the collector's
     // thread after the sweep that finds the file dead.
-    class file final : public mixin::reader<file>, public mixin::writer<file>, public mixin::seeker<file> {
-        friend class sgcl::detail::MakerBase;   // make_tracked constructs a file here, for the three below
-        friend expected<tracked_ptr<file>, error> open(const string&, open_flags, permissions);
-        friend tracked_ptr<file> from_fd(int, const string&);
-        friend tracked_ptr<file> detail::std_stream(int, const string&);
-
-        file(int fd, const string& name, bool reactor, bool owns) noexcept
+    //
+    // The state of a file, the object its handles share (io::file below):
+    // the descriptor and what the operations need. Managed; the handle is
+    // one tracked word to it.
+    namespace detail {
+    class FileState final {
+    public:
+        FileState(int fd, const string& name, bool reactor, bool owns) noexcept
         : _d(fd, owns), _path(std::move(name)), _reactor(reactor) {
         }
-
-    public:
-        using mixin::writer<file>::write;
-        using mixin::writer<file>::async_write;
 
         expected<size_t, error> read(const slice<byte>& buffer) {
             detail::Operation op(_d);
@@ -88,6 +85,7 @@ namespace sgcl::io {
                 return 0;
             }
             for (;;) {
+                _d.prepare(detail::Descriptor::Read);
                 ssize_t n = ::read(_d.fd(), buffer.data(), buffer.size());
                 if (n >= 0) {
                     return static_cast<size_t>(n);
@@ -107,7 +105,7 @@ namespace sgcl::io {
 
         async::task<expected<size_t, error>> async_read(slice<byte> buffer) {
             if (!_reactor) {
-                co_return co_await async::spawn_blocking([this, buffer] { return read(buffer); });
+                co_return co_await async::spawn_blocking([self = tracked_ptr<FileState>(this), buffer] { return self->read(buffer); });
             }
             detail::Operation op(_d);
             if (!op) {
@@ -117,6 +115,7 @@ namespace sgcl::io {
                 co_return 0;
             }
             for (;;) {
+                _d.prepare(detail::Descriptor::Read);
                 ssize_t n = ::read(_d.fd(), buffer.data(), buffer.size());
                 if (n >= 0) {
                     co_return static_cast<size_t>(n);
@@ -125,8 +124,7 @@ namespace sgcl::io {
                     continue;
                 }
                 if (errno == EAGAIN) {
-                    auto w = _d.begin_wait(detail::Descriptor::Read);
-                    auto r = w.done ? w.result : _d.end_wait(w, co_await w.channel->receive());
+                    auto r = co_await _d.async_wait(detail::Descriptor::Read);
                     if (auto e = _waited(r, "read")) {
                         co_return detail::fail(*e);
                     }
@@ -143,6 +141,7 @@ namespace sgcl::io {
             }
             size_t written = 0;
             while (written < data.size()) {
+                _d.prepare(detail::Descriptor::Write);
                 ssize_t n = ::write(_d.fd(), data.data() + written, data.size() - written);
                 if (n >= 0) {
                     written += static_cast<size_t>(n);
@@ -164,7 +163,7 @@ namespace sgcl::io {
 
         async::task<expected<size_t, error>> async_write(slice<const byte> data) {
             if (!_reactor) {
-                co_return co_await async::spawn_blocking([this, data] { return write(data); });
+                co_return co_await async::spawn_blocking([self = tracked_ptr<FileState>(this), data] { return self->write(data); });
             }
             detail::Operation op(_d);
             if (!op) {
@@ -172,6 +171,7 @@ namespace sgcl::io {
             }
             size_t written = 0;
             while (written < data.size()) {
+                _d.prepare(detail::Descriptor::Write);
                 ssize_t n = ::write(_d.fd(), data.data() + written, data.size() - written);
                 if (n >= 0) {
                     written += static_cast<size_t>(n);
@@ -181,8 +181,7 @@ namespace sgcl::io {
                     continue;
                 }
                 if (errno == EAGAIN) {
-                    auto w = _d.begin_wait(detail::Descriptor::Write);
-                    auto r = w.done ? w.result : _d.end_wait(w, co_await w.channel->receive());
+                    auto r = co_await _d.async_wait(detail::Descriptor::Write);
                     if (auto e = _waited(r, "write")) {
                         co_return detail::fail(*e);
                     }
@@ -267,11 +266,11 @@ namespace sgcl::io {
         // `sync()` on this thread, `co_await async_sync()` in a task, on the
         // blocking pool (an fsync waits for the disk); truncate likewise
         async::task<expected<void, error>> async_sync() {
-            co_return co_await async::spawn_blocking([this] { return sync(); });
+            co_return co_await async::spawn_blocking([self = tracked_ptr<FileState>(this)] { return self->sync(); });
         }
 
         async::task<expected<void, error>> async_truncate(uint64_t size) {
-            co_return co_await async::spawn_blocking([this, size] { return truncate(size); });
+            co_return co_await async::spawn_blocking([self = tracked_ptr<FileState>(this), size] { return self->truncate(size); });
         }
 
         expected<file_info, error> stat() const {
@@ -295,6 +294,12 @@ namespace sgcl::io {
                 return detail::fail(last_error("chmod", _name()));
             }
             return {};
+        }
+
+        // `chmod(p)` on this thread, `co_await async_chmod(p)` in a task, on
+        // the blocking pool as async_sync
+        async::task<expected<void, error>> async_chmod(permissions p) {
+            co_return co_await async::spawn_blocking([self = tracked_ptr<FileState>(this), p] { return self->chmod(p); });
         }
 
         // The descriptor, -1 when closed; the path it was opened with,
@@ -326,6 +331,9 @@ namespace sgcl::io {
             }
             if (r == detail::WaitResult::closed) {
                 return error(errc::closed, op, _name());
+            }
+            if (r == detail::WaitResult::failed) {
+                return error(_d.wait_failure(), op, _name());
             }
             return error(error_code(ECANCELED, std::system_category()), op, _name());
         }
@@ -369,13 +377,192 @@ namespace sgcl::io {
         }
 
         async::task<expected<size_t, error>> _co_read_at(slice<byte> buffer, uint64_t offset)  {
-            co_return co_await async::spawn_blocking([this, buffer, offset] { return _block_read_at(buffer, offset); });
+            co_return co_await async::spawn_blocking([self = tracked_ptr<FileState>(this), buffer, offset] { return self->_block_read_at(buffer, offset); });
         }
 
         async::task<expected<size_t, error>> _co_write_at(slice<const byte> data, uint64_t offset)  {
-            co_return co_await async::spawn_blocking([this, data, offset] { return _block_write_at(data, offset); });
+            co_return co_await async::spawn_blocking([self = tracked_ptr<FileState>(this), data, offset] { return self->_block_write_at(data, offset); });
         }
     };
+    }
+
+    // A file as a handle: one tracked word to the state above, copied and
+    // passed by value, the copies sharing one file (as io::reader and
+    // net::connection do). A handle is a tracked word: on a stack, in a
+    // task, in a managed object; in a global or a std container, a
+    // root_ptr to it, as to any managed object. Made by open, create,
+    // temp_file, pipe and from_fd; a default-constructed one holds no file
+    // (`!f`), and an operation on it is a contract violation. As an
+    // io::reader or io::writer it is the state that is bound, not the
+    // handle: the stream lives as long as the reader does.
+    class file final : public mixin::reader<file>, public mixin::writer<file>, public mixin::seeker<file> {
+    public:
+        using mixin::writer<file>::write;
+        using mixin::writer<file>::async_write;
+
+        file() noexcept = default;
+
+        // `read(...)` on this thread, `co_await async_read(...)` in a task
+        expected<size_t, error> read(const slice<byte>& buffer) const {
+            return _get().read(buffer);
+        }
+
+        async::task<expected<size_t, error>> async_read(const slice<byte>& buffer) const {
+            return _get().async_read(buffer);
+        }
+
+        // `write(...)` on this thread, `co_await async_write(...)` in a task
+        expected<size_t, error> write(const slice<const byte>& data) const {
+            return _get().write(data);
+        }
+
+        async::task<expected<size_t, error>> async_write(const slice<const byte>& data) const {
+            return _get().async_write(data);
+        }
+
+        expected<uint64_t, error> seek(int64_t offset, seek_from from = seek_from::begin) const {
+            return _get().seek(offset, from);
+        }
+
+        // Ends the file: no operation starts after it, the waits in
+        // progress end with errc::closed, and the descriptor is given back
+        // to the kernel by whoever lets go of it last, this call or the
+        // last operation in progress
+        expected<void, error> close() const {
+            return _get().close();
+        }
+
+        bool is_closed() const noexcept {
+            return _get().is_closed();
+        }
+
+        // pread and pwrite: the position given, the file's own untouched
+        // `read_at(...)` on this thread, `co_await async_read_at(...)` in a task
+        expected<size_t, error> read_at(const slice<byte>& buffer, uint64_t offset) const {
+            return _get().read_at(buffer, offset);
+        }
+
+        async::task<expected<size_t, error>> async_read_at(const slice<byte>& buffer, uint64_t offset) const {
+            return _get().async_read_at(buffer, offset);
+        }
+
+        // `write_at(...)` on this thread, `co_await async_write_at(...)` in a task
+        expected<size_t, error> write_at(const slice<const byte>& data, uint64_t offset) const {
+            return _get().write_at(data, offset);
+        }
+
+        async::task<expected<size_t, error>> async_write_at(const slice<const byte>& data, uint64_t offset) const {
+            return _get().async_write_at(data, offset);
+        }
+
+        // fsync; ftruncate; fstat; fchmod. `sync()` on this thread,
+        // `co_await async_sync()` in a task, on the blocking pool;
+        // truncate and chmod likewise
+        expected<void, error> sync() const {
+            return _get().sync();
+        }
+
+        async::task<expected<void, error>> async_sync() const {
+            return _get().async_sync();
+        }
+
+        expected<void, error> truncate(uint64_t size) const {
+            return _get().truncate(size);
+        }
+
+        async::task<expected<void, error>> async_truncate(uint64_t size) const {
+            return _get().async_truncate(size);
+        }
+
+        expected<file_info, error> stat() const {
+            return _get().stat();
+        }
+
+        expected<void, error> chmod(permissions p) const {
+            return _get().chmod(p);
+        }
+
+        async::task<expected<void, error>> async_chmod(permissions p) const {
+            return _get().async_chmod(p);
+        }
+
+        // The descriptor, -1 when closed; the path it was opened with,
+        // or the name given to from_fd
+        int fd() const noexcept {
+            return _get().fd();
+        }
+
+        const string& path() const noexcept {
+            return _get().path();
+        }
+
+        // Whether the async operations wait on the reactor (a
+        // non-blocking descriptor) rather than run on the blocking pool
+        bool is_nonblocking() const noexcept {
+            return _get().is_nonblocking();
+        }
+
+        // Whether this handle holds a file
+        explicit operator bool() const noexcept {
+            return (bool)_state;
+        }
+
+        // The same file: the same state
+        friend bool operator==(const file& a, const file& b) noexcept {
+            return a._state == b._state;
+        }
+
+    private:
+        friend struct detail::FileAccess;
+        friend struct detail::HandleAccess;
+
+        explicit file(tracked_ptr<detail::FileState> state) noexcept
+        : _state(std::move(state)) {
+        }
+
+        detail::FileState& _get() const noexcept {
+            assert(_state && "an empty io::file");
+            return *_state;
+        }
+
+        const tracked_ptr<detail::FileState>& _stream_state() const noexcept {
+            return _state;
+        }
+
+        // The handle's word, for the atomics (core/detail/handle_word.h)
+        friend struct sgcl::detail::HandleWord;
+
+        file(sgcl::detail::FromWord, const tracked_ptr<detail::FileState>& w) noexcept
+        : _state(w) {
+        }
+
+        tracked_ptr<detail::FileState>& _handle_word() noexcept {
+            return _state;
+        }
+
+        const tracked_ptr<detail::FileState>& _handle_word() const noexcept {
+            return _state;
+        }
+
+        tracked_ptr<detail::FileState> _state;
+    };
+
+    namespace detail {
+        template<>
+        inline constexpr bool IsStreamHandle<file> = true;
+
+        // The handle made over a state, and the state under a handle, for
+        // the library's own code (exec, the standard streams, compress)
+        struct FileAccess {
+            static file make(tracked_ptr<FileState> state) noexcept {
+                return file(std::move(state));
+            }
+
+            static const tracked_ptr<FileState>& state(const file& f) noexcept {
+                return f._state;
+            }
+        };
+    }
 
     namespace detail {
         // Whether the descriptor has O_NONBLOCK set
@@ -389,16 +576,18 @@ namespace sgcl::io {
             return f >= 0 && ::fcntl(fd, F_SETFL, f | O_NONBLOCK) == 0;
         }
 
-        inline tracked_ptr<file> std_stream(int fd, const string& name) {
-            return tracked_ptr<file>(make_tracked<file>(fd, name, is_nonblocking_fd(fd), false));
+        // The state of a file over a standard descriptor, which it never
+        // closes (os.h: io::stdin, io::stdout, io::stderr)
+        inline tracked_ptr<FileState> std_stream(int fd, const string& name) {
+            return tracked_ptr<FileState>(make_tracked<FileState>(fd, name, is_nonblocking_fd(fd), false));
         }
     }
 
-    // Opens a file: a managed file, or the error (is_not_found(),
+    // Opens a file: its handle, or the error (is_not_found(),
     // is_permission(), is_exists() with exclusive). A regular file and
     // a terminal are blocking (their async operations use the pool); a
     // FIFO or a device is made non-blocking and served by the reactor.
-    inline expected<tracked_ptr<file>, error> open(const string& path, open_flags flags = open_flags::read, permissions p = permissions(0666)) {
+    inline expected<file, error> open(const string& path, open_flags flags = open_flags::read, permissions p = permissions(0666)) {
         int f = O_CLOEXEC;
         bool r = flags & open_flags::read, w = flags & open_flags::write;
         f |= (r && w) ? O_RDWR : w ? O_WRONLY : O_RDONLY;
@@ -419,22 +608,22 @@ namespace sgcl::io {
         if (::fstat(fd, &st) == 0 && !S_ISREG(st.st_mode) && !S_ISDIR(st.st_mode) && !::isatty(fd)) {
             reactor = detail::set_nonblocking_fd(fd);
         }
-        return tracked_ptr<file>(make_tracked<file>(fd, path, reactor, true));
+        return detail::FileAccess::make(make_tracked<detail::FileState>(fd, path, reactor, true));
     }
 
     // open(path, write | create | truncate, p)
-    inline expected<tracked_ptr<file>, error> create(const string& path, permissions p = permissions(0666)) {
+    inline expected<file, error> create(const string& path, permissions p = permissions(0666)) {
         return open(path, open_flags::write | open_flags::create | open_flags::truncate, p);
     }
 
     // `open(...)` on this thread, `co_await async_open(...)` in a task, on
     // the blocking pool: an open waits for the disk, and one of a FIFO for
     // the other end; create likewise
-    inline async::task<expected<tracked_ptr<file>, error>> async_open(const string& path, open_flags flags = open_flags::read, permissions p = permissions(0666)) {
+    inline async::task<expected<file, error>> async_open(const string& path, open_flags flags = open_flags::read, permissions p = permissions(0666)) {
         return detail::on_pool([path, flags, p] { return open(path, flags, p); });
     }
 
-    inline async::task<expected<tracked_ptr<file>, error>> async_create(const string& path, permissions p = permissions(0666)) {
+    inline async::task<expected<file, error>> async_create(const string& path, permissions p = permissions(0666)) {
         return detail::on_pool([path, p] { return create(path, p); });
     }
 
@@ -442,15 +631,15 @@ namespace sgcl::io {
     // socket from net), which the file owns from now on. The
     // descriptor's flags are left as they are: one that is non-blocking
     // already is served by the reactor, any other by the pool.
-    inline tracked_ptr<file> from_fd(int fd, const string& name = {}) {
-        return tracked_ptr<file>(make_tracked<file>(fd, name, detail::is_nonblocking_fd(fd), true));
+    inline file from_fd(int fd, const string& name = {}) {
+        return detail::FileAccess::make(make_tracked<detail::FileState>(fd, name, detail::is_nonblocking_fd(fd), true));
     }
 
-    // The two ends of a pipe, by name: `p->read`, `p->write`, or
-    // `auto [r, w] = *p`
+    // The two ends of a pipe, by name: `ends.read`, `ends.write`, or
+    // `auto [r, w] = io::pipe().value()`
     struct pipe_ends {
-        tracked_ptr<file> read;    // what is written to the other end is read here
-        tracked_ptr<file> write;
+        file read;    // what is written to the other end is read here
+        file write;
     };
 
     // An anonymous pipe: what is written to the write end is read from
@@ -476,15 +665,17 @@ namespace sgcl::io {
         if (!f) {
             return detail::fail(f);
         }
-        auto info = (*f)->stat();
-        if (!info) {
-            return detail::fail(info);
+        // the size alone: stat() would make the file_info's name, a string
+        // nobody reads here
+        struct ::stat st;
+        if (::fstat(f->fd(), &st) != 0) {
+            return detail::fail(last_error("stat", path));
         }
         vector<byte> out;
-        out.resize(static_cast<size_t>(info->size));
+        out.resize(static_cast<size_t>(st.st_size));
         size_t got = 0;   // a file that shrank since the stat gives what it has: read, not read_full
         while (got < out.size()) {
-            auto n = (*f)->read(out.as_slice().subspan(got));
+            auto n = f->read(out.as_slice().subspan(got));
             if (!n) {
                 return detail::fail(n);
             }
@@ -494,14 +685,24 @@ namespace sgcl::io {
             got += *n;
         }
         out.resize(got);
-        if (got == info->size) {
-            auto more = (*f)->read_all();
-            if (!more) {
-                return detail::fail(more);
+        if (got == static_cast<size_t>(st.st_size)) {
+            // one byte more, into the stack, tells whether the file grew
+            // since the stat; only then is the rest read to its end
+            byte probe;
+            auto n = f->read(slice<byte>(&probe, 1));
+            if (!n) {
+                return detail::fail(n);
             }
-            out.insert(out.end(), more->begin(), more->end());
+            if (*n) {
+                out.push_back(probe);
+                auto more = f->read_all();
+                if (!more) {
+                    return detail::fail(more);
+                }
+                out.insert(out.end(), more->begin(), more->end());
+            }
         }
-        (void)(*f)->close();
+        (void)f->close();
         return out;
     }
     }
@@ -557,8 +758,8 @@ namespace sgcl::io {
         if (!f) {
             return detail::fail(f);
         }
-        auto w = (*f)->write(data);
-        auto c = (*f)->close();
+        auto w = f->write(data);
+        auto c = f->close();
         if (!w) {
             return detail::fail(w);
         }
@@ -578,8 +779,8 @@ namespace sgcl::io {
         if (!f) {
             return detail::fail(f);
         }
-        auto w = (*f)->write(data);
-        auto c = (*f)->close();
+        auto w = f->write(data);
+        auto c = f->close();
         if (!w) {
             return detail::fail(w);
         }
@@ -653,6 +854,29 @@ namespace sgcl::io {
         return detail::_co_append_file(path, data, p);
     }
 
+    // A literal, a character array, a std::string_view: as a string (an
+    // exact match, else the conversions to a string and to bytes tie); the
+    // async forms copy the text, which the task then holds
+    template<sgcl::detail::TextArgument T>
+    expected<void, error> write_file(const string& path, const T& text, permissions p = permissions(0666)) {
+        return detail::_block_write_file(path, slice<const byte>(text), p);
+    }
+
+    template<sgcl::detail::TextArgument T>
+    async::task<expected<void, error>> async_write_file(const string& path, const T& text, permissions p = permissions(0666)) {
+        return detail::_co_write_file(path, string(slice<const byte>(text)), p);
+    }
+
+    template<sgcl::detail::TextArgument T>
+    expected<void, error> append_file(const string& path, const T& text, permissions p = permissions(0666)) {
+        return detail::_block_append_file(path, slice<const byte>(text), p);
+    }
+
+    template<sgcl::detail::TextArgument T>
+    async::task<expected<void, error>> async_append_file(const string& path, const T& text, permissions p = permissions(0666)) {
+        return detail::_co_append_file(path, string(slice<const byte>(text)), p);
+    }
+
 
     namespace detail {
         // The system's temporary directory: $TMPDIR, else /tmp
@@ -689,7 +913,7 @@ namespace sgcl::io {
     // string ("upload-*.tmp"), opened for reading and writing, 0600;
     // make_temp_dir the same for a directory, 0700 (Go's os.MkdirTemp;
     // temp_dir() is the system's directory itself). The caller removes it.
-    inline expected<tracked_ptr<file>, error> temp_file(const string& dir = {}, const string& pattern = "*") {
+    inline expected<file, error> temp_file(const string& dir = {}, const string& pattern = "*") {
         string root = dir.empty() ? detail::temp_root() : dir;
         for (int attempt = 0; attempt < 10000; ++attempt) {
             auto p = io::path::join(root, detail::temp_name(pattern));
@@ -718,7 +942,7 @@ namespace sgcl::io {
 
     // `temp_file(...)` on this thread, `co_await async_temp_file(...)` in a
     // task, on the blocking pool, as create; make_temp_dir likewise
-    inline async::task<expected<tracked_ptr<file>, error>> async_temp_file(const string& dir = {}, const string& pattern = "*") {
+    inline async::task<expected<file, error>> async_temp_file(const string& dir = {}, const string& pattern = "*") {
         return detail::on_pool([dir, pattern] { return temp_file(dir, pattern); });
     }
 

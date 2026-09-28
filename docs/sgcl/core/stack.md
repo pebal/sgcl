@@ -119,7 +119,6 @@ bool less = a < b;                  // true: a prefix
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -141,6 +140,8 @@ tracked_ptr<Node> build(int depth, int& next) {
 }
 
 int main() {
+    println("a tree walked depth first");
+    auto base = collector::get_live_object_count();   // after the first line: io's own objects are not the example's
     int next = 0;
     tracked_ptr root = build(10, next);           // 1023 nodes
 
@@ -163,8 +164,7 @@ int main() {
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
     collector::force_collect(true);
-    std::cout << visited.size() << " nodes visited, last value " << visited.top() << ", "
-              << collector::get_live_object_count() << " live objects\n";
+    println("{} nodes visited, last value {}, {} live objects", visited.size(), visited.top(), collector::get_live_object_count() - base);
     return visited.size() == 1023 && visited.top() == 1022 ? 0 : 1;
 }
 ```
@@ -172,6 +172,7 @@ int main() {
 The output:
 
 ```
+a tree walked depth first
 1023 nodes visited, last value 1022, 2 live objects
 ```
 

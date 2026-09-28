@@ -92,9 +92,11 @@ const_iterator find(const Key& key) const noexcept;
 bool contains(const Key& key) const noexcept;
 size_type count(const Key& key) const noexcept;
 template<class K> iterator find(const K& key) noexcept;        // when Compare::is_transparent: and const, contains, count
+V value_or(const Key& key, const V& fallback) const;
+template<class K> V value_or(const K& key, const V& fallback) const;   // when Compare::is_transparent
 ```
 
-The element under `key`, or `end()`; wait-free. With a transparent comparator (`is_transparent`, as `std::less` of a [string](../core/string.md) is) the lookups take a key of another type and build none: a `string_view` or a literal finds a `string` key with no string made for the search.
+The element under `key`, or `end()`; wait-free. With a transparent comparator (`is_transparent`, as `std::less` of a [string](../core/string.md) is) the lookups take a key of another type and build none: a `string_view` or a literal finds a `string` key with no string made for the search. `value_or(key, fallback)` returns a copy of the value under `key`, or `fallback` when it is absent (one word for a `tracked_ptr` value), as [`mixin::lookup`](../core/mixin/lookup.md)'s `value_or` of the other maps; an element erased by another thread after the search found it is read as it was.
 
 ```cpp
 if (auto it = sessions.find(42); it != sessions.end()) {
@@ -116,7 +118,7 @@ The first element whose key is not less than `key`, and the first whose key is g
 
 ```cpp
 for (auto it = m.lower_bound(10); it != m.end() && it->first < 20; ++it) {   // the keys in [10, 20)
-    std::cout << it->first << "\n";
+    println("{}", it->first);
 }
 ```
 
@@ -177,7 +179,6 @@ key_compare key_comp() const;
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -219,7 +220,7 @@ int main() {
     for (auto& t : threads) {
         t.join();
     }
-    std::cout << registry.size() << " entries, " << found << " lookups hit\n";
+    println("{} entries, {} lookups hit", registry.size(), found.load());
     return registry.size() == 500 ? 0 : 1;
 }
 ```

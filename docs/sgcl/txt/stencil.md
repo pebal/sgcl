@@ -23,6 +23,8 @@ string page = t->render(data);
 class stencil {
     static expected<stencil, stencil_error> parse(const string& source);
     static expected<stencil, stencil_error> parse(const string& source, const stencil_functions&);
+    explicit stencil(const string& source);   // a literal: parse(source), or bad_expected_access<stencil_error> with its message (DESIGN 234)
+    explicit stencil(const string& source, const stencil_functions&);   // the same with a table
     static bool parses(const string& source);
 
     string render(const value& data) const;
@@ -66,7 +68,7 @@ class stencil_functions {
 Because of the colon. A value may carry the **specification of [`format`](format.md)** after it, and that specification is read by `format.h`'s own reader and written by `format.h`'s own writers:
 
 ```cpp
-auto t = txt::stencil::parse(string("{{ total:>8.2f }} | {{ name:?}}"));
+txt::stencil t("{{ total:>8.2f }} | {{ name:?}}");
 ```
 
 `{{ total:>8.2f }}` pads and rounds exactly as `txt::format("{:>8.2f}", total)` does — same grammar, same refusals, same writers. Nothing about converting a number, padding a field, stopping a precision on a code point or escaping a debug form is written a second time here. Two implementations of writing a number in one module is exactly what this project avoids, and the [test](../../../tests/txt/stencil.cpp) asks both sides the same eleven questions and compares, so the two cannot drift apart unnoticed.
@@ -206,6 +208,8 @@ if (!t) {
     log("{}:{}:{}: {}", path, t.error().line(), t.error().column(), t.error().message());
 }
 ```
+
+A source the program itself writes, a literal in the code, is not data that may be wrong: it is constructed, `txt::stencil t("Hello, {{ name }}!")`, and a slip in it throws `bad_expected_access<stencil_error>` with the same error — the mistake of the program, found the first time the line runs.
 
 Everything that can be settled where the source is read is settled there: the shape of every specification, that every function named is one the table knows, that every block is closed, that no jump goes nowhere. The one thing that cannot be is the **type** a field will meet, the values arriving long after. `{:d}` over a name is that case: refusing the page would punish the reader for the template author's slip and writing nothing would lose the value, so the type letter is dropped and the fill, the alignment and the width are kept — `[{{ s:>6d }}]` over `ada` is `[   ada]`.
 

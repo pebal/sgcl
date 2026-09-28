@@ -23,8 +23,10 @@
 #include <cstdint>
 #include <initializer_list>
 #include <iterator>
+#include <memory>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace sgcl::concurrent::detail {
     using namespace sgcl::detail;
@@ -130,7 +132,9 @@ namespace sgcl::concurrent::detail {
 
         // The count of the elements, striped over cache lines so that the
         // threads do not fight over one word (Java's LongAdder): a thread
-        // adds to its own stripe, size() sums them
+        // adds to its own stripe, size() sums them. Numbers only, owned by
+        // the list alone: plain memory, freed with the list (a managed
+        // object of 2 KB for every list before)
         static constexpr unsigned Stripes = 16;
 
         struct Counters {
@@ -268,7 +272,7 @@ namespace sgcl::concurrent::detail {
 
         explicit SplitList(size_type buckets, const hasher& hash = hasher(), const key_equal& equal = key_equal())
         : _head(make_tracked<NodeBase>(uint64_t(0), Dummy))
-        , _counters(make_tracked<Counters>())
+        , _counters(std::make_unique<Counters>())
         , _hash(hash)
         , _equal(equal) {
             size_type n = std::bit_ceil(std::max<size_type>(buckets, 2));
@@ -289,7 +293,7 @@ namespace sgcl::concurrent::detail {
         template<std::input_iterator InputIt>
         SplitList(InputIt first, InputIt last, size_type buckets = InitialBuckets, const hasher& hash = hasher(), const key_equal& equal = key_equal())
         : _head(make_tracked<NodeBase>(uint64_t(0), Dummy))
-        , _counters(make_tracked<Counters>())
+        , _counters(std::make_unique<Counters>())
         , _hash(hash)
         , _equal(equal) {
             vector<value_type> items;   // the elements may hold tracked pointers: a managed buffer
@@ -305,7 +309,7 @@ namespace sgcl::concurrent::detail {
                 size_t hash;
                 size_t index;
             };
-            vector<Placed> order;
+            std::vector<Placed> order;   // numbers only, scratch of this call: plain memory
             order.reserve(items.size());
             for (size_t i = 0; i < items.size(); ++i) {
                 size_t h = _hash(Traits::key(items[i]));
@@ -819,7 +823,7 @@ namespace sgcl::concurrent::detail {
 
         atomic<tracked_ptr<Buckets>> _buckets;
         tracked_ptr<NodeBase> _head;        // the dummy of bucket 0: the head of the list
-        tracked_ptr<Counters> _counters;
+        std::unique_ptr<Counters> _counters;
         [[no_unique_address]] hasher _hash;
         [[no_unique_address]] key_equal _equal;
     };

@@ -366,7 +366,6 @@ owned.pop_front();                                 // the int is destroyed here,
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -412,8 +411,7 @@ int main() {
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
     collector::force_collect(true);
-    std::cout << drained << " jobs drained, " << s->pending.size() << " pending, first is job "
-              << s->pending.front()->id << "; " << collector::get_live_object_count() << " live objects\n";
+    println("{} jobs drained, {} pending, first is job {}; {} live objects", drained, s->pending.size(), s->pending.front()->id, collector::get_live_object_count());
     return window.size() == 16 && window.front() == 99984 && s->pending.size() == 500 ? 0 : 1;
 }
 ```

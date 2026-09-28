@@ -111,7 +111,7 @@ namespace sgcl::txt {
 
         // Section 6.3. The basic code points come out as they are, then
         // the rest as deltas over an integer that only ever grows.
-        inline bool puny_encode(const vector<char32_t>& in, std::string& out) {
+        inline bool puny_encode(const code_points& in, std::string& out) {
             size_t basic = 0;
             for (auto c : in) {
                 if (c < 0x80) {
@@ -178,7 +178,7 @@ namespace sgcl::txt {
         // made, and the code point that comes out is checked to be one:
         // the RFC's own decoder lets n run to 2^32 and leaves it to the
         // caller to notice.
-        inline bool puny_decode(std::string_view text, vector<char32_t>& out) {
+        inline bool puny_decode(std::string_view text, code_points& out) {
             size_t at = 0;
             // "consume all code points before the last delimiter, and if
             // more than zero were consumed then consume one more". A
@@ -303,7 +303,8 @@ namespace sgcl::txt {
                 }
                 return at;                                    // zero based
             };
-            vector<char32_t> placed(whole, char32_t(0));
+            code_points placed;
+            placed.assign(whole, char32_t(0));
             for (size_t k = spill.size(); k-- > 0;) {
                 placed[take(spill[k].at)] = spill[k].point;
             }
@@ -330,7 +331,8 @@ namespace sgcl::txt {
     // point that no text can hold.
     namespace punycode {
         inline optional<string> encode(const string& label) {
-            vector<char32_t> points;
+            detail::lent<detail::code_points> lent_points;
+            auto& points = *lent_points;
             auto v = label.view();
             points.reserve(v.size());
             for (size_t i = 0; i < v.size();) {
@@ -346,11 +348,11 @@ namespace sgcl::txt {
         }
 
         inline optional<string> decode(const string& label) {
-            vector<char32_t> points;
-            if (!detail::puny_decode(label.view(), points)) {
+            detail::lent<detail::code_points> points;
+            if (!detail::puny_decode(label.view(), *points)) {
                 return nullopt;
             }
-            return detail::encoded(points);
+            return detail::encoded(*points);
         }
     }
 
@@ -549,8 +551,8 @@ namespace sgcl::txt {
         // and decomposing a run first would sort it past what follows it
         // — which is what cost identifier.h 311 differences before it
         // was found.
-        inline void idna_mapped(vector<char32_t>& out, vector<char32_t>& taken,
-                                vector<char32_t>& folded, char32_t c) {
+        inline void idna_mapped(code_points& out, code_points& taken,
+                                code_points& folded, char32_t c) {
             switch (c) {
                 case 0x1E9E: out.push_back(0x00DF); return;     // capital sharp s
                 case 0x3002: case 0xFF61: out.push_back(U'.'); return;
@@ -616,15 +618,17 @@ namespace sgcl::txt {
         // Normalization cannot make one, lose one or move one — a full
         // stop is a starter, a mark never crosses one, and nothing
         // composes with it.
-        inline bool idna_map(std::string_view text, bool transitional, vector<char32_t>& out,
+        inline bool idna_map(std::string_view text, bool transitional, code_points& out,
                              std::vector<pair<size_t, size_t>>* stops = nullptr) {
             bool ascii = true;
             out.reserve(text.size());
             // two scratch buffers for the whole name: idna_mapped takes
             // a code point apart into them, and they are cleared and not
             // freed
-            vector<char32_t> taken;
-            vector<char32_t> folded;
+            lent<code_points> lent_taken;
+            lent<code_points> lent_folded;
+            auto& taken = *lent_taken;
+            auto& folded = *lent_folded;
             for (size_t i = 0; i < text.size();) {
                 auto [c, n] = utf8::decode(text, i);
                 size_t from = i;
@@ -688,7 +692,7 @@ namespace sgcl::txt {
         // asks of a text, over code points that have been mapped. It is
         // "maybe" that costs: a name of letters with accents already on
         // them answers yes and the work below is not done at all
-        inline bool idna_quick_nfc(const vector<char32_t>& in) noexcept {
+        inline bool idna_quick_nfc(const code_points& in) noexcept {
             uint8_t last = 0;
             for (auto c : in) {
                 uint8_t cc = ccc_fn(c);
@@ -703,15 +707,13 @@ namespace sgcl::txt {
             return true;
         }
 
-        inline vector<char32_t> idna_nfc(const vector<char32_t>& in) {
-            vector<char32_t> out;
+        inline void idna_nfc(const code_points& in, code_points& out) {
             out.reserve(in.size());
             for (auto c : in) {
                 decompose_into<false>(out, c);
             }
             canonical_order(out);
             compose_buffer(out);
-            return out;
         }
 
         inline bool idna_is_nfc(const char32_t* p, size_t n) {
@@ -735,13 +737,11 @@ namespace sgcl::txt {
             if (sure) {
                 return true;
             }
-            vector<char32_t> in;
-            in.reserve(n);
-            for (size_t i = 0; i < n; ++i) {
-                in.push_back(p[i]);
-            }
-            auto made = idna_nfc(in);
-            return made.size() == n && std::equal(made.begin(), made.end(), p);
+            lent<code_points> in;
+            lent<code_points> made;
+            in->assign(p, p + n);
+            idna_nfc(*in, *made);
+            return made->size() == n && std::equal(made->begin(), made->end(), p);
         }
 
         // Appendix A.1 and A.2 of RFC 5892, the rules that say when a
@@ -915,9 +915,9 @@ namespace sgcl::txt {
         // begins beside it — a vector of vectors would be a container of
         // containers, which is a page of its own per label.
         struct IdnaName {
-            vector<char32_t> points;
-            std::vector<size_t> starts;             // one past the stop that begins the label
-            std::vector<size_t> ends;
+            code_points points;
+            scratch_vector<size_t> starts;          // one past the stop that begins the label
+            scratch_vector<size_t> ends;
             idna::failure reason;
 
             size_t count() const noexcept {
@@ -940,6 +940,15 @@ namespace sgcl::txt {
                 }
             }
         };
+
+        // A name lent by the thread (detail/lent.h) goes back empty
+        template<class F>
+        void lent_each(IdnaName& name, F& f) {
+            f(name.points);
+            f(name.starts);
+            f(name.ends);
+            name.reason = {};
+        }
 
         // Most of the names a program is ever given are already what the
         // DNS carries: lower case letters, digits, hyphens and stops.
@@ -1045,7 +1054,7 @@ namespace sgcl::txt {
             if (f.rule == idna::error::none || f.label == idna::failure::whole_name) {
                 return;
             }
-            vector<char32_t> points;
+            code_points points;
             std::vector<pair<size_t, size_t>> stops;
             idna_map(text, transitional, points, &stops);
             // the label begins where the stop before it ends, and ends
@@ -1062,21 +1071,28 @@ namespace sgcl::txt {
             f.size = to > from ? to - from : 0;
         }
 
-        inline IdnaName idna_process(std::string_view text, const idna::options& o) {
-            IdnaName name;
-            vector<char32_t> mapped;
-            bool ascii = idna_map(text, o.transitional, mapped);
+        // Into `name`, which comes empty: a name lent by the thread, so
+        // that the arrays of one name are not allocated for every name
+        inline void idna_process(std::string_view text, const idna::options& o, IdnaName& name) {
+            lent<code_points> mapped;
+            lent<code_points> composed;
+            bool ascii = idna_map(text, o.transitional, *mapped);
             // ASCII is in every normalization form, and so is a name
             // whose letters carry their accents already: the quick check
             // settles both without a decomposition
-            vector<char32_t> points = ascii || idna_quick_nfc(mapped)
-                                    ? std::move(mapped) : idna_nfc(mapped);
+            const code_points* in = &*mapped;
+            if (!ascii && !idna_quick_nfc(*mapped)) {
+                idna_nfc(*mapped, *composed);
+                in = &*composed;
+            }
+            const code_points& points = *in;
 
-            // Every label is written into `out`, converted where it was
-            // punycode, with the stops kept between them
-            vector<char32_t> out;
+            // Every label is written into the name's points, converted
+            // where it was punycode, with the stops kept between them
+            code_points& out = name.points;
             out.reserve(points.size());
-            vector<char32_t> decoded;
+            lent<code_points> lent_decoded;
+            auto& decoded = *lent_decoded;
             size_t at = 0;
             for (;;) {
                 size_t label = name.count();
@@ -1181,8 +1197,6 @@ namespace sgcl::txt {
                     }
                 }
             }
-            name.points = std::move(out);
-            return name;
         }
     }
 
@@ -1195,7 +1209,9 @@ namespace sgcl::txt {
             if (detail::idna_plain(name.view())) {
                 return {name, detail::idna_plain_check(name.view(), o, false)};
             }
-            auto made = detail::idna_process(name.view(), o);
+            detail::lent<detail::IdnaName> lent_made;
+            auto& made = *lent_made;
+            detail::idna_process(name.view(), o, made);
             detail::idna_locate(made.reason, name.view(), o.transitional);
             return {detail::encoded(made.points), made.reason};
         }
@@ -1206,10 +1222,13 @@ namespace sgcl::txt {
             if (detail::idna_plain(name.view())) {
                 return {name, detail::idna_plain_check(name.view(), o, o.verify_dns_length)};
             }
-            auto made = detail::idna_process(name.view(), o);
+            detail::lent<detail::IdnaName> lent_made;
+            auto& made = *lent_made;
+            detail::idna_process(name.view(), o, made);
             std::string out;
             out.reserve(made.points.size());
-            vector<char32_t> label;
+            detail::lent<detail::code_points> lent_label;
+            auto& label = *lent_label;
             for (size_t k = 0; k < made.count(); ++k) {
                 if (k) {
                     out.push_back('.');

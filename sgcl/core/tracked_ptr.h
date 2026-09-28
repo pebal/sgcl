@@ -354,7 +354,7 @@ namespace sgcl {
         template<class> friend class vector;
         template<class> friend class deque;
         template<class> friend class weak_ptr;
-        template<class, size_t, class> friend class array;
+        template<class, size_t> friend class array;
         template<class> friend class dynamic_array;
         template<class U> friend U* detail::load_plain(const tracked_ptr<U>& p) noexcept;
         template<class> friend class detail::Maker;

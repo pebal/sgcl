@@ -57,7 +57,6 @@ assert(pts.min([](point a, point b) { return a.y < b.y; }).x == 3);   // a compa
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -70,7 +69,7 @@ size_t count_odd(const req::enumerable auto& r) {
 int main() {
     vector v = {1, 2, 3, 4, 5};
     sorted_set<int> s = {7, 8, 9};
-    std::cout << count_odd(v) << " " << count_odd(s) << " " << count_odd(v.as_slice(1, 3)) << " " << count_odd(range(10)) << "\n";
+    println("{} {} {} {}", count_odd(v), count_odd(s), count_odd(v.as_slice(1, 3)), count_odd(range(10)));
     return 0;
 }
 ```

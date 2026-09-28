@@ -13,7 +13,7 @@ namespace sgcl {
 
 A blocking call from a task. A worker of the [scheduler](scheduler.md) runs every task that is ready, and a call that blocks it, a file read without the [reactor](reactor.md), `getaddrinfo`, a C library, a database driver, takes it from all of them for as long as the call lasts. `co_await async::spawn_blocking(f)` runs `f` on a pool of threads apart from the workers instead, threads meant to sit in the kernel, and hands back what `f` returned, or rethrows what it threw, through a [promise](promise.md): the task holds no thread while the call runs, and the workers go on with the other tasks. This is tokio's `spawn_blocking` and Java's `Executors.newCachedThreadPool` under a `co_await`; Go's answer is a goroutine whose thread the runtime replaces while it is in the call, which C++ coroutines cannot do, so the call goes to a thread that is nobody's worker.
 
-The pool is one per process, started by the first job that finds no idle thread and grown one thread per such job up to `config::blocking_threads` (`-DSGCL_BLOCKING_THREADS`: the larger of 64 and four times the hardware concurrency, by default, since the threads block rather than compute); a job that finds every thread busy and the pool at its cap waits in the queue for the next thread to free up. A thread that finds the queue empty parks for the idle time (`config::blocking_idle_milliseconds`, `-DSGCL_BLOCKING_IDLE_MS`, 10 s; `async::blocking_pool::set_idle_time` at run time) and exits when nothing came, so that a program that stopped blocking has no threads for it. A job is a managed object holding the closure and the promise: the closure lives there, so that what it captured (a `tracked_ptr` to the buffer being read into) is traced through the job's pointer map, and the promise is where the task waits. The queue between the tasks and the pool is a `concurrent::queue` in a managed object the pool owns, as the scheduler's global queue is: a push holds the job while it waits, lock-free; the pool's mutex covers its counts only (the idle threads, the wake credits, the jobs pending, the threads themselves), taken once per job by the submitter and once per batch of jobs by a thread, which the thread wake it arbitrates costs far more than. `async::scheduler::stop()` stops the pool too, after the timers and the reactor.
+The pool is one per process, started by the first job that finds no idle thread and grown one thread per such job up to its cap: `async::blocking_pool::set_threads(n)`, else `SGCL_BLOCKING_THREADS` in the environment (read once, at the first job), else `config::blocking_threads` (`-DSGCL_BLOCKING_THREADS`); 0 in any of them is the larger of 64 and four times the hardware concurrency, since the threads block rather than compute. A smaller cap stops the growth at once, and the threads over it exit as they run out of work; a job that finds every thread busy and the pool at its cap waits in the queue for the next thread to free up. A thread that finds the queue empty parks for the idle time (`config::blocking_idle_milliseconds`, `-DSGCL_BLOCKING_IDLE_MS`, 10 s; `async::blocking_pool::set_idle_time` at run time) and exits when nothing came, so that a program that stopped blocking has no threads for it. A job is a managed object holding the closure and the promise: the closure lives there, so that what it captured (a `tracked_ptr` to the buffer being read into) is traced through the job's pointer map, and the promise is where the task waits. The queue between the tasks and the pool is a `concurrent::queue` in a managed object the pool owns, as the scheduler's global queue is: a push holds the job while it waits, lock-free; the pool's mutex covers its counts only (the idle threads, the wake credits, the jobs pending, the threads themselves), taken once per job by the submitter and once per batch of jobs by a thread, which the thread wake it arbitrates costs far more than. `async::scheduler::stop()` stops the pool too, after the timers and the reactor.
 
 The round trip of `co_await async::spawn_blocking([] {})`, a job that does nothing, is 6 to 7 µs on an Apple M2 Ultra (macOS 26, Apple clang 21, `-O2`): two hand-offs between threads through the kernel, the pool's thread woken on its condition variable and the task's worker woken by the set, against 140 ns for a promise made, set and awaited ready on one thread. A call worth the pool blocks for longer than that; a call of a few microseconds is cheaper on the worker.
 
@@ -49,7 +49,8 @@ template<class F> auto on_done(F f);          // a case of a select: f() once th
 
 ```cpp
 static statistics get_statistics();           // the threads, the idle ones among them, the jobs waiting
-static unsigned max_threads() noexcept;       // config::blocking_threads, resolved
+static unsigned max_threads();                // the cap: set_threads', SGCL_BLOCKING_THREADS or config::blocking_threads, resolved
+static void set_threads(unsigned n);          // the cap from now on (0: the default)
 static void set_idle_time(duration d);        // how long an idle thread waits for a job before it exits
 static duration idle_time();
 static void wait_idle();                      // blocks until every job queued so far has run
@@ -101,7 +102,6 @@ async::blocking_pool::statistics from_a_thread() {
 #include "sgcl/sgcl.h"
 #include <atomic>
 #include <chrono>
-#include <iostream>
 #include <thread>
 
 using namespace sgcl;
@@ -121,7 +121,7 @@ int legacy_lookup(int id) {
 async::task<int> lookup_all(int count) {
     vector<async::blocking_task<int>> calls;
     for (int id : range(count)) {
-        calls.push_back(async::spawn_blocking([id] { return legacy_lookup(id); }));   // queued at once: a thread of the pool each
+        calls.push_back(async::spawn_blocking([id] { return legacy_lookup(id); }));          // queued at once: a thread of the pool each
     }
     int sum = 0;
     for (auto& call : calls) {
@@ -147,10 +147,8 @@ int main() {
     done = true;
     pulse.wait();
     auto pool = async::blocking_pool::get_statistics();
-    std::cout << "sum " << sum << ", the calls ran together: " << (together ? "yes" : "no")
-              << ", the heartbeat kept beating: " << (beats > 0 ? "yes" : "no")
-              << ", threads of the pool: " << pool.threads << "\n";
-    async::scheduler::stop();                                             // the workers, the timer thread and the pool joined
+    println("sum {}, the calls ran together: {}, the heartbeat kept beating: {}, threads of the pool: {}", sum, (together ? "yes" : "no"), (beats > 0 ? "yes" : "no"), pool.threads);
+    async::scheduler::stop();                                                    // the workers, the timer thread and the pool joined
     return sum == 12250 && together && beats > 0 ? 0 : 1;
 }
 ```

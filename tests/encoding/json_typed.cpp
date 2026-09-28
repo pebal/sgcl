@@ -366,19 +366,20 @@ TEST(JsonTyped_Tests, EveryKindBothWays) {
     auto tree = json::parse(*t).value();
     auto viatree = tree.as<everything>();
     ASSERT_TRUE(viatree) << viatree.error().message();
-    EXPECT_EQ(json::stringify(*viatree)->view(), t->view());
+    EXPECT_EQ(value_of(json::stringify(*viatree)).view(), t->view());
     // pretty
     auto p = json::stringify(address{"A", "B"}, json::pretty);
+    ASSERT_TRUE(p);
     EXPECT_EQ(p->view(), "{\n  \"city\": \"A\",\n  \"street\": \"B\"\n}");
     // a type of another library
     auto v = json::parse<other::vec2>(text(R"({"x": 1.5, "y": 2})")).value();
     EXPECT_EQ(v.y, 2.0f);
-    EXPECT_EQ(json::stringify(v)->view(), R"({"x":1.5,"y":2})");
+    EXPECT_EQ(value_of(json::stringify(v)).view(), R"({"x":1.5,"y":2})");
     // values that are not records
-    EXPECT_EQ(json::stringify(sgcl::vector<int>{1, 2})->view(), "[1,2]");
+    EXPECT_EQ(value_of(json::stringify(sgcl::vector<int>{1, 2})).view(), "[1,2]");
     using by_name = sgcl::map<string, sgcl::vector<int>>;
-    EXPECT_EQ(json::parse<by_name>(text(R"({"a": [1], "b": []})"))->at("a")[0], 1);
-    EXPECT_EQ(json::stringify(3)->view(), "3");
+    EXPECT_EQ(value_of(json::parse<by_name>(text(R"({"a": [1], "b": []})"))).at("a")[0], 1);
+    EXPECT_EQ(value_of(json::stringify(3)).view(), "3");
     EXPECT_EQ(json::parse<double>(text("2.5")), 2.5);
 }
 
@@ -395,8 +396,8 @@ TEST(JsonTyped_Tests, WrittenAsGoWritesIt) {
     r.by_number = {{10, "ten"}, {2, "two"}, {33, "thirty-three"}};
     r.floats = {1.1f, 16777216.0f, 3.4028235e38f, 1e-45f};
     r.ok = true;
-    EXPECT_EQ(json::stringify(r)->view(), json_oracle::go_record_compact);
-    EXPECT_EQ(json::stringify(r, json::pretty)->view(), json_oracle::go_record_indented);
+    EXPECT_EQ(value_of(json::stringify(r)).view(), json_oracle::go_record_compact);
+    EXPECT_EQ(value_of(json::stringify(r, json::pretty)).view(), json_oracle::go_record_indented);
 }
 
 namespace {
@@ -414,7 +415,7 @@ namespace {
 }
 
 TEST(JsonTyped_Tests, FieldNamesFromArrays) {
-    EXPECT_EQ(json::stringify(named_by_buffer())->view(), std::string_view(R"({"id":5,"on":true})"));
+    EXPECT_EQ(value_of(json::stringify(named_by_buffer())).view(), std::string_view(R"({"id":5,"on":true})"));
     auto back = json::parse<named_by_buffer>(sgcl::string(R"({"id":9,"on":false})"));
     ASSERT_TRUE(back.has_value());
     EXPECT_EQ(back->id, 9);
@@ -444,24 +445,29 @@ TEST(JsonTyped_Tests, ErrorsAndPaths) {
         EXPECT_EQ(r.error().message(), sgcl::string(c.message)) << c.text;
     }
     auto seq = json::parse<sgcl::vector<sgcl::map<string, int8_t>>>(text(R"([{"a": 1}, {"b": 2, "c": 300}])"));
+    ASSERT_FALSE(seq);
     EXPECT_EQ(seq.error().message(), sgcl::string("1:26 /1/c: the number 300 is out of the field's range"));
     auto key = json::parse<sgcl::map<int, int>>(text(R"({"1": 1, "x": 2})"));
+    ASSERT_FALSE(key);
     EXPECT_EQ(key.error().code(), errc::type_mismatch);
     EXPECT_EQ(key.error().offset(), 9u);
     auto code_key = json::parse<sgcl::sorted_map<code, int>>(text(R"({"1-2": 1, "12": 2})"));
+    ASSERT_FALSE(code_key);
     EXPECT_EQ(code_key.error().code(), errc::type_mismatch);
     using two = sgcl::array<int, 2>;
     auto fixed = json::parse<two>(text("[1, 2, 3]"));
+    ASSERT_FALSE(fixed);
     EXPECT_EQ(fixed.error().message(), sgcl::string("1:1: expected an array of 2 elements"));
     using both = std::pair<int, int>;
-    EXPECT_EQ(json::parse<two>(text("[1]")).error().code(), errc::type_mismatch);
-    EXPECT_EQ(json::parse<both>(text("[1, \"a\"]")).error().message(), sgcl::string("1:5 /1: expected an integer, found a string"));
-    EXPECT_EQ(json::parse<color>(text("\"red\"")).error().code(), errc::type_mismatch);   // no names without a field
-    EXPECT_EQ(json::parse<code>(text("\"12\"")).error().message(), sgcl::string("1:1: \"12\" is not a valid value of the field"));
-    EXPECT_EQ(json::parse<point>(text("[1]")).error().code(), errc::type_mismatch);
+    EXPECT_EQ(error_of(json::parse<two>(text("[1]"))).code(), errc::type_mismatch);
+    EXPECT_EQ(error_of(json::parse<both>(text("[1, \"a\"]"))).message(), sgcl::string("1:5 /1: expected an integer, found a string"));
+    EXPECT_EQ(error_of(json::parse<color>(text("\"red\""))).code(), errc::type_mismatch);   // no names without a field
+    EXPECT_EQ(error_of(json::parse<code>(text("\"12\""))).message(), sgcl::string("1:1: \"12\" is not a valid value of the field"));
+    EXPECT_EQ(error_of(json::parse<point>(text("[1]"))).code(), errc::type_mismatch);
     // the same errors through a tree: the path, no place in a text
     auto tree = json::parse(text(R"({"name": "a", "manager": {"name": "b", "age": "x"}})")).value();
     auto viatree = tree.as<person>();
+    ASSERT_FALSE(viatree);
     EXPECT_EQ(viatree.error().code(), errc::type_mismatch);
     EXPECT_EQ(viatree.error().path(), sgcl::string("/manager/age"));
     // unknown fields: skipped, or refused
@@ -469,11 +475,12 @@ TEST(JsonTyped_Tests, ErrorsAndPaths) {
     json::options strict;
     strict.reject_unknown_fields = true;
     auto unknown = json::parse<person>(text(R"({"name": "a", "extra": 1})"), strict);
+    ASSERT_FALSE(unknown);
     EXPECT_EQ(unknown.error().code(), errc::unknown_field);
     EXPECT_EQ(unknown.error().offset(), 14u);
-    EXPECT_EQ(tree.as<person>(strict).error().code(), errc::type_mismatch);
+    EXPECT_EQ(error_of(tree.as<person>(strict)).code(), errc::type_mismatch);
     // a key twice inside a value skipped: refused as parse refuses it
-    EXPECT_EQ(json::parse<person>(text(R"({"name": "a", "extra": {"k": 1, "k": 2}})")).error().code(), errc::duplicate_key);
+    EXPECT_EQ(error_of(json::parse<person>(text(R"({"name": "a", "extra": {"k": 1, "k": 2}})"))).code(), errc::duplicate_key);
 }
 
 // Variants by their tag, wherever it is; errors of the tag
@@ -491,12 +498,12 @@ TEST(JsonTyped_Tests, Variants) {
     EXPECT_EQ(d->shapes[0].index(), 0u);
     EXPECT_EQ(sgcl::get<circle>(d->shapes[0]).r, 1.0);
     EXPECT_EQ(sgcl::get<square>(d->shapes[1]).side, 2.0);
-    EXPECT_EQ(json::stringify(*d)->view(), R"({"shapes":[{"kind":"circle","r":1},{"kind":"square","side":2}]})");
-    EXPECT_EQ(json::parse<drawing>(text(R"({"shapes": [{"r": 1}]})")).error().message(), sgcl::string("1:20 /shapes/0/kind: missing field"));
-    EXPECT_EQ(json::parse<drawing>(text(R"({"shapes": [{"kind": "hexagon"}]})")).error().message(), sgcl::string("1:22 /shapes/0/kind: \"hexagon\" is none of the alternatives"));
-    EXPECT_EQ(json::parse<drawing>(text(R"({"shapes": [{"kind": "circle", "r": "x"}]})")).error().path(), sgcl::string("/shapes/0/r"));
+    EXPECT_EQ(value_of(json::stringify(*d)).view(), R"({"shapes":[{"kind":"circle","r":1},{"kind":"square","side":2}]})");
+    EXPECT_EQ(error_of(json::parse<drawing>(text(R"({"shapes": [{"r": 1}]})"))).message(), sgcl::string("1:20 /shapes/0/kind: missing field"));
+    EXPECT_EQ(error_of(json::parse<drawing>(text(R"({"shapes": [{"kind": "hexagon"}]})"))).message(), sgcl::string("1:22 /shapes/0/kind: \"hexagon\" is none of the alternatives"));
+    EXPECT_EQ(error_of(json::parse<drawing>(text(R"({"shapes": [{"kind": "circle", "r": "x"}]})"))).path(), sgcl::string("/shapes/0/r"));
     auto tree = json::parse(text(R"({"shapes": [{"side": 5, "kind": "square"}]})")).value();
-    EXPECT_EQ(sgcl::get<square>(tree.as<drawing>()->shapes[0]).side, 5.0);
+    EXPECT_EQ(sgcl::get<square>(value_of(tree.as<drawing>()).shapes[0]).side, 5.0);
     // a variant with no tag given to its field cannot be written or read
     struct untagged {
         sgcl::variant<circle, square> s;
@@ -504,12 +511,12 @@ TEST(JsonTyped_Tests, Variants) {
             f.add("s", s);
         }
     };
-    EXPECT_EQ(json::stringify(untagged{}).error().code(), errc::unsupported_value);
-    EXPECT_EQ(json::parse<untagged>(text(R"({"s": {}})")).error().code(), errc::unsupported_value);
+    EXPECT_EQ(error_of(json::stringify(untagged{})).code(), errc::unsupported_value);
+    EXPECT_EQ(error_of(json::parse<untagged>(text(R"({"s": {}})"))).code(), errc::unsupported_value);
 }
 
 TEST(JsonTyped_Tests, OmitEmptyAndAsString) {
-    EXPECT_EQ(json::stringify(empties{})->view(), "{}");
+    EXPECT_EQ(value_of(json::stringify(empties{})).view(), "{}");
     empties full;
     full.i = 1;
     full.b = true;
@@ -520,19 +527,20 @@ TEST(JsonTyped_Tests, OmitEmptyAndAsString) {
     full.p = sgcl::make_tracked<address>();
     full.m = {{"k", 0}};
     full.rec.city = "c";
-    EXPECT_EQ(json::stringify(full)->view(), R"({"i":1,"b":true,"d":0.5,"s":"s","v":[1],"o":0,"p":{"city":"","street":""},"m":{"k":0},"rec":{"city":"c","street":""}})");
+    EXPECT_EQ(value_of(json::stringify(full)).view(), R"({"i":1,"b":true,"d":0.5,"s":"s","v":[1],"o":0,"p":{"city":"","street":""},"m":{"k":0},"rec":{"city":"c","street":""}})");
     quoted q{-12, 2.5, true, 7};
     auto t = json::stringify(q);
+    ASSERT_TRUE(t);
     EXPECT_EQ(t->view(), R"({"n":"-12","d":"2.5","b":"true","o":"7"})");
     auto back = json::parse<quoted>(*t).value();
     EXPECT_EQ(back.n, -12);
     EXPECT_EQ(back.d, 2.5);
     EXPECT_TRUE(back.b);
     EXPECT_EQ(back.o, uint16_t(7));
-    EXPECT_EQ(json::parse<quoted>(text(R"({"n": 12})")).error().code(), errc::type_mismatch);
-    EXPECT_EQ(json::parse<quoted>(text(R"({"n": "12x"})")).error().code(), errc::type_mismatch);
-    EXPECT_EQ(json::parse<quoted>(text(R"({"o": "70000"})")).error().code(), errc::out_of_range);
-    EXPECT_EQ(json::parse<quoted>(text(R"({"b": "yes"})")).error().code(), errc::type_mismatch);
+    EXPECT_EQ(error_of(json::parse<quoted>(text(R"({"n": 12})"))).code(), errc::type_mismatch);
+    EXPECT_EQ(error_of(json::parse<quoted>(text(R"({"n": "12x"})"))).code(), errc::type_mismatch);
+    EXPECT_EQ(error_of(json::parse<quoted>(text(R"({"o": "70000"})"))).code(), errc::out_of_range);
+    EXPECT_EQ(error_of(json::parse<quoted>(text(R"({"b": "yes"})"))).code(), errc::type_mismatch);
 }
 
 // Numbers into typed fields: exactly or not at all, each type rounded once
@@ -542,22 +550,23 @@ TEST(JsonTyped_Tests, Numbers) {
     EXPECT_EQ(json::parse<int>(text("1.0")), 1);
     EXPECT_EQ(json::parse<int>(text("1e2")), 100);
     EXPECT_EQ(json::parse<int>(text("-0")), 0);
-    EXPECT_EQ(json::parse<int>(text("1.5")).error().code(), errc::type_mismatch);
-    EXPECT_EQ(json::parse<uint8_t>(text("256")).error().code(), errc::out_of_range);
-    EXPECT_EQ(json::parse<uint8_t>(text("-1")).error().code(), errc::out_of_range);
+    EXPECT_EQ(error_of(json::parse<int>(text("1.5"))).code(), errc::type_mismatch);
+    EXPECT_EQ(error_of(json::parse<uint8_t>(text("256"))).code(), errc::out_of_range);
+    EXPECT_EQ(error_of(json::parse<uint8_t>(text("-1"))).code(), errc::out_of_range);
     EXPECT_EQ(json::parse<int8_t>(text("-128")), int8_t(-128));
-    EXPECT_EQ(json::parse<int64_t>(text("9223372036854775808")).error().code(), errc::out_of_range);
+    EXPECT_EQ(error_of(json::parse<int64_t>(text("9223372036854775808"))).code(), errc::out_of_range);
     EXPECT_EQ(json::parse<uint64_t>(text("18446744073709551615")), UINT64_MAX);
-    EXPECT_EQ(json::parse<uint64_t>(text("1e30")).error().code(), errc::out_of_range);
+    EXPECT_EQ(error_of(json::parse<uint64_t>(text("1e30"))).code(), errc::out_of_range);
     // a float is rounded from the decimal, never from a double: this
     // literal is a hair over the halfway point between 1 and the next
     // float; a double rounds it onto the halfway point, and the float from
     // that double is 1 (the tie to even) where the right one is the next
     auto f = json::parse<float>(text("1.00000005960464477539062501"));
+    ASSERT_TRUE(f);
     EXPECT_EQ(*f, 1.00000012f);
     EXPECT_EQ(float(1.00000005960464477539062501), 1.0f);   // the double's way: rounded twice, wrong
-    EXPECT_EQ(json::parse<float>(text("3.4028236e38")).error().code(), errc::out_of_range);
-    EXPECT_EQ(json::parse<double>(text("1e400")).error().code(), errc::out_of_range);
+    EXPECT_EQ(error_of(json::parse<float>(text("3.4028236e38"))).code(), errc::out_of_range);
+    EXPECT_EQ(error_of(json::parse<double>(text("1e400"))).code(), errc::out_of_range);
     EXPECT_EQ(json::parse<double>(text("1e-400")), 0.0);
     // written: a float's own digits, NaN refused with its path
     struct floats {
@@ -568,11 +577,12 @@ TEST(JsonTyped_Tests, Numbers) {
             fl.add("d", d);
         }
     };
-    EXPECT_EQ(json::stringify(floats{})->view(), R"({"f":0.1,"d":0})");
+    EXPECT_EQ(value_of(json::stringify(floats{})).view(), R"({"f":0.1,"d":0})");
     auto nan = json::stringify(floats{0.1f, std::nan("")});
+    ASSERT_FALSE(nan);
     EXPECT_EQ(nan.error().code(), errc::unsupported_value);
     EXPECT_EQ(nan.error().path(), sgcl::string("/d"));
-    EXPECT_EQ(json::stringify(sgcl::vector<double>{1, INFINITY}).error().path(), sgcl::string("/1"));
+    EXPECT_EQ(error_of(json::stringify(sgcl::vector<double>{1, INFINITY})).path(), sgcl::string("/1"));
     // null into a field that is not optional: its default (Go's v2)
     auto p = json::parse<person>(text(R"({"name": "n", "age": null, "home": null})")).value();
     EXPECT_EQ(p.age, 0);
@@ -590,12 +600,12 @@ TEST(JsonTyped_Tests, Enums) {
             f.add("c", c).names({"red", "green", "blue"});
         }
     };
-    EXPECT_EQ(json::parse<paint>(text(R"({"c": "green"})"))->c, color::green);
-    EXPECT_EQ(json::parse<paint>(text(R"({"c": "pink"})")).error().code(), errc::type_mismatch);
-    EXPECT_EQ(json::parse<paint>(text(R"({"c": 1})")).error().code(), errc::type_mismatch);
-    EXPECT_EQ(json::stringify(paint{color(7)}).error().code(), errc::unsupported_value);
-    EXPECT_EQ(json::stringify(level::high)->view(), "2");
-    EXPECT_EQ(json::parse<level>(text("256")).error().code(), errc::out_of_range);
+    EXPECT_EQ(value_of(json::parse<paint>(text(R"({"c": "green"})"))).c, color::green);
+    EXPECT_EQ(error_of(json::parse<paint>(text(R"({"c": "pink"})"))).code(), errc::type_mismatch);
+    EXPECT_EQ(error_of(json::parse<paint>(text(R"({"c": 1})"))).code(), errc::type_mismatch);
+    EXPECT_EQ(error_of(json::stringify(paint{color(7)})).code(), errc::unsupported_value);
+    EXPECT_EQ(value_of(json::stringify(level::high)).view(), "2");
+    EXPECT_EQ(error_of(json::parse<level>(text("256"))).code(), errc::out_of_range);
 }
 
 // A cycle when writing is found by the depth, with its path; a list 512
@@ -604,6 +614,7 @@ TEST(JsonTyped_Tests, CyclesAndDepth) {
     sgcl::tracked_ptr<node> a = sgcl::make_tracked<node>();
     a->next = a;
     auto cycle = json::stringify(*a);
+    ASSERT_FALSE(cycle);
     EXPECT_EQ(cycle.error().code(), errc::unsupported_value);
     EXPECT_TRUE(cycle.error().path().view().starts_with("/next/next/next"));
     std::string deep;
@@ -628,7 +639,7 @@ TEST(JsonTyped_Tests, CyclesAndDepth) {
         too_deep += "{\"next\": ";
     }
     too_deep += "null" + std::string(513, '}');
-    EXPECT_EQ(json::parse<node>(text(too_deep)).error().code(), errc::depth_limit);
+    EXPECT_EQ(error_of(json::parse<node>(text(too_deep))).code(), errc::depth_limit);
 }
 
 // Records one at a time from a stream, and written into one
@@ -658,6 +669,7 @@ TEST(JsonTyped_Tests, ReaderAndWriter) {
     }
     // a stream parsed whole as a T
     auto whole = json::parse<sgcl::vector<int>>(sgcl::make_tracked<dribble>(std::string("[1, 2, 3]"), 2));
+    ASSERT_TRUE(whole);
     EXPECT_EQ(whole->size(), 3u);
     // the writer: typed values and the rest mixed
     sgcl::tracked_ptr out = sgcl::make_tracked<sink>();
@@ -695,7 +707,7 @@ TEST(JsonTyped_Tests, AValueFromAT) {
     auto j = json::from(a);
     ASSERT_TRUE(j);
     EXPECT_EQ((*j)["city"].as_string(), string("Kraków"));
-    EXPECT_EQ(j->as<address>().value(), a);                  // and back
+    EXPECT_EQ(value_of(j->as<address>()), a);                  // and back
     auto n = json::from(42);
     ASSERT_TRUE(n);
     EXPECT_EQ(n->as_int(), 42);

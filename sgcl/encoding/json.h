@@ -17,6 +17,7 @@
 #include "../core/detail/maker.h"
 #include "../core/expected.h"
 #include "../core/make_tracked.h"
+#include "../core/root_ptr.h"
 #include "../core/slice.h"
 #include "../core/string.h"
 #include "../core/tracked_ptr.h"
@@ -313,6 +314,28 @@ namespace sgcl::encoding {
             return _string();
         }
 
+        // The same with a value for when there is none: j["name"].as_string("?")
+        bool as_bool(bool fallback) const noexcept {
+            return as_bool().value_or(fallback);
+        }
+
+        int64_t as_int(int64_t fallback) const noexcept {
+            return as_int().value_or(fallback);
+        }
+
+        uint64_t as_uint(uint64_t fallback) const noexcept {
+            return as_uint().value_or(fallback);
+        }
+
+        double as_double(double fallback) const noexcept {
+            return as_double().value_or(fallback);
+        }
+
+        string as_string(const string& fallback) const noexcept {
+            auto s = as_string();
+            return s ? *s : fallback;
+        }
+
         // The literal of a number kept as its text (an integer past uint64,
         // any with keep_number_text); nullopt for any other value
         optional<string> number_text() const {
@@ -473,10 +496,13 @@ namespace sgcl::encoding {
         inline constexpr size_t SmallObject = 16;
 
         struct JsonLargeObject {
-            // the buffers, by their first element (a buffer's element is
-            // never addressed by a typed tracked_ptr)
+            // the members' buffer, by its first element (a buffer's element
+            // is never addressed by a typed tracked_ptr)
             tracked_ptr<const void> members;
-            tracked_ptr<const void> slots;
+            // The index is numbers, nothing the collector has to see: plain
+            // memory the node's destructor frees when the sweep takes the
+            // node, and one managed buffer fewer for every large object
+            std::unique_ptr<uint32_t[]> slots;
             uint32_t mask = 0;
 
             const json::member* member_data() const noexcept {
@@ -484,7 +510,7 @@ namespace sgcl::encoding {
             }
 
             const uint32_t* slot_data() const noexcept {
-                return static_cast<const uint32_t*>(slots.get());
+                return slots.get();
             }
         };
 
@@ -544,9 +570,8 @@ namespace sgcl::encoding {
                     return j;
                 }
                 size_t cap = std::bit_ceil(n * 2);
-                tracked_ptr<const void> slots_owner;
-                uint32_t* slots = json_buffer<uint32_t>(cap, slots_owner);
-                std::memset(slots, 0, cap * sizeof(uint32_t));
+                std::unique_ptr<uint32_t[]> slots_owner(new uint32_t[cap]());
+                uint32_t* slots = slots_owner.get();
                 size_t mask = cap - 1;
                 for (size_t i = 0; i < n; ++i) {
                     size_t s = p[i].key.hash() & mask;
@@ -1129,6 +1154,97 @@ namespace sgcl::encoding {
             }
         };
 
+        // The stacks a parse gathers the elements and the members of its
+        // open arrays and objects on, and the table of the keys it saw
+        // last. The stacks hold values, and values hold tracked words, so
+        // they are managed and have to stay so; what is not necessary is
+        // making them again for every parse. Grown by doubling afresh each
+        // time they were four fifths of what a parse left behind — ten
+        // kilobytes of numbers made 187 KB of garbage for 37 KB of values
+        // — so a thread keeps one set and lends it to its parses
+        // (JsonScratchLease).
+        struct JsonScratch {
+            vector<json> values;
+            vector<json::member> members;
+            vector<string> keys;
+        };
+
+        // Past this many bytes a stack is let go when the parse ends
+        // rather than kept, so that a thread which once read a document of
+        // a hundred thousand elements does not hold their room for the
+        // rest of its life
+        inline constexpr size_t JsonScratchKeep = 64 * 1024;
+
+        // A thread's scratch and whether a parse has it now. Nothing in
+        // the library begins a parse while another one on the thread is
+        // running, but should one begin (a caller holding a lease), it
+        // finds the scratch taken and uses stacks of its own, as every
+        // parse did before.
+        //
+        // The root is made with the scratch, at the first parse on the
+        // thread, and not before: a thread that never parses holds nothing.
+        struct JsonScratchSlot {
+            optional<root_ptr<JsonScratch>> scratch;
+            bool busy = false;
+        };
+
+        inline JsonScratchSlot& json_scratch_slot() {
+            static thread_local JsonScratchSlot slot;
+            return slot;
+        }
+
+        // The scratch of one parse: the thread's when it is free, its own
+        // otherwise. The stacks are handed back empty, their elements
+        // destroyed, whether the parse succeeded or not, so that a stack
+        // kept holds nothing alive; the table of keys stays full, which is
+        // what makes a key met in the last document free in this one.
+        class JsonScratchLease {
+        public:
+            JsonScratchLease() {
+                auto& slot = json_scratch_slot();
+                if (!slot.busy) {
+                    if (!slot.scratch) {
+                        slot.scratch.emplace(make_tracked<JsonScratch>());
+                    }
+                    slot.busy = true;
+                    _slot = &slot;
+                    _scratch = slot.scratch->get();
+                } else {
+                    _scratch = &_own;
+                }
+            }
+
+            JsonScratchLease(const JsonScratchLease&) = delete;
+            JsonScratchLease& operator=(const JsonScratchLease&) = delete;
+
+            ~JsonScratchLease() {
+                if (!_slot) {
+                    return;
+                }
+                _release(_scratch->values);
+                _release(_scratch->members);
+                _slot->busy = false;
+            }
+
+            JsonScratch& operator*() const noexcept {
+                return *_scratch;
+            }
+
+        private:
+            template<class T>
+            static void _release(vector<T>& stack) noexcept {
+                if (stack.capacity() * sizeof(T) > JsonScratchKeep) {
+                    stack = vector<T>();
+                } else {
+                    stack.clear();
+                }
+            }
+
+            JsonScratchSlot* _slot = nullptr;
+            JsonScratch* _scratch = nullptr;
+            JsonScratch _own;
+        };
+
         // A value of the text built as a json: iterative, with an explicit
         // stack of the arrays and objects open (a nesting as deep as
         // max_depth costs no stack of calls), their elements and members
@@ -1165,8 +1281,10 @@ namespace sgcl::encoding {
                     uint32_t start;   // the first of its elements or members on the stacks
                 };
                 std::vector<Frame> frames;
-                vector<json> values;
-                vector<json::member> members;
+                JsonScratchLease scratch;
+                _scratch = &*scratch;
+                auto& values = _scratch->values;
+                auto& members = _scratch->members;
                 std::vector<const char*> key_at;   // where each key of members starts, for an error
                 string key;
                 json v;
@@ -1320,18 +1438,23 @@ namespace sgcl::encoding {
             // A key made once per parse: the table of the keys seen last,
             // by a cheap hash of the characters (a collision only makes a
             // string anew)
+            // A key is taken from the table only when its characters are
+            // the ones asked for, compared in full; a key longer than
+            // KeyCacheMax is never put in it, so the table a thread keeps
+            // between parses is at most KeyTable short strings.
             string _shared_key(std::string_view k) {
-                if (k.size() > 32) {
+                if (k.size() > KeyCacheMax) {
                     return string(k);
                 }
-                if (_keys.empty()) {
-                    _keys.resize(KeyTable);
+                auto& keys = _scratch->keys;
+                if (keys.empty()) {
+                    keys.resize(KeyTable);
                 }
                 size_t h = k.size();
                 for (char ch : k) {
                     h = h * 31 + uint8_t(ch);
                 }
-                auto& slot = _keys[(h ^ (h >> 7)) & (KeyTable - 1)];
+                auto& slot = keys[(h ^ (h >> 7)) & (KeyTable - 1)];
                 if (slot.size() == k.size() && slot.view() == k) {
                     return slot;
                 }
@@ -1365,8 +1488,9 @@ namespace sgcl::encoding {
             }
 
             static constexpr size_t KeyTable = 256;
+            static constexpr size_t KeyCacheMax = 32;   // bytes
             const json::options& _options;
-            vector<string> _keys;
+            JsonScratch* _scratch = nullptr;   // the stacks and keys of the _value running now
         };
     }
 
@@ -1747,6 +1871,23 @@ namespace sgcl::encoding {
                 return nullopt;
             }
             return detail::floating_of<double>(_text.view());
+        }
+
+        // The same with a value for when there is none
+        bool as_bool(bool fallback) const noexcept {
+            return as_bool().value_or(fallback);
+        }
+
+        int64_t as_int(int64_t fallback) const noexcept {
+            return as_int().value_or(fallback);
+        }
+
+        uint64_t as_uint(uint64_t fallback) const noexcept {
+            return as_uint().value_or(fallback);
+        }
+
+        double as_double(double fallback) const noexcept {
+            return as_double().value_or(fallback);
         }
 
         // For the reader, which makes a token in place in its optional

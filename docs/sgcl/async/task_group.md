@@ -39,14 +39,14 @@ template<class F> auto on_done(F f);                            // a case of a s
 ```
 
 ```cpp
-async::task<> fetch(string url, async::channel<string>& out, async::stop_token tok) {
+async::task<> fetch(string url, async::channel<string> out, async::stop_token tok) {
     co_await async::select(
         out.on_send(url + ": ok"),                                 // the work, here a send
         tok.on_stop([] {})                                         // or the stop: another child failed, or the caller gave up
     );
 }
 
-async::task<> fetch_all(vector<string> urls, async::channel<string>& out, async::stop_token tok) {
+async::task<> fetch_all(vector<string> urls, async::channel<string> out, async::stop_token tok) {
     async::task_group g(tok);                                       // a scope under the caller's token
     for (auto& url : urls) {
         g.go(fetch(url, out, g.token()));                       // every child gets the group's token
@@ -59,7 +59,6 @@ async::task<> fetch_all(vector<string> urls, async::channel<string>& out, async:
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -88,7 +87,7 @@ int main() {
     try {
         g.wait();
     } catch (const std::exception& e) {
-        std::cout << e.what() << ", " << left.load() << " left on the stop, " << g.count() << " running\n";
+        println("{}, {} left on the stop, {} running", e.what(), left.load(), g.count());
     }
     return g.stop_requested() && left.load() == 7 ? 0 : 1;
 }

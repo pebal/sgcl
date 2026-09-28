@@ -29,6 +29,7 @@ static uint32_t of(/* bytes or text */) noexcept;
 static constexpr uint32_t combine(uint32_t first, uint32_t second, uint64_t second_length) noexcept;
 
 expected<size_t, io::error> copy_from(const io::reader& r);  async::task<expected<size_t, io::error>> async_copy_from(const io::reader& r);
+static expected<uint32_t, io::error> of_file(const string& path);  static async::task<expected<uint32_t, io::error>> async_of_file(const string& path);   // of() of the whole file, through copy_from
 ```
 
 `crc32c` has the same members.
@@ -65,24 +66,23 @@ On arm64 an input of 128 bytes or more is folded 64 bytes at a time by carry-les
 
 ```cpp
 #include "sgcl/hash/crc32.h"
-#include "sgcl/io/os.h"
-#include "sgcl/txt/format.h"
+#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
 int main() {
-    io::stdout.write(txt::format("{:08x}\n", hash::crc32::of("123456789")));    // the catalogue's check
-    io::stdout.write(txt::format("{:08x}\n", hash::crc32c::of("123456789")));
+    println("{:08x}", hash::crc32::of("123456789"));          // the catalogue's check
+    println("{:08x}", hash::crc32c::of("123456789"));
 
     // a file's CRC kept beside it, extended when more is appended
     uint32_t saved = hash::crc32::of("first line\n");
     auto more = hash::crc32::resume(saved);
     more.update("second line\n");
-    io::stdout.write(txt::format("{}\n", more.value() == hash::crc32::of("first line\nsecond line\n")));
+    println(more.value() == hash::crc32::of("first line\nsecond line\n"));
 
     // the same from the two pieces' CRCs and the second one's length
     uint32_t joined = hash::crc32::combine(saved, hash::crc32::of("second line\n"), 12);
-    io::stdout.write(txt::format("{}\n", joined == more.value()));
+    println(joined == more.value());
 }
 ```
 

@@ -160,7 +160,7 @@ namespace sgcl::async {
         using Finished = pair<size_t, std::exception_ptr>;
 
         template<class T>
-        task<> finish_into(task<T> t, tracked_ptr<channel<Finished>> done, size_t index) {
+        task<> finish_into(task<T> t, tracked_ptr<detail::ChannelState<Finished>> done, size_t index) {
             std::exception_ptr error;
             try {
                 co_await t;
@@ -170,7 +170,7 @@ namespace sgcl::async {
             done->try_send(Finished(index, std::move(error)));
         }
 
-        inline task<size_t> first_finished(tracked_ptr<channel<Finished>> done) {
+        inline task<size_t> first_finished(tracked_ptr<detail::ChannelState<Finished>> done) {
             auto [index, error] = *co_await done->receive();
             if (error) {
                 std::rethrow_exception(error);
@@ -184,7 +184,7 @@ namespace sgcl::async {
     template<class... T>
     task<size_t> when_any(task<T>... ts) {
         static_assert(sizeof...(T) > 0, "when_any of nothing");
-        tracked_ptr<channel<detail::Finished>> done = make_tracked<channel<detail::Finished>>(sizeof...(T));
+        tracked_ptr<detail::ChannelState<detail::Finished>> done = make_tracked<detail::ChannelState<detail::Finished>>(sizeof...(T));
         size_t i = 0;
         (go(detail::finish_into(std::move(ts), done, i++)), ...);
         return detail::first_finished(done);
@@ -197,7 +197,7 @@ namespace sgcl::async {
         if (ts.empty()) {
             return []() -> task<size_t> { co_return SIZE_MAX; }();
         }
-        tracked_ptr<channel<detail::Finished>> done = make_tracked<channel<detail::Finished>>(ts.size());
+        tracked_ptr<detail::ChannelState<detail::Finished>> done = make_tracked<detail::ChannelState<detail::Finished>>(ts.size());
         for (size_t i = 0; i < ts.size(); ++i) {
             go(detail::finish_into(std::move(ts[i]), done, i));
         }

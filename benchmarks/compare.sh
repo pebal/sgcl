@@ -22,7 +22,7 @@ T=$(mktemp -d)
 JAVA=("$JBIN/java" -XX:+UseZGC -XX:+UnlockDiagnosticVMOptions -XX:OnSpinWaitInst=isb -Duser.language=en -Duser.country=US -cp "$T/jout")
 CORES=$(getconf _NPROCESSORS_ONLN)
 VARIANTS=${VARIANTS:-sgcl unique shared std go java-zgc}
-CASES=${CASES:-alloc copy weak stack queue cstack cmap umap set cow chan bqueue pqueue intern wmap spsc cache im bcast async io math net hash json xml time bt graph lt string}
+CASES=${CASES:-alloc copy weak stack queue cstack cmap umap set cow chan bqueue pqueue intern wmap spsc cache im bcast async io math net hash compress json xml time bt graph lt string}
 want() { [[ " $VARIANTS " == *" $1 "* ]]; }
 want_im() { case "$1" in sgcl|std) want "$1";; *) "$BIN/bench_immutable" vector "$1" 1 > /dev/null 2>&1;; esac; }   # an immer variant when the binary has it (-DSGCL_IMMER_INCLUDE)
 case_() { [[ " $CASES " == *" $1 "* ]]; }
@@ -34,12 +34,13 @@ run1() {   # run1 cmd... -> sets OUT (stdout) and RSS (MB)
     OUT=$(cat "$T/out"); RSS=$(grep 'maximum resident' "$T/time" | awk '{printf "%.0f", $1/1048576}')
 }
 KEY=wall   # the field the best of RUNS is chosen by (the run's other numbers come with it)
-run() {    # run cmd... -> OUT and RSS of the best of RUNS runs: the lowest KEY, or the highest when KEY is ops/s
+higher() { [ "$KEY" = ops/s ] || [ "$KEY" = MB/s ]; }   # the keys where more is better
+run() {    # run cmd... -> OUT and RSS of the best of RUNS runs: the lowest KEY, or the highest when KEY is ops/s or MB/s
     local best="" bout brss
     for i in $(seq 1 $RUNS); do
         run1 "$@"
         local v=$(field $KEY)
-        if [ -z "$best" ] || { [ "$KEY" = ops/s ] && [ "$(echo "$v > $best" | bc)" = 1 ]; } || { [ "$KEY" != ops/s ] && [ "$(echo "$v < $best" | bc)" = 1 ]; }; then
+        if [ -z "$best" ] || { higher && [ "$(echo "$v > $best" | bc)" = 1 ]; } || { ! higher && [ "$(echo "$v < $best" | bc)" = 1 ]; }; then
             best=$v; bout=$OUT; brss=$RSS
         fi
     done
@@ -304,6 +305,18 @@ for c in crc32 crc32c crc64 crc64_iso adler32 fnv32a fnv64a fnv128a xxh3_64 xxh3
     want go && { run "$T/hash" $c $len; echo "hash|$c|$len|go|$(field ns/op)|$(field GB/s)"; }
 done; done
 for len in 16 64 1024 65536; do want sgcl && { run "$BIN/bench_hash" string-hash sgcl $len; echo "hash|string-hash|$len|sgcl|$(field ns/op)|$(field GB/s)"; }; done
+fi
+
+if case_ compress; then
+KEY=MB/s
+echo "# the compress module over 8 MB of text: compress|case|variant|MB/s of the uncompressed side|compressed/original (zlib: the system's libz; Go: compress/flate, compress/gzip)"
+for c in deflate-1 deflate-6 deflate-9 inflate gunzip-stream; do
+    for v in sgcl zlib; do want sgcl && { run "$BIN/bench_compress" $c $v; echo "compress|$c|$v|$(field MB/s)|$(field ratio)"; }; done
+    want go && { run "$T/compress" $c; echo "compress|$c|go|$(field MB/s)|$(field ratio)"; }
+done
+KEY=ms/open
+want sgcl && { run "$BIN/bench_compress" zip-open sgcl; echo "compress|zip-open|sgcl|$(field ms/open) ms"; }
+want go && { run "$T/compress" zip-open; echo "compress|zip-open|go|$(field ms/open) ms"; }
 fi
 
 if case_ bt; then

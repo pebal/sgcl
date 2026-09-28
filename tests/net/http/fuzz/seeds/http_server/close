@@ -1,0 +1,7 @@
+GET / HTTP/1.1
+Host: a
+Connection: close
+
+GET /after HTTP/1.1
+Host: a
+

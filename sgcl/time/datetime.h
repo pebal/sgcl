@@ -180,6 +180,17 @@ namespace sgcl::time {
         // has there settles a time shown twice ("02:30 CET")
         static expected<datetime, error> parse(const string& text, const string& pattern, const time::zone& z = time::zone::utc());
 
+        // The datetime a literal in the program spells, in either of
+        // parse's forms: parse's value, or bad_expected_access<time::error>
+        // with parse's message. Input is parsed; a text the program itself
+        // wrote is constructed (DESIGN 234). The first is defined in
+        // layout.h, where a layout is complete
+        explicit datetime(const string& text, layout format);
+
+        explicit datetime(const string& text, const string& pattern, const time::zone& z = time::zone::utc())
+        : datetime(parse(text, pattern, z).value()) {
+        }
+
         // The seconds, milliseconds, microseconds and nanoseconds since
         // 1970, rounded down (so -0.5 s is -1 s: 1969-12-31T23:59:59)
         int64_t unix() const noexcept {

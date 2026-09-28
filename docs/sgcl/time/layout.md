@@ -12,7 +12,7 @@ namespace sgcl::time {
 
 Two ways to say how a time is written and read.
 
-**A layout** is one of a closed set of formats known by name, each written and read by code of its own with no pattern walked: `t.format(time::http)`, `datetime::parse(text, time::http)`.
+**A layout** is one of a closed set of formats known by name, each written and read by code of its own with no pattern walked: `t.format(time::http)`, `datetime::parse(text, time::http)`, and for a literal of the program `time::datetime t("2026-09-24T12:41:15+02:00", time::rfc3339)`, which throws `parse`'s error.
 
 | layout | written | read as well |
 |---|---|---|
@@ -51,10 +51,13 @@ string format(layout format) const;
 string format(const string& pattern) const;
 static expected<datetime, error> parse(const string& text, layout format);
 static expected<datetime, error> parse(const string& text, const string& pattern, const zone& z = zone::utc());
+explicit datetime(const string& text, layout format);   // a literal: parse's value, or bad_expected_access<error> with its message (DESIGN 234)
+explicit datetime(const string& text, const string& pattern, const zone& z = zone::utc());   // the same
 
 // date (date.md)
 string format(const string& pattern) const;
 static expected<date, error> parse(const string& text, const string& pattern);
+explicit date(const string& text, const string& pattern);   // a literal, the same
 
 // txt::format
 txt::format("{}", t);                  // to_string()
@@ -69,38 +72,44 @@ txt::format_to(buffer, "{:%R}", t);    // into a caller's buffer, nothing alloca
 #include "sgcl/sgcl.h"
 #include "sgcl/time/time.h"
 #include <chrono>
-#include <iostream>
 
 using namespace sgcl;
 
 int main() {
-    auto warsaw = time::zone::load("Europe/Warsaw").value();
+    time::zone warsaw("Europe/Warsaw");
     auto t = time::date(2026, 9, 24).at(12, 41, 15, warsaw) + 122575 * microsecond;
 
     // The layouts
-    std::cout << t.format(time::rfc3339) << "\n" << t.format(time::rfc3339_nano) << "\n"
-              << t.format(time::http) << "\n" << t.format(time::email) << "\n";
+    println(t.format(time::rfc3339));
+    println(t.format(time::rfc3339_nano));
+    println(t.format(time::http));
+    println(t.format(time::email));
 
     // A pattern, and txt::format
-    std::cout << t.format("%A, %d %B %Y, %H:%M %Z") << "\n";
-    std::cout << txt::format("[{:%H:%M}] [{:>12%F}] [{}] [{:%a}]", t, t.date(), t.weekday(), t.weekday()) << "\n";
+    println(t.format("%A, %d %B %Y, %H:%M %Z"));
+    println("[{:%H:%M}] [{:>12%F}] [{}] [{:%a}]", t, t.date(), t.weekday(), t.weekday());
     auto sys = std::chrono::sys_seconds(std::chrono::seconds(t.unix()));
-    std::cout << txt::format("{} {:%T} {}", sys, std::chrono::milliseconds(90500), std::chrono::minutes(90)) << "\n";
+    println("{} {:%T} {}", sys, std::chrono::milliseconds(90500), std::chrono::minutes(90));
 
-    // Reading the date of HTTP in its three forms
+    // Reading the date of HTTP in its three forms, as a header brings it: parse
     for (auto text : {"Sun, 06 Nov 1994 08:49:37 GMT", "Sunday, 06-Nov-94 08:49:37 GMT", "Sun Nov  6 08:49:37 1994"}) {
-        std::cout << time::datetime::parse(text, time::http).value() << "\n";
+        time::datetime d = time::datetime::parse(text, time::http);
+        println(d);
     }
 
-    // RFC 3339, ISO 8601, a pattern in a zone
-    std::cout << time::datetime::parse("1990-12-31T15:59:60-08:00", time::rfc3339).value() << "\n";
-    std::cout << time::datetime::parse("2026-W39-4T12:41,5+02", time::iso8601).value() << "\n";
-    std::cout << time::datetime::parse("25.10.2026 02:30 CET", "%d.%m.%Y %H:%M %Z", warsaw).value() << "\n";
-    std::cout << time::date::parse("September 24, 2026", "%B %d, %Y").value() << "\n";
+    // RFC 3339, ISO 8601, a pattern in a zone: literals, constructed
+    time::datetime leap("1990-12-31T15:59:60-08:00", time::rfc3339);
+    time::datetime week("2026-W39-4T12:41,5+02", time::iso8601);
+    time::datetime local("25.10.2026 02:30 CET", "%d.%m.%Y %H:%M %Z", warsaw);
+    time::date day("September 24, 2026", "%B %d, %Y");
+    println(leap);
+    println(week);
+    println(local);
+    println(day);
 
     // What is not a date says why and where
     auto bad = time::datetime::parse("Sun, 31 Feb 1994 08:49:37 GMT", time::http);
-    std::cout << bad.error().message() << " (byte " << bad.error().offset() << ")\n";
+    println("{} (byte {})", bad.error().message(), bad.error().offset());
     return 0;
 }
 ```

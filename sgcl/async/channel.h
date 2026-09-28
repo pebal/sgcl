@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../core/detail/handle_word.h"
 #include "../concurrent/queue.h"
 #include "../core/detail/backoff.h"
 #include "../core/aliases.h"
@@ -79,8 +80,9 @@ namespace sgcl::async {
     //
     // The channel holds its queues by tracked_ptrs, so it lives where
     // one may: on a stack or inside a managed object.
+    namespace detail {
     template<class T>
-    class channel {
+    class ChannelState {
         // A waiting thread or coroutine: claimed with a compare-exchange
         // by the side that serves it (a sender gives it the element, a
         // receiver takes the element it holds), or cancelled by its own
@@ -280,7 +282,7 @@ namespace sgcl::async {
         using size_type = size_t;
 
         // A channel of capacity n; 0, the default, is a rendezvous
-        explicit channel(size_type capacity = 0)
+        explicit ChannelState(size_type capacity = 0)
         : _ring(std::bit_ceil(capacity < MinSlots ? MinSlots : capacity))
         , _receivers(capacity != 0)
         , _senders(capacity != 0)
@@ -290,8 +292,8 @@ namespace sgcl::async {
             }
         }
 
-        channel(const channel&) = delete;
-        channel& operator=(const channel&) = delete;
+        ChannelState(const ChannelState&) = delete;
+        ChannelState& operator=(const ChannelState&) = delete;
 
         // Sends the element: delivered, and true; or false when the
         // channel is closed, before or while the send waits. An operation:
@@ -336,7 +338,7 @@ namespace sgcl::async {
         }
 
     private:
-        friend class channel<void>;   // its signals are a channel of this kind
+        friend class ChannelState<void>;   // its signals are a channel of this kind
 
         // The blocking receive, what receive().wait() does
         optional<T> _receive() {
@@ -426,13 +428,13 @@ namespace sgcl::async {
             }
 
         private:
-            template<class> friend class channel;
+            template<class> friend class ChannelState;
 
-            explicit receive_op(channel& ch) noexcept
+            explicit receive_op(ChannelState& ch) noexcept
             : _ch(ch) {
             }
 
-            channel& _ch;
+            ChannelState& _ch;
             optional<T> _value;
             WaiterPtr _me;
         };
@@ -488,14 +490,14 @@ namespace sgcl::async {
             }
 
         private:
-            template<class> friend class channel;
+            template<class> friend class ChannelState;
 
-            send_op(channel& ch, T value) noexcept
+            send_op(ChannelState& ch, T value) noexcept
             : _ch(ch)
             , _value(std::move(value)) {
             }
 
-            channel& _ch;
+            ChannelState& _ch;
             T _value;
             WaiterPtr _me;
             bool _result = false;
@@ -603,14 +605,14 @@ namespace sgcl::async {
             }
 
         private:
-            template<class> friend class channel;
+            template<class> friend class ChannelState;
 
-            explicit iterator(channel* ch)
+            explicit iterator(ChannelState* ch)
             : _ch(ch) {
                 ++*this;
             }
 
-            channel* _ch = nullptr;
+            ChannelState* _ch = nullptr;
             optional<T> _value;
         };
 
@@ -630,15 +632,15 @@ namespace sgcl::async {
         template<class F>
         class receive_case {
         public:
-            using channel_type = channel;
+            using channel_type = ChannelState;
             static constexpr bool is_send = false;
 
-            receive_case(channel& ch, F f)
+            receive_case(ChannelState& ch, F f)
             : _ch(&ch)
             , _f(std::move(f)) {
             }
 
-            channel& ch() const noexcept {
+            ChannelState& ch() const noexcept {
                 return *_ch;
             }
 
@@ -654,23 +656,23 @@ namespace sgcl::async {
             WaiterPtr waiter;
 
         private:
-            channel* _ch;
+            ChannelState* _ch;
             F _f;
         };
 
         template<class F>
         class send_case {
         public:
-            using channel_type = channel;
+            using channel_type = ChannelState;
             static constexpr bool is_send = true;
 
-            send_case(channel& ch, T value, F f)
+            send_case(ChannelState& ch, T value, F f)
             : _ch(&ch)
             , _value(std::move(value))
             , _f(std::move(f)) {
             }
 
-            channel& ch() const noexcept {
+            ChannelState& ch() const noexcept {
                 return *_ch;
             }
 
@@ -687,7 +689,7 @@ namespace sgcl::async {
             WaiterPtr waiter;
 
         private:
-            channel* _ch;
+            ChannelState* _ch;
             T _value;
             F _f;
         };
@@ -1021,14 +1023,14 @@ namespace sgcl::async {
     // A channel of signals: send() carries nothing, receive() is whether
     // one came (false once closed)
     template<>
-    class channel<void> {
+    class ChannelState<void> {
         struct Signal {};
 
     public:
         using value_type = void;
         using size_type = size_t;
 
-        explicit channel(size_type capacity = 0)
+        explicit ChannelState(size_type capacity = 0)
         : _ch(capacity) {
         }
 
@@ -1073,13 +1075,13 @@ namespace sgcl::async {
             }
 
         private:
-            template<class> friend class channel;
+            template<class> friend class ChannelState;
 
-            explicit receive_op(channel<Signal>& ch) noexcept
+            explicit receive_op(ChannelState<Signal>& ch) noexcept
             : _op(ch) {
             }
 
-            typename channel<Signal>::receive_op _op;
+            typename ChannelState<Signal>::receive_op _op;
         };
 
         // The cases of a select: f() on a signal and on the close alike
@@ -1115,6 +1117,277 @@ namespace sgcl::async {
         }
 
     private:
-        channel<Signal> _ch;
+        ChannelState<Signal> _ch;
     };
+    }
+
+    namespace detail {
+        struct ChannelAccess;
+        struct ChannelMade {};   // the tag of a handle's constructor from a state
+    }
+
+    // The handle of a channel: one word, a tracked_ptr to the channel's
+    // state (detail::ChannelState above, where the whole of it is), which
+    // copies share. Passed by value into the tasks that use it
+    // (`async::task<> worker(async::channel<Job> jobs)`), kept in a
+    // managed object as a member, on a stack as a local; in a global or a
+    // std container, as a rooted<async::channel<T>> (core/rooted.h). Made
+    // by its constructor: `channel<T> ch;` a rendezvous, `channel<T> ch(n)`
+    // a channel of capacity n; there is no empty channel.
+    template<class T>
+    class channel {
+        using State = detail::ChannelState<T>;
+
+    public:
+        using value_type = T;
+        using size_type = size_t;
+        using iterator = typename State::iterator;
+        using receive_op = typename State::receive_op;
+        using send_op = typename State::send_op;
+        template<class F>
+        using receive_case = typename State::template receive_case<F>;
+        template<class F>
+        using send_case = typename State::template send_case<F>;
+
+        // A rendezvous
+        channel()
+        : _s(make_tracked<State>()) {
+        }
+
+        // A channel of capacity n; 0 is a rendezvous
+        explicit channel(size_type capacity)
+        : _s(make_tracked<State>(capacity)) {
+        }
+
+        // A copy is the same channel: the copies share the state
+        channel(const channel&) noexcept = default;
+        channel(channel&&) noexcept = default;
+        channel& operator=(const channel&) noexcept = default;
+        channel& operator=(channel&&) noexcept = default;
+
+        // The operations of the state (detail::ChannelState): an operation
+        // for send and receive (`co_await ch.send(v)` in a task,
+        // `ch.send(v).wait()` on a thread), the rest at once
+        auto send(const T& value) const {
+            return _get()->send(value);
+        }
+
+        auto send(T&& value) const {
+            return _get()->send(std::move(value));
+        }
+
+        bool try_send(const T& value) const {
+            return _get()->try_send(value);
+        }
+
+        bool try_send(T&& value) const {
+            return _get()->try_send(std::move(value));
+        }
+
+        auto receive() const {
+            return _get()->receive();
+        }
+
+        optional<T> try_receive() const {
+            return _get()->try_receive();
+        }
+
+        void close() const {
+            _get()->close();
+        }
+
+        bool closed() const noexcept {
+            return _get()->closed();
+        }
+
+        size_type capacity() const noexcept {
+            return _get()->capacity();
+        }
+
+        size_type size() const noexcept {
+            return _get()->size();
+        }
+
+        bool empty() const noexcept {
+            return _get()->empty();
+        }
+
+        // A range-for over the channel: receive() until nothing comes
+        iterator begin() const {
+            return _get()->begin();
+        }
+
+        iterator end() const noexcept {
+            return iterator();
+        }
+
+        // The cases of a select (select.h)
+        template<class F>
+        auto on_receive(F f) const {
+            return _get()->on_receive(std::move(f));
+        }
+
+        template<class F = void (*)()>
+        auto on_send(const T& value, F f = [] {}) const {
+            return _get()->on_send(value, std::move(f));
+        }
+
+        template<class F = void (*)()>
+        auto on_send(T&& value, F f = [] {}) const {
+            return _get()->on_send(std::move(value), std::move(f));
+        }
+
+        // The same channel: the same state
+        friend bool operator==(const channel& a, const channel& b) noexcept {
+            return a._s == b._s;
+        }
+
+    private:
+        friend struct detail::ChannelAccess;
+
+        channel(detail::ChannelMade, tracked_ptr<State> s) noexcept
+        : _s(std::move(s)) {
+        }
+
+        State* _get() const noexcept {
+            return _s.get();
+        }
+
+        // The handle's word, for the atomics (core/detail/handle_word.h)
+        friend struct sgcl::detail::HandleWord;
+
+        channel(sgcl::detail::FromWord, const tracked_ptr<State>& w) noexcept
+        : _s(w) {
+        }
+
+        tracked_ptr<State>& _handle_word() noexcept {
+            return _s;
+        }
+
+        const tracked_ptr<State>& _handle_word() const noexcept {
+            return _s;
+        }
+
+        tracked_ptr<State> _s;
+    };
+
+    // A channel of signals: send() carries nothing, receive() is whether
+    // one came (false once closed); the handle as for any channel
+    template<>
+    class channel<void> {
+        using State = detail::ChannelState<void>;
+
+    public:
+        using value_type = void;
+        using size_type = size_t;
+        using receive_op = typename State::receive_op;
+
+        channel()
+        : _s(make_tracked<State>()) {
+        }
+
+        explicit channel(size_type capacity)
+        : _s(make_tracked<State>(capacity)) {
+        }
+
+        channel(const channel&) noexcept = default;
+        channel(channel&&) noexcept = default;
+        channel& operator=(const channel&) noexcept = default;
+        channel& operator=(channel&&) noexcept = default;
+
+        auto send() const {
+            return _get()->send();
+        }
+
+        bool try_send() const {
+            return _get()->try_send();
+        }
+
+        auto receive() const {
+            return _get()->receive();
+        }
+
+        bool try_receive() const {
+            return _get()->try_receive();
+        }
+
+        template<class F>
+        auto on_receive(F f) const {
+            return _get()->on_receive(std::move(f));
+        }
+
+        template<class F = void (*)()>
+        auto on_send(F f = [] {}) const {
+            return _get()->on_send(std::move(f));
+        }
+
+        void close() const {
+            _get()->close();
+        }
+
+        bool closed() const noexcept {
+            return _get()->closed();
+        }
+
+        size_type capacity() const noexcept {
+            return _get()->capacity();
+        }
+
+        size_type size() const noexcept {
+            return _get()->size();
+        }
+
+        bool empty() const noexcept {
+            return _get()->empty();
+        }
+
+        friend bool operator==(const channel& a, const channel& b) noexcept {
+            return a._s == b._s;
+        }
+
+    private:
+        friend struct detail::ChannelAccess;
+
+        channel(detail::ChannelMade, tracked_ptr<State> s) noexcept
+        : _s(std::move(s)) {
+        }
+
+        State* _get() const noexcept {
+            return _s.get();
+        }
+
+        // The handle's word, for the atomics (core/detail/handle_word.h)
+        friend struct sgcl::detail::HandleWord;
+
+        channel(sgcl::detail::FromWord, const tracked_ptr<State>& w) noexcept
+        : _s(w) {
+        }
+
+        tracked_ptr<State>& _handle_word() noexcept {
+            return _s;
+        }
+
+        const tracked_ptr<State>& _handle_word() const noexcept {
+            return _s;
+        }
+
+        tracked_ptr<State> _s;
+    };
+
+    namespace detail {
+        // A handle over a state the library made (a timer's, the
+        // reactor's, a signal's), and the state under a handle: the one
+        // way between the two
+        struct ChannelAccess {
+            template<class T>
+            static channel<T> make(tracked_ptr<ChannelState<T>> s) noexcept {
+                return channel<T>(ChannelMade{}, std::move(s));
+            }
+
+            template<class T>
+            static const tracked_ptr<ChannelState<T>>& state(const channel<T>& c) noexcept {
+                return c._s;
+            }
+        };
+    }
 }

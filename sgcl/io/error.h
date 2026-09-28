@@ -29,7 +29,8 @@ namespace sgcl::io {
         not_found,        // look_path: no executable of the name in PATH
         exit_status,      // a process ended with a failure status: the code in the command's state
         process_done,     // the process was waited for or released already
-        wait_delay        // the wait ended by wait_delay with the child's pipes still open
+        wait_delay,       // the wait ended by wait_delay with the child's pipes still open
+        unsupported       // a descriptor the reactor cannot watch: its number past the reactor's table
     };
 
     namespace detail {
@@ -51,6 +52,7 @@ namespace sgcl::io {
                     case errc::exit_status: return "the process ended with a failure status";
                     case errc::process_done: return "process already finished";
                     case errc::wait_delay: return "wait delay expired";
+                    case errc::unsupported: return "descriptor number past the reactor's table";
                 }
                 return "unknown io error";
             }

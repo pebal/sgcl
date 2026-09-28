@@ -5,6 +5,9 @@
 //------------------------------------------------------------------------------
 // expected: std::expected's interface over a variant, the tracked pointer
 // value or error kept apart from the other's data.
+// The accesses of an expected are what this file tests (a value read
+// where an error is, on purpose, among them): the rule of
+// tests/expected_access.h, a check before a read, does not apply here.
 #include "tests/types.h"
 
 #include <string>
@@ -46,7 +49,7 @@ TEST(Expected_Tests, TheInterfaceOfStdExpected) {
     Result b = parse(-1);
     ASSERT_TRUE(a);
     EXPECT_TRUE(a.has_value());
-    EXPECT_FALSE(b);
+    ASSERT_FALSE(b);
     EXPECT_EQ((*a)->value, 1);
     EXPECT_EQ(a->get()->value, 1);
     EXPECT_EQ(a.value()->value, 1);
@@ -76,6 +79,7 @@ TEST(Expected_Tests, TheInterfaceOfStdExpected) {
     Result c(std::in_place, make_tracked<Node>(2));
     EXPECT_EQ((*c)->value, 2);
     Result d(unexpect, "x");
+    ASSERT_FALSE(d);
     EXPECT_EQ(d.error(), "x");
     Result e(std::in_place);
     EXPECT_EQ(*e, nullptr);
@@ -87,16 +91,19 @@ TEST(Expected_Tests, TheInterfaceOfStdExpected) {
     Result moved = std::move(copy);
     EXPECT_EQ((*moved)->value, 1);
     moved = unexpected(std::string("y"));
+    ASSERT_FALSE(moved);
     EXPECT_EQ(moved.error(), "y");
     moved = make_tracked<Node>(3);
     EXPECT_EQ((*moved)->value, 3);
     EXPECT_EQ(moved.emplace(make_tracked<Node>(4))->value, 4);
     swap(moved, d);
     EXPECT_EQ((*d)->value, 4);
+    ASSERT_FALSE(moved);
     EXPECT_EQ(moved.error(), "x");
     expected<int, std::string> converted = expected<short, const char*>(5);
     EXPECT_EQ(*converted, 5);
     expected<int, std::string> converted_error = expected<short, const char*>(unexpect, "z");
+    ASSERT_FALSE(converted_error);
     EXPECT_EQ(converted_error.error(), "z");
 }
 
@@ -105,7 +112,7 @@ TEST(Expected_Tests, TheMonadicOperations) {
     Result b = parse(-1);
     auto plus = [](const tracked_ptr<Node>& n) -> expected<int, std::string> { return n->value + 1; };
     EXPECT_EQ(a.and_then(plus), 2);
-    EXPECT_EQ(b.and_then(plus).error(), "negative");
+    EXPECT_EQ(error_of(b.and_then(plus)), "negative");
     auto recover = [](const std::string& s) -> Result { return make_tracked<Node>((int)s.size()); };
     EXPECT_EQ((*b.or_else(recover))->value, 8);
     EXPECT_EQ(a.or_else(recover), a);
@@ -117,6 +124,7 @@ TEST(Expected_Tests, TheMonadicOperations) {
     EXPECT_TRUE(nothing);
     auto length = b.transform_error([](const std::string& s) { return (int)s.size(); });
     static_assert(std::is_same_v<decltype(length), expected<tracked_ptr<Node>, int>>);
+    ASSERT_FALSE(length);
     EXPECT_EQ(length.error(), 8);
     EXPECT_EQ(std::move(a).and_then(plus), 2);
 }
@@ -127,7 +135,7 @@ TEST(Expected_Tests, TheVoidValue) {
     ok.value();
     *ok;
     expected<void, int> failed = unexpected(3);
-    EXPECT_FALSE(failed);
+    ASSERT_FALSE(failed);
     EXPECT_EQ(failed.error(), 3);
     EXPECT_THROW(failed.value(), bad_expected_access<int>);
     EXPECT_EQ(failed.error_or(0), 3);
@@ -144,8 +152,10 @@ TEST(Expected_Tests, TheVoidValue) {
     auto chained = ok.and_then([]() -> expected<int, int> { return 6; });
     EXPECT_EQ(*chained, 6);
     auto error = failed.transform_error([](int e) { return std::to_string(e); });
+    ASSERT_FALSE(error);
     EXPECT_EQ(error.error(), "4");
     expected<void, std::string> widened = failed.transform_error([](int e) { return std::to_string(e); });
+    ASSERT_FALSE(widened);
     EXPECT_EQ(widened.error(), "4");
     swap(ok, failed);
     EXPECT_FALSE(ok);
@@ -302,6 +312,7 @@ TEST(Expected_Tests, AThrowingAssignmentLeavesTheOldValueNotNothing) {
     }
     EXPECT_TRUE(v.has_value());
     v = u;
+    ASSERT_FALSE(v);
     EXPECT_EQ(v.error().value, 9);
 }
 
@@ -361,6 +372,7 @@ TEST(Expected_Tests, AThrowingSwapLeavesBothSidesAsTheyWere) {
         EXPECT_THROW(ok.swap(failed), int);
     }
     EXPECT_TRUE(ok.has_value());
+    ASSERT_FALSE(failed);
     EXPECT_EQ(failed.error().value, 2);
     ok.swap(failed);
     EXPECT_FALSE(ok.has_value());
@@ -378,6 +390,148 @@ TEST(Expected_Tests, ABoolValueIsNotMadeFromAnotherExpectedAsAWhole) {
     EXPECT_EQ(error.error(), 3);
     expected<bool, int> from_value = false;
     EXPECT_FALSE(*from_value);
+}
+
+namespace {
+    struct Message {
+        std::string text;
+        std::string message() const { return text; }
+    };
+
+    // A handle that takes any "stream" through a constrained template, as
+    // io::reader does: expected<Source> reaches it only through the
+    // conversion to any U the value converts to
+    struct Source {
+        int id;
+    };
+
+    struct Handle {
+        template<class S>
+        requires std::same_as<std::remove_cvref_t<S>, Source>
+        Handle(S&& s) : id(s.id) {}
+        int id;
+    };
+
+    int take_handle(const Handle& h) {
+        return h.id;
+    }
+
+    // A type with a constructor of its own from an expected
+    struct FromExpected {
+        FromExpected(const expected<int, int>& e) : had_value(e.has_value()) {}
+        bool had_value;
+    };
+
+    struct MoveOnly {
+        explicit MoveOnly(int v) : value(v) {}
+        MoveOnly(MoveOnly&&) = default;
+        MoveOnly(const MoveOnly&) = delete;
+        int value;
+    };
+}
+
+TEST(Expected_Tests, TheValueGoesWhereATIsWanted) {
+    expected<std::string, int> text = std::string("abc");
+    std::string s = text;                          // copy-initialized
+    std::string t(text);                           // direct
+    EXPECT_EQ(s, "abc");
+    EXPECT_EQ(t, "abc");
+    // through a converting template the value alone reaches (io::reader's shape)
+    expected<Source, int> source = Source{7};
+    EXPECT_EQ(take_handle(source), 7);
+    const Handle& bound = source;                  // a temporary, its life extended
+    EXPECT_EQ(bound.id, 7);
+    // comparisons stay the expected's own
+    expected<int, int> n = 7;
+    EXPECT_TRUE(n == 7);
+    EXPECT_TRUE(7 == n);
+    EXPECT_TRUE(text == "abc");
+    // optional of the value; optional of the expected keeps it whole
+    optional<std::string> o = text;
+    EXPECT_EQ(*o, "abc");
+    optional<expected<std::string, int>> whole = text;
+    EXPECT_TRUE(whole->has_value());
+    // a move-only value, moved out of an rvalue
+    MoveOnly m = expected<MoveOnly, int>(std::in_place, 5);
+    EXPECT_EQ(m.value, 5);
+}
+
+TEST(Expected_Tests, AnErrorUsedAsTheValueIsThrownWithItsMessage) {
+    expected<std::string, Message> failed = unexpected(Message{"open log.gz: No such file or directory"});
+    try {
+        std::string s = failed;
+        ADD_FAILURE() << "no exception";
+    } catch (const bad_expected_access<Message>& e) {
+        EXPECT_EQ(e.error().text, "open log.gz: No such file or directory");
+        EXPECT_STREQ(e.what(), "open log.gz: No such file or directory");
+    }
+    EXPECT_THROW((void)*failed, bad_expected_access<Message>);
+    EXPECT_THROW((void)failed->size(), bad_expected_access<Message>);
+    expected<Source, int> none = unexpected(3);
+    EXPECT_THROW((void)take_handle(none), bad_expected_access<int>);
+    // an error without message(): the general text
+    try {
+        (void)*none;
+    } catch (const bad_expected_access<int>& e) {
+        EXPECT_STREQ(e.what(), "bad access to sgcl::expected without a value");
+    }
+}
+
+// The exception makes the error's message when what() asks for it, not
+// when it is made: a throw nobody reads the text of allocates the rooted
+// error and no string (message() made a managed string at every throw)
+TEST(Expected_Tests, TheExceptionMakesItsMessageOnlyWhenAsked) {
+    const number_error e(number_error::reason::not_a_number, 3);
+    const size_t rooted_error = managed_bytes_of(20000, [&] {
+        rooted<number_error> r(e);
+        EXPECT_EQ(r->offset(), 3u);
+    });
+    const size_t exception = managed_bytes_of(20000, [&] {
+        bad_expected_access<number_error> x(e);
+        EXPECT_EQ(x.error().offset(), 3u);
+    });
+    EXPECT_LE(exception, rooted_error + config::page_size);   // a page of slack for where the pages of either start
+    bad_expected_access<number_error> x(e);
+    auto copy = x;                                               // a copy asks on its own
+    EXPECT_STREQ(x.what(), "not a number");
+    EXPECT_EQ(x.what(), x.what());                               // made once: the same text again
+    EXPECT_STREQ(copy.what(), "not a number");
+    bad_expected_access<number_error> assigned(number_error(number_error::reason::empty, 0));
+    EXPECT_STREQ(assigned.what(), "an empty text");
+    assigned = x;                                                // the text follows the error it now holds
+    EXPECT_STREQ(assigned.what(), "not a number");
+    expected<int, number_error> failed = unexpected(e);
+    try {
+        (void)failed.value();
+        ADD_FAILURE() << "no exception";
+    } catch (const std::exception& thrown) {
+        EXPECT_STREQ(thrown.what(), "not a number");
+    }
+}
+
+TEST(Expected_Tests, TheConversionLeavesBoolAndOtherExpectedsAlone) {
+    // `if (e)` asks whether there is a value, for expected<bool> too
+    expected<bool, int> no = false;
+    EXPECT_TRUE(static_cast<bool>(no));
+    static_assert(!std::is_convertible_v<expected<int, int>, bool>);
+    static_assert(!std::is_convertible_v<expected<bool, int>, bool>);
+    static_assert(!std::is_convertible_v<expected<bool, int>, int>);     // one meaning in a number's place: none
+    static_assert(std::is_convertible_v<expected<int, int>, long>);
+    // an expected converted to another carries its error, never throws it
+    expected<int, int> e = unexpected(4);
+    expected<long, int> l = e;
+    ASSERT_FALSE(l.has_value());
+    EXPECT_EQ(l.error(), 4);
+    expected<long, int> lv = expected<int, int>(9);
+    EXPECT_EQ(*lv, 9);
+    expected<std::string, int> from_chars = expected<const char*, int>("xyz");
+    EXPECT_EQ(*from_chars, "xyz");
+    // an unexpected is never made of an expected whole
+    static_assert(!std::is_constructible_v<unexpected<int>, expected<int, int>>);
+    // a type with its own constructor from the other expected still uses it
+    expected<int, int> err = unexpected(1);
+    FromExpected fe = err;
+    EXPECT_FALSE(fe.had_value);
 }
 
 TEST(Aliases_Tests, TheStandardTypesSafeWithAPointerUnderTheLibrarysNames) {

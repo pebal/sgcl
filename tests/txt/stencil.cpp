@@ -483,6 +483,48 @@ TEST(StencilTest, AFunctionOfTheCallersJoinsTheOthers) {
     EXPECT_EQ(render("{{.s | upper}}", data), "AB");
 }
 
+// A literal in the program is constructed, not parsed: the template parse
+// gives, or parse's error thrown (DESIGN 234), with either table
+TEST(StencilTest, LiteralsConstruct) {
+    auto data = txt::object{{"s", "ab"}};
+    txt::stencil t("Hello, {{.s | upper}}!");
+    EXPECT_EQ(t.render(data), "Hello, AB!");
+    EXPECT_EQ(t.render(data), value_of(txt::stencil::parse("Hello, {{.s | upper}}!")).render(data));
+    txt::stencil_functions table;
+    table.add("twice", [](const txt::value& v, slice<const txt::value>) {
+        return txt::value(v.to_string() + v.to_string());
+    });
+    txt::stencil own("{{.s | twice}}", table);
+    EXPECT_EQ(own.render(data), "abab");
+    auto check = [](const txt::stencil_error& got, const txt::stencil_error& want) {
+        EXPECT_EQ(got.offset(), want.offset());
+        EXPECT_EQ(got.line(), want.line());
+        EXPECT_EQ(got.column(), want.column());
+        EXPECT_EQ(got.message(), want.message());
+    };
+    auto bad = txt::stencil::parse("{{.s | twice}}");   // not among the six
+    ASSERT_FALSE(bad);
+    try {
+        txt::stencil("{{.s | twice}}");
+        FAIL() << "no such function in the built-in table";
+    } catch (const bad_expected_access<txt::stencil_error>& x) {
+        check(x.error(), bad.error());
+        EXPECT_EQ(string(x.what()), bad.error().message());
+    }
+    auto unclosed = txt::stencil::parse("{{.s", table);
+    ASSERT_FALSE(unclosed);
+    try {
+        txt::stencil("{{.s", table);
+        FAIL() << "an action not closed";
+    } catch (const bad_expected_access<txt::stencil_error>& x) {
+        check(x.error(), unclosed.error());
+        EXPECT_EQ(string(x.what()), unclosed.error().message());
+    }
+    static_assert(!std::is_convertible_v<const string&, txt::stencil>, "explicit");
+    static_assert(!std::is_convertible_v<const char*, txt::stencil>, "explicit");
+    static_assert(!std::is_constructible_v<txt::stencil, int>);
+}
+
 TEST(StencilTest, AStageWithNoArgumentsIsGivenNoneAndBuildsNoRoomForThem) {
     // The road five of the six built-in functions take. A stage written
     // no arguments skips the room a stage with them needs, so what it is

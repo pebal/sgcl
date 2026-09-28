@@ -316,10 +316,10 @@ TYPED_TEST(Hash_Common, CopyFromAStream) {
             EXPECT_EQ(*got, n);
             EXPECT_EQ(text(h.value()), expected) << "n " << n << " pieces of " << piece;
         }
-        sgcl::tracked_ptr b = sgcl::make_tracked<io::buffer>(bytes(data));
+        io::buffer b(bytes(data));
         H h = fresh<H>();
         h.update("prefix");
-        auto got = h.copy_from(*b);
+        auto got = h.copy_from(b);
         ASSERT_TRUE(got);
         EXPECT_EQ(*got, n);
         H expect = fresh<H>();
@@ -374,10 +374,71 @@ TEST(Hash_CopyFrom, AFile) {
     auto f = io::open(path);
     ASSERT_TRUE(f);
     hash::crc32 h;
-    auto n = h.copy_from(**f);
+    auto n = h.copy_from(*f);
     ASSERT_TRUE(n);
     EXPECT_EQ(*n, data.size());
     EXPECT_EQ(hash_test::text(h.value()), hash_test::of<hash::crc32>(data));
-    (*f)->close();
+    f->close();
+    io::remove_all(*dir);
+}
+
+namespace {
+    // of_file against of() of the file read whole, for one hasher
+    template<class H>
+    void expect_of_file(const sgcl::string& path) {
+        auto whole = sgcl::io::read_file(path);
+        ASSERT_TRUE(whole);
+        auto d = H::of_file(path);
+        ASSERT_TRUE(d) << d.error().message();
+        static_assert(std::is_same_v<decltype(d), sgcl::expected<decltype(H::of(*whole)), sgcl::io::error>>);
+        EXPECT_TRUE(*d == H::of(*whole));
+    }
+}
+
+TEST(Hash_OfFile, TheHashOfTheWholeFile) {
+    namespace io = sgcl::io;
+    auto dir = io::make_temp_dir({}, "hash-test-*");
+    ASSERT_TRUE(dir);
+    // empty, one byte, one block of copy_from exactly, one past it, several blocks
+    for (size_t size : {size_t(0), size_t(1), sgcl::config::io_copy_buffer_size, sgcl::config::io_copy_buffer_size + 1, size_t(300001)}) {
+        auto data = hash_test::pattern(int(size % 3), size);
+        sgcl::string path = io::path::join(*dir, "data.bin");
+        ASSERT_TRUE(io::write_file(path, hash_test::bytes(data)));
+        expect_of_file<hash::crc32>(path);
+        expect_of_file<hash::crc64>(path);
+        expect_of_file<hash::adler32>(path);
+        expect_of_file<hash::fnv64a>(path);
+        expect_of_file<hash::xxh3_64>(path);
+        expect_of_file<hash::xxh3_128>(path);
+    }
+    auto missing = hash::crc32::of_file(io::path::join(*dir, "missing.bin"));
+    ASSERT_FALSE(missing);
+    EXPECT_TRUE(missing.error().is_not_found());
+    auto directory = hash::xxh3_64::of_file(*dir);   // opened, but no read of a directory succeeds
+    EXPECT_FALSE(directory);
+    io::remove_all(*dir);
+}
+
+TEST(Hash_OfFile, AsyncOfFile) {
+    namespace io = sgcl::io;
+    auto dir = io::make_temp_dir({}, "hash-test-*");
+    ASSERT_TRUE(dir);
+    auto data = hash_test::pattern(0, 100000);
+    sgcl::string path = io::path::join(*dir, "data.bin");
+    ASSERT_TRUE(io::write_file(path, hash_test::bytes(data)));
+    auto t = sgcl::async::spawn([path]() -> sgcl::async::task<std::string> {
+        auto crc = co_await hash::crc32::async_of_file(path);
+        auto xxh = co_await hash::xxh3_64::async_of_file(path);
+        auto missing = co_await hash::crc32::async_of_file(path + ".missing");
+        if (!crc || !xxh) {
+            co_return "the file was not read";
+        }
+        if (missing || !missing.error().is_not_found()) {
+            co_return "the error was lost";
+        }
+        co_return hash_test::text(*crc) + " " + hash_test::text(*xxh);
+    });
+    EXPECT_EQ(t.wait(), hash_test::of<hash::crc32>(data) + " " + hash_test::of<hash::xxh3_64>(data));
+    sgcl::async::scheduler::stop();
     io::remove_all(*dir);
 }

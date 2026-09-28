@@ -145,7 +145,6 @@ assert(gone.empty());
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -157,7 +156,7 @@ struct Texture {
 };
 
 static void release_texture(int id) {
-    std::cout << "texture " << id << " released\n";
+    println("texture {} released", id);
 }
 
 // The pointers juggled here stay in a frame of their own: the stack is
@@ -177,11 +176,11 @@ int main() {
     expiry_queue<Texture> gone;            // lives where a tracked_ptr may: here on the stack
     tracked_ptr<Texture> kept;
     use_textures(gone, kept);
-    std::cout << gone.size() << " textures watched\n";
+    println("{} textures watched", gone.size());
 
     collector::force_collect(true);        // optional, for the demonstration only: the collector runs its cycles by itself
-    std::cout << gone.drain() << " released by the first drain\n";   // 1 and 3, in either order
-    std::cout << gone.size() << " still watched: texture " << kept->id << "\n";
+    println("{} released by the first drain", gone.drain());   // 1 and 3, in either order
+    println("{} still watched: texture {}", gone.size(), kept->id);
 
     // the function may keep the object: its return to life
     tracked_ptr<Texture> revived;
@@ -189,7 +188,7 @@ int main() {
     kept = nullptr;
     collector::force_collect(true);        // optional, as above
     gone.drain();                              // texture 2's first entry releases it, the second revives it
-    std::cout << "texture " << revived->id << " is back\n";
+    println("texture {} is back", revived->id);
     return 0;
 }
 ```

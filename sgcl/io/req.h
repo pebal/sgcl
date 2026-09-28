@@ -64,8 +64,13 @@ namespace sgcl::io {
         template<class T>
         concept MemberAsyncWrite = requires(T& t, slice<const byte> b) { { t.async_write(b) } -> ByteTask; };
 
+        // A method of the name, or one that takes the primitive's slice:
+        // the address alone misses an overloaded one (a writer whose write
+        // takes bytes and text), which would then be taken for a callable
+        // and copied
         template<class T>
-        concept HasMembers = requires { &T::read; } || requires { &T::write; } || requires { &T::async_read; } || requires { &T::async_write; };
+        concept HasMembers = requires { &T::read; } || requires { &T::write; } || requires { &T::async_read; } || requires { &T::async_write; }
+                             || MemberRead<T> || MemberAsyncRead<T> || MemberWrite<T> || MemberAsyncWrite<T>;
 
         template<class T>
         concept CalledRead = !HasMembers<T> && requires(T& f, slice<byte> b) { { f(b) } -> ByteCount; };

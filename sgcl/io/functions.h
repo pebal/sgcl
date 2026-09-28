@@ -13,6 +13,9 @@
 #include "../core/vector.h"
 
 #include <cstddef>
+#include <cstdlib>
+#include <cstring>
+#include <new>
 #include <string>
 #include <string_view>
 
@@ -100,46 +103,122 @@ namespace sgcl::io {
             co_return n;
         }
 
+        // Bytes gathered in unmanaged memory for a result whose size is
+        // known only at the end: grown by doubling from io's block size and
+        // copied once into a vector of exactly their size. The steps of the
+        // growth are scratch, which the collector need not see. Only a read
+        // that is over when its call returns writes into it (read_all, a
+        // wire's read in http); a task whose read may run on the pool reads
+        // into managed blocks instead (async_read_all).
+        class Gathered {
+        public:
+            Gathered() noexcept = default;
+            Gathered(const Gathered&) = delete;
+            Gathered& operator=(const Gathered&) = delete;
+
+            ~Gathered() {
+                std::free(_data);
+            }
+
+            // The free bytes behind the ones gathered, made when there are none
+            slice<byte> room() {
+                if (_size == _capacity) {
+                    _grow();
+                }
+                return slice<byte>(_data + _size, _capacity - _size);
+            }
+
+            void added(size_t n) noexcept {
+                _size += n;
+            }
+
+            // (made at its size, then one memcpy: a copy element by element
+            // is a byte at a time, the vector's count stored at each)
+            vector<byte> take() const {
+                vector<byte> out(_size);
+                if (_size) {
+                    std::memcpy(out.data(), _data, _size);
+                }
+                return out;
+            }
+
+        private:
+            void _grow() {
+                size_t capacity = _capacity ? _capacity * 2 : config::io_buffer_size;
+                auto data = static_cast<byte*>(std::realloc(_data, capacity));
+                if (!data) {
+                    throw std::bad_alloc();
+                }
+                _data = data;
+                _capacity = capacity;
+            }
+
+            byte* _data = nullptr;
+            size_t _size = 0;
+            size_t _capacity = 0;
+        };
+
         template<class R>
         expected<vector<byte>, error> read_all(R& r) {
-            vector<byte> out;
-            size_t n = 0;
+            Gathered all;
             for (;;) {
-                if (n == out.size()) {
-                    out.resize(n ? n * 2 : config::io_buffer_size);
-                }
-                auto got = call_read(r, out.as_slice(n));
+                auto got = call_read(r, all.room());
                 if (!got) {
                     return fail(got);
                 }
                 if (*got == 0) {
                     break;
                 }
-                n += *got;
+                all.added(*got);
             }
-            out.resize(n);
-            return out;
+            return all.take();
         }
 
+        // The reads go into managed blocks, which the slice a read on the
+        // pool is given holds (a task let go of meanwhile frees nothing the
+        // pool writes into): io's 8 KB first, then blocks of 32 KB for a
+        // stream that proves longer, each filled before the next is made;
+        // at the end, one copy into a vector of exactly the size. The
+        // blocks are dropped then: for 100 KB, 8 + 3 x 32 KB of them, where
+        // a vector grown by doubling left 8 + 16 + 32 + 64 + 128.
         template<class R>
         async::task<expected<vector<byte>, error>> async_read_all(R r) {
             auto& s = target(r);
-            vector<byte> out;
-            size_t n = 0;
+            tracked_ptr<IoBlock> first = make_tracked<IoBlock>();
+            size_t in_first = 0;
+            vector<tracked_ptr<CopyBlock>> more;
+            size_t in_last = 0;
             for (;;) {
-                if (n == out.size()) {
-                    out.resize(n ? n * 2 : config::io_buffer_size);
+                slice<byte> room;
+                if (in_first < first->size()) {
+                    room = slice<byte>(first, first->data() + in_first, first->size() - in_first);
+                } else {
+                    if (more.empty() || in_last == more.back()->size()) {
+                        more.push_back(make_tracked<CopyBlock>());
+                        in_last = 0;
+                    }
+                    auto& last = more.back();
+                    room = slice<byte>(last, last->data() + in_last, last->size() - in_last);
                 }
-                auto got = co_await call_async_read(s, out.as_slice(n));
+                auto got = co_await call_async_read(s, room);
                 if (!got) {
                     co_return fail(got);
                 }
                 if (*got == 0) {
                     break;
                 }
-                n += *got;
+                (more.empty() ? in_first : in_last) += *got;
             }
-            out.resize(n);
+            size_t total = in_first + (more.empty() ? 0 : (more.size() - 1) * config::io_copy_buffer_size + in_last);
+            vector<byte> out(total);
+            byte* at = out.data();
+            std::memcpy(at, first->data(), in_first);
+            at += in_first;
+            for (size_t i = 0; i < more.size(); ++i) {
+                size_t n = i + 1 < more.size() ? config::io_copy_buffer_size : in_last;
+                std::memcpy(at, more[i]->data(), n);
+                at += n;
+            }
             co_return out;
         }
 
@@ -165,10 +244,10 @@ namespace sgcl::io {
             if constexpr (WritesTo<R, W>) {
                 return r.write_to(w);
             } else {
-                tracked_ptr<CopyBlock> block = make_tracked<CopyBlock>();
+                StackCopyBlock block;
                 size_t total = 0;
                 for (;;) {
-                    slice<byte> room(block, block->data(), block->size());
+                    slice<byte> room(block.data(), block.size());
                     auto got = call_read(r, room);
                     if (!got) {
                         return fail(got);
@@ -303,7 +382,8 @@ namespace sgcl::io {
     }
 
     // Copies r to its end into w: the bytes copied, config::io_copy_buffer_size
-    // (32 KB) at a time through one managed block, or in one call when r
+    // (32 KB) at a time through one block (on copy's stack; managed for
+    // async_copy, whose reads may run on the pool), or in one call when r
     // has a way of its own (write_to: a buffer hands over what it holds)
     template<req::writer W, req::reader R>
     expected<size_t, error> copy(W&& w, R&& r) {

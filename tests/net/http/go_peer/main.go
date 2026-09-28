@@ -7,6 +7,7 @@
 // loopback. The test builds it (go build) and runs it:
 //
 //	go_peer server          listens on 127.0.0.1:0, prints "port N", serves until GET /quit
+//	go_peer server CRT KEY  the same over TLS (https), with the certificate and key given
 //	go_peer client BASE     runs the scenarios below against BASE, one line each, then exits
 //
 // The server's endpoints: /hello; /stream (three flushes: chunked); /echo
@@ -33,7 +34,7 @@ import (
 	"time"
 )
 
-func serve() {
+func serve(cert, key string) {
 	var conns atomic.Int64
 	quit := make(chan struct{})
 	var once sync.Once
@@ -99,7 +100,11 @@ func serve() {
 	}}
 	fmt.Printf("port %d\n", l.Addr().(*net.TCPAddr).Port)
 	os.Stdout.Sync()
-	go s.Serve(l)
+	if cert != "" {
+		go s.ServeTLS(l, cert, key) // https: HTTP/1.1 for a client that offers only it (ALPN)
+	} else {
+		go s.Serve(l)
+	}
 	<-quit
 	time.Sleep(10 * time.Millisecond)
 	s.Close()
@@ -212,7 +217,11 @@ func client(base string) {
 
 func main() {
 	if len(os.Args) >= 2 && os.Args[1] == "server" {
-		serve()
+		if len(os.Args) >= 4 {
+			serve(os.Args[2], os.Args[3])
+		} else {
+			serve("", "")
+		}
 		return
 	}
 	if len(os.Args) >= 3 && os.Args[1] == "client" {

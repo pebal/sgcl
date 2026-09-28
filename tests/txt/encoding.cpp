@@ -168,15 +168,15 @@ TEST(Encoding_Tests, WhatCannotBeWrittenAndWhatCannotBeRead) {
 // encoding, where the lenient form puts a replacement character
 TEST(Encoding_Tests, StrictDecodeRefusesWhatLenientReplaces) {
     auto bytes = [](std::string_view s) { return slice<const byte>(reinterpret_cast<const byte*>(s.data()), s.size()); };
-    EXPECT_EQ(*txt::decode(bytes("za\xC5\xBC\xC3\xB3\xC5\x82\xC4\x87"), txt::encoding::utf8, txt::strict), "zażółć");
-    EXPECT_EQ(*txt::decode(bytes("a\xEF\xBF\xBD" "b"), txt::encoding::utf8, txt::strict), "a\xEF\xBF\xBD" "b");   // a U+FFFD written is a character
+    EXPECT_EQ(value_of(txt::decode(bytes("za\xC5\xBC\xC3\xB3\xC5\x82\xC4\x87"), txt::encoding::utf8, txt::strict)), "zażółć");
+    EXPECT_EQ(value_of(txt::decode(bytes("a\xEF\xBF\xBD" "b"), txt::encoding::utf8, txt::strict)), "a\xEF\xBF\xBD" "b");   // a U+FFFD written is a character
     auto bad = txt::decode(bytes("ab\xC5"), txt::encoding::utf8, txt::strict);
     ASSERT_FALSE(bad);
     EXPECT_EQ(bad.error().offset(), 2u);
     EXPECT_EQ(bad.error().message(), "not utf-8");
     EXPECT_EQ(txt::decode(bytes("ab\xC5"), txt::encoding::utf8), "ab\xEF\xBF\xBD");   // the lenient form, as before
-    EXPECT_EQ(txt::decode(bytes("a\x80"), txt::encoding::ascii, txt::strict).error().offset(), 1u);
-    EXPECT_EQ(txt::decode(bytes(std::string_view("\x00" "a" "\x00", 3)), txt::encoding::utf16be, txt::strict).error().offset(), 2u);   // a unit cut short
-    EXPECT_EQ(txt::decode(bytes(std::string_view("\xD8\x00" "\x00" "a", 4)), txt::encoding::utf16be, txt::strict).error().offset(), 0u);   // a lone surrogate
+    EXPECT_EQ(error_of(txt::decode(bytes("a\x80"), txt::encoding::ascii, txt::strict)).offset(), 1u);
+    EXPECT_EQ(error_of(txt::decode(bytes(std::string_view("\x00" "a" "\x00", 3)), txt::encoding::utf16be, txt::strict)).offset(), 2u);   // a unit cut short
+    EXPECT_EQ(error_of(txt::decode(bytes(std::string_view("\xD8\x00" "\x00" "a", 4)), txt::encoding::utf16be, txt::strict)).offset(), 0u);   // a lone surrogate
     EXPECT_TRUE(txt::decode(bytes("\xFF"), txt::encoding::latin1, txt::strict));   // every byte is a character there
 }

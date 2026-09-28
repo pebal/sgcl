@@ -69,7 +69,6 @@ while (running) {
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -82,7 +81,7 @@ struct Job {
     int cost;
 };
 
-async::task<int> worker(async::channel<tracked_ptr<Job>>& jobs, async::channel<tracked_ptr<Job>>& urgent, async::channel<void>& stop) {
+async::task<int> worker(async::channel<tracked_ptr<Job>> jobs, async::channel<tracked_ptr<Job>> urgent, async::channel<void> stop) {
     int done = 0;
     bool running = true;
     while (running) {
@@ -109,7 +108,7 @@ int main() {
         this_thread::yield();                            // the worker drains both
     }
     stop.close();                                             // the worker's loop ends
-    std::cout << "cost " << w.wait() << "\n";                 // cost 50
+    println("cost {}", w.wait());                 // cost 50
     return w.result() == 50 ? 0 : 1;
 }
 ```

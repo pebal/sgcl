@@ -24,6 +24,7 @@ What it costs: a slice without an owner is three word stores — no barrier, no 
 - The owner is explicit: `slice(owner, first, last)` with the object the elements lie in; in a debug build the constructor asserts that `[first, last)` lies in it. A slice of a `string` or a `vector` comes from the container (`as_slice`), which knows its object.
 - `data()` is not terminated: a slice is a range, not a C string; `str()` for a `std::string`, `string(s)` for a string.
 - A slice's elements are `T`: a `slice<int>` writes through, a `slice<const int>` does not; `slice<T>` converts to `slice<const T>`, the owner carried over.
+- **A text is bytes where bytes are taken**: `slice<const byte>` is made, implicitly, from a `string` or a text slice (the owner carried over), a `std::string_view`, a literal or an array of `char` (up to its first NUL, never past its end: no terminator), and an array of `unsigned char` or a `std::array<uint8_t, N>` (all of it). So a parameter of data takes a text as it is: `hex::encode("abc")`, `gcm.seal(nonce, text, header)`, `hmac_sha256::of(message, "key")`. Nothing goes the other way: bytes are not text, and a `slice<byte>` to write into is made from nothing of this. A pointer is not taken, having no length. Where one name takes a text (`const string&`) and bytes (`const slice<const byte>&`), a literal and a `std::string_view` convert to both and would be ambiguous: such a set adds an exact overload for them, `template<detail::TextArgument T> f(const T&)`, as the library's do.
 - The elements a slice with an owner points at are the memory of that moment: a reader reuses its block for the next lines, a vector overwrites its buffer, so a slice kept across such a change reads what was written since — alive and well-formed, not what it read before. A slice kept for its text is copied first (`string(line)`).
 - Inside a managed object, the raw `begin` and `end` are words the collector's pointer map traces like any address-holding word, so the destructor nulls them: a container slot a slice was destroyed in keeps nothing alive.
 - Threads share a slice the way they share a `tracked_ptr` ([The rules](README.md#the-rules), 6): a slice variable that one thread replaces while others read it needs the program's synchronization (three words: not an atomic).
@@ -41,6 +42,12 @@ slice(const tracked_ptr<const void>& owner, T* first, T* last) noexcept;  slice(
 slice(std::span<T>) noexcept;  slice(T (&)[N]) noexcept;  slice(std::array<U, N>&) noexcept;  slice(std::vector<U, A>&) noexcept;   // no owner; the const forms likewise
 slice(std::basic_string_view<CharT>) noexcept;                        // text: no owner
 template<class U> slice(const slice<U>& o) noexcept;                  // slice<T> from slice<U> where U* converts to T*: the owner carried over
+
+// slice<const byte> alone, implicit: data from a text or from raw bytes, where it lies
+slice(const string& text) noexcept;  slice(const slice<const char>& text) noexcept;  // and slice<char>: the owner carried over
+slice(std::string_view text) noexcept;                                // no owner
+slice(const char (&text)[N]) noexcept;                                // a literal or a char array: up to its first NUL or its end; no owner
+slice(const unsigned char (&data)[N]) noexcept;  slice(const std::array<uint8_t, N>& data) noexcept;   // uint8_t too: all of it; no owner
 slice(const slice&) noexcept;  slice& operator=(const slice&) noexcept;   // an owner registers the thread, a null owner costs nothing
 
 const tracked_ptr<const void>& owner() const noexcept;  bool owned() const noexcept;
@@ -81,12 +88,12 @@ string text = "name = alice, bob";
 string_slice value = text.as_slice(7);          // "alice, bob": a piece of text that holds it
 slice<const char> name = value.trim_prefix("alice, ");   // "bob", the same owner, nothing copied
 for (auto piece : text.split(','))                    // the pieces of a string: slices of it
-    std::cout << piece.trim() << '\n';
+    println("{}", piece.trim());
 
 vector<byte> buffer(4096);
 slice<byte> room = buffer;                  // the buffer's own object as the owner
 auto n = file->read(room);                                    // io::reader::read takes a slice; async_read holds the buffer while the task waits
-auto data = room.first(*n);
+auto data = room.first(n);
 
 int local[16];
 slice<int> ints(local);                          // a stack array: no owner, a span
@@ -100,7 +107,6 @@ tail.sort();                                           // the mixins: v is 5 3 4
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -131,9 +137,9 @@ int main() {
     }
     collector::force_collect();                              // optional, to show the result at once
     for (auto& t : tokens) {                                       // the texts live on: each slice holds its line
-        std::cout << t.line << ": " << t.text << '\n';
+        println("{}: {}", t.line, t.text);
     }
-    std::cout << tokens.size() << " tokens, " << (tokens[0].text.owned() ? "owned" : "unowned") << '\n';   // 10 tokens, owned
+    println("{} tokens, {}", tokens.size(), (tokens[0].text.owned() ? "owned" : "unowned"));   // 10 tokens, owned
 }
 ```
 

@@ -33,17 +33,18 @@ The framework is modules, one directory and one header each, every module depend
 | [io](docs/sgcl/io/README.md) | os, io, bufio, path/filepath, os/exec | streams as requirements of one primitive each with everything else mixed in (`io::req::reader`, `writer`, `seeker`, `closer`, nothing virtual) and `io::reader`/`io::writer`, handles of one word over any of them (`read_all`, `copy`, `write`, each with an `async_` form for a task), `buffered_reader` that hands out lines as views into a managed block, `file` over any descriptor (a regular file's async reads on the blocking pool, a pipe's or a socket's on the reactor), `read_file`/`write_file`, the file system (`stat`, `mkdir_all`, `read_dir`, `walk_dir`), `path`, the process (`args`, `getenv`, `stdin`/`stdout`/`stderr`), a child process (`command` with the fields of `exec.Cmd`, `posix_spawn`, its exit waited for on the reactor: 1.1 ms a run against Go's 1.9); every operation returns `expected<T, io::error>`, with the code, the operation and the path |
 | [time](docs/sgcl/time/README.md) | time | `sgcl::duration` (in core, what the timers take): nanoseconds in 64 bits with Go's text both ways, `"1h30m0.5s"`, the units as methods, arithmetic that saturates rather than wraps, into and from `std::chrono`; `time::date`, a date with no time of day and no zone, carried like Go's `time.Date`, the ISO week, `add_months` cut to the month's end, ISO 8601 read and written; `time::zone`, UTC, a fixed offset, a zone of the system's tz database by name, one from a TZif file or a POSIX TZ string, the local one; `time::datetime`, an instant and the zone it is seen in (Go's `time.Time`), with the calendar's arithmetic across a change of the clock and `time::now()`; the formats known by name (`rfc3339`, `http`, `email`, `iso8601`) and patterns of `%` written and read; `stopwatch` on the library's clock, which a test's manual clock moves. Its own namespace, `sgcl::time` |
 | [encoding](docs/sgcl/encoding/README.md) | encoding/base64, base32, hex, ascii85, pem, binary, json, csv, xml | the formats data leaves a program in, each a type in `sgcl::encoding` named as the format is: `base64` (the four alphabets of Go and one's own), `base32`, `hex` with `dump`, `ascii85`, `pem` (RFC 7468 with the headers of RFC 1421), `big_endian`, `little_endian`, `varint`; strict by default, `lenient()` for MIME; the codecs as streams (`encoder_to`, `decoder_from`); one `encoding::error` with the offset, the line and the column; JSON (an immutable value of 24 bytes, a resumable reader of tokens, a writer), CSV as Go reads it, XML with namespaces and no DTD, and a program's own types described once by their fields for all three |
+| [hash](docs/sgcl/hash/README.md) | hash, hash/crc32, hash/crc64, hash/adler32, hash/fnv, hash/maphash | checksums and hashes that are not cryptographic: every algorithm one type with the same methods (`update`, `value`, `digest`, `reset`, `of`, `copy_from`) — `crc32`, `crc32c`, `crc64`, `crc64_iso`, folded by carry-less multiplication on arm64, `adler32`, the six FNVs, XXH3 (64 and 128 bits) and SipHash-2-4, `maphash` seeded per process; `combine` to hash a buffer in pieces on several tasks; the shape [`crypto`](docs/sgcl/crypto/README.md) gives SHA-2 and the rest. Its own namespace, `sgcl::hash` |
+| [crypto](docs/sgcl/crypto/README.md) | crypto/sha256, sha512, sha3, hmac, hkdf, pbkdf2, rand, subtle, aes, cipher, ecdh, ecdsa, ed25519, rsa; x/crypto/chacha20poly1305 | the digests (SHA-1, SHA-2, SHA-3 and SHAKE on the processor's SHA instructions), HMAC, HKDF, PBKDF2, the system's random bytes and comparison in constant time; AES-GCM on the AES and PMULL instructions and ChaCha20-Poly1305 (XChaCha too) on NEON, one interface for both (`seal`, `open`, a tag checked before a byte is decrypted), `nonce_counter`; X25519 and Ed25519, ECDH and ECDSA on P-256 and P-384 with hedged RFC 6979 nonces, and RSA (PKCS #1 v1.5 and PSS signatures, OAEP; blinded, CRT, checked after signing), their keys in PKCS #8 and SPKI as OpenSSL writes them; keys that hold their bytes in themselves, move-only, zeroed by their destructors; everything in constant time on the secrets and in plain C++ where the instructions are not. Written from the specifications and held to OpenSSL and Go, not yet independently audited. Its own namespace, `sgcl::crypto` |
+| [compress](docs/sgcl/compress/README.md) | compress/flate, gzip, zlib, bzip2, lzw; archive/zip, archive/tar | DEFLATE both ways (a compressor at zlib's sizes, a decoder within 1.3× of Apple's zlib and four times Go's), with zlib's dictionary and Adler-32 and gzip's header, CRC-32 and members; bzip2 read; LZW both bit orders; zip archives read and written (ZIP64, UTF-8 names, every time field Go reads, the checks against the central directory, a limit before a byte is decompressed) and tar (ustar, pax, GNU's long names); every format one type with `compress`/`decompress` in memory and a `reader`/`writer` that are io streams. Its own namespace, `sgcl::compress` |
 | [net](docs/sgcl/net/README.md) | net, net/netip | `sgcl::net`, the first stage: IP addresses and networks as values of 32 bytes that allocate nothing (`net::ip_address`, `net::ip_network`, `net::endpoint`, text as RFC 5952 writes it), `net::tcp::connect` with happy eyeballs (RFC 8305), `listen`, `accept`, `net::udp`, `net::unix_domain`, `net::dns` through the system's resolver, `net::url` as WHATWG parses it, HTTP/1.1 in `net::http` (a client with a pool and a server with Go 1.22's routes, the framing held against request smuggling); a connection is a handle of one word (`net::connection`), every call that waits in two forms (`c.read(b)` on a thread, `co_await c.async_read(b)` in a task), deadlines absolute as Go's, a `close()` from another task that no read in progress can outlive onto a reused descriptor. TLS and HTTP/2 come next |
-| [hash](docs/sgcl/hash/README.md) | hash, hash/crc32, hash/crc64, hash/adler32, hash/fnv, hash/maphash | checksums and hashes that are not cryptographic: every algorithm one type with the same methods (`update`, `value`, `digest`, `reset`, `of`, `copy_from`) — `crc32`, `crc32c`, `crc64`, `crc64_iso`, folded by carry-less multiplication on arm64, `adler32`, the six FNVs, XXH3 (64 and 128 bits) and SipHash-2-4, `maphash` seeded per process; `combine` to hash a buffer in pieces on several tasks; the shape `crypto` will give SHA-2 and the rest. Its own namespace, `sgcl::hash` |
 
-What comes next, in this order and each on the ones before it: `compress`, `crypto` (with TLS 1.3, on `hash` and `math`), the rest of `net` (TLS and HTTP/2, which take their ciphers from `crypto` and gzip from `compress`), the serialization of object graphs in `encoding`, `codec` (the images decoded here, the video through the platform), `db`, `lua` — Lua 5.4 as the embedded scripting language, its own compiler and virtual machine, its values on the managed heap and its coroutines awaiting the library's operations — and `ui`: a reactive state, a view as a function of it, a diff, a flex layout and events on the scheduler, over a small renderer of its own per platform.
+What comes next, in this order and each on the ones before it: X.509 certificates in `crypto`, the rest of `net` (TLS and HTTP/2, which take their ciphers from `crypto` and gzip from `compress`), the serialization of object graphs in `encoding`, `codec` (the images decoded here, the video through the platform), `db`, `lua` — Lua 5.4 as the embedded scripting language, its own compiler and virtual machine, its values on the managed heap and its coroutines awaiting the library's operations — and `ui`: a reactive state, a view as a function of it, a diff, a flex layout and events on the scheduler, over a small renderer of its own per platform.
 
 ## Examples
 The pointers and the containers, in one file (`examples/example.cpp` has the long version):
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 #include <memory>
 #include <vector>
 
@@ -76,7 +77,7 @@ int main() {
     tracked_ptr<Shape> shape = make_tracked<Circle>();
     if (shape.is<Circle>()) {
         tracked_ptr<Circle> circle = shape.as<Circle>();
-        std::cout << "a circle of radius " << circle->r << '\n';
+        println("a circle of radius {}", circle->r);
     }
     tracked_ptr<void> any = shape;             // type() still knows: Circle
 
@@ -84,7 +85,7 @@ int main() {
     tracked_ptr node = make_tracked<Node>(7);
     tracked_ptr<int> value(&node->value);
     node = nullptr;
-    std::cout << *value << '\n';                   // 7, the Node lives on
+    println("{}", *value);                   // 7, the Node lives on
 
     // Containers with the interfaces of std, their nodes and buffers managed
     map<std::string, tracked_ptr<Node>> index;
@@ -107,7 +108,6 @@ Tasks and a channel, the shape of a Go program: a coroutine on the scheduler rec
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -115,7 +115,7 @@ struct Job {
     int id;
 };
 
-async::task<> worker(async::channel<tracked_ptr<Job>>& jobs, async::channel<int>& results) {
+async::task<> worker(async::channel<tracked_ptr<Job>> jobs, async::channel<int> results) {
     while (auto job = co_await jobs.receive()) {   // suspends while jobs is empty; empty once jobs is closed and drained
         co_await results.send((*job)->id * 2);     // suspends while results is full
     }
@@ -125,7 +125,7 @@ async::task<> worker(async::channel<tracked_ptr<Job>>& jobs, async::channel<int>
 int main() {
     async::channel<tracked_ptr<Job>> jobs(8);
     async::channel<int> results(8);
-    async::task w = async::spawn(worker(jobs, results));   // runs on the pool of workers whenever a job comes
+    async::task w = async::spawn(worker(jobs, results));                 // runs on the pool of workers whenever a job comes
     thread producer([&] {
         for (int i : range(100)) {
             jobs.send(make_tracked<Job>(i)).wait();       // waits when the buffer of eight is full
@@ -138,7 +138,7 @@ int main() {
     }
     producer.join();
     w.wait();
-    std::cout << sum << '\n';                            // 9900
+    println("{}", sum);                            // 9900
 }
 ```
 
@@ -160,8 +160,10 @@ The rules in full, with what each costs and what breaking one looks like: [docs/
 ## Documentation
 [docs/](docs/README.md) is the reference and the guide: a README per module ([core](docs/sgcl/core/README.md), [immutable](docs/sgcl/immutable/README.md), [txt](docs/sgcl/txt/README.md), [concurrent](docs/sgcl/concurrent/README.md), [async](docs/sgcl/async/README.md), [io](docs/sgcl/io/README.md)), a page per class with every member, its signature as declared in the header, the rules that apply and an example that compiles, and the chapter on [the garbage collector](docs/garbage_collector/README.md). [docs/garbage_collector/diagnostics.md](docs/garbage_collector/diagnostics.md) is where to start when the memory grows, an object lives too long or dies too early, or a cycle costs more than it should.
 
+A complete program in the docs opens with `using namespace sgcl;` and nothing more: every other module's name is written with its module (`encoding::hex::encode(crypto::sha256::of("abc"))`, `async::task<>`, `net::http::server`, `io::open`), as Go writes `hex.EncodeToString(sha256.Sum256(b))`. The module says where a name comes from, examples are copied into programs where modules meet, and one rule has no list of exceptions; it also keeps io's `remove`, `rename`, `getenv`, `chdir` and `symlink` from meeting the C library's functions of those names, which a bare call with a string literal would reach without a word. A variable is not named after its type (`crypto::aes cipher(key)`, `net::http::server srv`), and a value is named by its type where `auto` would need a `*`: `vector<byte> key = encoding::hex::decode("…")`.
+
 ## Dependencies and usage
-C++20 and nothing else: no external library, no runtime to link. For LLDB, `command script import <sgcl>/lldb/sgcl.py` (in `~/.lldbinit`) shows the pointers and containers as they are ([docs/diagnostics.md](docs/garbage_collector/diagnostics.md#in-the-debugger)). Copy the `sgcl` directory into your include path and `#include "sgcl/sgcl.h"`, or add this tree with CMake and link the `sgcl` interface target. The library is eleven modules, one directory each and each a header of its own for a program that wants only that much: `sgcl/core/core.h` (the collector, the pointers, the containers, the atomics and the clock: everything in `sgcl::` itself), `sgcl/immutable/immutable.h`, `sgcl/txt/txt.h`, `sgcl/math/math.h`, `sgcl/concurrent/concurrent.h`, `sgcl/async/async.h`, `sgcl/io/io.h`, `sgcl/time/time.h`, `sgcl/encoding/encoding.h`, `sgcl/hash/hash.h` and `sgcl/net/net.h`, each depending only on those before it (`txt` stands third because it needs core and nothing else, not because it was written last, and `math` fourth because it needs no more than `txt`); a directory other than core is a namespace of its own. The tests need googletest in `external/` and build one program per module, core's containers in a program of their own (`tests_core`, `tests_containers`, `tests_immutable`, `tests_concurrent`, `tests_async`, `tests_io`, `tests_txt`, `tests_math`, `tests_time`, `tests_encoding`, `tests_hash`, `tests_net`; `ctest -R async` runs one); the benchmarks build with the tree, and their Go and Java counterparts need only a Go and a JDK to run `benchmarks/compare.sh`.
+C++20 and nothing else: no external library, no runtime to link. For LLDB, `command script import <sgcl>/lldb/sgcl.py` (in `~/.lldbinit`) shows the pointers and containers as they are ([docs/diagnostics.md](docs/garbage_collector/diagnostics.md#in-the-debugger)). Copy the `sgcl` directory into your include path and `#include "sgcl/sgcl.h"`, or add this tree with CMake and link the `sgcl` interface target. The library is thirteen modules, one directory each and each a header of its own for a program that wants only that much: `sgcl/core/core.h` (the collector, the pointers, the containers, the atomics and the clock: everything in `sgcl::` itself), `sgcl/immutable/immutable.h`, `sgcl/txt/txt.h`, `sgcl/math/math.h`, `sgcl/concurrent/concurrent.h`, `sgcl/async/async.h`, `sgcl/io/io.h`, `sgcl/time/time.h`, `sgcl/encoding/encoding.h`, `sgcl/hash/hash.h`, `sgcl/compress/compress.h`, `sgcl/crypto/crypto.h` and `sgcl/net/net.h`, each depending only on those before it (`txt` stands third because it needs core and nothing else, not because it was written last, and `math` fourth because it needs no more than `txt`); a directory other than core is a namespace of its own. The tests need googletest in `external/` and build one program per module, core's containers in a program of their own (`tests_core`, `tests_containers`, `tests_immutable`, `tests_concurrent`, `tests_async`, `tests_io`, `tests_txt`, `tests_math`, `tests_time`, `tests_encoding`, `tests_hash`, `tests_compress`, `tests_crypto`, `tests_net`, and `tests_hash_portable` and `tests_crypto_portable`, the same vectors on the plain C++ road; `ctest -R async` runs one; the compress tests link zlib and libbz2 and the crypto tests OpenSSL 3, as their oracles, and `tests_crypto` is not built where OpenSSL is not found); the benchmarks build with the tree, and their Go and Java counterparts need only a Go and a JDK to run `benchmarks/compare.sh`.
 
 ## Compilers and platforms
 Written for clang, gcc and MSVC on macOS, Linux and Windows; the current version has been built and tested on Apple Silicon (macOS, Apple clang) only, the other platforms are pending. On Windows, gcc's handling of thread-local destructors makes it a poor choice; clang and MSVC are fine. On macOS every access to a thread-local variable is a call into the dynamic loader, which is what the registration check in a `tracked_ptr` constructor costs there (about a nanosecond); Linux and Windows read a segment register.

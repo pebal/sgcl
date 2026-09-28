@@ -182,6 +182,10 @@ func main() {
 		{"\\.,x\n", std},
 		{"a,b\r\r\nc,d\n", std},
 		{"\"a\r\"\n", std},
+		// a record of one empty field as csv::writer writes it (Go's
+		// writer writes an empty line, which every reader passes over)
+		{"\"\"\n", std},
+		{"a\n\"\"\nb\n", std},
 	}
 	for _, c := range cases {
 		fmt.Fprintf(w, "    {%s, '%s', '%s', %v, %v, %v, %s},\n", quote([]byte(c.text)), escapeChar(c.o.comma), escapeChar(c.o.comment), c.o.lazy, c.o.trim, c.o.fields == 0, quote([]byte(read(c.text, c.o))))

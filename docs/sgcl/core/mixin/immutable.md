@@ -31,7 +31,6 @@ static_assert(!req::immutable<vector<int>> && !req::immutable<slice<const int>> 
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -49,12 +48,12 @@ int main() {
     for (int i : range(8)) {
         v = v.push_back(i);
     }
-    auto evens = async::spawn(count_even(v));               // running on a worker: the task holds version v
+    auto evens = async::spawn(count_even(v));                      // running on a worker: the task holds version v
     for (int i : range(8, 16)) {
         v = v.push_back(i * 2);                     // newer versions: the task's is untouched
     }
     size_t n = evens.wait();
-    std::cout << n << " even of the first eight, " << v.size() << " in the latest\n";
+    println("{} even of the first eight, {} in the latest", n, v.size());
     return n == 4 && v.size() == 16 ? 0 : 1;
 }
 ```

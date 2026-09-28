@@ -1,0 +1,10 @@
+GET /a HTTP/1.1
+Host: a
+
+POST /b HTTP/1.1
+Host: a
+Content-Length: 3
+
+abcGET /c HTTP/1.1
+Host: a
+

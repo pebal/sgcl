@@ -7,6 +7,7 @@
 
 #include "aliases.h"
 #include "expected.h"
+#include "detail/handle_word.h"
 #include "detail/hash_bytes.h"
 #include "detail/string_data.h"
 #include "mixin/text.h"
@@ -150,6 +151,20 @@ namespace sgcl {
         : _word(_whole_string(v) ? Word(static_pointer_cast<const void>(v.owner())) : (v.empty() ? Word() : Maker::make(v.view()))) {
         }
 
+        // From bytes — a slice of bytes, a vector<byte>, an array<byte, N>,
+        // whatever converts to slice<const byte> — as the same bytes taken
+        // for characters: what a decryption, a decoding or a file read gave
+        // back, when it is text. Nothing checks that they are UTF-8
+        // (txt::decode with the strict policy does that). Explicit, since
+        // bytes are not always text: string text(opened)
+        template<class B>
+        requires (sizeof(CharT) == 1) && std::is_convertible_v<const B&, slice<const byte>>
+              && (!std::is_convertible_v<const B&, view_type>) && (!std::is_convertible_v<const B&, const CharT*>)
+              && (!std::is_same_v<std::remove_cvref_t<B>, basic_string>) && (!std::is_same_v<std::remove_cvref_t<B>, slice_type>)
+        explicit basic_string(const B& bytes)
+        : basic_string(_bytes_view(slice<const byte>(bytes))) {
+        }
+
         basic_string(const basic_string&) noexcept = default;
         basic_string(basic_string&&) noexcept = default;
 
@@ -260,7 +275,7 @@ namespace sgcl {
         // nothing, and a container of strings is built from it when the
         // pieces are to be kept: `vector<string> parts(s.split(','))`.
         pieces split(view_type sep, size_type max_parts = 0) const {
-            return pieces(*this, basic_string(sep), max_parts, sep.empty() ? pieces::Characters : pieces::Separator);
+            return pieces(*this, sep, max_parts, sep.empty() ? pieces::Characters : pieces::Separator);
         }
 
         pieces split(CharT sep, size_type max_parts = 0) const {
@@ -637,14 +652,30 @@ namespace sgcl {
 
         // A string over the word of its object (detail::StringAccess:
         // atomic.h, intern.h)
+        static view_type _bytes_view(const slice<const byte>& b) noexcept {
+            return view_type(reinterpret_cast<const CharT*>(b.data()), b.size());
+        }
+
         explicit basic_string(const tracked_ptr<const void>& w) noexcept
         : _word(w) {
         }
 
+        // The handle's word, for the atomics (detail/handle_word.h)
+        basic_string(detail::FromWord, const tracked_ptr<const void>& w) noexcept
+        : _word(w) {
+        }
+
+        Word& _handle_word() noexcept {
+            return _word;
+        }
+
+        const Word& _handle_word() const noexcept {
+            return _word;
+        }
+
         Word _word;
 
-        template<class>
-        friend class atomic;
+        friend struct detail::HandleWord;
         friend struct detail::StringAccess;
     };
 
@@ -654,9 +685,10 @@ namespace sgcl {
     // per step, found as the walk goes (one find per step); each slice
     // holds the string's object, so a piece kept anywhere a tracked_ptr
     // may live stays valid on its own. The object holds the
-    // string and the separator (a string of its own, a copy of the view
-    // given, so that a temporary separator in the head of a range-for
-    // cannot dangle; a single character is kept inline). A container of
+    // string and the separator (a copy of the view given, so that a
+    // temporary separator in the head of a range-for cannot dangle: one
+    // of up to 16 bytes inline, a longer one in a string of its own; a
+    // string given as the separator is held as it is). A container of
     // slices or of strings is built from the range when the pieces are to
     // be kept.
     template<class CharT, class Traits>
@@ -793,9 +825,15 @@ namespace sgcl {
         }
 
     private:
+        // The characters of a separator kept inline: 16 bytes of them, the
+        // separators one writes (", ", "::", "\r\n", a character's
+        // encoding) without an object of their own per split
+        static constexpr size_type InlineSeparator = 16 / sizeof(CharT);
+
         basic_string _text;
         basic_string _sep;
-        CharT _sep_char = CharT();
+        CharT _sep_chars[InlineSeparator] = {};
+        unsigned char _sep_size = 0;   // the characters in _sep_chars; 0: the separator is _sep
         size_type _max_parts;
         Mode _mode;
 
@@ -806,16 +844,29 @@ namespace sgcl {
         , _mode(mode) {
         }
 
+        pieces(const basic_string& text, view_type sep, size_type max_parts, Mode mode)
+        : _text(text)
+        , _max_parts(max_parts)
+        , _mode(mode) {
+            if (sep.size() <= InlineSeparator) {
+                Traits::copy(_sep_chars, sep.data(), sep.size());
+                _sep_size = (unsigned char)sep.size();
+            } else {
+                _sep = basic_string(sep);
+            }
+        }
+
         pieces(const basic_string& text, CharT sep, size_type max_parts)
         : _text(text)
-        , _sep_char(sep)
+        , _sep_chars{sep}
+        , _sep_size(1)
         , _max_parts(max_parts)
         , _mode(Separator) {
         }
 
-        // The separator as a view: the string, or the one character
+        // The separator as a view: the characters kept inline, or the string
         view_type _separator() const noexcept {
-            return _sep.empty() ? view_type(&_sep_char, 1) : _sep.view();
+            return _sep_size ? view_type(_sep_chars, _sep_size) : _sep.view();
         }
 
         friend class basic_string;
@@ -998,10 +1049,16 @@ namespace sgcl {
     // type, nothing after the digits) or it does not fit the type. What
     // C#'s TryParse, Go's strconv and Java's parseInt do, as an expected:
     // std::from_chars under it, so no locale and no allocation. A base
-    // other than 10 for the integers: parse<int>("ff", 16).
+    // other than 10 for the integers: parse<int>("ff", 16), from 2 to 36;
+    // any other reads no number (not_a_number).
     template<class T>
     requires std::is_integral_v<T> && (!std::is_same_v<T, bool>)
     expected<T, number_error> parse(std::string_view text, int base = 10) noexcept {
+        if (base < 2 || base > 36) {
+            // no number is written in it: from_chars would read past its
+            // tables (a precondition of the standard's, undefined behaviour)
+            return unexpected(number_error(text.empty() ? number_error::reason::empty : number_error::reason::not_a_number, 0));
+        }
         T value;
         auto [end, ec] = std::from_chars(text.data(), text.data() + text.size(), value, base);
         if (ec != std::errc() || end != text.data() + text.size() || text.empty()) {

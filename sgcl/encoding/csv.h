@@ -89,7 +89,7 @@ namespace sgcl::encoding {
         row() = default;
 
         size_t size() const noexcept {
-            return _meta.size() / 3;
+            return (_text.size() - _text_size) / (3 * sizeof(uint32_t));
         }
 
         bool empty() const noexcept {
@@ -100,8 +100,8 @@ namespace sgcl::encoding {
         // build asserts it); at() is the form that checks and throws
         slice<const char> operator[](size_t index) const {
             assert(index < size() && "csv::row: the index past the fields; at() checks");
-            uint32_t from = index ? _meta[(index - 1) * 3] : 0;
-            uint32_t to = _meta[index * 3];
+            uint32_t from = index ? _meta((index - 1) * 3) : 0;
+            uint32_t to = _meta(index * 3);
             return _text.as_slice(from, to - from);
         }
 
@@ -131,9 +131,17 @@ namespace sgcl::encoding {
             return (*this)[string(column)];
         }
 
+        // The field of the column as a string of its own (the row's text is
+        // the reader's memory), or fallback when there is no such column
+        // or the row is shorter: row.get("city", "?")
+        string get(const string& column, const string& fallback) const {
+            auto f = (*this)[column];
+            return f ? string(*f) : fallback;
+        }
+
         // The line the record starts on (a quoted field may span several)
         uint32_t line() const noexcept {
-            return _meta.empty() ? 0 : _meta[1];
+            return size() == 0 ? 0 : _meta(1);
         }
 
         // The line and the column (in code points) where the field starts
@@ -142,7 +150,7 @@ namespace sgcl::encoding {
             if (index >= size()) {
                 return {0, 0};
             }
-            return {_meta[index * 3 + 1], _meta[index * 3 + 2]};
+            return {_meta(index * 3 + 1), _meta(index * 3 + 2)};
         }
 
         // The fields in order: for (auto field : r)
@@ -195,8 +203,22 @@ namespace sgcl::encoding {
     private:
         friend class csv::reader;
 
-        string _text;                // the fields, one after another
-        vector<uint32_t> _meta;      // for each field: its end in _text, its line, its column
+        // The k-th number of the places, which follow the fields in
+        // _text: for each field its end in _text, its line, its column.
+        // Read a byte at a time, since nothing aligns them.
+        uint32_t _meta(size_t k) const noexcept {
+            uint32_t v;
+            std::memcpy(&v, _text.data() + _text_size + k * sizeof(uint32_t), sizeof v);
+            return v;
+        }
+
+        // The fields one after another, and after them their places: one
+        // managed object for the whole row. The places were a vector of
+        // their own, a second managed object for every row (the audit of
+        // 2026-09-26); in plain memory they were a malloc and a free per
+        // row, which made a read of ten kilobytes 14 per cent slower.
+        string _text;
+        uint32_t _text_size = 0;     // where the fields end and the places begin
         tracked_ptr<const detail::CsvHeader> _header;
     };
 
@@ -249,6 +271,11 @@ namespace sgcl::encoding {
         public:
             void clear() noexcept {
                 _size = 0;
+            }
+
+            // The first n characters kept, the rest dropped (n <= size())
+            void truncate(size_t n) noexcept {
+                _size = n;
             }
 
             size_t size() const noexcept {
@@ -782,8 +809,11 @@ namespace sgcl::encoding {
                 return nullopt;
             }
             row r;
+            size_t text_size = _text_out.size();
+            _text_out.append(reinterpret_cast<const char*>(_meta.data()), _meta.size() * sizeof(uint32_t));
             r._text = string(_text_out.view());
-            r._meta = vector<uint32_t>(_meta.begin(), _meta.end());
+            _text_out.truncate(text_size);
+            r._text_size = uint32_t(text_size);
             r._header = _header;
             return r;
         }
@@ -869,7 +899,8 @@ namespace sgcl::encoding {
 
     // CSV written a record at a time: the fields quoted where they must be
     // (they hold the separator, a quote, a line ending, or start with a
-    // space; a field `\.` too, as Go quotes it for Postgres), a quote
+    // space; a field `\.` too, as Go quotes it for Postgres; a record of
+    // one empty field, which Go writes as an empty line), a quote
     // doubled, each record ended with '\n' (use_crlf: "\r\n", which RFC 4180
     // wants). The text gathers in the writer, flush() hands it to the
     // stream. A record written as a type of the program (fields.h) writes
@@ -992,7 +1023,10 @@ namespace sgcl::encoding {
         void _field(std::string_view f, bool first) {
             if (!first) {
                 _text += _options.separator;
+            } else {
+                _record_start = _text.size();
             }
+            _fields = first ? 1 : _fields + 1;
             if (!_needs_quotes(f)) {
                 _text.append(f);
                 return;
@@ -1018,7 +1052,15 @@ namespace sgcl::encoding {
             _text += '"';
         }
 
+        // A record of one empty field is written "" and not as an empty
+        // line, which every reader (Go's too) passes over: the record
+        // would be lost between the writing and the reading. Go writes the
+        // empty line; RFC 4180 allows the quotes, and Python writes them
         void _end_record() {
+            if (_fields == 1 && _text.size() == _record_start) {
+                _text += "\"\"";
+            }
+            _fields = 0;
             _text += _crlf ? "\r\n" : "\n";
         }
 
@@ -1031,6 +1073,8 @@ namespace sgcl::encoding {
         optional<io::error> _error;
         bool _crlf = false;
         bool _header_written = false;
+        size_t _fields = 0;          // written of the record so far
+        size_t _record_start = 0;    // where its text begins
     };
 
     // --- records as types ---

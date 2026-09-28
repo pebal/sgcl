@@ -88,7 +88,6 @@ mirrored_of(U'∫');          // '∫' — mirrored, but with no code point of i
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -96,25 +95,23 @@ using namespace sgcl;
 // stored, and what a renderer would put on the line
 int main() {
     string line = "Nazwa: שלום 123 OK";
-    std::cout << "akapit biegnie "
-              << (txt::paragraph_direction(line) == txt::direction::right_to_left ? "w lewo" : "w prawo") << '\n';
+    println("akapit biegnie {}", (txt::paragraph_direction(line) == txt::direction::right_to_left ? "w lewo" : "w prawo"));
     for (auto run : txt::bidi_runs(line)) {
-        std::cout << "  poziom " << int(run.level) << (run.right_to_left() ? " w lewo  " : " w prawo ")
-                  << '[' << run.text << "]\n";
+        println("  poziom {}{}[{}]", int(run.level), (run.right_to_left() ? " w lewo  " : " w prawo "), run.text);
     }
 
     // the caret walks the text in the order it is shown
     string mixed = "aאבb";
-    std::cout << "pozycje bajtów w kolejności rysowania:";
+    print("pozycje bajtów w kolejności rysowania:");
     for (auto at : txt::visual_order(mixed)) {
-        std::cout << ' ' << at;
+        print(" {}", at);
     }
-    std::cout << '\n';
+    println();
 
     // and the brackets inside the Hebrew point the other way when drawn
     string brackets = "א (ב) [ג]";
-    std::cout << "zapisane: " << brackets << "\nrysowane:  " << txt::mirrored(brackets) << '\n';
-    std::cout << "a po polsku: " << txt::mirrored(string("Ala (ma) kota")) << '\n';
+    println("zapisane: {}\nrysowane:  {}", brackets, txt::mirrored(brackets));
+    println("a po polsku: {}", txt::mirrored("Ala (ma) kota"));
     return 0;
 }
 ```

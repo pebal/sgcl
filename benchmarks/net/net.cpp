@@ -19,6 +19,7 @@
 //   net http_hello sgcl [n] GET of a 13-byte body, the module's client and server on the loopback,
 //                           one kept connection, one request after another: per request
 #include "benchmarks/common.h"
+#include "benchmarks/placement.h"
 #include "sgcl/sgcl.h"
 #include "sgcl/net/net.h"
 #include "sgcl/net/url.h"

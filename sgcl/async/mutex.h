@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../core/detail/handle_word.h"
 #include "channel.h"
 #include "operation.h"
 #include "coroutine.h"
@@ -28,43 +29,90 @@ namespace sgcl::async {
     // channels for its waits) and a condition_variable over this mutex,
     // each blocking and awaitable.
     //
-    // A mutex: one holder at a time; lock() is a receive, unlock() a send
+    class mutex;
+
+    namespace detail {
+        // The state of a mutex: a channel holding one signal. lock() is a
+        // receive, unlock() a send
+        struct MutexState {
+            MutexState()
+            : ch(1) {
+                ch.try_send();
+            }
+
+            MutexState(const MutexState&) = delete;
+            MutexState& operator=(const MutexState&) = delete;
+
+            void lock() {
+                (void)ch.receive().wait();
+            }
+
+            bool try_lock() {
+                return ch.try_receive();
+            }
+
+            void unlock() {
+                ch.try_send();
+            }
+
+            ChannelState<void> ch;
+        };
+    }
+
+    // A mutex: one holder at a time; lock() is a receive, unlock() a send.
+    // A handle: one word, a tracked_ptr to the state, which copies share —
+    // passed by value into a task, a member of a managed object, a local;
+    // in a global or a std container, a rooted<async::mutex>. Made unlocked
+    // by its constructor; there is no empty mutex.
     class mutex {
     public:
         mutex()
-        : _ch(1) {
-            _ch.try_send();
+        : _s(make_tracked<detail::MutexState>()) {
         }
 
-        mutex(const mutex&) = delete;
-        mutex& operator=(const mutex&) = delete;
+        mutex(const mutex&) noexcept = default;
+        mutex(mutex&&) noexcept = default;
+        mutex& operator=(const mutex&) noexcept = default;
+        mutex& operator=(mutex&&) noexcept = default;
 
         // The standard's Lockable, blocking (std::lock_guard, std::unique_lock);
         // a task takes the mutex with `co_await m.scoped_lock()`
-        void lock() {
-            (void)_ch.receive().wait();
+        void lock() const {
+            _s->lock();
         }
 
-        bool try_lock() {
-            return _ch.try_receive();
+        bool try_lock() const {
+            return _s->try_lock();
         }
 
-        void unlock() {
-            _ch.try_send();
+        void unlock() const {
+            _s->unlock();
         }
 
         // A case of a select: f() with the mutex locked
         template<class F>
-        auto on_lock(F f) {
-            return _ch.on_receive(std::move(f));
+        auto on_lock(F f) const {
+            return _s->ch.on_receive(std::move(f));
+        }
+
+        // The same mutex: the same state
+        friend bool operator==(const mutex& a, const mutex& b) noexcept {
+            return a._s == b._s;
         }
 
         // The lock held for a scope: `auto guard = co_await m.scoped_lock();`
-        // (std::lock_guard<sgcl::async::mutex> does the same for a thread)
+        // (std::lock_guard<sgcl::async::mutex> does the same for a thread).
+        // An object of its scope, as the mutex* it held before the handles:
+        // the state's address, one word, on a stack or in a task's frame,
+        // both scanned conservatively, so that the word keeps the state; never
+        // in a managed object or a container, as any raw pointer (a store
+        // there has no barrier, and may land in an object the cycle has
+        // scanned already). Empty once moved from or released. A tracked
+        // word here was measured: +1.1 ns (+9%) per lock (DESIGN note)
         class guard {
         public:
-            explicit guard(mutex& m) noexcept
-            : _m(&m) {
+            explicit guard(const mutex& m) noexcept
+            : _m(m._s.get()) {
             }
 
             guard(guard&& o) noexcept
@@ -82,20 +130,33 @@ namespace sgcl::async {
 
             // The mutex held: what a condition_variable lets go of and
             // takes back around its wait
-            mutex& owner() const noexcept {
-                return *_m;
+            mutex owner() const noexcept {
+                return mutex(tracked_ptr<detail::MutexState>(_m));
             }
 
             // The mutex let go of by the guard, still locked: the caller
             // unlocks it (std::unique_lock::release)
-            mutex* release() noexcept {
-                return std::exchange(_m, nullptr);
+            mutex release() noexcept {
+                mutex m{tracked_ptr<detail::MutexState>(_m)};
+                _m = nullptr;
+                return m;
             }
 
         private:
-            mutex* _m;
+            friend class mutex;
+
+            // From the state an operation holds (the mutex's own word, alive
+            // for the operation's expression)
+            explicit guard(detail::MutexState* s) noexcept
+            : _m(s) {
+            }
+
+            detail::MutexState* _m;
         };
 
+        // The awaiter of scoped_lock(): the state by its address, as a
+        // channel's awaiters hold theirs, in the awaiting frame, which the
+        // collector scans
         class scoped_lock_op {
         public:
             bool await_ready() {
@@ -109,30 +170,30 @@ namespace sgcl::async {
 
             guard await_resume() {
                 _op.await_resume();
-                return guard(*_m);
+                return guard(_m);
             }
 
         private:
             friend class mutex;
 
-            explicit scoped_lock_op(mutex& m) noexcept
-            : _m(&m)
-            , _op(m._ch.receive()) {
+            explicit scoped_lock_op(detail::MutexState* m) noexcept
+            : _m(m)
+            , _op(m->ch.receive()) {
             }
 
-            mutex* _m;
-            decltype(std::declval<channel<void>&>().receive()) _op;
+            detail::MutexState* _m;
+            decltype(std::declval<detail::ChannelState<void>&>().receive()) _op;
         };
 
         // The lock held for a scope: `auto g = co_await m.scoped_lock();` in
         // a task, `auto g = m.scoped_lock().wait();` on a thread
-        auto scoped_lock() {
-            return operation([this](auto how) {
+        auto scoped_lock() const {
+            return operation([s = _s.get()](auto how) {
                 if constexpr (std::is_same_v<decltype(how), detail::awaited_t>) {
-                    return scoped_lock_op(*this);
+                    return scoped_lock_op(s);
                 } else {
-                    lock();
-                    return guard(*this);
+                    s->lock();
+                    return guard(s);
                 }
             });
         }
@@ -141,6 +202,25 @@ namespace sgcl::async {
         friend class condition_variable;
         friend class shared_mutex;
 
-        channel<void> _ch;
+        explicit mutex(const tracked_ptr<detail::MutexState>& s) noexcept
+        : _s(s) {
+        }
+
+        // The handle's word, for the atomics (core/detail/handle_word.h)
+        friend struct sgcl::detail::HandleWord;
+
+        mutex(sgcl::detail::FromWord, const tracked_ptr<detail::MutexState>& w) noexcept
+        : _s(w) {
+        }
+
+        tracked_ptr<detail::MutexState>& _handle_word() noexcept {
+            return _s;
+        }
+
+        const tracked_ptr<detail::MutexState>& _handle_word() const noexcept {
+            return _s;
+        }
+
+        tracked_ptr<detail::MutexState> _s;
     };
 }

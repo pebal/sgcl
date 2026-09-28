@@ -51,7 +51,6 @@ key_compare key_comp() const;
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -77,8 +76,7 @@ int main() {
     for (auto& th : threads) {
         th.join();
     }
-    std::cout << stamps.size() << " stamps, " << walks << " walks, " << disorder << " out of order; "
-              << "from 1000: " << *stamps.lower_bound(1000) << "\n";
+    println("{} stamps, {} walks, {} out of order; from 1000: {}", stamps.size(), walks, disorder, *stamps.lower_bound(1000));
     return stamps.size() == 4000 && disorder == 0 ? 0 : 1;
 }
 ```

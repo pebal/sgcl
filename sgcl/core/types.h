@@ -31,7 +31,7 @@ namespace sgcl {
         static constexpr off_t off = {};
     };
 
-    template<class, size_t, class>
+    template<class, size_t>
     class array;
     namespace concurrent {
         template<class, class, class>

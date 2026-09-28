@@ -1,0 +1,586 @@
+//------------------------------------------------------------------------------
+// SGCL: a C++20 application framework
+// Copyright (c) 2022-2026 Sebastian Nibisz
+// SPDX-License-Identifier: Apache-2.0
+//------------------------------------------------------------------------------
+#include "common.h"
+
+using namespace compress_test;
+using compress::flate;
+using compress::gzip;
+using compress::zlib;
+
+// Every level, zlib inflating what we make, and we inflating what zlib
+// makes with each of its strategies, as data in memory
+TEST(Flate_Tests, BothWaysWithZlibAtEveryLevel) {
+    for (auto& [name, t] : corpus()) {
+        for (int level : {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, compress::level::huffman_only}) {
+            auto c = flate::compress(bytes(t), {.level = level});
+            std::string back;
+            ASSERT_TRUE(z_inflate(text(c), -15, back)) << name << " level " << level;
+            ASSERT_EQ(back, t) << name << " level " << level;
+        }
+        for (int level : {0, 1, 6, 9}) {
+            for (int strategy : {Z_DEFAULT_STRATEGY, Z_FILTERED, Z_HUFFMAN_ONLY, Z_RLE, Z_FIXED}) {
+                auto z = z_deflate(t, level, -15, strategy);
+                auto back = flate::decompress(bytes(z));
+                ASSERT_TRUE(back) << name << " level " << level << " strategy " << strategy << ": " << back.error().message();
+                ASSERT_EQ(text(*back), t) << name;
+            }
+        }
+    }
+}
+
+// A stored block between coded ones, reached from the fast loop: the
+// bytes the loop's refill read ahead must not be ORed into the header of
+// the block after the stored one (text, then bytes that do not compress,
+// then text again; zlib makes stored blocks only at level 0, so this is
+// our encoder's stream, read by us and by zlib)
+TEST(Flate_Tests, AStoredBlockBetweenCodedOnes) {
+    std::mt19937 rng(5);
+    std::string noise(20000, 0);
+    for (auto& c : noise) {
+        c = char(rng());
+    }
+    auto words = read_oracle("compress/e.txt").substr(0, 20000);
+    auto t = words + noise + words + noise + words;
+    for (int level : {1, 2, 3, 4, 5, 6, 7, 8, 9}) {
+        auto c = text(flate::compress(bytes(t), {.level = level}));
+        std::string z;
+        ASSERT_TRUE(z_inflate(c, -15, z)) << level;
+        ASSERT_EQ(z, t);
+        auto ours = flate::decompress(bytes(c));
+        ASSERT_TRUE(ours) << "level " << level << ": " << ours.error().message();
+        ASSERT_EQ(text(*ours), t) << level;
+        for (size_t feed : {size_t(1), size_t(4096), size_t(1) << 20}) {
+            flate::reader r(dribble{c, feed});
+            auto all = r.read_all();
+            ASSERT_TRUE(all) << level << " feed " << feed;
+            ASSERT_EQ(text(*all), t) << level << " feed " << feed;
+        }
+    }
+}
+
+// Go's golden files: blocks of its encoder with no final block after
+// them, so the stream ends short; everything before the end decodes to
+// the input, and the end is unexpected_end
+TEST(Flate_Tests, GoGoldenFilesDecode) {
+    for (auto base : {"huffman-null-max", "huffman-pi", "huffman-rand-1k", "huffman-rand-limit", "huffman-shifts", "huffman-text", "huffman-text-shift", "huffman-zero"}) {
+        auto in = read_oracle(std::string("flate/") + base + ".in");
+        for (auto kind : {".dyn.expect", ".wb.expect"}) {
+            auto golden = read_oracle(std::string("flate/") + base + kind);
+            if (golden.empty()) {
+                continue;
+            }
+            flate::reader r(dribble{golden, 1 << 20});
+            std::string got;
+            std::byte buf[4096];
+            for (;;) {
+                auto n = r.read(buf);
+                if (!n || *n == 0) {
+                    break;
+                }
+                got.append(reinterpret_cast<const char*>(buf), *n);
+            }
+            ASSERT_TRUE(r.last_error()) << base << kind;
+            EXPECT_EQ(r.last_error()->code(), compress::errc::unexpected_end) << base << kind << ": " << r.last_error()->message();
+            EXPECT_EQ(got, in) << base << kind;
+        }
+    }
+}
+
+// The streams: a writer written in pieces of every size, with a flush in
+// the middle, and a reader fed a byte, two, three and seven at a time
+TEST(Flate_Tests, StreamsInPiecesOfAnySize) {
+    for (auto& [name, t] : corpus()) {
+        if (t.size() > 70000) {
+            continue;
+        }
+        for (size_t step : {size_t(1), size_t(7), size_t(1000), t.size() + 1}) {
+            sgcl::io::buffer sink;
+            flate::writer w(sink, {.level = 6});
+            for (size_t i = 0; i < t.size(); i += step) {
+                ASSERT_TRUE(w.write(bytes(t.substr(i, step))));
+                if (i == t.size() / 2) {
+                    ASSERT_TRUE(w.flush());
+                }
+            }
+            ASSERT_TRUE(w.close());
+            std::string c(reinterpret_cast<const char*>(sink.data().data()), sink.size());
+            std::string back;
+            ASSERT_TRUE(z_inflate(c, -15, back)) << name << " step " << step;
+            ASSERT_EQ(back, t);
+            for (size_t feed : {size_t(1), size_t(2), size_t(3), size_t(7), size_t(1) << 20}) {
+                flate::reader r(dribble{c, feed});
+                auto all = r.read_all();
+                ASSERT_TRUE(all) << name << " feed " << feed;
+                ASSERT_EQ(text(*all), t) << name << " feed " << feed;
+            }
+        }
+    }
+}
+
+TEST(Flate_Tests, ADictionaryBothWays) {
+    std::string dict = "the quick brown fox jumps over the lazy dog";
+    std::string t = "the lazy dog jumps over the quick brown fox, the quick brown fox";
+    auto c = flate::compress(bytes(t), {.level = 9, .dictionary = bytes(dict)});
+    auto plain = flate::compress(bytes(t), {.level = 9});
+    EXPECT_LT(c.size(), plain.size());
+    auto back = flate::decompress(bytes(text(c)), {.dictionary = bytes(dict)});
+    ASSERT_TRUE(back) << back.error().message();
+    EXPECT_EQ(text(*back), t);
+    // zlib's raw inflate with the same dictionary
+    z_stream d{};
+    inflateInit2(&d, -15);
+    inflateSetDictionary(&d, (const Bytef*)dict.data(), uInt(dict.size()));
+    std::string out(1000, 0);
+    std::string in = text(c);
+    d.next_in = (Bytef*)in.data();
+    d.avail_in = uInt(in.size());
+    d.next_out = (Bytef*)out.data();
+    d.avail_out = uInt(out.size());
+    EXPECT_EQ(inflate(&d, Z_FINISH), Z_STREAM_END);
+    out.resize(d.total_out);
+    inflateEnd(&d);
+    EXPECT_EQ(out, t);
+    flate::reader r(dribble{in, 3}, {.dictionary = bytes(dict)});
+    EXPECT_EQ(text(value_of(r.read_all())), t);
+}
+
+// A dictionary of any size up to the window, and past it (its last 32 KB
+// count), in memory and through the reader
+TEST(Flate_Tests, DictionariesOfEverySize) {
+    auto t = read_oracle("compress/e.txt").substr(0, 5000);
+    for (size_t size : {size_t(1), size_t(500), size_t(2000), size_t(8000), size_t(32768), size_t(40000)}) {
+        std::string dict = read_oracle("compress/pi.txt").substr(0, size);
+        auto c = text(flate::compress(bytes(t), {.dictionary = bytes(dict)}));
+        auto back = flate::decompress(bytes(c), {.dictionary = bytes(dict)});
+        ASSERT_TRUE(back) << size << ": " << back.error().message();
+        EXPECT_EQ(text(*back), t) << size;
+        auto z = text(zlib::compress(bytes(t), {.dictionary = bytes(dict)}));
+        auto zback = zlib::decompress(bytes(z), {.dictionary = bytes(dict)});
+        ASSERT_TRUE(zback) << size << ": " << zback.error().message();
+        EXPECT_EQ(text(*zback), t) << size;
+        flate::reader r(dribble{c, 7}, {.dictionary = bytes(dict)});
+        EXPECT_EQ(text(value_of(r.read_all())), t) << size;
+        // the limit counts the output, not the dictionary
+        EXPECT_TRUE(flate::decompress(bytes(c), {.dictionary = bytes(dict)}, compress::limits{t.size()}));
+        EXPECT_FALSE(flate::decompress(bytes(c), {.dictionary = bytes(dict)}, compress::limits{t.size() - 1}));
+    }
+}
+
+// A gzip length that promises more than the data can make is a hint, not
+// an allocation (a 23-byte member saying 4 GiB)
+TEST(Gzip_Tests, ALengthInTheTrailerIsOnlyAHint) {
+    auto c = text(gzip::compress(bytes(std::string("hello"))));
+    c[c.size() - 4] = c[c.size() - 3] = c[c.size() - 2] = c[c.size() - 1] = char(0xFF);
+    auto r = gzip::decompress(bytes(c));
+    ASSERT_FALSE(r);
+    EXPECT_EQ(r.error().code(), compress::errc::corrupt);   // the length does not match; nothing large was made
+}
+
+// A writer reset keeps its dictionary: the second stream is the one a new
+// writer with that dictionary makes
+TEST(Flate_Tests, ResetKeepsTheDictionary) {
+    std::string dict = "alpha beta gamma delta epsilon";
+    std::string t = "gamma delta alpha beta epsilon gamma";
+    sgcl::io::buffer a;
+    sgcl::io::buffer b;
+    flate::writer w(a, {.dictionary = bytes(dict)});
+    ASSERT_TRUE(w.write(bytes(t)));
+    ASSERT_TRUE(w.close());
+    w.reset(b);
+    ASSERT_TRUE(w.write(bytes(t)));
+    ASSERT_TRUE(w.close());
+    std::string ca(reinterpret_cast<const char*>(a.data().data()), a.size());
+    std::string cb(reinterpret_cast<const char*>(b.data().data()), b.size());
+    EXPECT_EQ(ca, cb);
+    EXPECT_EQ(text(value_of(flate::decompress(bytes(cb), {.dictionary = bytes(dict)}))), t);
+}
+
+TEST(Flate_Tests, CorruptAndTruncatedDataFail) {
+    auto t = read_oracle("compress/gettysburg.txt");
+    auto c = text(flate::compress(bytes(t)));
+    auto cut = flate::decompress(bytes(c.substr(0, c.size() / 2)));
+    ASSERT_FALSE(cut);
+    EXPECT_EQ(cut.error().code(), compress::errc::unexpected_end);
+    auto type3 = flate::decompress(bytes(std::string("\x07", 1)));
+    ASSERT_FALSE(type3);
+    EXPECT_EQ(type3.error().code(), compress::errc::corrupt);
+    // a stored block whose length does not match its complement
+    auto stored = flate::decompress(bytes(std::string("\x01\x05\x00\x00\x00hello", 10)));
+    ASSERT_FALSE(stored);
+    EXPECT_EQ(stored.error().code(), compress::errc::corrupt);
+    // a distance before the start: a fixed block whose first symbol is a match
+    auto early = flate::decompress(bytes(z_deflate("aaaaaaaa", 9, -15, Z_FIXED).substr(0, 0) + std::string("\x03\x02", 2)));
+    EXPECT_FALSE(early);
+    // every single bit flipped in a small stream: an error or bytes, never a crash (ASan)
+    auto small = text(flate::compress(bytes(std::string("hello hello hello world"))));
+    for (size_t bit = 0; bit < small.size() * 8; ++bit) {
+        auto flipped = small;
+        flipped[bit / 8] = char(flipped[bit / 8] ^ (1 << (bit % 8)));
+        (void)flate::decompress(bytes(flipped));
+    }
+    flate::reader r(dribble{c.substr(0, c.size() / 2), 5});
+    auto partial = r.read_all();
+    ASSERT_FALSE(partial);
+    ASSERT_TRUE(r.last_error());
+    EXPECT_EQ(r.last_error()->code(), compress::errc::unexpected_end);
+}
+
+TEST(Flate_Tests, TheLimitStopsABomb) {
+    std::string zeros(10 << 20, '\0');
+    auto c = flate::compress(bytes(zeros), {.level = 9});
+    EXPECT_LT(c.size(), 20000u);
+    auto limited = flate::decompress(bytes(text(c)), compress::limits{1 << 20});
+    ASSERT_FALSE(limited);
+    EXPECT_EQ(limited.error().code(), compress::errc::too_large);
+    auto whole = flate::decompress(bytes(text(c)), compress::limits{UINT64_MAX});
+    ASSERT_TRUE(whole);
+    EXPECT_EQ(whole->size(), zeros.size());
+}
+
+// A flush makes what came before it decodable there: a reader gets it
+// all before any byte after the flush is written
+TEST(Flate_Tests, AFlushIsDecodableWhereItIs) {
+    sgcl::io::buffer sink;
+    flate::writer w(sink);
+    ASSERT_TRUE(w.write(std::string("before the flush")));
+    ASSERT_TRUE(w.flush());
+    std::string part(reinterpret_cast<const char*>(sink.data().data()), sink.size());
+    flate::reader r(dribble{part, 3});
+    std::byte buf[64];
+    std::string got;
+    for (;;) {
+        auto n = r.read(buf);
+        if (!n || *n == 0) break;
+        got.append(reinterpret_cast<const char*>(buf), *n);
+    }
+    EXPECT_EQ(got, "before the flush");
+    EXPECT_FALSE(w.is_closed());
+    ASSERT_TRUE(w.close());
+    EXPECT_TRUE(w.is_closed());
+    EXPECT_FALSE(w.write(std::string("after")));
+}
+
+TEST(Flate_Tests, ALevelOutOfRangeIsTheProgramsMistake) {
+    EXPECT_THROW(compress::level(10), std::invalid_argument);
+    EXPECT_THROW(compress::level(-1), std::invalid_argument);
+    EXPECT_EQ(compress::level().value(), 6);
+    EXPECT_EQ(compress::level(compress::level::huffman_only).value(), -2);
+}
+
+TEST(Gzip_Tests, TheLimitStopsABomb) {
+    std::string zeros(10 << 20, '\0');
+    auto c = gzip::compress(bytes(zeros), {.level = 9});
+    auto limited = gzip::decompress(bytes(text(c)), compress::limits{1 << 20});
+    ASSERT_FALSE(limited);
+    EXPECT_EQ(limited.error().code(), compress::errc::too_large);
+}
+
+TEST(Zlib_Tests, BothWaysAndTheChecksum) {
+    for (auto& [name, t] : corpus()) {
+        auto c = zlib::compress(bytes(t));
+        std::string back;
+        ASSERT_TRUE(z_inflate(text(c), 15, back)) << name;
+        ASSERT_EQ(back, t);
+        auto z = z_deflate(t, 6, 15);
+        auto ours = zlib::decompress(bytes(z));
+        ASSERT_TRUE(ours) << name << ": " << ours.error().message();
+        ASSERT_EQ(text(*ours), t);
+        zlib::reader r(dribble{z, 3});
+        ASSERT_EQ(text(value_of(r.read_all())), t) << name;
+    }
+    auto z = z_deflate("some data", 6, 15);
+    z[z.size() - 1] = char(z[z.size() - 1] ^ 1);
+    auto bad = zlib::decompress(bytes(z));
+    ASSERT_FALSE(bad);
+    EXPECT_EQ(bad.error().code(), compress::errc::checksum);
+}
+
+TEST(Zlib_Tests, APresetDictionaryIsNamedAndRequired) {
+    std::string dict = "common words: alpha beta gamma delta";
+    std::string t = "alpha beta gamma delta alpha";
+    auto c = zlib::compress(bytes(t), {.dictionary = bytes(dict)});
+    uLong id = adler32(adler32(0, nullptr, 0), (const Bytef*)dict.data(), uInt(dict.size()));
+    ASSERT_TRUE(zlib::dictionary_id(bytes(text(c))));
+    EXPECT_EQ(*zlib::dictionary_id(bytes(text(c))), uint32_t(id));
+    auto without = zlib::decompress(bytes(text(c)));
+    ASSERT_FALSE(without);
+    EXPECT_EQ(without.error().code(), compress::errc::dictionary_required);
+    auto with = zlib::decompress(bytes(text(c)), {.dictionary = bytes(dict)});
+    ASSERT_TRUE(with) << with.error().message();
+    EXPECT_EQ(text(*with), t);
+    // zlib inflates it with the dictionary when asked
+    z_stream d{};
+    inflateInit(&d);
+    std::string in = text(c), out(200, 0);
+    d.next_in = (Bytef*)in.data();
+    d.avail_in = uInt(in.size());
+    d.next_out = (Bytef*)out.data();
+    d.avail_out = uInt(out.size());
+    EXPECT_EQ(inflate(&d, Z_FINISH), Z_NEED_DICT);
+    inflateSetDictionary(&d, (const Bytef*)dict.data(), uInt(dict.size()));
+    EXPECT_EQ(inflate(&d, Z_FINISH), Z_STREAM_END);
+    out.resize(d.total_out);
+    inflateEnd(&d);
+    EXPECT_EQ(out, t);
+    zlib::reader r(dribble{in, 2});
+    auto no = r.read_all();
+    EXPECT_FALSE(no);
+    EXPECT_EQ(r.dictionary_id(), uint32_t(id));
+}
+
+TEST(Gzip_Tests, BothWaysWithEveryMember) {
+    for (auto& [name, t] : corpus()) {
+        auto c = gzip::compress(bytes(t));
+        std::string back;
+        ASSERT_TRUE(z_inflate(text(c), 31, back)) << name;
+        ASSERT_EQ(back, t);
+        auto z = z_deflate(t, 6, 31);
+        auto ours = gzip::decompress(bytes(z));
+        ASSERT_TRUE(ours) << name << ": " << ours.error().message();
+        ASSERT_EQ(text(*ours), t);
+    }
+    // two members, one stream; single_member stops after the first
+    auto both = text(gzip::compress(bytes(std::string("first ")))) + text(gzip::compress(bytes(std::string("second"))));
+    EXPECT_EQ(text(value_of(gzip::decompress(bytes(both)))), "first second");
+    gzip::reader all(dribble{both, 1});
+    EXPECT_EQ(text(value_of(all.read_all())), "first second");
+    // members whose next header is in the buffer already: a source that
+    // gives everything at once, and a member of 100 000 bytes among them
+    std::string big(100000, 'x');
+    auto four = text(gzip::compress(bytes(std::string("first ")))) + text(gzip::compress(bytes(std::string("second"))))
+              + text(gzip::compress(bytes(big))) + text(gzip::compress(bytes(std::string("tail"))));
+    for (size_t feed : {size_t(1) << 20, size_t(4096), size_t(1)}) {
+        gzip::reader r4(dribble{four, feed});
+        EXPECT_EQ(text(value_of(r4.read_all())), "first second" + big + "tail") << feed;
+    }
+    gzip::reader one(dribble{both, 1}, gzip::single_member);
+    EXPECT_EQ(text(value_of(one.read_all())), "first ");
+}
+
+TEST(Gzip_Tests, TheHeaderInLatin1BothWays) {
+    gzip::header h;
+    h.name = "r\xC3\xA9sum\xC3\xA9.txt";   // résumé.txt
+    h.comment = "caf\xC3\xA9";
+    h.modified = sgcl::time::datetime::from_unix(1700000000, sgcl::time::zone::utc());
+    h.extra = sgcl::vector<std::byte>{std::byte(1), std::byte(2), std::byte(3)};
+    h.os = 3;
+    sgcl::io::buffer sink;
+    gzip::writer w(sink, {.header = h});
+    ASSERT_TRUE(w.write(std::string("body")));
+    ASSERT_TRUE(w.close());
+    std::string c(reinterpret_cast<const char*>(sink.data().data()), sink.size());
+    // the name is ISO 8859-1 in the file: é is one byte, 0xE9
+    EXPECT_NE(c.find("r\xE9sum\xE9.txt", 0, 11), std::string::npos);
+    gzip::reader r(dribble{c, 3});
+    auto got = r.header();
+    ASSERT_TRUE(got) << got.error().message();
+    EXPECT_EQ(got->name, h.name);
+    EXPECT_EQ(got->comment, h.comment);
+    ASSERT_TRUE(got->modified);
+    EXPECT_EQ(got->modified->unix(), 1700000000);
+    EXPECT_EQ(got->extra.size(), 3u);
+    EXPECT_EQ(got->os, 3);
+    EXPECT_EQ(text(value_of(r.read_all())), "body");
+    // a name ISO 8859-1 cannot write
+    gzip::header bad;
+    bad.name = "\xE2\x82\xAC";   // €
+    sgcl::io::buffer sink2;
+    gzip::writer w2(sink2, {.header = bad});
+    auto e = w2.write(std::string("x"));
+    ASSERT_FALSE(e);
+    EXPECT_EQ(e.error().code(), compress::errc::invalid_argument);
+}
+
+// A header gzip cannot write is refused, never a stream without it
+TEST(Gzip_Tests, AHeaderItCannotWriteIsRefused) {
+    gzip::header nul;
+    nul.name = sgcl::string(std::string_view("a\0b", 3));
+    EXPECT_THROW(gzip::compress(bytes(std::string("hello")), {.header = nul}), std::invalid_argument);
+    gzip::header euro;
+    euro.comment = "\xE2\x82\xAC";
+    EXPECT_THROW(gzip::compress(bytes(std::string("hello")), {.header = euro}), std::invalid_argument);
+    gzip::header extra;
+    extra.extra.resize(70000);
+    EXPECT_THROW(gzip::compress(bytes(std::string("hello")), {.header = extra}), std::invalid_argument);
+    sgcl::io::buffer sink;
+    gzip::writer w(sink, {.header = nul});
+    auto e = w.write(std::string("x"));
+    ASSERT_FALSE(e);
+    EXPECT_EQ(e.error().code(), compress::errc::invalid_argument);
+}
+
+TEST(Gzip_Tests, AFlippedCrcAndATruncatedTrailerFail) {
+    auto c = text(gzip::compress(bytes(std::string("hello, gzip"))));
+    auto crc = c;
+    crc[crc.size() - 8] = char(crc[crc.size() - 8] ^ 0x40);
+    auto bad = gzip::decompress(bytes(crc));
+    ASSERT_FALSE(bad);
+    EXPECT_EQ(bad.error().code(), compress::errc::checksum);
+    auto cut = gzip::decompress(bytes(c.substr(0, c.size() - 3)));
+    ASSERT_FALSE(cut);
+    EXPECT_EQ(cut.error().code(), compress::errc::unexpected_end);
+    auto notgz = gzip::decompress(bytes(std::string("PK\x03\x04 not gzip")));
+    ASSERT_FALSE(notgz);
+    EXPECT_EQ(notgz.error().code(), compress::errc::invalid_header);
+}
+
+// The task's forms: a writer and a reader on the scheduler
+TEST(Gzip_Tests, TheAsyncForms) {
+    auto t = read_oracle("compress/e.txt");
+    auto task = sgcl::async::spawn([](std::string t) -> sgcl::async::task<std::string> {
+        sgcl::io::buffer sink;
+        gzip::writer w(sink);
+        (void)co_await w.async_write(bytes(t));
+        (void)co_await w.async_close();
+        std::string c(reinterpret_cast<const char*>(sink.data().data()), sink.size());
+        gzip::reader r(dribble{c, 1000});
+        auto h = co_await r.async_header();
+        if (!h) {
+            co_return "header failed";
+        }
+        auto all = co_await r.async_read_all();
+        co_return all ? text(*all) : std::string("read failed");
+    }(t));
+    EXPECT_EQ(task.wait(), t);
+    sgcl::async::scheduler::stop();
+}
+
+// The first failure of out is kept, by the three writers alike: every
+// write, flush and close after it gives it at once and writes nothing;
+// last_error() holds it
+TEST(Gzip_Tests, AFailingSinkIsKeptToTheClose) {
+    std::string data(200000, 0);
+    std::mt19937 rng(3);
+    for (auto& c : data) {
+        c = char(rng());   // incompressible: out is written before the close
+    }
+    auto check = [&](auto& w, failing_after& f, const char* name) {
+        EXPECT_FALSE(w.last_error()) << name;
+        auto first = w.write(bytes(data));
+        ASSERT_FALSE(first) << name;
+        EXPECT_TRUE(is_eio(first.error())) << name;
+        int calls = f.calls;
+        auto more = w.write(std::string("more"));
+        ASSERT_FALSE(more) << name;
+        EXPECT_TRUE(is_eio(more.error())) << name;
+        auto flushed = w.flush();
+        ASSERT_FALSE(flushed) << name;
+        EXPECT_TRUE(is_eio(flushed.error())) << name;
+        auto closed = w.close();
+        ASSERT_FALSE(closed) << name;
+        EXPECT_TRUE(is_eio(closed.error())) << name;
+        auto second = w.close();
+        ASSERT_FALSE(second) << name;
+        EXPECT_TRUE(is_eio(second.error())) << name;
+        EXPECT_EQ(f.calls, calls) << name;   // nothing tried after the failure
+        ASSERT_TRUE(w.last_error()) << name;
+        EXPECT_TRUE(is_eio(*w.last_error())) << name;
+    };
+    failing_after f1(100), f2(100), f3(100);
+    gzip::writer g(f1);
+    check(g, f1, "gzip");
+    zlib::writer z(f2);
+    check(z, f2, "zlib");
+    flate::writer d(f3);
+    check(d, f3, "flate");
+    // the task's forms
+    auto t = sgcl::async::spawn([](std::string data) -> sgcl::async::task<std::string> {
+        failing_after f(100);
+        gzip::writer w(f);
+        auto first = co_await w.async_write(bytes(data));
+        if (first || !is_eio(first.error())) co_return "write";
+        int calls = f.calls;
+        auto more = co_await w.async_write(std::string("more"));
+        if (more || !is_eio(more.error())) co_return "write after";
+        auto flushed = co_await w.async_flush();
+        if (flushed || !is_eio(flushed.error())) co_return "flush after";
+        auto closed = co_await w.async_close();
+        if (closed || !is_eio(closed.error())) co_return "close";
+        co_return f.calls == calls ? "ok" : "written after";
+    }(data));
+    EXPECT_EQ(t.wait(), "ok");
+    sgcl::async::scheduler::stop();
+}
+
+// A write or a flush after close is the caller's error, kept as a failure
+// of out is: every close after it gives it
+TEST(Gzip_Tests, AWriteAfterCloseIsKept) {
+    for (int kind = 0; kind < 3; ++kind) {
+        sgcl::io::buffer sink;
+        auto check = [&](auto& w) {
+            ASSERT_TRUE(w.write(std::string("data")));
+            ASSERT_TRUE(w.close());
+            ASSERT_TRUE(w.close());   // a second close does nothing
+            EXPECT_FALSE(w.last_error());
+            size_t size = sink.size();
+            sgcl::optional<sgcl::io::error> first;   // zlib's first is a flush, the others' a write
+            if (kind == 1) {
+                auto r = w.flush();
+                ASSERT_FALSE(r);
+                first = r.error();
+            } else {
+                auto r = w.write(std::string("x"));
+                ASSERT_FALSE(r);
+                first = r.error();
+            }
+            auto& late = *first;
+            EXPECT_TRUE(late.is_closed()) << kind;
+            auto more = w.write(std::string("y"));
+            ASSERT_FALSE(more) << kind;
+            EXPECT_TRUE(more.error() == late) << kind;
+            auto flushed = w.flush();
+            ASSERT_FALSE(flushed) << kind;
+            EXPECT_TRUE(flushed.error() == late) << kind;
+            auto closed = w.close();
+            ASSERT_FALSE(closed) << kind;
+            EXPECT_TRUE(closed.error() == late) << kind;
+            ASSERT_TRUE(w.last_error()) << kind;
+            EXPECT_TRUE(*w.last_error() == late) << kind;
+            EXPECT_EQ(sink.size(), size) << kind;
+        };
+        if (kind == 0) {
+            gzip::writer w(sink);
+            check(w);
+        } else if (kind == 1) {
+            zlib::writer w(sink);
+            check(w);
+        } else {
+            flate::writer w(sink);
+            check(w);
+        }
+    }
+}
+
+// A writer and a reader of the module (whose write and read are
+// overloaded by io's mixins) given to io's handles by reference
+TEST(Gzip_Tests, TheStreamsGoIntoIoHandlesByReference) {
+    sgcl::io::buffer sink;
+    gzip::writer w(sink);
+    sgcl::io::writer h(w);
+    ASSERT_TRUE(h.write(std::string("through the handle")));
+    ASSERT_TRUE(w.close());
+    std::string c(reinterpret_cast<const char*>(sink.data().data()), sink.size());
+    gzip::reader r(dribble{c, 5});
+    sgcl::io::reader rh(r);
+    EXPECT_EQ(text(value_of(rh.read_all())), "through the handle");
+}
+
+TEST(Gzip_Tests, ResetReusesTheWriterAndTheReader) {
+    sgcl::io::buffer a;
+    sgcl::io::buffer b;
+    gzip::writer w(a);
+    ASSERT_TRUE(w.write(std::string("one")));
+    ASSERT_TRUE(w.close());
+    w.reset(b);
+    ASSERT_TRUE(w.write(std::string("two")));
+    ASSERT_TRUE(w.close());
+    std::string ca(reinterpret_cast<const char*>(a.data().data()), a.size());
+    std::string cb(reinterpret_cast<const char*>(b.data().data()), b.size());
+    gzip::reader r(dribble{ca, 4});
+    EXPECT_EQ(text(value_of(r.read_all())), "one");
+    r.reset(dribble{cb, 4});
+    EXPECT_EQ(text(value_of(r.read_all())), "two");
+}

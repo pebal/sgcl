@@ -13,7 +13,7 @@ namespace sgcl::hash {
 }
 ```
 
-The common shape of every hasher, as a [mixin](../core/mixin/README.md) over one primitive: `Derived::update(const slice<const byte>&)`, which takes bytes in and never fails. The mixin gives the rest of what the [module's page](README.md#one-shape-for-every-algorithm) lists — `update` for text, `of`, `copy_from` — and the class declares what only it knows: `digest_size`, `block_size`, `value()`, `digest()`, `reset()`. Every hasher of this module is one, and `crypto`'s will be.
+The common shape of every hasher, as a [mixin](../core/mixin/README.md) over one primitive: `Derived::update(const slice<const byte>&)`, which takes bytes in and never fails. The mixin gives the rest of what the [module's page](README.md#one-shape-for-every-algorithm) lists — `update` for text, `of`, `copy_from`, `of_file` — and the class declares what only it knows: `digest_size`, `block_size`, `value()`, `digest()`, `reset()`. Every hasher of this module is one, and so is every digest of [`crypto`](../crypto/README.md).
 
 ## Members
 
@@ -28,11 +28,15 @@ void update(std::string_view text) noexcept;             // a std::string goes t
 void update(const array<byte, N>& digest) noexcept; // another hasher's digest()
 void update(std::span<const byte> bytes) noexcept;  // and std::span<byte>
 
-static auto of(const auto& data) noexcept;               // whatever update() takes: T h; h.update(data); return h.value();
+static auto of(const slice<const byte>& data) noexcept;  // bytes (a vector<byte>, a digest, uint8_t[N]): T h; h.update(data); return h.value();
+static auto of(const auto& data) noexcept;               // text and the other forms update() takes, as it takes them: a string or a literal with no owner, a C string, a std::span
 static auto of(const auto& data, const auto&... args) noexcept;   // with a seed or a key: only for a class with its own _of (below)
 
 expected<size_t, io::error> copy_from(const io::reader& r);                       // r to its end: the bytes read, or r's error
 async::task<expected<size_t, io::error>> async_copy_from(const io::reader& r);    // the same in a task
+
+static expected</* of()'s */, io::error> of_file(const string& path);            // the whole file through copy_from: of() of its bytes, or the file's error
+static async::task<expected</* of()'s */, io::error>> async_of_file(const string& path);   // the same in a task
 
 // From the class
 static constexpr size_t digest_size;                   // bytes of digest()
@@ -47,7 +51,9 @@ The text overloads hash the bytes of the text where they lie, as UTF-8 and witho
 
 A text goes to `update` as a slice with no owner: three words, no barrier and no registration of the thread. That is sound because the caller holds the text for the whole call and no hasher keeps a slice after it; it matters because a copy of the string's owner would cost a short key more than its hash.
 
-`copy_from` reads `r` into one managed block of io's copy size (the same as [`io::copy`](../io/stream.md)'s) and hands each read to `update` straight from the block. When `r` fails, what was read before the failure has been hashed, and the error is returned as it came.
+`copy_from` reads `r` into one block of io's copy size, as [`io::copy`](../io/stream.md) does: on its stack, and managed for `async_copy_from`, whose reads may run on the blocking pool (the slice a read is given holds the block); each read goes to `update` straight from the block. When `r` fails, what was read before the failure has been hashed, and the error is returned as it came.
+
+`of_file` is the one-shot form of a whole file: opened, read to its end by `copy_from` (the block on the stack, managed for `async_of_file`), closed, and the same value `of(read_file(path))` gives, without the file held in memory; or the error of the open or of a read (`is_not_found()` for a path that is not there). It exists for a class made without arguments, as `of(data)` does: a keyed hasher opens the file and calls `copy_from` itself.
 
 ## Writing a hasher
 
@@ -75,8 +81,7 @@ A class whose hash takes an argument — a seed, a key — gives `of` that argum
 
 ```cpp
 #include "sgcl/hash/crc32.h"
-#include "sgcl/io/os.h"
-#include "sgcl/txt/format.h"
+#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
@@ -117,8 +122,8 @@ size_t digest_size_of(hash::req::hasher auto h, const string& text) {
 
 int main() {
     static_assert(hash::req::hasher<xor8>);
-    io::stdout.write(txt::format("{:02x}\n", xor8::of("abc")));
-    io::stdout.write(txt::format("{} {}\n", digest_size_of(xor8(), "abc"), digest_size_of(hash::crc32(), "abc")));
+    println("{:02x}", xor8::of("abc"));
+    println("{} {}", digest_size_of(xor8(), "abc"), digest_size_of(hash::crc32(), "abc"));
 }
 ```
 

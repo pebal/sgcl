@@ -31,8 +31,7 @@ Start from the types, without stopping anything for long:
 
 ```cpp
 for (auto& t : collector::get_type_statistics()) {          // a full cycle first: what is alive, not what waits for one
-    std::cout << t.type->name() << (t.buffers ? " buffers" : "") << ": "
-              << t.live_objects << " objects, " << t.live_bytes << " bytes, " << t.pages << " pages\n";
+    println("{}{}: {} objects, {} bytes, {} pages", t.type->name(), (t.buffers ? " buffers" : ""), t.live_objects, t.live_bytes, t.pages);
 }
 ```
 
@@ -43,9 +42,7 @@ Then the numbers over time: `get_statistics()` at intervals, from any thread, wi
 
 ```cpp
 auto s = collector::get_statistics();
-std::cout << s.cycles << " cycles (" << s.full_cycles << " full), last " << s.last_cycle_ms << " ms, "
-          << s.live_objects << " objects marked, " << s.live_bytes / 1048576 << " MB in use, "
-          << s.committed_bytes / 1048576 << " MB committed\n";
+println("{} cycles ({} full), last {} ms, {} objects marked, {} MB in use, {} MB committed", s.cycles, s.full_cycles, s.last_cycle_ms, s.live_objects, s.live_bytes / 1048576, s.committed_bytes / 1048576);
 ```
 
 
@@ -101,7 +98,7 @@ The mutators' side is not in the statistics: it is the write barrier on every po
 
 ### At the memory ceiling
 
-`get_memory_limit()` is the ceiling (90% of the cgroup or physical limit by default), `committed_bytes` the distance to it. Near the ceiling the collector runs more often and returns free chunks at once; at it, an allocation forces a full collection and throws `bad_alloc` if that was not enough. A program that catches `bad_alloc` from `make_tracked` or a container is at the ceiling with a live set that does not fit: the type statistics say what it is ([collector: get_memory_limit](../sgcl/core/collector.md#get_memory_limit-set_memory_limit)).
+`get_memory_limit()` is the ceiling (90% of the cgroup or physical limit by default, or what `SGCL_MEMORY_LIMIT` in the environment says: `512M`, `50%`), `committed_bytes` the distance to it. Near the ceiling the collector runs more often and returns free chunks at once; at it, an allocation forces a full collection and throws `bad_alloc` if that was not enough. A program that catches `bad_alloc` from `make_tracked` or a container is at the ceiling with a live set that does not fit: the type statistics say what it is ([collector: get_memory_limit](../sgcl/core/collector.md#get_memory_limit-set_memory_limit)).
 
 ### A race with the collector
 
@@ -155,7 +152,7 @@ collector::force_collect(true);
 // Get number of live objects
 // Note: A full GC cycle is performed before returning the data
 auto live_object_count = collector::get_live_object_count();
-std::cout << "live object count: " << live_object_count << std::endl;
+println("live object count: {}", live_object_count);
 
 {
     // Get list of live objects
@@ -164,9 +161,9 @@ std::cout << "live object count: " << live_object_count << std::endl;
     //       The GC engine is paused until the pause guard is destroyed
     auto [pause_guard, live_objects] = collector::get_live_objects();
     for (auto& v: live_objects) {
-        std::cout << v << " ";
+        print("{} ", v);
     }
-    std::cout << std::endl;
+    println();
 } // The pause guard is destroyed at this point
 
 // Zero the unused stack below the current frame: pointers left behind by
@@ -179,19 +176,15 @@ collector::clear_stack();
 // their type, the buffers of the containers by their array type (T[]),
 // sorted by bytes. The answer to "what is growing".
 for (auto& t : collector::get_type_statistics()) {
-    std::cout << (t.buffers ? "buffers of " : "") << t.type->name() << ": " << t.live_objects
-              << " x " << t.object_size << " B = " << t.live_bytes << " B"
-              << (t.buffers ? "" : ", " + std::to_string(t.pages) + " pages") << std::endl;
+    println("{}{}: {} x {} B = {} B{}", (t.buffers ? "buffers of " : ""), t.type->name(), t.live_objects, t.object_size, t.live_bytes, (t.buffers ? "" : ", " + std::to_string(t.pages) + " pages"));
 }
 
 // Counters of the collector's work, without stopping it: cycles completed,
 // live objects and memory after the last cycle, its duration and phases, the helpers
 auto stats = collector::get_statistics();
-std::cout << stats.cycles << " cycles, " << stats.live_objects << " objects, "
-          << stats.live_bytes / 1048576 << " MB, last cycle " << stats.last_cycle_ms << " ms, "
-          << stats.last_helpers_used << " helpers" << std::endl;
+println("{} cycles, {} objects, {} MB, last cycle {} ms, {} helpers", stats.cycles, stats.live_objects, stats.live_bytes / 1048576, stats.last_cycle_ms, stats.last_helpers_used);
 for (int i : range(8)) {                 // registration, states, roots, marking, updated, sweep, release, trim
-    std::cout << collector::phase_names[i] << " " << stats.phases_ms[i] << " ms" << std::endl;
+    println("{} {} ms", collector::phase_names[i], stats.phases_ms[i]);
 }
 
 // What holds an object: a chain from it up to a root, as text (a full
@@ -208,7 +201,7 @@ collector::explain(node.get(), std::cout);
 {
     auto [guard, referrers] = collector::get_referrers(node.get());
     for (auto& r : referrers) {
-        std::cout << (r.type ? r.type->name() : "a stack word") << " at " << r.holder << " +" << r.offset << std::endl;
+        println("{} at {} +{}", (r.type ? r.type->name() : "a stack word"), r.holder, r.offset);
     }
 }
 {

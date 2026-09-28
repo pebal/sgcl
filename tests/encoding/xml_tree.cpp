@@ -90,9 +90,9 @@ TEST(XmlTree_Tests, Walking) {
     EXPECT_EQ(kept.children().size(), 5u);
     EXPECT_EQ(kept.children()[1].type(), xml::kind::comment);
     EXPECT_EQ(kept.children()[1].text(), "c");
-    EXPECT_EQ(xml::parse(string("<a> <!--c--> <b/> </a>")).value().children().size(), 1u);
+    EXPECT_EQ(value_of(xml::parse(string("<a> <!--c--> <b/> </a>"))).children().size(), 1u);
     // white space next to other text is text
-    EXPECT_EQ(xml::parse(string("<a> x <b/> </a>")).value().children()[0].text(), " x ");
+    EXPECT_EQ(value_of(xml::parse(string("<a> x <b/> </a>"))).children()[0].text(), " x ");
 }
 
 TEST(XmlTree_Tests, MakingNodes) {
@@ -213,7 +213,7 @@ TEST(XmlTree_Tests, Writing) {
     // what text and values need
     auto escaped = xml("a").set("v", "<&>\"'\t\n\r").push_back(xml::text_node("<&>\"'\t\n\r]]>"));
     EXPECT_EQ(escaped.to_string(), "<a v=\"&lt;&amp;&gt;&quot;'&#x9;&#xA;&#xD;\">&lt;&amp;&gt;\"'\t\n&#xD;]]&gt;</a>");
-    EXPECT_EQ(xml::parse(escaped.to_string()).value(), escaped);
+    EXPECT_EQ(value_of(xml::parse(escaped.to_string())), escaped);
     // what XML cannot hold at all: U+FFFD
     auto controls = xml("a").set("v", string(std::string("x\x01y\xC3", 4))).push_back(xml::text_node(string(std::string("\x02\xEF\xBF\xBE\xF0\x9F\x98\x80", 8))));
     EXPECT_EQ(controls.to_string(), "<a v=\"x\xEF\xBF\xBDy\xEF\xBF\xBD\">\xEF\xBF\xBD\xEF\xBF\xBD\xF0\x9F\x98\x80</a>");
@@ -296,5 +296,19 @@ TEST(XmlTree_Tests, CollectorAndThreads) {
         th.join();
     }
     EXPECT_EQ(failures.load(), 0);
-    EXPECT_EQ(xml::parse(tree.to_string()).value(), tree);
+    EXPECT_EQ(value_of(xml::parse(tree.to_string())), tree);
+}
+
+// An attribute with a value for when there is none, on a node and on a
+// token of the reader
+TEST(XmlTree_Tests, AttributeWithAFallback) {
+    auto x = xml::parse(R"(<a lang="pl"><b/></a>)");
+    ASSERT_TRUE(x);
+    EXPECT_EQ(x->attribute("lang", "en"), "pl");
+    EXPECT_EQ(x->attribute("dir", "ltr"), "ltr");
+    xml::reader r(sgcl::string(R"(<a lang="pl"/>)"));
+    auto t = r.next();
+    ASSERT_TRUE(t);
+    EXPECT_EQ(t->attribute("lang", "en"), "pl");
+    EXPECT_EQ(t->attribute("dir", "ltr"), "ltr");
 }

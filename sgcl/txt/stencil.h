@@ -13,6 +13,7 @@
 #include "../core/vector.h"
 #include "case.h"
 #include "format.h"
+#include "detail/lent.h"
 
 #include <algorithm>
 
@@ -503,6 +504,19 @@ namespace sgcl::txt {
         static expected<stencil, stencil_error> parse(const string& source,
                                                       const stencil_functions& functions);
 
+        // The template a literal in the program spells, with either of
+        // parse's tables: parse's value, or bad_expected_access<stencil_error>
+        // with parse's message. A source read from outside (a file, a
+        // setting) is parsed; one the program itself wrote is constructed
+        // (DESIGN 234). `functions` is kept, as by parse
+        explicit stencil(const string& source)
+        : stencil(parse(source).value()) {
+        }
+
+        explicit stencil(const string& source, const stencil_functions& functions)
+        : stencil(parse(source, functions).value()) {
+        }
+
         // Whether a source is a template at all, with nothing kept. For
         // a program that reads a directory of them at startup and wants
         // to say which one is broken before it needs any of them.
@@ -554,6 +568,10 @@ namespace sgcl::txt {
 
         value _eval(const detail::stencil_expr& e, const value* dot, const value* root) const;
 
+        // The program is written once, at its size, from the scratch the
+        // parse builds it in (stencil_parser::scratch): growing these
+        // vectors a step at a time left a managed buffer behind at every
+        // doubling, seven of the thirteen objects a small template made
         string _source;
         vector<detail::stencil_step> _steps;
         vector<detail::stencil_expr> _exprs;
@@ -1003,11 +1021,51 @@ namespace sgcl::txt {
             size_t cond = size_t(-1);       // the step to be told where to go when its arm ends
             size_t body = 0;                // where the body of a loop starts
             bool had_else = false;
-            vector<size_t> to_end;          // the jumps waiting for the end
+            size_t jumps_from = 0;          // its jumps waiting for the end: jumps[jumps_from...]
         };
 
-        vector<open_block> open{};   // braced, so that the aggregate below names four fields and not seven
+        // What the parse builds the program in, and the blocks still
+        // open: plain memory lent by the thread (detail/lent.h), since
+        // none of it holds a pointer and none of it leaves the parse but
+        // by the one copy of the program at its size. The jumps waiting
+        // for the end of their block are one stack for all the blocks, as
+        // the blocks close in the order they opened backwards.
+        struct scratch {
+            detail::scratch_vector<detail::stencil_step> steps;
+            detail::scratch_vector<detail::stencil_expr> exprs;
+            detail::scratch_vector<detail::stencil_stage> stages;
+            detail::scratch_vector<detail::stencil_expr> args;
+            detail::scratch_vector<open_block> open;
+            detail::scratch_vector<size_t> jumps;
+
+            template<class F>
+            friend void lent_each(scratch& s, F& f) {
+                f(s.steps);
+                f(s.exprs);
+                f(s.stages);
+                f(s.args);
+                f(s.open);
+                f(s.jumps);
+            }
+        };
+
+        detail::lent<scratch> work{};   // braced, so that the aggregate below names four fields and not ten
+        detail::scratch_vector<detail::stencil_step>& steps = work->steps;
+        detail::scratch_vector<detail::stencil_expr>& exprs = work->exprs;
+        detail::scratch_vector<detail::stencil_stage>& stages = work->stages;
+        detail::scratch_vector<detail::stencil_expr>& args = work->args;
+        detail::scratch_vector<open_block>& open = work->open;
+        detail::scratch_vector<size_t>& jumps = work->jumps;
         size_t depth = 0;
+
+        // The program, built, copied into the template at its size
+        void finish() {
+            out._steps = vector<detail::stencil_step>(steps.begin(), steps.end());
+            out._exprs = vector<detail::stencil_expr>(exprs.begin(), exprs.end());
+            out._stages = vector<detail::stencil_stage>(stages.begin(), stages.end());
+            out._args = vector<detail::stencil_expr>(args.begin(), args.end());
+            out._depth = uint32_t(depth);
+        }
 
         bool fail(size_t at, const char* reason) {
             size_t line = 1;
@@ -1044,11 +1102,11 @@ namespace sgcl::txt {
             s.op = op;
             s.a = a;
             s.b = b;
-            out._steps.push_back(s);
+            steps.push_back(s);
         }
 
         size_t here() const {
-            return out._steps.size();
+            return steps.size();
         }
 
         //----------------------------------------------------------------
@@ -1234,7 +1292,7 @@ namespace sgcl::txt {
             if (!read_operand(at, body_end, e)) {
                 return false;
             }
-            e.pipe_at = uint32_t(out._stages.size());
+            e.pipe_at = uint32_t(stages.size());
             e.pipe_size = 0;
             for (;;) {
                 while (at < body_end && is_space(text[at])) {
@@ -1268,7 +1326,7 @@ namespace sgcl::txt {
                 detail::stencil_stage stage;
                 stage.fn = uint32_t(out._functions.size());
                 out._functions.push_back(*fn);
-                stage.args_at = uint32_t(out._args.size());
+                stage.args_at = uint32_t(args.size());
                 stage.args_size = 0;
                 for (;;) {
                     while (at < body_end && is_space(text[at])) {
@@ -1284,10 +1342,10 @@ namespace sgcl::txt {
                     if (!read_operand(at, body_end, arg)) {
                         return false;
                     }
-                    out._args.push_back(arg);
+                    args.push_back(arg);
                     ++stage.args_size;
                 }
-                out._stages.push_back(stage);
+                stages.push_back(stage);
                 ++e.pipe_size;
             }
             if (body_end < to) {
@@ -1308,8 +1366,8 @@ namespace sgcl::txt {
                     e.nested_size = uint32_t(nested.size());
                 }
             }
-            made = uint32_t(out._exprs.size());
-            out._exprs.push_back(e);
+            made = uint32_t(exprs.size());
+            exprs.push_back(e);
             return true;
         }
 
@@ -1352,6 +1410,7 @@ namespace sgcl::txt {
                     return false;
                 }
                 open_block b;
+                b.jumps_from = jumps.size();
                 b.what = open_block::kind::branch;
                 b.at = from;
                 emit(detail::stencil_op::branch, e, 0);
@@ -1365,6 +1424,7 @@ namespace sgcl::txt {
                     return false;
                 }
                 open_block b;
+                b.jumps_from = jumps.size();
                 b.what = open_block::kind::loop;
                 b.at = from;
                 emit(detail::stencil_op::loop, e, 0);
@@ -1380,6 +1440,7 @@ namespace sgcl::txt {
                     return false;
                 }
                 open_block b;
+                b.jumps_from = jumps.size();
                 b.what = open_block::kind::with;
                 b.at = from;
                 emit(detail::stencil_op::enter, e, 0);
@@ -1415,9 +1476,9 @@ namespace sgcl::txt {
                     emit(detail::stencil_op::leave, 0, 0);
                 }
                 emit(detail::stencil_op::jump, 0, 0);
-                b.to_end.push_back(here() - 1);
+                jumps.push_back(here() - 1);
                 if (b.cond != size_t(-1)) {
-                    out._steps[b.cond].b = uint32_t(here());
+                    steps[b.cond].b = uint32_t(here());
                 }
                 b.had_else = true;
                 b.cond = size_t(-1);
@@ -1449,11 +1510,12 @@ namespace sgcl::txt {
                     }
                 }
                 if (b.cond != size_t(-1)) {
-                    out._steps[b.cond].b = uint32_t(here());
+                    steps[b.cond].b = uint32_t(here());
                 }
-                for (auto j : b.to_end) {
-                    out._steps[j].b = uint32_t(here());
+                for (size_t k = b.jumps_from; k < jumps.size(); ++k) {
+                    steps[jumps[k]].b = uint32_t(here());
                 }
+                jumps.resize(b.jumps_from);
                 return true;
             }
             uint32_t e = 0;
@@ -1584,7 +1646,7 @@ namespace sgcl::txt {
         if (!parser.run()) {
             return unexpected(parser.why);
         }
-        parser.out._depth = uint32_t(parser.depth);
+        parser.finish();
         return std::move(parser.out);
     }
 

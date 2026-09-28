@@ -211,7 +211,7 @@ TEST(Punycode_Tests, Overflow) {
 // boundary at sixty-four and is held to its own round trip.
 TEST(Punycode_Tests, BothRoadsAgree) {
     for (size_t n = 1; n <= 200; ++n) {
-        sgcl::vector<char32_t> points;   // detail::encoded takes the library's vector
+        sgcl::txt::detail::code_points points;   // what detail::encoded takes
         for (size_t k = 0; k < n; ++k) {
             // Polish, Greek and Han in turn, so the decoder meets code
             // points of one, two and three bytes and of every plane
@@ -310,42 +310,42 @@ TEST(Idna_Tests, Deviations) {
     then.transitional = true;
 
     string sharp("fa\xC3\x9F.de");                       // faß.de
-    EXPECT_EQ(*txt::idna::to_ascii(sharp, now), string("xn--fa-hia.de"));
-    EXPECT_EQ(*txt::idna::to_ascii(sharp, then), string("fass.de"));
+    EXPECT_EQ(value_of(txt::idna::to_ascii(sharp, now)), string("xn--fa-hia.de"));
+    EXPECT_EQ(value_of(txt::idna::to_ascii(sharp, then)), string("fass.de"));
     // and the punycode is never remapped, whichever was asked for: a
     // name already encoded was encoded by somebody who had decided
-    EXPECT_EQ(*txt::idna::to_unicode(string("xn--fa-hia.de"), now), sharp);
-    EXPECT_EQ(*txt::idna::to_unicode(string("xn--fa-hia.de"), then), sharp);
+    EXPECT_EQ(value_of(txt::idna::to_unicode(string("xn--fa-hia.de"), now)), sharp);
+    EXPECT_EQ(value_of(txt::idna::to_unicode(string("xn--fa-hia.de"), then)), sharp);
 
     string sigma("\xCF\x83\xCF\x8C\xCE\xBB\xCE\xBF\xCF\x82.gr");   // σόλος with a final sigma
-    EXPECT_NE(*txt::idna::to_ascii(sigma, now), *txt::idna::to_ascii(sigma, then));
+    EXPECT_NE(value_of(txt::idna::to_ascii(sigma, now)), value_of(txt::idna::to_ascii(sigma, then)));
 
     // A capital sharp s is mapped to a small one and then, under
     // transitional processing only, has to go on to "ss": the mapping
     // table cannot say so, since it has one answer per code point
     string capital("BLO\xE1\xBA\x9E.de");                // BLOẞ.de
-    EXPECT_EQ(*txt::idna::to_unicode(capital, now), string("blo\xC3\x9F.de"));
-    EXPECT_EQ(*txt::idna::to_ascii(capital, then), string("bloss.de"));
+    EXPECT_EQ(value_of(txt::idna::to_unicode(capital, now)), string("blo\xC3\x9F.de"));
+    EXPECT_EQ(value_of(txt::idna::to_ascii(capital, then)), string("bloss.de"));
 }
 
 TEST(Idna_Tests, Names) {
     // The label separators of UTS #46: the full stop, the ideographic
     // one, and the two fullwidth ones. They are mapped, not parsed, so
     // the name is broken at the ordinary stop alone
-    EXPECT_EQ(*txt::idna::to_ascii(string("a\xE3\x80\x82"
+    EXPECT_EQ(value_of(txt::idna::to_ascii(string("a\xE3\x80\x82"
                                           "b\xEF\xBC\x8E"
                                           "c\xEF\xBD\xA1"
-                                          "d")),
+                                          "d"))),
               string("a.b.c.d"));
 
     // Uppercase and the compatibility forms are mapped away
-    EXPECT_EQ(*txt::idna::to_ascii(string("\xC3\x96" "BB.at")), string("xn--bb-eka.at"));
-    EXPECT_EQ(*txt::idna::to_unicode(string("xn--bcher-kva.de")),
+    EXPECT_EQ(value_of(txt::idna::to_ascii(string("\xC3\x96" "BB.at"))), string("xn--bb-eka.at"));
+    EXPECT_EQ(value_of(txt::idna::to_unicode(string("xn--bcher-kva.de"))),
               string("b\xC3\xBC" "cher.de"));
 
     // A decomposed name is normalized before anything else looks at it,
     // so the two spellings of the same name give the same label
-    EXPECT_EQ(*txt::idna::to_ascii(string("u\xCC\x88.com")),
+    EXPECT_EQ(value_of(txt::idna::to_ascii(string("u\xCC\x88.com"))),
               *txt::idna::to_ascii(string("\xC3\xBC.com")));
 
     // The rules a label is held to
@@ -378,14 +378,14 @@ TEST(Idna_Tests, Names) {
     EXPECT_TRUE(txt::idna::to_ascii(string(label.data(), label.size())).has_value());
     std::string over(64, 'a');
     over += ".com";
-    EXPECT_EQ(txt::idna::to_ascii(string(over.data(), over.size())).error().rule,
+    EXPECT_EQ(error_of(txt::idna::to_ascii(string(over.data(), over.size()))).rule,
               txt::idna::error::label_too_long);
     std::string longest;
     for (int i = 0; i < 4; ++i) {
         longest += (i ? "." : "") + std::string(63, 'a');
     }
     EXPECT_EQ(longest.size(), 255u);
-    EXPECT_EQ(txt::idna::to_ascii(string(longest.data(), longest.size())).error().rule,
+    EXPECT_EQ(error_of(txt::idna::to_ascii(string(longest.data(), longest.size()))).rule,
               txt::idna::error::name_too_long);
     // and the trailing dot of a fully qualified name does not count
     EXPECT_TRUE(txt::idna::to_ascii(string("a.b.c.d."),
@@ -400,7 +400,7 @@ TEST(Idna_Tests, Names) {
 // against the module's other implementation of the same idea, over every
 // code point the standard maps, so that the two cannot drift apart.
 TEST(Idna_Tests, TheMappingIsNfkcCasefold) {
-    vector<char32_t> out, taken, folded;
+    txt::detail::code_points out, taken, folded;
     std::vector<char32_t> differ;
     size_t mapped = 0;
     char buf[utf8::max_width];
@@ -436,13 +436,13 @@ TEST(Idna_Tests, TheMappingIsNfkcCasefold) {
         EXPECT_EQ(txt::detail::idna_status_of(c) == txt::detail::idna_status::mapped, capital)
             << "U+" << std::hex << uint32_t(c);
     }
-    EXPECT_EQ(*txt::idna::to_ascii(string("WWW.EXAMPLE.COM")), string("www.example.com"));
+    EXPECT_EQ(value_of(txt::idna::to_ascii(string("WWW.EXAMPLE.COM"))), string("www.example.com"));
 
     // And the three, seen from the outside
-    EXPECT_EQ(*txt::idna::to_unicode(string("\xE1\xBA\x9E.de")), string("\xC3\x9F.de"));
+    EXPECT_EQ(value_of(txt::idna::to_unicode(string("\xE1\xBA\x9E.de"))), string("\xC3\x9F.de"));
     EXPECT_EQ(txt::nfkc_casefold(string("\xE1\xBA\x9E")), string("ss"));
-    EXPECT_EQ(*txt::idna::to_ascii(string("a\xE3\x80\x82" "b")), string("a.b"));
-    EXPECT_EQ(*txt::idna::to_ascii(string("a\xEF\xBD\xA1" "b")), string("a.b"));
+    EXPECT_EQ(value_of(txt::idna::to_ascii(string("a\xE3\x80\x82" "b"))), string("a.b"));
+    EXPECT_EQ(value_of(txt::idna::to_ascii(string("a\xEF\xBD\xA1" "b"))), string("a.b"));
 }
 
 // A name is refused for something one of its labels did, and a caller who
@@ -515,6 +515,34 @@ TEST(Idna_Tests, WhichLabel) {
     EXPECT_EQ(fault("example.com").rule, txt::idna::error::none);
 }
 
+// Found by the fuzzer against ICU (tests/txt/fuzz/txt_icu_fuzz.cpp, the
+// 22 bytes 06 f0 9d a4 87 78 2d 2d 73 73 eb 96 b1 2d 78 6a 64 36 30 77 35
+// 38: the IDNA area, transitional, the text below). UTS #46 section 4.1,
+// criterion 2: with CheckHyphens, a label must not have a hyphen in both
+// the third and the fourth position — positions of code points. The
+// label here begins with U+1D907, a code point past the BMP, then "x--":
+// its third and fourth code points are the hyphens. ICU 78.3 counts the
+// positions in UTF-16 units, where the surrogate pair takes two, sees
+// "x-" there and takes the label; the library refuses it, as the standard
+// says
+TEST(Idna_Tests, TheThirdAndFourthPositionsAreCodePoints) {
+    const string name("\xF0\x9D\xA4\x87x--ss\xEB\x96\xB1-xjd60w58");
+    txt::idna::options transitional;
+    transitional.transitional = true;
+    EXPECT_EQ(error_of(txt::idna::to_ascii(name, transitional)).rule, txt::idna::error::hyphen);
+    EXPECT_EQ(error_of(txt::idna::to_unicode(name, transitional)).rule, txt::idna::error::hyphen);
+    EXPECT_EQ(error_of(txt::idna::to_ascii(name)).rule, txt::idna::error::hyphen);
+    // the same with a letter of the BMP in front: ICU refuses it too
+    EXPECT_EQ(error_of(txt::idna::to_ascii(string("ax--ss"))).rule, txt::idna::error::hyphen);
+    // and the hyphens one code point further on are no longer in the
+    // third and fourth place, whatever the UTF-16 length of the first
+    EXPECT_TRUE(txt::idna::to_ascii(string("\xF0\x9D\xA4\x87xy--ss")).has_value());
+    // the other way round: in the second and third code point the hyphens
+    // are no fault, where ICU, counting units, sees them in its third and
+    // fourth and refuses the label (UIDNA_ERROR_HYPHEN_3_4)
+    EXPECT_EQ(value_of(txt::idna::to_ascii(string("\xF0\x9D\xA4\x87--x"))), string("xn----x-2880b"));   // ICU's punycode of it
+}
+
 TEST(Idna_Tests, Options) {
     // An underscore is a valid ASCII character to UTS #46 unless STD3 is
     // asked for, which is why a browser leaves it alone and a resolver
@@ -522,12 +550,12 @@ TEST(Idna_Tests, Options) {
     txt::idna::options std3;
     std3.use_std3_ascii_rules = true;
     EXPECT_TRUE(txt::idna::to_ascii(string("a_b.com")).has_value());
-    EXPECT_EQ(txt::idna::to_ascii(string("a_b.com"), std3).error().rule, txt::idna::error::std3);
+    EXPECT_EQ(error_of(txt::idna::to_ascii(string("a_b.com"), std3)).rule, txt::idna::error::std3);
 
     // The WHATWG profile does not check the hyphens, so a name the DNS
     // has carried for years keeps working, and does not check the
     // lengths either
-    EXPECT_EQ(txt::idna::to_ascii(string("ab--c.com")).error().rule, txt::idna::error::hyphen);
+    EXPECT_EQ(error_of(txt::idna::to_ascii(string("ab--c.com"))).rule, txt::idna::error::hyphen);
     EXPECT_TRUE(txt::idna::to_ascii(string("ab--c.com"), txt::idna::options::whatwg()).has_value());
 
     // With the hyphens unchecked, a label that says "xn--" and is not

@@ -47,6 +47,7 @@ The requirements (`namespace sgcl::req`) are the concepts of the library: what a
 | `req::ordered<R>` | a sequence, `slice`, `immutable::vector`, `immutable::list` of comparable elements; not `sorted_set`, not `vector<point>` | `max`, `is_sorted`, `lower_bound` |
 | `req::lookup<R>` | `sorted_map`, `sorted_multimap`, `map`, `multimap`, `ordered_map`, `immutable::map` | `get`, `contains_key` |
 | `req::immutable<R>` | `immutable::vector`, `immutable::list`, `immutable::map`, `immutable::set`; not `slice<const T>`, not `sorted_set` | a snapshot kept, shared or compared without a copy |
+| `req::handle<H>` | `string`, `io::file`, `io::buffer`, `net::connection`, `async::channel`, `async::mutex`: a public type of one tracked word to the object inside, whose copies share it; not `tracked_ptr`, not `slice`, not `int` | `atomic<H>`, `atomic_ref<H>` over its word |
 
 ```cpp
 static_assert(req::ordered<vector<int>> && !req::ordered<sorted_set<int>> && !req::enumerable<std::vector<int>>);
@@ -59,7 +60,6 @@ static_assert(req::immutable<immutable::vector<int>> && !req::immutable<slice<co
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 #include <vector>
 
 using namespace sgcl;
@@ -71,8 +71,8 @@ size_t count_odd(const req::enumerable auto& r) {
 
 void sort_and_print(req::ordered auto& r) requires req::sequence<decltype(r)> {
     r.sort();
-    r.for_each([](int x) { std::cout << x << " "; });
-    std::cout << "\n";
+    r.for_each([](int x) { print("{} ", x); });
+    println();
 }
 
 int main() {
@@ -82,7 +82,7 @@ int main() {
     // sort_and_print(sv);                       // error: std::vector<int> does not satisfy req::ordered
     range r(sv.begin(), sv.end());         // the adapter: a range of the library over std's iterators
     sort_and_print(r);                           // sorts sv
-    std::cout << count_odd(v) << " " << count_odd(r) << " " << count_odd(range(4)) << "\n";
+    println("{} {} {}", count_odd(v), count_odd(r), count_odd(range(4)));
     return 0;
 }
 ```

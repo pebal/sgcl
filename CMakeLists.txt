@@ -58,6 +58,42 @@ if(SGCL_SANITIZER)
     message(STATUS "SGCL: building with -fsanitize=${SGCL_SANITIZER}")
 endif()
 
+# OpenSSL 3's libcrypto: the oracle the crypto tests and benchmarks hold the
+# module against, linked to them alone, never to the library. Homebrew's
+# openssl@3 on macOS, the system's elsewhere; where it is not found the
+# crypto tests are not built and the benchmarks have no openssl side.
+if(APPLE)
+    set(SGCL_OPENSSL_DEFAULT "/opt/homebrew/opt/openssl@3")
+else()
+    set(SGCL_OPENSSL_DEFAULT "/usr")
+endif()
+set(SGCL_OPENSSL_ROOT "${SGCL_OPENSSL_DEFAULT}" CACHE PATH "An OpenSSL 3 installation, the crypto tests' and benchmarks' oracle")
+find_library(SGCL_LIBCRYPTO NAMES crypto HINTS "${SGCL_OPENSSL_ROOT}/lib" "${SGCL_OPENSSL_ROOT}/lib64" NO_DEFAULT_PATH)
+if(SGCL_LIBCRYPTO AND EXISTS "${SGCL_OPENSSL_ROOT}/include/openssl/evp.h")
+    set(SGCL_HAVE_OPENSSL TRUE)
+else()
+    set(SGCL_HAVE_OPENSSL FALSE)
+    message(STATUS "SGCL: no OpenSSL 3 at SGCL_OPENSSL_ROOT (${SGCL_OPENSSL_ROOT}): tests_crypto not built")
+endif()
+
+# liblzma (xz's): the oracle of the LZMA tests and the other side of
+# bench_lzma, linked to them alone. Homebrew's xz on macOS, the system's
+# elsewhere; where it is not found the tests that need it are skipped and
+# the benchmark measures the library only.
+if(APPLE)
+    set(SGCL_XZ_DEFAULT "/opt/homebrew/opt/xz")
+else()
+    set(SGCL_XZ_DEFAULT "/usr")
+endif()
+set(SGCL_XZ_ROOT "${SGCL_XZ_DEFAULT}" CACHE PATH "An xz (liblzma) installation, the LZMA tests' and benchmark's oracle")
+find_library(SGCL_LIBLZMA NAMES lzma HINTS "${SGCL_XZ_ROOT}/lib" "${SGCL_XZ_ROOT}/lib64" NO_DEFAULT_PATH)
+if(SGCL_LIBLZMA AND EXISTS "${SGCL_XZ_ROOT}/include/lzma.h")
+    set(SGCL_HAVE_LIBLZMA TRUE)
+else()
+    set(SGCL_HAVE_LIBLZMA FALSE)
+    message(STATUS "SGCL: no liblzma at SGCL_XZ_ROOT (${SGCL_XZ_ROOT}): the LZMA tests against it are skipped")
+endif()
+
 if(SGCL_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()

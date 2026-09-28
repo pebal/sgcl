@@ -23,7 +23,7 @@ Go's `net/url` reads RFC 3986, loosely, and differs where the standard follows t
 - **The host.** `host()` is the host and the port when one is written, as the standard's `host` getter and Go's `URL.Host` have it: `example.com:8443`, `[::1]:8080`, `xn--bcher-kva.de`, `10.0.0.1`; `hostname()` is the host alone, without the port and without the brackets of an IPv6 address, as Go's `Hostname()` (the standard's `hostname` getter keeps the brackets). `host_address()` gives the IP address of a host that is one. An IPv6 host is written as the standard writes it, the first longest run of zero pieces as `::`, with no dotted tail (`[::ffff:102:304]`, where RFC 5952 writes `::ffff:1.2.3.4`).
 - **The port.** `port()` is the port written, `nullopt` when none was and when the one written is the scheme's default; `effective_port()` is the port or the default (80, 443, 21; 0 for a scheme without one).
 - **The setters** are the standard's (§6.1), each returning a new `url`. `with_scheme`, `with_username`, `with_password`, `with_host`, `with_hostname`, `with_port` and `with_path` return the error `net::errc::invalid_url`, with the setter and the value asked for (never a password), where the standard refuses the value or declines to apply it: a scheme that is not one; a special scheme for one that is not, or the other way; a host that does not parse; a host given with a port to `with_hostname` (`with_host` is the standard's host setter and takes one, so that what `host()` gives `with_host` takes; `with_hostname` is the standard's hostname setter and takes an IPv6 address in its brackets, `[::1]`, where `hostname()` gives it without them, as Go's `Hostname()` does, so a host is carried from one URL to another by `host()` and `with_host`); a host followed by `:` and nothing (`with_host("a:")`) keeps the port, as the standard's setter does; credentials or a port for a URL without a host or with file's; a host or a path for a URL with an opaque path. `with_query` and `with_fragment` always apply: `""` removes the part, a leading `?` or `#` is dropped.
-- **Relative references** are resolved by the same parser, given a base: `parse(reference, base)`, or `base.resolve(reference)`. The examples of RFC 3986 §5.4 resolve as Go resolves them, but for `//g` (see above).
+- **Relative references** are resolved by the same parser, given a base: `parse(reference, base)`, or `base.resolve(reference)`, and for a reference the program itself writes `net::url(reference, base)`, which throws `parse`'s error. The examples of RFC 3986 §5.4 resolve as Go resolves them, but for `//g` (see above).
 - **Text that is not UTF-8.** The standard's input is code points; a byte that does not begin a valid UTF-8 sequence is taken as U+FFFD, which a path escapes and a host refuses. Tabs and newlines anywhere, and C0 controls and spaces at the ends, are removed before parsing.
 - **Equality and order** are those of the serialization: `HTTP://EXAMPLE.com:80/./a` equals `http://example.com/a`.
 - **`query_params`** is a list, not a map: a name may come many times, the order is kept, `get` walks the list (a query is a handful of pairs, and nothing on the network can steer a hash). `parse` never fails, as in the standard: `+` is a space, a broken escape stays as it is written, bytes that are not UTF-8 after unescaping become U+FFFD. `to_string` writes a space as `+` and escapes everything but the letters, the digits and `* - . _`.
@@ -35,6 +35,8 @@ Go's `net/url` reads RFC 3986, loosely, and differs where the standard follows t
 ```cpp
 static expected<url, io::error> parse(const string& text);                   // an absolute URL, else errc::invalid_url
 static expected<url, io::error> parse(const string& text, const url& base);  // absolute, or relative to base
+explicit url(const string& text);                                          // a literal: parse(text), absolute, or bad_expected_access<io::error> (DESIGN 234)
+explicit url(const string& text, const url& base);                         // a literal reference: parse(text, base), or the same
 
 string scheme() const;          // "https", without the ':'
 string username() const;        // escaped
@@ -79,6 +81,7 @@ friend std::strong_ordering operator<=>(const url&, const url&) noexcept;
 ```cpp
 query_params();
 static query_params parse(const string& text);   // "a=1&b=x+y"; a leading '?' dropped; never fails
+explicit query_params(const string& text);        // a literal: the same as parse(text), nothing to throw (DESIGN 234)
 string get(const string& name) const;             // the first value, or ""
 vector<string> get_all(const string& name) const;
 bool contains(const string& name) const;
@@ -97,29 +100,26 @@ bool operator==(const query_params&) const;
 
 ```cpp
 #include "sgcl/net/url.h"
-#include <iostream>
+#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
 int main() {
-    auto u = net::url::parse("HTTPS://B\xC3\xBC" "cher.de/a/../suche?q=katze&page=2#treffer");
-    if (!u) {
-        return 1;
-    }
-    std::cout << u->to_string() << '\n';
-    std::cout << u->host() << ' ' << u->path() << ' ' << u->effective_port() << '\n';
-    std::cout << u->query_params().get("q") << '\n';
+    net::url u("HTTPS://B\xC3\xBC" "cher.de/a/../suche?q=katze&page=2#treffer");   // a literal: the constructor
+    println(u.to_string());
+    println("{} {} {}", u.host(), u.path(), u.effective_port());
+    println(u.query_params().get("q"));
 
-    auto next = u->with_query(u->query_params().set("page", "3"));
-    std::cout << next.to_string() << '\n';
+    auto next = u.with_query(u.query_params().set("page", "3"));
+    println(next.to_string());
 
-    auto logo = u->resolve("/img/logo.png");
-    std::cout << logo->to_string() << '\n';
+    net::url logo("/img/logo.png", u);                        // a literal reference against a base
+    println(logo.to_string());
 
-    auto moved = u->with_port(8443)->without_fragment();
-    std::cout << moved.origin() << ' ' << moved.request_target() << '\n';
+    auto moved = u.with_port(8443)->without_fragment();
+    println("{} {}", moved.origin(), moved.request_target());
 
-    std::cout << (net::url::parse("/relative") ? "parsed" : "not a URL without a base") << '\n';
+    println(net::url::parse("/relative") ? "parsed" : "not a URL without a base");   // text that may fail: parse
 }
 ```
 

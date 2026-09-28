@@ -53,26 +53,25 @@ The time elapsed, on [`sgcl::clock`](../core/clock.md): the steady clock, which 
 #include "sgcl/sgcl.h"
 #include "sgcl/time/time.h"
 #include <chrono>
-#include <iostream>
 
 using namespace sgcl;
 using namespace std::chrono_literals;
 
 int main() {
-    async::manual_clock clock;               // a test's clock: time moves only by advance
+    async::manual_clock clock;                      // a test's clock: time moves only by advance
     clock.install();
     time::stopwatch sw;
     clock.advance(1500ms);
-    std::cout << sw.elapsed() << "\n";               // 1.5s
-    std::cout << sw.restart() << " " << sw.elapsed() << "\n";   // 1.5s 0s
+    println("{}", sw.elapsed());               // 1.5s
+    println("{} {}", sw.restart(), sw.elapsed());   // 1.5s 0s
     clock.uninstall();
 
-    time::stopwatch real;             // the steady clock again
+    time::stopwatch real;                   // the steady clock again
     long sum = 0;
     for (int i : range(1000000)) {
         sum += i;
     }
-    std::cout << (real.elapsed() < 10 * second) << " " << sum << "\n";   // 1 499999500000
+    println("{} {}", (real.elapsed() < 10 * second), sum);   // true 499999500000
     return 0;
 }
 ```
@@ -102,7 +101,7 @@ Output:
 | `time.RFC3339`, `RFC3339Nano`, `RFC1123Z`, `http.TimeFormat` and `http.ParseTime`, `net/mail.ParseDate` | `time::rfc3339`, `rfc3339_nano`, `email`, `http` | `http` reads RFC 850 and asctime too; `email` RFC 5322's obsolete forms; and `iso8601`, which Go has not |
 | `RFC1123`, `RFC822`, `RFC850`, `ANSIC`, `Kitchen`, `Stamp` | a pattern: `"%a, %d %b %Y %T %Z"`, `"%d %b %y %H:%M %Z"`, `"%A, %d-%b-%y %T %Z"`, `"%c"`, `"%I:%M%p"`, `"%b %e %T"` | |
 | `time.Duration`, `ParseDuration`, `d.String()`, `d.Seconds()` | [`sgcl::duration`](../core/duration.md), `duration::parse`, `to_string()`, `seconds()` | in core; the same text; saturated arithmetic |
-| `time.Location`, `LoadLocation`, `FixedZone`, `UTC`, `Local` | `zone`, `zone::load`, `zone::fixed`, `zone::utc()`, `zone::local()` | loaded once per name (Go reads the file at every `LoadLocation`); `local().name()` is `"Europe/Warsaw"`, not `"Local"` |
+| `time.Location`, `LoadLocation`, `FixedZone`, `UTC`, `Local` | `zone`, `zone::load` (a name the program writes: `zone(name)`, which throws), `zone::fixed`, `zone::utc()`, `zone::local()` | loaded once per name (Go reads the file at every `LoadLocation`); `local().name()` is `"Europe/Warsaw"`, not `"Local"` |
 | `LoadLocationFromTZData` | `zone::from_tzif` | and `from_posix`, which Go has not |
 | — | `z.offset_at(t)`, `next_transition`, `previous_transition`, `zone::available()` | Go cannot list the changes of a zone or the zones |
 | `time.Since(t)`, the monotonic reading inside a `Time` | `stopwatch` | on the library's clock, a test's manual one included |

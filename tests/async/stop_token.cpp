@@ -101,6 +101,66 @@ TEST(StopToken_Test, ChildrenGoneAreNoBurden) {
     EXPECT_TRUE(parent.stop_requested());
 }
 
+// A stop by hand cancels the deadline (Go's cancel() stops the timer of a
+// WithDeadline): the timer swept out of its heap with the other cancelled
+// ones, and the source's state no longer held by it, where it used to stay
+// until the deadline (an hour here; for ever with stop_after(forever))
+TEST(StopToken_Test, AStopByHandCancelsTheDeadline) {
+    const auto before = sgcl::async::detail::timers_instance().shard_sizes();
+    for (int i = 0; i < 5000; ++i) {
+        sgcl::async::stop_source src;
+        src.stop_after(1h);
+        src.request_stop();
+    }
+    auto after = sgcl::async::detail::timers_instance().shard_sizes();
+    for (size_t i = 0; i < after.size(); ++i) {   // a shard sweeps its cancelled once they outnumber its live timers past 64 (timeout.cpp: expect_swept)
+        EXPECT_LE(after[i], std::max<size_t>(66, 2 * before[i] + 3)) << "shard " << i << ", before " << before[i];
+    }
+    const size_t live = live_objects_named("StopState");
+    off_frame([] {
+        sgcl::async::stop_source src;
+        src.stop_after(1h);
+        src.stop_at(sgcl::clock::now() + 2h);   // a later deadline beside it: cancelled too, or never armed
+        sgcl::async::stop_source child(src.token());
+        child.stop_after(3h);                   // a child's deadline, cancelled by the parent's stop
+        src.request_stop();
+        EXPECT_TRUE(child.stop_requested());
+    });
+    sgcl::collector::clear_stack();
+    EXPECT_EQ(live_objects_named("StopState"), live);   // the states of both gone: no timer holds them
+}
+
+// A deadline armed after the stop, or racing it: never left armed
+TEST(StopToken_Test, ADeadlineAfterTheStopIsNotArmed) {
+    const size_t live = live_objects_named("StopState");
+    off_frame([] {
+        sgcl::async::stop_source src;
+        src.request_stop();
+        src.stop_after(1h);
+    });
+    std::atomic<int> go = {0};
+    off_frame([&] {
+        for (int i = 0; i < 200; ++i) {
+            sgcl::async::stop_source src;
+            go.store(0);
+            std::thread t([&] {
+                go.fetch_add(1);
+                while (go.load() < 2) {
+                }
+                src.request_stop();
+            });
+            go.fetch_add(1);
+            while (go.load() < 2) {
+            }
+            src.stop_after(1h);
+            t.join();
+            EXPECT_TRUE(src.stop_requested());
+        }
+    });
+    sgcl::collector::clear_stack();
+    EXPECT_EQ(live_objects_named("StopState"), live);
+}
+
 TEST(StopToken_Test, ManyTasksStoppedAtOnce) {
     sgcl::async::stop_source src;
     std::vector<sgcl::async::task<int>> tasks;

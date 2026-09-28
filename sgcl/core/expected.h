@@ -8,9 +8,11 @@
 #include "rooted.h"
 #include "variant.h"
 
+#include <atomic>
 #include <exception>
 #include <functional>
 #include <initializer_list>
+#include <string>
 #include <type_traits>
 #include <utility>
 
@@ -46,7 +48,7 @@ namespace sgcl {
         unexpected(unexpected&&) = default;
 
         template<class Err = E>
-        requires (!std::is_same_v<std::remove_cvref_t<Err>, unexpected>) && (!std::is_same_v<std::remove_cvref_t<Err>, std::in_place_t>) && std::is_constructible_v<E, Err>
+        requires (!std::is_same_v<std::remove_cvref_t<Err>, unexpected>) && (!std::is_same_v<std::remove_cvref_t<Err>, std::in_place_t>) && (!detail::IsExpected<std::remove_cvref_t<Err>>::value) && std::is_constructible_v<E, Err>
         explicit unexpected(Err&& e)
         : _error(std::forward<Err>(e)) {
         }
@@ -125,13 +127,75 @@ namespace sgcl {
     // an error holding a tracked pointer (a string, a tracked_ptr) could
     // not lie in it directly; rooted keeps it in a managed object of its
     // own, alive for as long as the exception exists, through the copies
-    // the runtime makes of it. One managed allocation per throw.
+    // the runtime makes of it. One managed allocation per throw: the
+    // error's message, a managed string, is made when what() asks for it
+    // (an uncaught exception, a log), not at every throw.
     template<class E>
     class bad_expected_access
     : public bad_expected_access<void> {
     public:
         explicit bad_expected_access(E e)
         : _error(std::move(e)) {
+        }
+
+        // The text is the exception's own: a copy asks for it again
+        bad_expected_access(const bad_expected_access& o)
+        : bad_expected_access<void>(o)
+        , _error(o._error) {
+        }
+
+        bad_expected_access(bad_expected_access&& o) noexcept
+        : bad_expected_access<void>(o)
+        , _error(std::move(o._error)) {
+        }
+
+        bad_expected_access& operator=(const bad_expected_access& o) {
+            if (this != &o) {
+                _error = o._error;
+                delete _what.exchange(nullptr, std::memory_order_acq_rel);
+            }
+            return *this;
+        }
+
+        bad_expected_access& operator=(bad_expected_access&& o) noexcept {
+            if (this != &o) {
+                _error = std::move(o._error);
+                delete _what.exchange(nullptr, std::memory_order_acq_rel);
+            }
+            return *this;
+        }
+
+        ~bad_expected_access() override {
+            delete _what.load(std::memory_order_relaxed);
+        }
+
+        // The error's message() when it has one ("open log.gz: No such
+        // file or directory"), so that an exception nobody catches says
+        // what failed. Made on the first call, in plain memory, and
+        // published with a compare-exchange: an exception may be read by
+        // several threads at once (an exception_ptr rethrown on each); a
+        // thread that loses the exchange drops its copy. A message() that
+        // throws leaves the general text.
+        const char* what() const noexcept override {
+            if constexpr (requires { _error->message(); }) {
+                auto text = _what.load(std::memory_order_acquire);
+                if (!text) {
+                    try {
+                        auto m = _error->message();
+                        auto made = new std::string(m.data(), m.size());
+                        if (_what.compare_exchange_strong(text, made, std::memory_order_acq_rel, std::memory_order_acquire)) {
+                            text = made;
+                        } else {
+                            delete made;
+                        }
+                    } catch (...) {
+                        return bad_expected_access<void>::what();
+                    }
+                }
+                return text->c_str();
+            } else {
+                return bad_expected_access<void>::what();
+            }
         }
 
         const E& error() const& noexcept { return *_error; }
@@ -141,6 +205,7 @@ namespace sgcl {
 
     private:
         rooted<E> _error;
+        mutable std::atomic<std::string*> _what = {nullptr};
     };
 
     // An expected with the interface of std::expected, safe to hold a
@@ -166,7 +231,7 @@ namespace sgcl {
         static constexpr bool is_bool = std::is_same_v<std::remove_cv_t<T>, bool>;
 
         template<class U, class G>
-        static constexpr bool converts_from_other = (!is_bool && (std::is_constructible_v<T, expected<U, G>&> || std::is_constructible_v<T, expected<U, G>> || std::is_constructible_v<T, const expected<U, G>&> || std::is_constructible_v<T, const expected<U, G>>
+        static constexpr bool converts_from_other = (!is_bool && !std::is_constructible_v<T, const U&> && (std::is_constructible_v<T, expected<U, G>&> || std::is_constructible_v<T, expected<U, G>> || std::is_constructible_v<T, const expected<U, G>&> || std::is_constructible_v<T, const expected<U, G>>
             || std::is_convertible_v<expected<U, G>&, T> || std::is_convertible_v<expected<U, G>&&, T> || std::is_convertible_v<const expected<U, G>&, T> || std::is_convertible_v<const expected<U, G>&&, T>))
             || std::is_constructible_v<unexpected<E>, expected<U, G>&> || std::is_constructible_v<unexpected<E>, expected<U, G>> || std::is_constructible_v<unexpected<E>, const expected<U, G>&> || std::is_constructible_v<unexpected<E>, const expected<U, G>>;
 
@@ -210,7 +275,7 @@ namespace sgcl {
         }
 
         template<class U = T>
-        requires (!std::is_same_v<std::remove_cvref_t<U>, std::in_place_t>) && (!std::is_same_v<std::remove_cvref_t<U>, expected>) && (!detail::IsUnexpected<std::remove_cvref_t<U>>::value) && (!is_bool || !detail::IsExpected<std::remove_cvref_t<U>>::value) && std::is_constructible_v<T, U>
+        requires (!std::is_same_v<std::remove_cvref_t<U>, std::in_place_t>) && (!std::is_same_v<std::remove_cvref_t<U>, expected>) && (!detail::IsUnexpected<std::remove_cvref_t<U>>::value) && (!detail::IsExpected<std::remove_cvref_t<U>>::value) && std::is_constructible_v<T, U>
         explicit(!std::is_convertible_v<U, T>)
         expected(U&& v)
         : _s(std::in_place_index<0>, std::forward<U>(v)) {
@@ -378,15 +443,38 @@ namespace sgcl {
             x.swap(y);
         }
 
-        const T* operator->() const noexcept { return &get<0>(_s); }
-        T* operator->() noexcept { return &get<0>(_s); }
-        const T& operator*() const& noexcept { return get<0>(_s); }
-        T& operator*() & noexcept { return get<0>(_s); }
-        const T&& operator*() const&& noexcept { return std::move(get<0>(_s)); }
-        T&& operator*() && noexcept { return std::move(get<0>(_s)); }
+        // Checked, unlike std::expected's (undefined there): on an error,
+        // bad_expected_access<E> with the error, as value()
+        const T* operator->() const { return &value(); }
+        T* operator->() { return &value(); }
+        const T& operator*() const& { return value(); }
+        T& operator*() & { return value(); }
+        const T&& operator*() const&& { return std::move(*this).value(); }
+        T&& operator*() && { return std::move(*this).value(); }
 
         explicit operator bool() const noexcept {
             return has_value();
+        }
+
+        // The value wherever a T, or anything a T converts to, is wanted:
+        // `gzip::reader r(io::open(p))`, `string s = io::read_text(p)`,
+        // with no `*` (DESIGN 220). On an error, bad_expected_access<E>
+        // with the error, as value(). Not to bool (`if (e)` asks whether
+        // there is a value), nor from expected<bool> to a number, nor to
+        // another expected or to a wrapper that takes the expected whole
+        // (optional<expected<T, E>>). A deduced template, an overload set
+        // of types that convert to each other and arithmetic see the
+        // expected itself and still want `*`
+        template<class U>
+        requires (!std::same_as<std::remove_cvref_t<U>, bool>) && (!is_bool || !std::is_arithmetic_v<std::remove_cvref_t<U>>) && (!detail::IsExpected<std::remove_cvref_t<U>>::value) && (!std::is_constructible_v<U, std::in_place_t, const expected&>) && std::is_convertible_v<const T&, U>
+        operator U() const& {
+            return U(value());
+        }
+
+        template<class U>
+        requires (!std::same_as<std::remove_cvref_t<U>, bool>) && (!is_bool || !std::is_arithmetic_v<std::remove_cvref_t<U>>) && (!detail::IsExpected<std::remove_cvref_t<U>>::value) && (!std::is_constructible_v<U, std::in_place_t, const expected&>) && std::is_convertible_v<T&&, U>
+        operator U() && {
+            return U(std::move(*this).value());
         }
 
         bool has_value() const noexcept {

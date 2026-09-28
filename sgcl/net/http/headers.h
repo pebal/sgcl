@@ -75,28 +75,30 @@ namespace sgcl::net::http {
             return s;
         }
 
-        // A value as a program gives it, made safe to write: CR, LF and
-        // NUL become spaces (a header of a user's text must not end the
-        // head and start another: response splitting), as Go does
-        inline string field_value(const string& value) {
-            auto v = value.view();
-            bool clean = true;
-            for (char c : v) {
-                if (c == '\r' || c == '\n' || c == '\0') {
-                    clean = false;
-                    break;
+        // A byte a field value may hold (RFC 9110 §5.5): a visible
+        // character, a space, a tab or obs-text; never CR, LF, NUL or
+        // another control, so that a value cannot end its line and start
+        // another (request and response splitting, obs-fold)
+        inline constexpr bool field_value_char(uint8_t c) noexcept {
+            return c == '\t' || (c >= 0x20 && c != 0x7F);
+        }
+
+        // The name and the value as a program gave them, the bytes that
+        // are not printable shown as \xHH: a message naming a field must
+        // not carry the line break that made it wrong into a log
+        inline std::string printable(std::string_view s) {
+            std::string out;
+            for (unsigned char c : s) {
+                if (c >= 0x20 && c < 0x7F) {
+                    out += char(c);
+                } else {
+                    static const char digits[] = "0123456789ABCDEF";
+                    out += "\\x";
+                    out += digits[c >> 4];
+                    out += digits[c & 15];
                 }
             }
-            if (clean) {
-                return value;
-            }
-            std::string s(v);
-            for (auto& c : s) {
-                if (c == '\r' || c == '\n' || c == '\0') {
-                    c = ' ';
-                }
-            }
-            return string(std::string_view(s));
+            return out;
         }
 
         struct HeadersAccess;
@@ -115,10 +117,13 @@ namespace sgcl::net::http {
     // was copied into: nothing is allocated a field. get() makes the
     // string it returns.
     //
-    // A name the program gives must be a token of RFC 9110 (a broken
-    // contract otherwise: invalid_argument); a value has CR, LF and NUL
-    // turned into spaces, since values often come from users and an
-    // exception in the path of a request would be worse than the change.
+    // A name and a value are kept as the program gives them. What is
+    // written is checked where it is written: a name that is not a token
+    // of RFC 9110, or a value with CR, LF, NUL or another control, makes
+    // the client's send an error (std::errc::invalid_argument, the field
+    // named) before a byte is sent, and a handler's response a 500 (see
+    // response_writer), since values often come from users and neither a
+    // split message nor an exception in the path of a request will do.
     class headers {
     public:
         headers() = default;
@@ -156,45 +161,52 @@ namespace sgcl::net::http {
 
         // The value in the place of the first field of the name, the
         // others of the name gone; a field at the end when there was none
+        // (in place: the fields kept moved down over the ones dropped, no
+        // list made)
         headers& set(const string& name, const string& value) {
-            _check(name);
-            auto v = detail::field_value(value);
+            const string& v = value;
             bool found = false;
-            vector<Field> kept;
-            kept.reserve(_fields.size() + 1);
-            for (auto& f : _fields) {
-                if (!detail::iequal(f.first.view(), name.view())) {
-                    kept.push_back(f);
-                } else if (!found) {
+            size_t kept = 0;
+            for (size_t i = 0; i < _fields.size(); ++i) {
+                if (detail::iequal(_fields[i].first.view(), name.view())) {
+                    if (found) {
+                        continue;
+                    }
                     found = true;
-                    kept.push_back(Field(f.first, v.as_slice()));
+                    _fields[i].second = v.as_slice();
                 }
+                if (kept != i) {
+                    _fields[kept] = _fields[i];
+                }
+                ++kept;
             }
-            if (!found) {
-                kept.push_back(Field(name.as_slice(), v.as_slice()));
+            if (found) {
+                _fields.resize(kept);
+            } else {
+                _fields.push_back(Field(name.as_slice(), v.as_slice()));
             }
-            _fields = std::move(kept);
             return *this;
         }
 
         // A field at the end
         headers& add(const string& name, const string& value) {
-            _check(name);
-            auto v = detail::field_value(value);
-            _fields.push_back(Field(name.as_slice(), v.as_slice()));
+            _fields.push_back(Field(name.as_slice(), value.as_slice()));
             return *this;
         }
 
         // Every field of the name
         headers& erase(const string& name) {
-            vector<Field> kept;
-            kept.reserve(_fields.size());
-            for (auto& f : _fields) {
-                if (!detail::iequal(f.first.view(), name.view())) {
-                    kept.push_back(f);
+            size_t kept = 0;
+            for (size_t i = 0; i < _fields.size(); ++i) {
+                if (detail::iequal(_fields[i].first.view(), name.view())) {
+                    continue;
                 }
+                if (kept != i) {
+                    _fields[kept] = _fields[i];
+                }
+                ++kept;
             }
-            _fields = std::move(kept);
+            _fields.resize(kept);
             return *this;
         }
 
@@ -280,12 +292,6 @@ namespace sgcl::net::http {
         friend struct detail::HeadersAccess;
         using Field = pair<slice<const char>, slice<const char>>;
 
-        static void _check(const string& name) {
-            if (!detail::is_token(name.view())) {
-                throw invalid_argument("http::headers: a field name must be a token of RFC 9110");
-            }
-        }
-
         vector<Field> _fields;
     };
 
@@ -348,5 +354,22 @@ namespace sgcl::net::http {
                 h._fields.push_back(Field(name, value));
             }
         };
+
+        // What makes the fields unfit to be written, "invalid header name:
+        // Bad Name" or "invalid header value: X-Foo"; nullopt when every
+        // name is a token and no value holds a byte a field may not
+        inline optional<string> invalid_field(const headers& h) {
+            for (auto& f : HeadersAccess::fields(h)) {
+                if (!is_token(f.first.view())) {
+                    return string("invalid header name: " + printable(f.first.view()));
+                }
+                for (unsigned char c : f.second.view()) {
+                    if (!field_value_char(c)) {
+                        return string("invalid header value: " + printable(f.first.view()));
+                    }
+                }
+            }
+            return nullopt;
+        }
     }
 }

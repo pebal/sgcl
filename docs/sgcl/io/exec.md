@@ -5,20 +5,20 @@
 
 namespace sgcl::io {
     class command;          // a program to run: the fields of exec.Cmd, start, wait, run, output
-    class process;          // a running child: pid, signal, kill, wait, release (os.Process)
+    class process;          // a running child: pid, signal, kill, wait, release (os.Process); a handle of one word
     class process_state;    // how a child ended: exit_code, signal, the times (os.ProcessState)
     expected<string, error> look_path(const string& file);   // the executable a name stands for (exec.LookPath)
 }
 ```
 
-What Go's `os/exec` does, in the shapes of the library. A `command` is a value: the program and its arguments from the constructor, the rest — a directory, an environment, the three standard streams — set by name in any order, as the fields of `exec.Cmd`; `start()` runs it, `wait()` collects it, `run()` is the two, `output()` the two with the standard output captured. The streams are the library's: a [file](file.md) in `in`, `out` or `err` is inherited by the child as a descriptor, any other [reader or writer](stream.md) is served through a pipe by a task that copies (Go's goroutines), a null pointer is the null device. The child is a `process`; how it ended is a `process_state`.
+What Go's `os/exec` does, in the shapes of the library. A `command` is a value: the program and its arguments from the constructor, the rest — a directory, an environment, the three standard streams — set by name in any order, as the fields of `exec.Cmd`; `start()` runs it, `wait()` collects it, `run()` is the two, `output()` the two with the standard output captured. The streams are the library's: a [file](file.md) in `in`, `out` or `err` is inherited by the child as a descriptor, any other [reader or writer](stream.md) is served through a pipe by a task that copies (Go's goroutines), an empty stream is the null device. The child is a `process`; how it ended is a `process_state`. A `command` is a value, as `exec.Cmd` is in Go, not a handle: moved, never shared, each `start()` of a command of its own another child; a `process` is a handle of one word, a copy the same child.
 
 ```cpp
 io::command cmd("git", "status", "--short");
 cmd.dir = "/repo";
-auto out = cmd.output();                       // expected<string, error>: the standard output, or the error
+auto out = cmd.output();                       // expected<string, io::error>: the standard output, or the error
 if (!out) {
-    std::cerr << out.error().message() << ' ' << cmd.captured_err;   // "wait /usr/bin/git: the process ended with a failure status"
+    eprintln("{} {}", out.error().message(), cmd.captured_err);   // "wait /usr/bin/git: the process ended with a failure status"
 }
 ```
 
@@ -55,7 +55,7 @@ bool set_pgid = false;                          // a process group of its own (S
 async::stop_token stop;                                // the child killed on the stop (CommandContext)
 duration wait_delay = duration::zero();         // wait()'s patience with the copying tasks after the child ended; zero: unbounded (WaitDelay)
 
-tracked_ptr<process> process;                   // the child, after start()
+io::process process;                            // the child, after start(); empty (!process) before
 optional<process_state> state;                  // how it ended, after wait()
 string captured_err;                            // output(): the standard error, when err was null (ExitError.Stderr)
 
@@ -65,14 +65,14 @@ async::task<expected<void, error>> async_wait();           // the same in a task
 expected<void, error> run();  async::task<expected<void, error>> async_run();                               // start and wait
 expected<string, error> output();  async::task<expected<string, error>> async_output();                     // run with the standard output captured; the standard error into captured_err when err is null
 expected<string, error> combined_output();  async::task<expected<string, error>> async_combined_output();   // both streams into one string, in the order written
-expected<tracked_ptr<file>, error> stdin_pipe();         // a pipe the child reads: the program's end, closed by wait()
-expected<tracked_ptr<file>, error> stdout_pipe();        // a pipe the child writes: read to its end before wait(), which closes it
-expected<tracked_ptr<file>, error> stderr_pipe();
+expected<file, error> stdin_pipe();         // a pipe the child reads: the program's end, closed by wait()
+expected<file, error> stdout_pipe();        // a pipe the child writes: read to its end before wait(), which closes it
+expected<file, error> stderr_pipe();
 ```
 
 ```cpp
 io::command tr("tr", "a-z", "A-Z");
-tr.in = make_tracked<buffer>(string("quiet\n"));   // a buffer: copied through a pipe by a task
+tr.in = io::buffer("quiet\n");                       // a buffer: copied through a pipe by a task
 auto upper = tr.output();                              // "QUIET\n"
 
 io::command build("make", "-j8");
@@ -80,17 +80,17 @@ build.dir = "/project";
 build.out = io::stdout;                              // the program's own descriptors, inherited
 build.err = io::stderr;
 build.stop = source.token();                           // the stop kills it
-if (auto r = build.run(); !r) {
-    std::cerr << (build.state ? build.state->str() : r.error().message()) << '\n';   // "exit status 2", "signal: killed"
+if (auto ran = build.run(); !ran) {
+    eprintln(build.state ? build.state->to_string() : ran.error().message());   // "exit status 2", "signal: killed"
 }
 
 io::command grep("grep", "error");
-auto lines = grep.stdin_pipe();                        // the program writes what the child reads
-auto found = grep.stdout_pipe();                       // and reads what it writes
+io::file lines = grep.stdin_pipe();              // the program writes what the child reads
+io::file found = grep.stdout_pipe();             // and reads what it writes
 grep.start();
-(*lines)->write("no\nan error\n");
-(*lines)->close();                              // the end of the input
-auto hits = (*found)->read_all_text();                 // "an error\n", read before the wait
+lines.write("no\nan error\n");
+lines.close();                                   // the end of the input
+string hits = found.read_all_text();             // "an error\n", read before the wait
 grep.wait();
 ```
 
@@ -98,13 +98,13 @@ From a task, the same with `async_`: `co_await cmd.async_output()` holds no thre
 
 ```cpp
 async::task<vector<string>> versions(vector<string> tools) {
-    vector<async::task<expected<string, error>>> asked;
+    vector<async::task<expected<string, io::error>>> asked;
     vector<io::command> commands;
     for (auto& t : tools) {
         commands.push_back(io::command(t, "--version"));
     }
     for (auto& c : commands) {
-        asked.push_back(async::spawn(c.output()));   // all at once
+        asked.push_back(async::spawn(c.async_output()));   // all at once
     }
     vector<string> out;
     for (auto& a : asked) {
@@ -118,13 +118,17 @@ async::task<vector<string>> versions(vector<string> tools) {
 ### process
 
 ```cpp
+process() noexcept;                                            // none: !p (command's before start())
 int pid() const noexcept;
-expected<void, error> signal(int sig);                   // errc::process_done after the wait or the release
-expected<void, error> kill();                            // SIGKILL
-expected<process_state, error> wait();                   // waitpid, once
-async::task<expected<process_state, error>> async_wait();   // the same in a task: exited(pid) on the reactor, then the status
-expected<void, error> release();                         // let go of: nothing more from this object
+expected<void, error> signal(int sig) const;                   // errc::process_done after the wait or the release
+expected<void, error> kill() const;                            // SIGKILL
+expected<process_state, error> wait() const;                   // waitpid, once
+async::task<expected<process_state, error>> async_wait() const;   // the same in a task: exited(pid) on the reactor, then the status
+expected<void, error> release() const;                         // let go of: nothing more from this process
+explicit operator bool() const noexcept;  friend bool operator==(const process&, const process&) noexcept;   // the same child
 ```
+
+A handle of one word: a copy is the same child, and a wait through any copy is the one wait. A handle is a tracked word: on a stack, in a task, in a managed object; in a global or a std container, a [`rooted<io::process>`](../core/rooted.md), never in a managed object or a task's frame, since a root is never part of a cycle.
 
 ### process_state
 
@@ -152,7 +156,6 @@ expected<string, error> look_path(const string& file);   // the name itself when
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -162,37 +165,34 @@ using namespace sgcl;
 int main() {
     io::command sort("sort");
     io::command uniq("uniq", "-c");
-    sort.in = make_tracked<io::buffer>(string("pear\napple\npear\nfig\napple\npear\n"));
-    auto between = sort.stdout_pipe();               // sort writes here
-    if (!between) {
-        return 1;
-    }
-    uniq.in = *between;                              // and uniq reads it: a file, inherited as a descriptor
-    tracked_ptr<io::buffer> counts = make_tracked<io::buffer>();
+    sort.in = io::buffer("pear\napple\npear\nfig\napple\npear\n");
+    io::file between = sort.stdout_pipe();           // sort writes here
+    uniq.in = between;                               // and uniq reads it: a file, inherited as a descriptor
+    io::buffer counts;
     uniq.out = counts;
-    if (auto r = sort.start(); !r) {
-        std::cerr << r.error().message() << '\n';
+    if (auto started = sort.start(); !started) {
+        eprintln(started.error().message());
         return 1;
     }
-    if (auto r = uniq.start(); !r) {
-        std::cerr << r.error().message() << '\n';
+    if (auto started = uniq.start(); !started) {
+        eprintln(started.error().message());
         return 1;
     }
-    (void)(*between)->close();                       // the program's copy of the pipe: uniq's is its own
-    auto s = sort.wait();
-    auto u = uniq.wait();
-    if (!s || !u) {
-        std::cerr << (s ? u : s).error().message() << '\n';
+    between.close();                                 // the program's copy of the pipe: uniq's is its own
+    auto sorted = sort.wait();
+    auto counted = uniq.wait();
+    if (!sorted || !counted) {
+        eprintln((sorted ? counted : sorted).error().message());
         return 1;
     }
     size_t lines = 0;
-    for (string_slice line : counts->text().split('\n')) {
+    for (string_slice line : counts.text().split('\n')) {
         if (!line.empty()) {
-            std::cout << line.trim() << '\n';
+            println(line.trim());
             ++lines;
         }
     }
-    std::cout << sort.state->str() << ", " << uniq.state->str() << '\n';
+    println("{}, {}", sort.state->to_string(), uniq.state->to_string());
     return lines == 3 ? 0 : 1;
 }
 ```

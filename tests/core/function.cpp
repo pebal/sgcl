@@ -150,6 +150,39 @@ TEST(Function_Tests, AReferenceWrapperIsHeldInsideTheFunction) {
     EXPECT_EQ(copy(), 6);
 }
 
+// A closure that is trivially copyable (a double, an int64, a raw
+// pointer) cannot hold a tracked pointer, whose copy is not trivial: it
+// lies in the function's buffer, as a closure without data does, and
+// a thousand of them make no managed object (they made a node each)
+TEST(Function_Tests, AClosureOfPlainDataIsHeldInsideTheFunction) {
+    settle();
+    const auto before = collector::get_statistics().live_objects;
+    vector<function<double()>> kept;
+    off_frame([&] {
+        kept.reserve(1000);
+        for (auto i : range(1000)) {
+            double x = i;
+            kept.emplace_back([x] { return x; });
+        }
+    });
+    settle();
+    EXPECT_LE(collector::get_statistics().live_objects, before + 1);   // the vector's buffer and no node
+    EXPECT_EQ(kept[999](), 999.0);
+    int64_t n = 40;
+    const int two = 2;
+    auto plain = [n, p = &two] { return n + *p; };                    // 16 bytes: an int64 and a pointer
+    static_assert(std::is_trivially_copyable_v<decltype(plain)> && sizeof(plain) == 16);
+    function<int64_t()> f = plain;
+    auto t = f.target<decltype(plain)>();
+    ASSERT_NE(t, nullptr);
+    EXPECT_GE((const char*)t, (const char*)&f);                        // in the function's own buffer
+    EXPECT_LT((const char*)t, (const char*)&f + sizeof(f));
+    EXPECT_FALSE(detail::Heap::contains(t));
+    EXPECT_EQ(word_of(f), 0u);
+    function<int64_t()> copy = f;
+    EXPECT_EQ(copy(), 42);
+}
+
 TEST(Function_Tests, AClosureWhoseConstructorThrowsLeavesTheFunctionAsItWas) {
     function<int()> f = [] { return 1; };
     ThrowingCallable c;

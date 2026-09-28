@@ -12,4 +12,5 @@
 #include "fs.h"
 #include "os.h"
 #include "path.h"
+#include "print.h"
 #include "stream.h"

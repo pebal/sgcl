@@ -7,8 +7,11 @@
 
 #include "../concurrent/queue.h"
 #include "../core/detail/backoff.h"
+#include "../core/detail/ticks.h"
 #include "../core/collector.h"
 #include "../core/config.h"
+#include "../core/detail/env.h"
+#include "../core/duration.h"
 #include "../core/unique_ptr.h"
 #include "coroutine.h"
 
@@ -32,6 +35,23 @@ namespace sgcl::async {
         class WakeBatch;
         inline Scheduler& scheduler_instance();
         void resume_frame(const tracked_ptr<FrameWord>& frame);
+
+        // How long a worker (and an executor's thread) with nothing to run
+        // looks for work before it sleeps, in microseconds: set by
+        // scheduler::set_worker_spin, else SGCL_WORKER_SPIN_US read at the
+        // scheduler's first start, else config::worker_spin_microseconds.
+        // A plain word read on the way to sleep, never on a task's path
+        inline std::atomic<unsigned> worker_spin_us = {config::worker_spin_microseconds};
+        inline std::atomic<bool> worker_spin_set = {false};
+
+        // The deadline of a spin, on the processor's counter (ticks.h): a
+        // read of it costs a few cycles, where the system's clock is a call
+        // (mach_continuous_time on macOS, about a hundred nanoseconds, which
+        // the spins read at every round, some sixty rounds in 20 us). The
+        // time spun is the same; the program's timeouts stay on sgcl::clock
+        inline uint64_t spin_until() noexcept {
+            return cpu_ticks() + ticks_of_microseconds(worker_spin_us.load(std::memory_order_relaxed));
+        }
 
         // The queue of an executor or a strand (executor.h): a managed
         // object the executor holds through a root and every frame on it
@@ -130,7 +150,7 @@ namespace sgcl::async {
             // an empty queue and parking then; null when a stop() came, or
             // for a wake that found nothing (the caller asks again)
             Frame pop() {
-                auto until = std::chrono::steady_clock::now() + std::chrono::microseconds(config::worker_spin_microseconds);
+                const uint64_t until = spin_until();
                 detail::Backoff<32> backoff;
                 do {
                     if (auto f = take()) {
@@ -140,7 +160,7 @@ namespace sgcl::async {
                         return Frame();
                     }
                     backoff();
-                } while (std::chrono::steady_clock::now() < until);
+                } while (cpu_ticks() < until);
                 for (;;) {
                     if (auto f = take()) {
                         return f;
@@ -296,9 +316,10 @@ namespace sgcl::async {
         // compare-exchange on its head, a read of the entries validated
         // by that exchange (an entry cannot be overwritten before the
         // head has passed it); a ring that is full spills to the global
-        // queue. A ring keeps the words of the entries taken until they
-        // are overwritten, so a finished task's frame may stay allocated
-        // until its slot is reused.
+        // queue. The words of the entries taken are nulled by the owner,
+        // a batch at a time and all of them when it runs out of work
+        // (_clear_taken), so that a finished task's frame is not held by
+        // a slot the ring has not come round to.
         //
         // One scheduler per process, started on the first enqueue,
         // stopped when the program ends or by scheduler::stop(): the
@@ -314,20 +335,35 @@ namespace sgcl::async {
             // owner, a store), and the next slot (the owner alone)
             struct Local {
                 static constexpr uint32_t Size = 256;
+                static constexpr uint32_t ClearBatch = 16;   // the slots taken nulled this many at a time (_clear_taken)
 
                 std::atomic<uint32_t> head = {0};
                 std::atomic<uint32_t> tail = {0};
                 std::atomic<uint32_t> park = {0};   // the worker's own wake word: 1 = woken with the credit of a looking worker
+                uint32_t cleared = 0;               // the owner's: every slot below this index nulled since it was taken
                 uintptr_t stack_floor = 0;          // the lowest address the worker's stack may be cleared to (_clear_dead_stack)
                 Frame next;
                 Frame slots[Size];
             };
 
             static constexpr unsigned MaxWorkers = 64;   // the bits of the set of sleepers
+            // The dead stack a thread of the library clears before it parks
+            // or looks for work (the workers here, the blocking pool's
+            // threads and the timers' thread: clear_dead_stack): 4 KB in a
+            // build with NDEBUG, which measurement showed enough (note
+            // 254); 64 KB without, since the frames of -O0 are several
+            // times larger (a resumed coroutine, a wait's awaiter, a
+            // std::function) and the words they leave lie deeper than 4 KB
+            // below the park, where the conservative scan keeps what they
+            // point at alive. A definition of the build wins
 #ifndef SGCL_WORKER_STACK_CLEAR
+#if defined(NDEBUG)
 #define SGCL_WORKER_STACK_CLEAR 4096
+#else
+#define SGCL_WORKER_STACK_CLEAR 65536
 #endif
-            static constexpr size_t StackClearOnIdle = SGCL_WORKER_STACK_CLEAR;   // the dead stack a worker clears before looking for work: the frames of a task's last run, with what it called (a page; the tests clear 64 KB before their checks, config::stack_clear_size)
+#endif
+            static constexpr size_t StackClearOnIdle = SGCL_WORKER_STACK_CLEAR;   // the dead stack a worker clears before looking for work: the frames of a task's last run, with what it called (a page; the tests clear 64 KB before their checks, config::stack_clear_size); the blocking pool's threads and the timers' thread clear as much before they park (clear_dead_stack, below)
 
             struct Global {
                 concurrent::queue<Frame> ready;
@@ -383,9 +419,14 @@ namespace sgcl::async {
                 }
                 if (auto local = _local) {
                     if (next) {
-                        if (local->next) {
-                            _push_local(*local, local->next);   // the one waiting to run next goes to the end
+                        if (!local->next) {
+                            // a hand-over to this worker, run when the running
+                            // coroutine suspends: nobody else can take it (the
+                            // next slot is not stolen from), so nobody is woken
+                            local->next = std::move(frame);
+                            return;
                         }
+                        _push_local(*local, local->next);   // the one waiting to run next goes to the end, where others take it: the wake below
                         local->next = std::move(frame);
                     } else {
                         _push_local(*local, std::move(frame));
@@ -398,6 +439,12 @@ namespace sgcl::async {
 
             static bool on_worker() noexcept {
                 return _local != nullptr;
+            }
+
+            // The calling worker's index (0 .. MaxWorkers - 1), or MaxWorkers
+            // on any other thread: the timers' shard of a thread (timer.h)
+            static unsigned worker_index() noexcept {
+                return _local ? _index : MaxWorkers;
             }
 
             // The queues as they are: for the benchmarks and a look at a load
@@ -441,8 +488,29 @@ namespace sgcl::async {
                 return (unsigned)_workers.size();
             }
 
+            // The number of workers (0: the hardware concurrency), over the
+            // environment and the build's constant. Before the first start
+            // it is what the start takes; after it the workers are stopped
+            // (stop(): once the ready tasks have run) and started again
+            // with the new number, the queues kept, the rings of workers
+            // no longer there handed to the global queue (_start)
+            void set_workers(unsigned n) {
+                assert(!on_worker() && "scheduler::set_workers() from a task would join the calling thread");
+                {
+                    std::lock_guard lock(_lifecycle);
+                    _workers_set = true;
+                    _workers_asked = n;
+                    if (!_running.load(std::memory_order_acquire) || _resolve_workers() == _workers.size()) {
+                        return;
+                    }
+                }
+                stop();
+                _start();
+            }
+
         private:
             friend class WakeBatch;
+            friend struct SchedulerRingAccess;   // the tests of the ring (tests/async/scheduler.cpp): its operations on rings of their own
 
             void _gather(WakeBatch& batch, Frame& frame);   // below WakeBatch
 
@@ -462,7 +530,9 @@ namespace sgcl::async {
                 }
                 if (auto local = _local) {
                     auto t = local->tail.load(std::memory_order_relaxed);
-                    auto k = std::min<uint32_t>(n, Local::Size - (t - local->head.load(std::memory_order_acquire)));
+                    auto h = local->head.load(std::memory_order_acquire);
+                    auto k = std::min<uint32_t>(n, Local::Size - (t - h));
+                    _clear_before_push(*local, h, t + k);
                     for (uint32_t i = 0; i < k; ++i) {
                         local->slots[(t + i) % Local::Size] = std::move(frames[i]);
                     }
@@ -478,6 +548,23 @@ namespace sgcl::async {
                 _wake_one_if_none_looking();
             }
 
+            // The number the next start takes (under _lifecycle): the
+            // program's, else the environment's (read once, at the first
+            // start), else the build's; 0 the hardware concurrency; at
+            // most MaxWorkers
+            unsigned _resolve_workers() {
+                if (!_env_read) {
+                    _env_read = true;
+                    _workers_env = env_unsigned("SGCL_WORKERS", config::workers);
+                    const unsigned spin = env_unsigned("SGCL_WORKER_SPIN_US", config::worker_spin_microseconds);
+                    if (!worker_spin_set.load(std::memory_order_relaxed)) {
+                        worker_spin_us.store(spin, std::memory_order_relaxed);
+                    }
+                }
+                const unsigned asked = _workers_set ? _workers_asked : _workers_env;
+                return std::min(MaxWorkers, asked ? asked : std::max(1u, std::thread::hardware_concurrency()));
+            }
+
             void _start() {
                 std::lock_guard lock(_lifecycle);
                 if (_running.load(std::memory_order_acquire)) {
@@ -485,18 +572,36 @@ namespace sgcl::async {
                 }
                 _sleepers.store(0, std::memory_order_relaxed);
                 _spinning.store(0, std::memory_order_relaxed);
-                auto n = std::min(MaxWorkers, config::workers ? config::workers : std::max(1u, std::thread::hardware_concurrency()));
+                auto n = _resolve_workers();
                 if (!_global) {   // the queues are made once and kept across stops (stop): what was pushed while the workers were away runs now
                     _global = make_tracked<Global>();
-                    _locals.reserve(n);
-                    for (unsigned i = 0; i < n; ++i) {
-                        _locals.push_back(make_tracked<Local>());
-                    }
-                } else {
-                    for (auto& l : _locals) {
-                        l->park.store(0, std::memory_order_relaxed);   // the wake of the stop, taken by nobody: a worker starting with it would count itself woken and leave its bit among the sleepers
-                    }
+                    _locals.reserve(MaxWorkers);   // never reallocated: a thread that enqueues reads _locals[i] of a sleeper's bit without the lock
                 }
+                for (auto& l : _locals) {
+                    l->park.store(0, std::memory_order_relaxed);   // the wake of the stop, taken by nobody: a worker starting with it would count itself woken and leave its bit among the sleepers
+                }
+                while (_locals.size() < n) {
+                    _locals.push_back(make_tracked<Local>());
+                }
+                // fewer workers than rings (set_workers): what the rings
+                // past n hold, and their next slots, go to the global
+                // queue, which the workers take from; nobody runs them
+                // meanwhile (the workers are joined)
+                for (size_t i = n; i < _locals.size(); ++i) {
+                    Local& l = *_locals[i];
+                    if (l.next) {
+                        _global->ready.push(l.next);
+                        l.next = nullptr;
+                    }
+                    auto h = l.head.load(std::memory_order_relaxed);
+                    auto t = l.tail.load(std::memory_order_relaxed);
+                    for (; h != t; ++h) {
+                        _global->ready.push(l.slots[h % Local::Size]);
+                    }
+                    l.head.store(t, std::memory_order_relaxed);
+                    _clear_taken(l, t);
+                }
+                _active = n;
                 _stop.store(false, std::memory_order_release);
                 _workers.reserve(n);
                 for (unsigned i = 0; i < n; ++i) {
@@ -557,6 +662,7 @@ namespace sgcl::async {
                 auto t = local.tail.load(std::memory_order_relaxed);
                 auto h = local.head.load(std::memory_order_acquire);
                 if (t - h < Local::Size) {
+                    _clear_before_push(local, h, t + 1);
                     local.slots[t % Local::Size] = std::move(frame);
                     local.tail.store(t + 1, std::memory_order_release);
                 } else {
@@ -574,8 +680,44 @@ namespace sgcl::async {
                     }
                     Frame f = local.slots[h % Local::Size];
                     if (local.head.compare_exchange_strong(h, h + 1, std::memory_order_acq_rel, std::memory_order_acquire)) {
+                        if (h + 1 - local.cleared >= Local::ClearBatch) {
+                            _clear_taken(local, h + 1);
+                        }
                         return f;
                     }
+                }
+            }
+
+            // The owner: the slots taken since the last clear, by the owner
+            // or by thieves, nulled, so that a ring holds no frame but the
+            // ones queued on it (the word of a slot taken would otherwise
+            // hold the frame, and all a finished task's frame still points
+            // to, until the ring came round to the slot again: a whole
+            // request and its connection in the HTTP server, measured).
+            // Only below `head`, as read by the owner (acquire): a thief
+            // reads its slots before the exchange that moves the head past
+            // them (release), so its reads happen before these stores; a
+            // thief whose exchange fails may read a slot being nulled, a
+            // relaxed load of an atomic word, and drops what it read. Only
+            // the owner nulls: a thief's store could land after the ring
+            // came round and the owner put a new frame in that slot, which
+            // would be lost with the store. The null is the tracked_ptr's
+            // own assignment (a null store needs no barrier)
+            static void _clear_taken(Local& local, uint32_t head) noexcept {
+                for (uint32_t i = local.cleared; i != head; ++i) {
+                    local.slots[i % Local::Size] = nullptr;
+                }
+                local.cleared = head;
+            }
+
+            // The owner, about to fill the slots up to `end` (exclusive):
+            // a slot there may be one taken and not yet nulled, whose null
+            // would then fall on the new frame, so the taken ones below the
+            // head are nulled first when the fill reaches them (end is at
+            // most head + Size), and in batches of ClearBatch otherwise
+            static void _clear_before_push(Local& local, uint32_t head, uint32_t end) noexcept {
+                if (end - local.cleared > Local::Size || head - local.cleared >= Local::ClearBatch) {
+                    _clear_taken(local, head);
                 }
             }
 
@@ -583,7 +725,8 @@ namespace sgcl::async {
             // rest moved to this worker's ring. The entries are read, then
             // the victim's head exchanged past them; a failed exchange
             // leaves the copies in this ring's free slots, which its tail
-            // never reached, to be overwritten
+            // never reached, and nulls them. The victim's slots taken are
+            // the victim's to null (_clear_taken)
             Frame _steal(Local& victim, Local& mine) {
                 for (;;) {
                     auto h = victim.head.load(std::memory_order_acquire);
@@ -598,6 +741,7 @@ namespace sgcl::async {
                     if (n - 1 > room) {
                         n = room + 1;
                     }
+                    assert(mine.cleared == mine.head.load(std::memory_order_relaxed) && "a thief's ring is empty and cleared (_find_work): no slot it fills is nulled later");
                     Frame first = victim.slots[h % Local::Size];
                     for (uint32_t i = 1; i < n; ++i) {
                         mine.slots[(mt + i - 1) % Local::Size] = victim.slots[(h + i) % Local::Size];
@@ -607,6 +751,11 @@ namespace sgcl::async {
                             mine.tail.store(mt + n - 1, std::memory_order_release);
                         }
                         return first;
+                    }
+                    // the copies let go of: past this ring's tail no thief
+                    // reads them, and they would hold their frames
+                    for (uint32_t i = 1; i < n; ++i) {
+                        mine.slots[(mt + i - 1) % Local::Size] = nullptr;
                     }
                 }
             }
@@ -640,20 +789,23 @@ namespace sgcl::async {
                 // outlive its broadcast by a whole idle worker, under TSan
                 // half the time). A few kilobytes, once per run out of
                 // work, not per hop: a wake into the next slot never comes
-                // through here.
+                // through here. The ring's slots taken are nulled here too,
+                // all of them: an idle worker holds no finished frame (and
+                // an empty ring, cleared to its head, is what _steal fills)
                 _clear_dead_stack(mine);
+                _clear_taken(mine, mine.head.load(std::memory_order_acquire));
                 if (!credited) {
                     _spinning.fetch_add(1, std::memory_order_acq_rel);
                 }
                 Frame found;
-                auto until = std::chrono::steady_clock::now() + std::chrono::microseconds(config::worker_spin_microseconds);
+                const uint64_t until = spin_until();
                 detail::Backoff<32> backoff;
                 do {
                     if (auto f = _global->ready.try_pop()) {
                         found = std::move(*f);
                         break;
                     }
-                    auto n = (unsigned)_locals.size();
+                    auto n = _active;   // the rings of this start's workers (the ones past them were emptied by _start)
                     auto start = _random() % n;
                     for (unsigned k = 0; k < n && !found; ++k) {
                         auto v = (start + k) % n;
@@ -665,7 +817,7 @@ namespace sgcl::async {
                         break;
                     }
                     backoff();
-                } while (std::chrono::steady_clock::now() < until);
+                } while (cpu_ticks() < until);
                 if (_spinning.fetch_sub(1, std::memory_order_acq_rel) == 1 && found) {
                     _wake_one_if_none_looking();
                 }
@@ -758,11 +910,42 @@ namespace sgcl::async {
             std::atomic<unsigned> _spinning = {0};
             std::atomic<bool> _stop = {false};
             std::vector<std::thread> _workers;
+            unsigned _active = 0;          // the workers of this start: written before they are made, read by them
+            unsigned _workers_asked = 0;   // set_workers (under _lifecycle)
+            unsigned _workers_env = 0;     // SGCL_WORKERS, or config::workers
+            bool _workers_set = false;
+            bool _env_read = false;
         };
 
         inline Scheduler& scheduler_instance() {
             static Scheduler scheduler;
             return scheduler;
+        }
+
+        // The dead stack below the caller zeroed, SGCL_WORKER_STACK_CLEAR
+        // of it at most and never below `floor` (the thread's stack begin
+        // and config::stack_guard_margin): what a thread of the library
+        // that runs other code does before it parks (a thread of the
+        // blocking pool before it idles, the timers' thread before its
+        // sleep), so that the words the frames of what it just ran left
+        // there — a job and its closure, a timer and what it kept — are
+        // not seen by the collector's conservative scan of the parked
+        // thread, keeping their objects alive until the thread's next run
+        // over that region (Scheduler::_clear_dead_stack, the workers'
+        // own). The reactor's thread runs the library's code alone, whose
+        // tracked words are nulled as they die: nothing seen kept there
+        SGCL_NOINLINE inline void clear_dead_stack(uintptr_t floor) noexcept {
+            uintptr_t here = (uintptr_t)&here;
+            uintptr_t limit = here > SGCL_WORKER_STACK_CLEAR ? here - SGCL_WORKER_STACK_CLEAR : 0;
+            if (limit < floor) {
+                limit = floor;
+            }
+            detail::os::hidden_call([](void*) {}, nullptr, limit);
+        }
+
+        // The floor of clear_dead_stack for the calling thread
+        inline uintptr_t dead_stack_floor() noexcept {
+            return detail::current_thread().stack_begin() + config::stack_guard_margin;
         }
 
         // The wakes of many tasks at once, gathered and handed to the
@@ -958,10 +1141,38 @@ namespace sgcl::async {
 
     // The scheduler as the program sees it
     struct scheduler {
-        // The number of worker threads (config::workers, or the hardware
-        // concurrency); the first call makes the scheduler
+        // The number of worker threads: set_workers', else SGCL_WORKERS
+        // from the environment (read once, at the first start), else
+        // config::workers; 0 in any of them the hardware concurrency; at
+        // most 64. The first call makes the scheduler
         static unsigned workers() {
             return detail::scheduler_instance().workers();
+        }
+
+        // The number of workers from now on (0: the hardware concurrency),
+        // over SGCL_WORKERS and config::workers. Before the first task it
+        // is what the scheduler starts with; after it the workers are
+        // stopped as stop() stops them, once the ready tasks have run,
+        // and started again with the new number, the queues kept. Not
+        // from a task (it joins the workers); a program sets it at a
+        // quiet moment
+        static void set_workers(unsigned n) {
+            detail::scheduler_instance().set_workers(n);
+        }
+
+        // How long a worker with nothing to run looks for work before it
+        // sleeps in the kernel (a task made ready in that window costs no
+        // wake), over SGCL_WORKER_SPIN_US and
+        // config::worker_spin_microseconds; applies at once, workers
+        // running or not
+        static void set_worker_spin(duration d) {
+            const auto us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::nanoseconds(d)).count();
+            detail::worker_spin_set.store(true, std::memory_order_relaxed);
+            detail::worker_spin_us.store(us < 0 ? 0u : unsigned(std::min<long long>(us, 0xFFFFFFFFll)), std::memory_order_relaxed);
+        }
+
+        static duration worker_spin() noexcept {
+            return std::chrono::microseconds(detail::worker_spin_us.load(std::memory_order_relaxed));
         }
 
         // Whether the calling thread is one of the workers

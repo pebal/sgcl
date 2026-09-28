@@ -142,19 +142,20 @@ namespace sgcl::txt {
 
         // The case of a letter, where a collator was asked about it.
         //
-        // It is a property of the letter and not of its weights. The
-        // root writes it into the third weight — the capitals in a band
-        // above the small letters of the same kind — but a language
-        // that moves a letter gives it a weight of its own between two
-        // of the root's, and there the band says nothing: Danish "Œ"
-        // and Maltese "Għ" come out of their rules with weights that
-        // are in no band at all, and a collator that sorts the capitals
-        // first has to see them for what they are. So the case is read
-        // from the code points the letter is written with, as ICU reads
-        // it, and carried in the two bits above the weight where the
-        // weight is read at all. A letter written with both cases —
-        // Danish sorts "Aa" as a letter — is neither, and sorts between
-        // them, which is what ICU does with it.
+        // The root writes it into the third weight — the capitals in a
+        // band above the small letters of the same kind — and an element
+        // of the root takes its case from there, each element its own
+        // (band_case: ǅ is a capital and a small letter, as in ICU). But
+        // a language that moves a letter gives it a weight of its own
+        // between two of the root's, and there the band says nothing:
+        // Danish "Œ" and Maltese "Għ" come out of their rules with
+        // weights that are in no band at all, and a collator that sorts
+        // the capitals first has to see them for what they are. So the
+        // case of a language's letter is read from the code points it is
+        // written with, as ICU reads it, and carried in the two bits
+        // above the weight where the weight is read at all. A letter
+        // written with both cases — Danish sorts "Aa" as a letter — is
+        // neither, and sorts between them, which is what ICU does with it.
         inline constexpr int CaseShift = 14;
         inline constexpr uint8_t CaseLower = 1;      // and everything with no case
         inline constexpr uint8_t CaseMixed = 2;      // a titlecase letter, or "Aa"
@@ -177,6 +178,55 @@ namespace sgcl::txt {
                 return CaseMixed;
             }
             return upper ? CaseUpper : CaseLower;
+        }
+
+        // Kana have no case of their own, and CLDR gives them one from the
+        // third weight of the root (UTS #10, the table of tertiary
+        // weights): the small kana (0x0D small hiragana, 0x0F small
+        // katakana, 0x10 their narrow forms) are the small letters, the
+        // normal ones (0x0E hiragana, 0x11 katakana, 0x12 narrow) the
+        // capitals, so that case_level tells ぁ from あ and upper_first
+        // puts あ before ぁ, as ICU does. Read from the letter's first
+        // element with a weight at the first level, where it is the
+        // root's own (a multiple of the room left between weights)
+        inline uint8_t kana_case(uint8_t rank, const Element* elements, size_t count) noexcept {
+            if (rank != CaseLower) {
+                return rank;
+            }
+            for (size_t i = 0; i < count; ++i) {
+                if (!elements[i].primary) {
+                    continue;
+                }
+                uint16_t t = elements[i].tertiary;
+                if (t & ((1u << TertiaryShift) - 1)) {
+                    return rank;              // a language's weight: no band to read
+                }
+                uint16_t raw = uint16_t(t >> TertiaryShift);
+                return raw == 0x0E || raw == 0x11 || raw == 0x12 ? CaseUpper : rank;
+            }
+            return rank;
+        }
+
+        // The case of an element of the root, from the band of its third
+        // weight (UTS #10, the table of tertiary weights): the capitals,
+        // wide, compatibility, font, circled and square ones (0x08 to
+        // 0x0C, 0x1D), and the normal kana (0x0E, 0x11, 0x12), which CLDR
+        // counts as capitals (kana_case); everything else small. ICU
+        // gives every element of the root its case this way, so a letter
+        // that expands has as many cases as elements: ǅ is a capital and
+        // a small letter there, not one titlecase letter, and Ⓐ and Ⅰ are
+        // capitals though no Lu.
+        inline uint8_t band_case(uint16_t tertiary) noexcept {
+            if (tertiary & ((1u << TertiaryShift) - 1)) {
+                return CaseLower;             // not a band (a weight made between two)
+            }
+            switch (tertiary >> TertiaryShift) {
+            case 0x08: case 0x09: case 0x0A: case 0x0B: case 0x0C:
+            case 0x0E: case 0x11: case 0x12: case 0x1D:
+                return CaseUpper;
+            default:
+                return CaseLower;
+            }
         }
 
         // The weight as the levels below the accents read it: the case
@@ -530,6 +580,7 @@ namespace sgcl::txt {
         // expansion is 22, so there is room for two. Raise the two
         // together or not at all.
         inline constexpr size_t MaxElements = 24;
+        inline constexpr size_t MaxRulePoints = 8;   // the code points of a language's rule: six at most (the generator's tables)
 
         // The elements of a text held while it is compared or keyed. A
         // letter is one or two of them, so this is a sentence: two of
@@ -769,19 +820,6 @@ namespace sgcl::txt {
             return lo;
         }
 
-        template<bool Track>
-        inline bool same_points(nfd_window<Track>& points, uint16_t pool_at, size_t size) {
-            if (!points.ensure(size)) {
-                return false;
-            }
-            for (size_t i = 0; i < size; ++i) {
-                if (points[i] != collate_tables::TailoringPoints[pool_at + i]) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
         // What the language makes of the code points from here on: how
         // many of them it takes, and where the elements it gives them
         // are. The longest match wins, so Hungarian's "dzs" beats its
@@ -795,8 +833,99 @@ namespace sgcl::txt {
             const TailoredPoint* point = nullptr;
         };
 
+        // Where the code points of a rule that stand apart were found
+        struct rule_apart_found {
+            uint8_t count = 0;
+            uint8_t at[MaxRulePoints];
+        };
+
+        // The code points of a language's rule at the window's start: the
+        // first ones as they stand together, and the ones after them, if
+        // they do not, further off past marks that do not block them (UCA
+        // S2.1.1 to S2.1.3, as the root's match_contraction has it): a
+        // combining mark of a lower class between is no obstacle, one of
+        // the same or a higher class, or a starter, is. Sv's rule for ô
+        // meets O U+0334 U+0302, which is how Ô followed by U+0334 is
+        // decomposed and put in canonical order.
         template<bool Track>
-        inline tailored_match tailored(nfd_window<Track>& points, const Tailoring& language) {
+        SGCL_NOINLINE bool rule_apart(nfd_window<Track>& points, uint16_t pool_at, size_t size, size_t k, rule_apart_found& f);
+
+        // Apart false: only where the code points stand together, saying
+        // in `maybe` whether a mark stands where the rule goes on, so that
+        // the search past the marks is made (Apart true) only then — the
+        // window never handed to a call on the common path, which kept
+        // its words in registers there (Polish compare 188 → 211 ns with
+        // the call inline, measured)
+        template<bool Apart, bool Track>
+        inline bool rule_at(nfd_window<Track>& points, uint16_t pool_at, size_t size, bool& maybe) {
+            using namespace collate_tables;
+            if (!points.ensure(size)) {        // as many code points as the rule, together or apart
+                return false;
+            }
+            for (size_t k = 1; k < size; ++k) {
+                if (points[k] != TailoringPoints[pool_at + k]) {
+                    // what stands where the rule goes on is a letter: no
+                    // mark to look past (below U+0300 everything is a
+                    // starter), which is how nearly every text answers
+                    if (points[k] < 0x0300) {
+                        return false;
+                    }
+                    if constexpr (!Apart) {
+                        maybe = true;
+                        return false;
+                    } else {
+                        rule_apart_found f;
+                        return rule_apart(points, pool_at, size, k, f);
+                    }
+                }
+            }
+            return true;
+        }
+
+        // The rest of a rule one by one, each the first mark past the ones
+        // before that nothing blocks; a mark already taken, by an earlier
+        // match or by this one, is no longer in the text
+        template<bool Track>
+        SGCL_NOINLINE bool rule_apart(nfd_window<Track>& points, uint16_t pool_at, size_t size, size_t k, rule_apart_found& f) {
+            using namespace collate_tables;
+            size_t start = k;
+            size_t found = 0;
+            for (; k < size; ++k) {
+                char32_t want = TailoringPoints[pool_at + k];
+                uint8_t last_class = 0;
+                bool hit = false;
+                for (size_t i = start; points.ensure(i + 1); ++i) {
+                    if (points.taken(i)) {
+                        continue;
+                    }
+                    bool used = false;
+                    for (size_t j = 0; j < found; ++j) {
+                        used |= f.at[j] == i;
+                    }
+                    if (used) {
+                        continue;
+                    }
+                    uint8_t cc = ccc_fn(points[i]);
+                    if (cc == 0) {
+                        break;
+                    }
+                    if (points[i] == want && cc > last_class) {
+                        f.at[found++] = uint8_t(i);
+                        hit = true;
+                        break;
+                    }
+                    last_class = cc;
+                }
+                if (!hit) {
+                    return false;
+                }
+            }
+            f.count = uint8_t(found);
+            return true;
+        }
+
+        template<bool Apart, bool Track>
+        inline tailored_match tailored(nfd_window<Track>& points, const Tailoring& language, bool& maybe) {
             using namespace collate_tables;
             tailored_match best;
             char32_t c = points[0];
@@ -814,7 +943,7 @@ namespace sgcl::txt {
                                       [](const TailoredSequence& r) { return TailoringPoints[r.at]; });
                  i < last && TailoringPoints[TailoredSequences[i].at] == c; ++i) {
                 auto& row = TailoredSequences[i];
-                if (row.size > best.size && same_points(points, row.at, row.size)) {
+                if (row.size > best.size && rule_at<Apart>(points, row.at, row.size, maybe)) {
                     best = {row.size, &row, nullptr, nullptr};
                 }
             }
@@ -823,7 +952,7 @@ namespace sgcl::txt {
                                       [](const TailoredExpansion& r) { return TailoringPoints[r.points_at]; });
                  i < last && TailoringPoints[TailoredExpansions[i].points_at] == c; ++i) {
                 auto& row = TailoredExpansions[i];
-                if (row.points_size > best.size && same_points(points, row.points_at, row.points_size)) {
+                if (row.points_size > best.size && rule_at<Apart>(points, row.points_at, row.points_size, maybe)) {
                     best = {row.points_size, nullptr, &row, nullptr};
                 }
             }
@@ -1167,10 +1296,20 @@ namespace sgcl::txt {
                 }
                 if constexpr (!Plain) {
                     if (_how.cased) {
-                        uint8_t rank = case_rank(_letter, _letters);
-                        for (uint8_t i = 0; i < _count; ++i) {
-                            _pending[i].tertiary =
-                                with_case(_pending[i].tertiary, rank, _how.upper_first);
+                        if (_rooted) {
+                            // the root's own elements: each its own case,
+                            // from the band its third weight is in, as
+                            // ICU has it (ǅ is a capital D and a small ž)
+                            for (uint8_t i = 0; i < _count; ++i) {
+                                _pending[i].tertiary = with_case(_pending[i].tertiary,
+                                                                 band_case(_pending[i].tertiary), _how.upper_first);
+                            }
+                        } else {
+                            uint8_t rank = kana_case(case_rank(_letter, _letters), _pending, _count);
+                            for (uint8_t i = 0; i < _count; ++i) {
+                                _pending[i].tertiary =
+                                    with_case(_pending[i].tertiary, rank, _how.upper_first);
+                            }
                         }
                     }
                 }
@@ -1181,6 +1320,7 @@ namespace sgcl::txt {
                 _read = 0;
                 if constexpr (!Plain) {
                     _letters = 0;
+                    _rooted = true;
                 }
                 element_sink out{_pending};
 
@@ -1216,6 +1356,13 @@ namespace sgcl::txt {
                         // a composed ż meets the rule that moves it.
                         if (self_contained(c) && !mark_ahead(text, at + n)) {
                             if (!_language || !((_language->starters >> (c & 63)) & 1)) {
+                                // a composed letter that extends one the
+                                // language moves (ǻ over å) is left to the
+                                // window, which decomposes it; a mask of
+                                // its own, asked past ASCII alone
+                                if (_language && c >= 0x80 && ((_language->extending >> (c & 63)) & 1)) {
+                                    goto window;
+                                }
                                 weights_of(out, c);
                                 _note(c);
                                 _bytes(at, n);
@@ -1229,6 +1376,7 @@ namespace sgcl::txt {
                             if (auto one = tailored_one(c, *_language)) {
                                 out.push_back({one->primary, one->secondary, one->tertiary});
                                 _note(c);
+                                _language_took();
                                 _bytes(at, n);
                                 _count = out.count;
                                 return true;
@@ -1237,6 +1385,7 @@ namespace sgcl::txt {
                     }
                 }
 
+            window:
                 // what a contraction has already taken is passed over
                 while (_points.ensure(1) && _points.taken(0)) {
                     _points.skip(1);
@@ -1250,7 +1399,11 @@ namespace sgcl::txt {
                 // that begins none asks for nothing
                 tailored_match theirs;
                 if (_language) {
-                    theirs = tailored(_points, *_language);
+                    bool apart = false;
+                    theirs = tailored<false>(_points, *_language, apart);
+                    if (apart) [[unlikely]] {
+                        theirs = _tailored_apart();
+                    }
                 }
                 auto root = match_contraction(_points);
                 if constexpr (Track) {
@@ -1262,12 +1415,27 @@ namespace sgcl::txt {
                 // many of them itself
                 if (theirs.size && theirs.size >= (root.entry ? root.points() : 1)) {
                     put_tailored(out, theirs);
-                    _took(theirs.size);
+                    _language_took();
+                    // the code points that stand together from the first;
+                    // the rest of the rule was found further off (S2.1)
+                    size_t together = 1;
+                    if (theirs.size > 1) {
+                        uint16_t at = theirs.sequence ? theirs.sequence->at : theirs.expansion->points_at;
+                        while (together < theirs.size
+                               && _points[together] == collate_tables::TailoringPoints[at + together]) {
+                            ++together;
+                        }
+                    }
+                    _took(together);
+                    size_t end = together - 1;
+                    if (together < theirs.size) [[unlikely]] {
+                        end = _take_apart(theirs, together, end);
+                    }
                     _count = out.count;
                     if constexpr (Track) {
-                        _to = _points.upto(theirs.size - 1);
+                        _to = _points.upto(end);
                     }
-                    _points.skip(theirs.size);
+                    _points.skip(together);
                     return true;
                 }
                 if (root.entry) {
@@ -1307,6 +1475,35 @@ namespace sgcl::txt {
                     if (_letters < std::size(_letter)) {
                         _letter[_letters++] = c;
                     }
+                }
+            }
+
+            // The language's rules asked again, past the marks (S2.1)
+            SGCL_NOINLINE tailored_match _tailored_apart() {
+                bool unused = false;
+                return tailored<true>(_points, *_language, unused);
+            }
+
+            // The code points of a language's rule that stood further off
+            // (S2.1), looked for again and taken; where the last of them is
+            SGCL_NOINLINE size_t _take_apart(const tailored_match& theirs, size_t together, size_t end) {
+                rule_apart_found f;
+                rule_apart(_points, theirs.sequence ? theirs.sequence->at : theirs.expansion->points_at,
+                           theirs.size, together, f);
+                for (size_t k = 0; k < f.count; ++k) {
+                    _note(_points[f.at[k]]);
+                    _points.take(f.at[k]);
+                    end = std::max<size_t>(end, f.at[k]);
+                }
+                return end;
+            }
+
+            // The letter just weighed is the language's: its weights are
+            // in no band of the root, and its case is read from its code
+            // points
+            void _language_took() noexcept {
+                if constexpr (!Plain) {
+                    _rooted = false;
                 }
             }
 
@@ -1354,6 +1551,7 @@ namespace sgcl::txt {
             // with, which is where its case is read from
             char32_t _letter[8];
             uint8_t _letters = 0;
+            bool _rooted = true;                      // the letter's elements are the root's
         };
 
         // The whole text at once, for a caller that needs every element:
@@ -1375,6 +1573,75 @@ namespace sgcl::txt {
             Element element;
             uint32_t from, to;
             uint8_t flags;
+        };
+
+        // The elements of a weighed text, read through a pointer and a
+        // count. A collated_text that is kept owns them, in a vector of
+        // the library: they are its data, and building them there
+        // measured faster than in fresh plain memory. One that
+        // collator::find weighs for the call alone borrows them from
+        // scratch the thread lends (detail/lent.h): as a managed buffer
+        // they were 327 KB of garbage for one find through ten
+        // kilobytes. The pointer beside the vector that owns its target
+        // is a word the collector's diagnostic knows (DESIGN 229); a
+        // borrowed one points into plain memory and is nothing to it.
+        class placed_text {
+        public:
+            placed_text() noexcept = default;
+
+            explicit placed_text(vector<placed> own) noexcept
+            : _own(std::move(own))
+            , _data(_own.data())
+            , _size(_own.size()) {
+            }
+
+            explicit placed_text(const scratch_vector<placed>& borrowed) noexcept
+            : _data(borrowed.data())
+            , _size(borrowed.size())
+            , _borrowed(true) {
+            }
+
+            placed_text(const placed_text& other)
+            : _own(other._own)
+            , _data(other._borrowed ? other._data : _own.data())
+            , _size(other._size)
+            , _borrowed(other._borrowed) {
+            }
+
+            placed_text(placed_text&& other) noexcept
+            : _own(std::move(other._own))
+            , _data(other._borrowed ? other._data : _own.data())
+            , _size(other._size)
+            , _borrowed(other._borrowed) {
+                other._data = nullptr;
+                other._size = 0;
+            }
+
+            placed_text& operator=(placed_text other) noexcept {
+                _own = std::move(other._own);
+                _data = other._borrowed ? other._data : _own.data();
+                _size = other._size;
+                _borrowed = other._borrowed;
+                return *this;
+            }
+
+            size_t size() const noexcept {
+                return _size;
+            }
+
+            bool empty() const noexcept {
+                return _size == 0;
+            }
+
+            const placed& operator[](size_t i) const noexcept {
+                return _data[i];
+            }
+
+        private:
+            vector<placed> _own;
+            const placed* _data = nullptr;
+            size_t _size = 0;
+            bool _borrowed = false;
         };
 
         inline constexpr uint8_t HeadsSequence = 1;    // a combining sequence begins here
@@ -1929,9 +2196,10 @@ namespace sgcl::txt {
                 || detail::quaternary_of(a) == detail::quaternary_of(b);
         }
 
-        // The text as its elements, each with the bytes it came from
-        places _places(const slice<const char>& text) const {
-            places out;
+        // The text as its elements, each with the bytes it came from,
+        // into a vector of the library or a plain one
+        template<class Out>
+        void _places_into(Out& out, const slice<const char>& text) const {
             out.reserve(text.size());
             detail::element_stream<true, false> stream(text.view(), _tailoring, _how);
             detail::Element e;
@@ -1941,6 +2209,11 @@ namespace sgcl::txt {
                                         | (stream.last_of_letter() ? detail::LastOfLetter : 0));
                 out.push_back({e, uint32_t(stream.from()), uint32_t(stream.upto()), flags});
             }
+        }
+
+        places _places(const slice<const char>& text) const {
+            places out;
+            _places_into(out, text);
             return out;
         }
 
@@ -1958,7 +2231,7 @@ namespace sgcl::txt {
 
         // The pattern against the text from the i-th element on, with
         // both boundaries asked for
-        optional<match> _match(const places& text, size_t i, const elements& wanted,
+        optional<match> _match(const detail::placed_text& text, size_t i, const elements& wanted,
                                size_t* ended = nullptr) const {
             auto& first = text[i];
             if (!_counts(first.element) || !(first.flags & detail::HeadsSequence)
@@ -2290,7 +2563,16 @@ namespace sgcl::txt {
         }
 
     private:
+        friend class collator;
         friend class collated_matches;
+
+        // Over elements weighed for one call and lent by the thread
+        // (collator::find and its kind): kept no longer than the call
+        collated_text(const collator& by, const string& text, const detail::scratch_vector<detail::placed>& weighed)
+        : _by(by)
+        , _text(text)
+        , _places(weighed) {
+        }
 
         // Whether a searcher was weighed by some other collator than
         // the one this text was weighed by, in which case it answers
@@ -2338,7 +2620,7 @@ namespace sgcl::txt {
 
         collator _by;
         string _text;
-        collator::places _places;
+        detail::placed_text _places;
     };
 
     // Every occurrence, the text weighed once for all of them. A range
@@ -2503,20 +2785,31 @@ namespace sgcl::txt {
     // is what makes a loop over the occurrences quadratic. A
     // collated_text kept, or collated_matches, is the way to ask more
     // than once.
+    //
+    // The text is weighed into scratch the thread lends, and nothing of
+    // it outlives the call.
     inline optional<collator::match> collator::find(const string& text, const string& pattern,
                                                     size_t from) const {
-        return collated_text(*this, text).find(pattern, from);
+        detail::lent<detail::scratch_vector<detail::placed>> weighed;
+        _places_into(*weighed, text.as_slice());
+        return collated_text(*this, text, *weighed).find(pattern, from);
     }
 
     inline bool collator::contains(const string& text, const string& pattern) const {
-        return collated_text(*this, text).contains(pattern);
+        detail::lent<detail::scratch_vector<detail::placed>> weighed;
+        _places_into(*weighed, text.as_slice());
+        return collated_text(*this, text, *weighed).contains(pattern);
     }
 
     inline bool collator::starts_with(const string& text, const string& pattern) const {
-        return collated_text(*this, text).starts_with(pattern);
+        detail::lent<detail::scratch_vector<detail::placed>> weighed;
+        _places_into(*weighed, text.as_slice());
+        return collated_text(*this, text, *weighed).starts_with(pattern);
     }
 
     inline bool collator::ends_with(const string& text, const string& pattern) const {
-        return collated_text(*this, text).ends_with(pattern);
+        detail::lent<detail::scratch_vector<detail::placed>> weighed;
+        _places_into(*weighed, text.as_slice());
+        return collated_text(*this, text, *weighed).ends_with(pattern);
     }
 }

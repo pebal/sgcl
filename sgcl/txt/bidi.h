@@ -118,12 +118,82 @@ namespace sgcl::txt {
 
         inline constexpr uint8_t MaxDepth = 125;
 
+        // One entry of the stack of X1 to X8
+        struct bidi_entry {
+            uint8_t level;
+            bidi override_status;   // on when there is none
+            bool isolate;
+        };
+
+        // One pair of brackets of N0, by their places in a sequence
+        struct bidi_bracket {
+            char32_t closing;
+            size_t at;
+        };
+
+        // Every array the algorithm works in, over one paragraph. None of
+        // them holds a pointer the collector has to see and none leaves
+        // the call — what a caller is given, the levels or the visual
+        // order, is copied out once, at its size — so they are plain
+        // memory, lent by the thread (detail/lent.h). As vectors of the
+        // library the arrays, the runs and the sequences were 47 managed
+        // objects and 85 KB of garbage for a kilobyte of text given to
+        // levels(); as fresh std::vectors, a malloc each, the levels of a
+        // short line took two fifths longer than that.
+        struct bidi_run {
+            size_t first;
+            size_t last;
+        };
+
+        struct bidi_scratch {
+            scratch_vector<char32_t> points;
+            scratch_vector<size_t> at;
+            scratch_vector<bidi> initial;
+            scratch_vector<bidi> types;
+            scratch_vector<uint8_t> levels;
+            scratch_vector<uint8_t> explicit_levels;    // what X1 to X8 set, before I1 and I2
+            scratch_vector<bidi_entry> stack;
+            scratch_vector<size_t> significant;
+            scratch_vector<bidi_run> runs;              // [first, last) of significant
+            scratch_vector<uint8_t> used;
+            scratch_vector<size_t> sequence;
+            scratch_vector<bidi_bracket> brackets;
+            scratch_vector<bidi_run> pairs;             // the places of an opening and a closing bracket
+            scratch_vector<size_t> order;
+        };
+
+        template<class F>
+        void lent_each(bidi_scratch& s, F& f) {
+            f(s.points);
+            f(s.at);
+            f(s.initial);
+            f(s.types);
+            f(s.levels);
+            f(s.explicit_levels);
+            f(s.stack);
+            f(s.significant);
+            f(s.runs);
+            f(s.used);
+            f(s.sequence);
+            f(s.brackets);
+            f(s.pairs);
+            f(s.order);
+        }
+
         // The whole of the algorithm over one paragraph. The text is kept
         // as code points, because every rule of it looks left and right
         // and does so many times.
         class paragraph {
         public:
-            paragraph(std::string_view text, direction ask) {
+            paragraph(std::string_view text, direction ask)
+            : _points(_scratch->points)
+            , _at(_scratch->at)
+            , _initial(_scratch->initial)
+            , _types(_scratch->types)
+            , _levels(_scratch->levels)
+            , _explicit(_scratch->explicit_levels) {
+                _points.reserve(text.size());
+                _at.reserve(text.size());
                 for (size_t i = 0; i < text.size();) {
                     auto [c, n] = utf8::decode(text, i);
                     _points.push_back(c);
@@ -153,15 +223,15 @@ namespace sgcl::txt {
                 return _level;
             }
 
-            const vector<uint8_t>& levels() const noexcept {
+            const scratch_vector<uint8_t>& levels() const noexcept {
                 return _levels;
             }
 
-            const vector<size_t>& positions() const noexcept {
+            const scratch_vector<size_t>& positions() const noexcept {
                 return _at;
             }
 
-            const vector<char32_t>& points() const noexcept {
+            const scratch_vector<char32_t>& points() const noexcept {
                 return _points;
             }
 
@@ -174,9 +244,11 @@ namespace sgcl::txt {
             }
 
             // L2: the characters in the order they are drawn, the ones
-            // X9 removed left out
-            vector<size_t> order() const {
-                vector<size_t> out;
+            // X9 removed left out: in the paragraph's scratch, valid as
+            // long as it is
+            const scratch_vector<size_t>& order() const {
+                auto& out = _scratch->order;
+                out.clear();
                 for (size_t i = 0; i < _points.size(); ++i) {
                     if (!removed(i)) {
                         out.push_back(i);
@@ -242,12 +314,7 @@ namespace sgcl::txt {
 
             // X1 to X8
             void _explicit_levels() {
-                struct entry {
-                    uint8_t level;
-                    bidi override_status;   // on when there is none
-                    bool isolate;
-                };
-                vector<entry> stack;
+                auto& stack = _scratch->stack;
                 stack.push_back({_level, bidi::on, false});
                 unsigned overflow_isolate = 0, overflow_embedding = 0, valid_isolate = 0;
                 for (size_t i = 0; i < _points.size(); ++i) {
@@ -338,7 +405,7 @@ namespace sgcl::txt {
             // X10: the isolating run sequences, and the rules W, N and I
             // over each of them
             void _sequences() {
-                vector<size_t> significant;
+                auto& significant = _scratch->significant;
                 for (size_t i = 0; i < _points.size(); ++i) {
                     if (!is_removed_by_x9(_initial[i])) {
                         significant.push_back(i);
@@ -347,34 +414,37 @@ namespace sgcl::txt {
                 if (significant.empty()) {
                     return;
                 }
-                // the level runs, over the characters X9 left
-                vector<vector<size_t>> runs;
+                // the level runs, over the characters X9 left: each one
+                // a stretch [first, last) of the significant ones
+                auto& runs = _scratch->runs;
                 for (size_t k = 0; k < significant.size();) {
                     size_t j = k;
                     uint8_t l = _explicit[significant[k]];
                     while (j < significant.size() && _explicit[significant[j]] == l) {
                         ++j;
                     }
-                    runs.emplace_back(significant.begin() + ptrdiff_t(k), significant.begin() + ptrdiff_t(j));
+                    runs.push_back({k, j});
                     k = j;
                 }
-                vector<bool> used(runs.size(), false);
+                auto& used = _scratch->used;
+                used.assign(runs.size(), 0);
+                auto& sequence = _scratch->sequence;
                 for (size_t r = 0; r < runs.size(); ++r) {
                     if (used[r]) {
                         continue;
                     }
                     // a sequence starts at a run whose first character is
                     // not a PDI that closes an isolate initiator
-                    size_t first = runs[r].front();
+                    size_t first = significant[runs[r].first];
                     if (_initial[first] == bidi::pdi && _opens_of(first) != _points.size()) {
                         continue;
                     }
-                    vector<size_t> sequence;
+                    sequence.clear();
                     size_t at = r;
                     for (;;) {
-                        used[at] = true;
-                        sequence.insert(sequence.end(), runs[at].begin(), runs[at].end());
-                        size_t last = runs[at].back();
+                        used[at] = 1;
+                        sequence.append(significant.begin() + runs[at].first, significant.begin() + runs[at].last);
+                        size_t last = significant[runs[at].last - 1];
                         if (!is_isolate_initiator(_initial[last])) {
                             break;
                         }
@@ -392,9 +462,10 @@ namespace sgcl::txt {
                 }
             }
 
-            size_t _run_of(const vector<vector<size_t>>& runs, size_t at) const {
+            size_t _run_of(const scratch_vector<bidi_run>& runs, size_t at) const {
+                auto& significant = _scratch->significant;
                 for (size_t i = 0; i < runs.size(); ++i) {
-                    if (runs[i].front() == at) {
+                    if (significant[runs[i].first] == at) {
                         return i;
                     }
                 }
@@ -415,7 +486,7 @@ namespace sgcl::txt {
                 return _points.size();
             }
 
-            void _resolve(const vector<size_t>& s) {
+            void _resolve(const scratch_vector<size_t>& s) {
                 if (s.empty()) {
                     return;
                 }
@@ -568,10 +639,11 @@ namespace sgcl::txt {
 
             // N0: a pair of brackets takes one direction, and the text
             // inside it does not pull them apart
-            void _brackets(const vector<size_t>& s, bidi sos, uint8_t level) {
-                struct open { char32_t closing; size_t at; };
-                vector<open> stack;
-                vector<std::pair<size_t, size_t>> pairs;
+            void _brackets(const scratch_vector<size_t>& s, bidi sos, uint8_t level) {
+                auto& stack = _scratch->brackets;
+                auto& pairs = _scratch->pairs;
+                stack.clear();
+                pairs.clear();
                 for (size_t k = 0; k < s.size(); ++k) {
                     if (_types[s[k]] != bidi::on) {
                         continue;
@@ -590,14 +662,16 @@ namespace sgcl::txt {
                         for (size_t d = stack.size(); d > 0;) {
                             --d;
                             if (stack[d].closing == here) {
-                                pairs.emplace_back(stack[d].at, k);
+                                pairs.push_back({stack[d].at, k});
                                 stack.resize(d);
                                 break;
                             }
                         }
                     }
                 }
-                std::sort(pairs.begin(), pairs.end());
+                std::sort(pairs.begin(), pairs.end(), [](const bidi_run& a, const bidi_run& b) {
+                    return a.first != b.first ? a.first < b.first : a.last < b.last;
+                });
                 bidi embedding = level % 2 ? bidi::r : bidi::l;
                 for (auto [from, to] : pairs) {
                     bool strong_embedding = false, strong_other = false;
@@ -694,12 +768,13 @@ namespace sgcl::txt {
                 }
             }
 
-            vector<char32_t> _points;
-            vector<size_t> _at;
-            vector<bidi> _initial;
-            vector<bidi> _types;
-            vector<uint8_t> _levels;
-            vector<uint8_t> _explicit;    // what X1 to X8 set, before I1 and I2
+            lent<bidi_scratch> _scratch;
+            scratch_vector<char32_t>& _points;
+            scratch_vector<size_t>& _at;
+            scratch_vector<bidi>& _initial;
+            scratch_vector<bidi>& _types;
+            scratch_vector<uint8_t>& _levels;
+            scratch_vector<uint8_t>& _explicit;    // what X1 to X8 set, before I1 and I2
             uint8_t _level = 0;
         };
     }
@@ -733,7 +808,9 @@ namespace sgcl::txt {
     // odd right to left. What a renderer needs when it lays the text out
     // itself; bidi_runs is the same thing already cut into pieces.
     inline vector<uint8_t> levels(const string& text, direction paragraph = direction::automatic) {
-        return detail::paragraph(text.view(), paragraph).levels();
+        detail::paragraph p(text.view(), paragraph);
+        auto& levels = p.levels();
+        return vector<uint8_t>(levels.begin(), levels.end());
     }
 
     namespace detail {
@@ -741,7 +818,7 @@ namespace sgcl::txt {
         // forms of mirrored() below come through here, and the loop
         // decodes rather than taking the paragraph's code points, so
         // that a caller who has only the levels needs nothing else.
-        inline string mirror_text(const string& text, const vector<uint8_t>& levels) {
+        inline string mirror_text(const string& text, const uint8_t* levels, size_t count) {
             auto v = text.view();
             // The width of the answer is the sum of the widths, and a
             // mirror need not be as wide as what it stands for: nothing
@@ -752,7 +829,7 @@ namespace sgcl::txt {
             size_t changed = 0;
             for (size_t i = 0, k = 0; i < v.size(); ++k) {
                 auto [c, n] = utf8::decode(v, i);
-                char32_t m = k < levels.size() && (levels[k] & 1) ? mirrored_of_fn(c) : c;
+                char32_t m = k < count && (levels[k] & 1) ? mirrored_of_fn(c) : c;
                 if (m != c) {
                     ++changed;
                     grew += ptrdiff_t(utf8::width(m)) - ptrdiff_t(n);
@@ -767,7 +844,7 @@ namespace sgcl::txt {
             size_t done = 0;                 // how much of the text is already copied
             for (size_t i = 0, k = 0; i < v.size(); ++k) {
                 auto [c, n] = utf8::decode(v, i);
-                char32_t m = k < levels.size() && (levels[k] & 1) ? mirrored_of_fn(c) : c;
+                char32_t m = k < count && (levels[k] & 1) ? mirrored_of_fn(c) : c;
                 if (m != c) {
                     // the run of bytes before it, as they stand, and
                     // then the mirror in place of the character itself
@@ -797,7 +874,8 @@ namespace sgcl::txt {
     // as, which a shared and immutable string is worth holding on to.
     // Most texts are such texts: the first pass over it only asks.
     inline string mirrored(const string& text, direction paragraph = direction::automatic) {
-        return detail::mirror_text(text, detail::paragraph(text.view(), paragraph).levels());
+        detail::paragraph p(text.view(), paragraph);
+        return detail::mirror_text(text, p.levels().data(), p.levels().size());
     }
 
     // The same with the levels already in hand, which whoever draws the
@@ -806,7 +884,7 @@ namespace sgcl::txt {
     // one to a code point, as levels() gives them; a code point the
     // vector does not reach is left where it stands.
     inline string mirrored(const string& text, const vector<uint8_t>& levels) {
-        return detail::mirror_text(text, levels);
+        return detail::mirror_text(text, levels.data(), levels.size());
     }
 
     // The byte position of every code point in the order it is drawn,
@@ -816,8 +894,10 @@ namespace sgcl::txt {
     inline vector<size_t> visual_order(const string& text, direction paragraph = direction::automatic) {
         detail::paragraph p(text.view(), paragraph);
         auto& at = p.positions();
+        auto& order = p.order();
         vector<size_t> out;
-        for (auto i : p.order()) {
+        out.reserve(order.size());
+        for (auto i : order) {
             out.push_back(at[i]);
         }
         return out;
@@ -852,21 +932,34 @@ namespace sgcl::txt {
         : _text(text) {
             detail::paragraph p(text.view(), paragraph);
             _level = p.level();
-            auto order = p.order();
+            auto& order = p.order();
             auto& levels = p.levels();
             auto& at = p.positions();
             auto end_of = [&](size_t i) {
                 return i + 1 < p.size() ? at[i + 1] : text.size();
             };
-            for (size_t k = 0; k < order.size();) {
+            // a piece is as long as the characters stay next to each
+            // other in the text and at one level; the pieces are found
+            // first and the vector made once at their count, where
+            // growing it one piece at a time left a managed buffer behind
+            // at every doubling
+            auto piece_end = [&](size_t k) {
                 size_t j = k;
                 uint8_t l = levels[order[k]];
-                // a piece is as long as the characters stay next to each
-                // other in the text and at one level
                 while (j + 1 < order.size() && levels[order[j + 1]] == l
                        && (l % 2 ? order[j + 1] + 1 == order[j] : order[j] + 1 == order[j + 1])) {
                     ++j;
                 }
+                return j;
+            };
+            size_t pieces = 0;
+            for (size_t k = 0; k < order.size(); k = piece_end(k) + 1) {
+                ++pieces;
+            }
+            _runs.reserve(pieces);
+            for (size_t k = 0; k < order.size();) {
+                size_t j = piece_end(k);
+                uint8_t l = levels[order[k]];
                 size_t from = l % 2 ? order[j] : order[k];
                 size_t to = l % 2 ? order[k] : order[j];
                 _runs.push_back({text.subslice(at[from], end_of(to) - at[from]), l});

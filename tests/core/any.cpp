@@ -104,6 +104,26 @@ TEST(Any_Tests, APointerInTheWordAValueInAnObject) {
     EXPECT_TRUE(any_cast<weak_ptr<Node>>(weak).expired());
 }
 
+// A trivially copyable value of two words stays inside the any even
+// when its default constructor is not trivial (a member initializer):
+// no tracked pointer can be in it
+TEST(Any_Tests, ATriviallyCopyableValueIsHeldInsideTheAny) {
+    struct Point {
+        double x = 0;
+        double y = 0;
+    };
+    const size_t bytes = managed_bytes_of(100000, [] {
+        any a = Point{1, 2};
+        EXPECT_EQ(any_cast<Point&>(a).y, 2);
+    });
+    EXPECT_EQ(bytes, 0u);   // a node of its own each before: 16 bytes a value
+    any a = Point{3, 4};
+    EXPECT_GE((const char*)any_cast<Point>(&a), (const char*)&a);
+    EXPECT_LT((const char*)any_cast<Point>(&a), (const char*)&a + sizeof(any));
+    any b = a;
+    EXPECT_EQ(any_cast<Point&>(b).x, 3);
+}
+
 TEST(Any_Tests, AWholeContainerGoesIntoAManagedObject) {
     settle();
     const int before = Node::alive.load();

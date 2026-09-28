@@ -59,7 +59,7 @@ public:
 ```cpp
 #include "sgcl/encoding/binary.h"
 #include "sgcl/encoding/hex.h"
-#include "sgcl/io/os.h"
+#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
@@ -68,27 +68,27 @@ int main() {
     array<byte, 8> header = {};
     encoding::big_endian::write_u32(header, 0xCAFEBABE);
     encoding::big_endian::write_u32(header.as_slice(4), 1234);
-    io::stdout.write(encoding::hex::encode(header) + "\n");                     // cafebabe000004d2
-    io::stdout.write(string(std::to_string(encoding::big_endian::read_u32(header.as_slice(4)))) + "\n");   // 1234
+    println(encoding::hex::encode(header));                               // cafebabe000004d2
+    println(to_string(encoding::big_endian::read_u32(header.as_slice(4))));             // 1234
 
     // numbers of any size, small ones short
     vector<byte> out;
     encoding::varint::append(out, 300);
     encoding::varint::append_signed(out, -3);
     encoding::little_endian::append_u16(out, 0xABCD);
-    io::stdout.write(encoding::hex::encode(out) + "\n");                        // ac0205cdab
-    auto [value, size] = encoding::varint::read(out).value();                           // 300, 2
-    auto [signed_value, more] = encoding::varint::read_signed(out.as_slice(size)).value();   // -3, 1
-    io::stdout.write(string(std::to_string(value) + " " + std::to_string(signed_value) + " " + std::to_string(size + more)) + "\n");   // 300 -3 3
+    println(encoding::hex::encode(out));                                  // ac0205cdab
+    auto [value, size] = encoding::varint::read(out).value();                                     // 300, 2
+    auto [signed_value, more] = encoding::varint::read_signed(out.as_slice(size)).value();             // -3, 1
+    println("{} {} {}", value, signed_value, size + more);   // 300 -3 3
 }
 ```
 
 A stream of numbers read to its end:
 
 ```cpp
-tracked_ptr in = make_tracked<io::buffered_reader>(io::open("ids.bin").value());
+io::buffered_reader in(io::open("ids.bin"));
 for (;;) {
-    auto id = encoding::varint::read(*in);
+    auto id = encoding::varint::read(in);
     if (!id || !*id) {
         break;              // an error (id.error()), or the end
     }

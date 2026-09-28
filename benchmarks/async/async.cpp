@@ -19,6 +19,9 @@
 //   async spawn sgcl [n]        co_await of a task spawned on the scheduler, one at a time
 //   async whenall sgcl [n]      when_all of two tasks that return at once, per task
 //   async timeout sgcl [n]      with_timeout(t, 1h) of a task that returns at once: a race per iteration
+//   async timeoutpar sgcl [n]   the timeout case in eight tasks at once on the workers, per race (the timers' shards)
+//   async stopafter sgcl [n]    stop_source, stop_after(1h), request_stop, on the main thread: a deadline armed and stopped by hand, per source
+//   async sleep sgcl [n]        co_await sleep(1us) one after another: a timer that is the earliest, per sleep
 //   async select sgcl [n]       select of a channel with an element and a timeout case of an hour
 //   async cv sgcl [n]           two tasks handing a turn to each other through a condition variable, per hand-off
 //   async pingpong sgcl [n]     two tasks over two rendezvous channels, per hop
@@ -31,6 +34,7 @@
 //   async wgclose sgcl [n] [k]  k tasks woken together by the close of a wait_group's round, n rounds; per round
 //   async wgcloseth sgcl [n] [k]  the same, the round closed by the main thread
 #include "benchmarks/common.h"
+#include "benchmarks/placement.h"
 #include "sgcl/sgcl.h"
 
 using namespace sgcl::async;
@@ -160,6 +164,16 @@ namespace {
             s += *r;
         }
         co_return s;
+    }
+
+    // Sleeps of a microsecond one after another: the add of a timer that is
+    // the earliest (the timer thread told), the thread's wake, the frame's
+    // enqueue; per sleep
+    sgcl::async::task<long> sleep_loop(long n) {
+        for (long i = 0; i < n; ++i) {
+            co_await sgcl::async::sleep(std::chrono::microseconds(1));
+        }
+        co_return n;
     }
 
     sgcl::async::task<long> select_loop(sgcl::async::channel<int>& ch, long n) {
@@ -421,7 +435,7 @@ int main(int argc, char** argv) {
     std::string what = argc > 1 ? argv[1] : "";
     std::string v = argc > 2 ? argv[2] : "";
     if (!bench::has_variant(v.c_str(), {"sgcl"})) {
-        std::fprintf(stderr, "usage: async <yield|exyield|strand|exhop|expost|exmany|exmanyhop|strandmany|await|spawn|whenall|timeout|select|cv|pingpong|generator|mutex|bcast|bcastth|notifyall|wgclose|wgcloseth> sgcl [n] [k]\n");
+        std::fprintf(stderr, "usage: async <yield|exyield|strand|exhop|expost|exmany|exmanyhop|strandmany|await|spawn|whenall|timeout|timeoutpar|stopafter|sleep|select|cv|pingpong|generator|mutex|bcast|bcastth|notifyall|wgclose|wgcloseth> sgcl [n] [k]\n");
         return 2;
     }
     long n = argc > 3 ? std::atol(argv[3]) : 0;
@@ -487,6 +501,32 @@ int main(int argc, char** argv) {
         auto t0 = bench::Clock::now();
         sum = sgcl::async::spawn(timeout_loop(n)).wait();
         report("timeout", bench::seconds_since(t0), n);
+    } else if (what == "timeoutpar") {
+        n = n ? n : 200'000;                           // per task: eight tasks racing at once on the workers, per race
+        auto t0 = bench::Clock::now();
+        std::vector<sgcl::async::task<long>> ts;
+        for (int k = 0; k < 8; ++k) {
+            ts.push_back(sgcl::async::spawn(timeout_loop(n)));
+        }
+        for (auto& t : ts) {
+            sum += t.wait();
+        }
+        report("timeoutpar", bench::seconds_since(t0), 8 * n);
+    } else if (what == "stopafter") {
+        n = n ? n : 200'000;
+        auto t0 = bench::Clock::now();
+        for (long i = 0; i < n; ++i) {
+            sgcl::async::stop_source s;
+            s.stop_after(1h);
+            s.request_stop();
+            sum += s.stop_requested();
+        }
+        report("stopafter", bench::seconds_since(t0), n);
+    } else if (what == "sleep") {
+        n = n ? n : 50'000;
+        auto t0 = bench::Clock::now();
+        sum = sgcl::async::spawn(sleep_loop(n)).wait();
+        report("sleep", bench::seconds_since(t0), n);
     } else if (what == "select") {
         n = n ? n : 500'000;
         sgcl::async::channel<int> ch(1);

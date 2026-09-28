@@ -413,7 +413,6 @@ multimap from_list = {std::pair{1, 2.5}};         // multimap<int, double>
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -423,6 +422,8 @@ struct Listener {
 };
 
 int main() {
+    println("listeners by topic");
+    auto base = collector::get_live_object_count();   // after the first line: io's own objects are not the example's
     // Several listeners per topic: a multimap of traced pointers on the stack
     multimap<string, tracked_ptr<Listener>> topics;
     tracked_ptr logger = make_tracked<Listener>("logger");
@@ -433,11 +434,11 @@ int main() {
 
     // The run of one key: every listener of "error"
     auto [from, to] = topics.equal_range("error");
-    std::cout << "error ->";
+    print("error ->");
     for (auto it = from; it != to; ++it) {
-        std::cout << ' ' << it->second->name;                  // pager logger (the newest first)
+        print(" {}", it->second->name);                  // pager logger (the newest first)
     }
-    std::cout << '\n';
+    println();
 
     // Erasing a whole key destroys its tracked_ptr elements at once; the
     // pager is collected, the logger lives on under "info"
@@ -446,8 +447,7 @@ int main() {
     // Optional: the collector runs its cycles by itself; forced here only
     // to show the result at once
     collector::force_collect(true);
-    std::cout << erased << " erased, " << topics.count("info") << " under info, "
-              << collector::get_live_object_count() << " live objects\n";
+    println("{} erased, {} under info, {} live objects", erased, topics.count("info"), collector::get_live_object_count() - base);
     return erased == 2 && topics.size() == 2 ? 0 : 1;
 }
 ```
@@ -455,6 +455,7 @@ int main() {
 The output:
 
 ```
+listeners by topic
 error -> pager logger
 2 erased, 2 under info, 10 live objects
 ```

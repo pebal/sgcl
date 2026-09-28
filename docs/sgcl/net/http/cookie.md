@@ -32,6 +32,7 @@ string same_site;                    // "Strict", "Lax", "None", or ""
 
 cookie();
 cookie(const string& name, const string& value);
+explicit cookie(const string& set_cookie);  // a Set-Cookie literal of the program; throws where parse fails
 string to_string() const;
 static expected<cookie, io::error> parse(const string& set_cookie);
 ```
@@ -40,7 +41,7 @@ static expected<cookie, io::error> parse(const string& set_cookie);
 
 ```cpp
 #include "sgcl/net/http/cookie.h"
-#include <iostream>
+#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
@@ -50,11 +51,11 @@ int main() {
     c.max_age = std::chrono::hours(1);
     c.http_only = true;
     c.same_site = "Lax";
-    std::cout << c.to_string() << '\n';
+    println("{}", c.to_string());
 
-    auto back = net::http::cookie::parse("id=42; Domain=.Example.COM; Secure; Max-Age=oops; Expires=Wed, 09-Jun-2021 10:18:14 GMT");
-    std::cout << back->name << '=' << back->value << ' ' << back->domain << ' ' << back->secure << ' ' << bool(back->max_age) << '\n';
-    std::cout << back->expires->format(time::rfc3339) << '\n';
+    net::http::cookie back("id=42; Domain=.Example.COM; Secure; Max-Age=oops; Expires=Wed, 09-Jun-2021 10:18:14 GMT");
+    println("{}={} {} {} {}", back.name, back.value, back.domain, back.secure, back.max_age.has_value());
+    println("{}", back.expires->format(time::rfc3339));
 }
 ```
 
@@ -62,7 +63,7 @@ Output:
 
 ```text
 session="abc 123"; Path=/; Max-Age=3600; HttpOnly; SameSite=Lax
-id=42 example.com 1 0
+id=42 example.com true false
 2021-06-09T10:18:14Z
 ```
 

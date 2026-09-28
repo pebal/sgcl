@@ -636,7 +636,9 @@ TEST(NetSocket_Tests, UdpDatagramsAndTruncation) {
     EXPECT_TRUE(d->truncated);
     EXPECT_EQ(d->from, client->local_endpoint());
     EXPECT_TRUE(std::equal(small, small + 10, data.begin()));
-    ASSERT_EQ(*server->send_to(data.as_slice().first(20), d->from), 20u);
+    auto sent = server->send_to(data.as_slice().first(20), d->from);
+    ASSERT_TRUE(sent) << sent.error().message();
+    ASSERT_EQ(*sent, 20u);
     byte back[64];
     auto n = client->receive(back);
     ASSERT_TRUE(n);
@@ -740,4 +742,71 @@ TEST(NetSocket_Tests, ZonesAtTheSocket) {
     auto huge = tcp::connect(net::endpoint(*ip_address::parse("fe80::1%99999999999"), 80));   // past any interface index, not wrapped to another
     ASSERT_FALSE(huge);
     EXPECT_EQ(huge.error().code(), net::errc::invalid_address);
+}
+
+// A stream made of a connection binds the connection, not the handle: it
+// reads and writes on after the handles, locals of a scope, are gone (it
+// held the handle's address before, a stack address with no owner)
+TEST(NetSocket_Tests, AStreamOutlivesTheHandle) {
+    static_assert(sizeof(net::connection) == sizeof(sgcl::tracked_ptr<void>));
+    io::reader r;
+    io::writer w;
+    {
+        auto [c, s] = tcp_pair();
+        r = io::reader(s);
+        w = io::writer(c);
+    }
+    std::string noise(64, 'n');   // the stack where the handles were, written over
+    sgcl::collector::force_collect(true);
+    ASSERT_TRUE(w.write(std::string("still here")));
+    ASSERT_TRUE(w.close());
+    EXPECT_EQ(std::string_view(*r.read_all_text()), "still here");
+    EXPECT_TRUE(r.close());
+    EXPECT_FALSE(io::reader(net::connection()));
+}
+
+// A connection held where a tracked word may not lie (a std container here,
+// a global alike): rooted<net::connection>, the handle in a managed object
+// under a root; a copy of the rooted shares it, the state lives through
+// collections with the stack that made it written over
+// A connection takes part in the atomics by its word (core/detail/handle_word.h):
+// load, store and exchange by identity
+static_assert(sgcl::req::handle<net::connection>);
+static_assert(sgcl::req::handle<net::listener>);
+
+TEST(NetSocket_Tests, AnAtomicConnectionByIdentity) {
+    auto [c, s] = tcp_pair();
+    sgcl::atomic<net::connection> current;
+    current.store(c);
+    EXPECT_TRUE(current.load() == c);
+    EXPECT_TRUE(current.exchange(s) == c);
+    EXPECT_TRUE(current.load() == s);
+    ASSERT_TRUE(c.write(sgcl::string("x")));
+    ASSERT_TRUE(c.close());
+    auto got = current.load().read_all_text();
+    ASSERT_TRUE(got);
+    EXPECT_EQ(text(got.value()), "x");
+    EXPECT_TRUE(s.close());
+}
+
+TEST(NetSocket_Tests, ARootedConnection) {
+    static_assert(!std::is_convertible_v<rooted<net::connection>, net::connection>);
+    std::vector<rooted<net::connection>> ends;
+    off_frame([&] {
+        auto [c, s] = tcp_pair();
+        ends.emplace_back(c);
+        ends.emplace_back(s);
+        EXPECT_TRUE(*ends[0] == c);
+    });
+    std::string noise(64, 'n');
+    collector::clear_stack();
+    collector::force_collect(true);
+    rooted<net::connection> client = ends[0];
+    EXPECT_EQ(client.get(), ends[0].get());
+    ASSERT_TRUE(client->write(sgcl::string("through the root")));
+    ASSERT_TRUE(client->close());
+    auto got = ends[1]->read_all_text();
+    ASSERT_TRUE(got);
+    EXPECT_EQ(text(got.value()), "through the root");
+    EXPECT_TRUE(ends[1]->close());
 }

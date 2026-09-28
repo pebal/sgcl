@@ -115,7 +115,7 @@ namespace {
 
 TEST(ForwardList_Test, DefaultConstructorEmpty) {
     sgcl::forward_list<Int> lst;
-    EXPECT_EQ(collector::get_live_object_count(), 1u);   // the sentinel
+    EXPECT_EQ(collector::get_live_object_count(), 0u);   // the sentinel is inside the list: no object
     EXPECT_EQ(Int::counter, 0u);
     EXPECT_TRUE(lst.empty());
     EXPECT_EQ(lst.begin(), lst.end());
@@ -127,7 +127,7 @@ TEST(ForwardList_Test, DefaultConstructorEmpty) {
 
 TEST(ForwardList_Test, ConstructorNDefault) {
     sgcl::forward_list<Int> lst(3);
-    EXPECT_EQ(collector::get_live_object_count(), 4u);
+    EXPECT_EQ(collector::get_live_object_count(), 3u);
     EXPECT_EQ(Int::counter, 3u);
     EXPECT_FALSE(lst.empty());
     std::vector<int> expected = {0, 0, 0};
@@ -136,7 +136,7 @@ TEST(ForwardList_Test, ConstructorNDefault) {
 
 TEST(ForwardList_Test, ConstructorNValues) {
     sgcl::forward_list<Int> lst(4, 3);
-    EXPECT_EQ(collector::get_live_object_count(), 5u);
+    EXPECT_EQ(collector::get_live_object_count(), 4u);
     EXPECT_EQ(Int::counter, 4u);
     std::vector<int> expected = {3, 3, 3, 3};
     EXPECT_EQ(to_vector(lst), expected);
@@ -144,7 +144,7 @@ TEST(ForwardList_Test, ConstructorNValues) {
 
 TEST(ForwardList_Test, InitializerList) {
     sgcl::forward_list<Int> lst({4, 5, 6});
-    EXPECT_EQ(collector::get_live_object_count(), 4u);
+    EXPECT_EQ(collector::get_live_object_count(), 3u);
     EXPECT_EQ(Int::counter, 3u);
     std::vector<int> expected = {4, 5, 6};
     EXPECT_EQ(to_vector(lst), expected);
@@ -153,7 +153,7 @@ TEST(ForwardList_Test, InitializerList) {
 TEST(ForwardList_Test, ConstructorRange) {
     std::vector<int> expected = {1, 2, 3};
     sgcl::forward_list<Int> lst(expected.begin(), expected.end());
-    EXPECT_EQ(collector::get_live_object_count(), 4u);
+    EXPECT_EQ(collector::get_live_object_count(), 3u);
     EXPECT_EQ(Int::counter, 3u);
     EXPECT_EQ(to_vector(lst), expected);
     std::istringstream in("7 8 9");
@@ -168,7 +168,7 @@ TEST(ForwardList_Test, ConstructorRange) {
 TEST(ForwardList_Test, CopyConstructor) {
     sgcl::forward_list<Int> other({1, 2, 3});
     sgcl::forward_list<Int> lst(other);
-    EXPECT_EQ(collector::get_live_object_count(), 8u);
+    EXPECT_EQ(collector::get_live_object_count(), 6u);
     EXPECT_EQ(Int::counter, 6u);
     std::vector<int> expected = {1, 2, 3};
     EXPECT_EQ(to_vector(lst), expected);
@@ -178,7 +178,7 @@ TEST(ForwardList_Test, CopyConstructor) {
 TEST(ForwardList_Test, MoveConstructor) {
     sgcl::forward_list<Int> other({4, 5, 6});
     sgcl::forward_list<Int> lst(std::move(other));
-    EXPECT_EQ(collector::get_live_object_count(), 5u);   // two sentinels, three nodes
+    EXPECT_EQ(collector::get_live_object_count(), 3u);   // three nodes (the sentinels are inside the lists)
     EXPECT_EQ(Int::counter, 3u);
     EXPECT_TRUE(other.empty());
     EXPECT_EQ(other.begin(), other.end());
@@ -192,21 +192,21 @@ TEST(ForwardList_Test, CopyAssignment) {
     sgcl::forward_list<Int> other({1, 2, 3});
     sgcl::forward_list<Int> lst;
     lst = other;
-    EXPECT_EQ(collector::get_live_object_count(), 8u);
+    EXPECT_EQ(collector::get_live_object_count(), 6u);
     EXPECT_EQ(Int::counter, 6u);
     std::vector<int> expected = {1, 2, 3};
     EXPECT_EQ(to_vector(lst), expected);
 
     other = sgcl::forward_list<Int>({2, 3});
     lst = other;
-    EXPECT_EQ(collector::get_live_object_count(), 6u);
+    EXPECT_EQ(collector::get_live_object_count(), 4u);
     EXPECT_EQ(Int::counter, 4u);
     expected = {2, 3};
     EXPECT_EQ(to_vector(lst), expected);
 
     other = sgcl::forward_list<Int>();
     lst = other;
-    EXPECT_EQ(collector::get_live_object_count(), 2u);
+    EXPECT_EQ(collector::get_live_object_count(), 0u);
     EXPECT_EQ(Int::counter, 0u);
     EXPECT_TRUE(lst.empty());
 
@@ -219,7 +219,7 @@ TEST(ForwardList_Test, MoveAssignment) {
     sgcl::forward_list<Int> other({4, 5, 6});
     sgcl::forward_list<Int> lst{1};
     lst = std::move(other);
-    EXPECT_EQ(collector::get_live_object_count(), 5u);
+    EXPECT_EQ(collector::get_live_object_count(), 3u);
     EXPECT_EQ(Int::counter, 3u);
     EXPECT_TRUE(other.empty());
     std::vector<int> expected = {4, 5, 6};
@@ -229,7 +229,7 @@ TEST(ForwardList_Test, MoveAssignment) {
 TEST(ForwardList_Test, ListAssignment) {
     sgcl::forward_list<Int> lst;
     lst = {7, 8, 9};
-    EXPECT_EQ(collector::get_live_object_count(), 4u);
+    EXPECT_EQ(collector::get_live_object_count(), 3u);
     EXPECT_EQ(Int::counter, 3u);
     std::vector<int> expected = {7, 8, 9};
     EXPECT_EQ(to_vector(lst), expected);
@@ -245,12 +245,12 @@ TEST(ForwardList_Test, ListAssignment) {
 TEST(ForwardList_Test, Assign) {
     sgcl::forward_list<Int> lst({1, 2});
     lst.assign(4, 5);
-    EXPECT_EQ(collector::get_live_object_count(), 5u);
+    EXPECT_EQ(collector::get_live_object_count(), 4u);
     EXPECT_EQ(Int::counter, 4u);
     std::vector<int> expected = {5, 5, 5, 5};
     EXPECT_EQ(to_vector(lst), expected);
     lst.assign(2, 3);
-    EXPECT_EQ(collector::get_live_object_count(), 3u);
+    EXPECT_EQ(collector::get_live_object_count(), 2u);
     EXPECT_EQ(Int::counter, 2u);
     expected = {3, 3};
     EXPECT_EQ(to_vector(lst), expected);
@@ -271,7 +271,7 @@ TEST(ForwardList_Test, Assign) {
     lst.assign(std::initializer_list<Int>());
     EXPECT_EQ(Int::counter, 0u);
     EXPECT_TRUE(lst.empty());
-    EXPECT_EQ(collector::get_live_object_count(), 1u);
+    EXPECT_EQ(collector::get_live_object_count(), 0u);
 }
 
 TEST(ForwardList_Test, FrontAndIterators) {
@@ -311,7 +311,7 @@ TEST(ForwardList_Test, InsertAfter) {
     it = lst.insert_after(std::next(it), 6);   // after the last one
     EXPECT_EQ(*it, 6);
     EXPECT_EQ(std::next(it), lst.end());
-    EXPECT_EQ(collector::get_live_object_count(), 7u);
+    EXPECT_EQ(collector::get_live_object_count(), 6u);
     EXPECT_EQ(Int::counter, 7u);
     std::vector<int> expected = {1, 2, 3, 4, 5, 6};
     EXPECT_EQ(to_vector(lst), expected);
@@ -345,7 +345,7 @@ TEST(ForwardList_Test, InsertAfter) {
     expected = {7, 8, 11, 12, 13, 14, 1, 9, 9, 2, 3, 4, 5, 6};
     EXPECT_EQ(to_vector(lst), expected);
     EXPECT_EQ(Int::counter, 15u);
-    EXPECT_EQ(collector::get_live_object_count(), 15u);
+    EXPECT_EQ(collector::get_live_object_count(), 14u);
 }
 
 TEST(ForwardList_Test, EmplaceAfter) {
@@ -381,7 +381,7 @@ TEST(ForwardList_Test, EraseAfter) {
         EXPECT_EQ(it, lst.end());
         std::vector<int> expected = {2, 4};
         EXPECT_EQ(to_vector(lst), expected);
-        EXPECT_EQ(collector::get_live_object_count(), 3u);
+        EXPECT_EQ(collector::get_live_object_count(), 2u);
 
         lst = {1, 2, 3, 4, 5, 6, 7, 8};
         it = lst.erase_after(lst.before_begin(), std::next(lst.begin(), 2));
@@ -422,7 +422,7 @@ TEST(ForwardList_Test, PushEmplacePopFront) {
         EXPECT_EQ(&v, &lst.front());
     });
     EXPECT_EQ(Int::counter, 4u);
-    EXPECT_EQ(collector::get_live_object_count(), 5u);
+    EXPECT_EQ(collector::get_live_object_count(), 4u);
     std::vector<int> expected = {0, 1, 2, 3};
     EXPECT_EQ(to_vector(lst), expected);
     lst.pop_front();
@@ -435,7 +435,7 @@ TEST(ForwardList_Test, PushEmplacePopFront) {
     lst.pop_front();
     EXPECT_EQ(Int::counter, 0u);
     EXPECT_TRUE(lst.empty());
-    EXPECT_EQ(collector::get_live_object_count(), 1u);
+    EXPECT_EQ(collector::get_live_object_count(), 0u);
 }
 
 TEST(ForwardList_Test, Resize) {
@@ -457,7 +457,7 @@ TEST(ForwardList_Test, Resize) {
     lst.resize(0);
     EXPECT_EQ(Int::counter, 0u);
     EXPECT_TRUE(lst.empty());
-    EXPECT_EQ(collector::get_live_object_count(), 1u);
+    EXPECT_EQ(collector::get_live_object_count(), 0u);
     sgcl::forward_list<MoveOnly> movers;
     movers.resize(3);   // resize(n) needs no copy
     EXPECT_EQ(length(movers), 3u);
@@ -467,7 +467,7 @@ TEST(ForwardList_Test, Swap) {
     sgcl::forward_list<Int> lst1({1, 2});
     sgcl::forward_list<Int> lst2({4, 5, 6, 7});
     lst1.swap(lst2);
-    EXPECT_EQ(collector::get_live_object_count(), 8u);
+    EXPECT_EQ(collector::get_live_object_count(), 6u);
     EXPECT_EQ(Int::counter, 6u);
     std::vector<int> expected = {4, 5, 6, 7};
     EXPECT_EQ(to_vector(lst1), expected);
@@ -484,7 +484,7 @@ TEST(ForwardList_Test, Swap) {
 TEST(ForwardList_Test, Clear) {
     sgcl::forward_list<Int> lst({5, 6, 7});
     lst.clear();
-    EXPECT_EQ(collector::get_live_object_count(), 1u);
+    EXPECT_EQ(collector::get_live_object_count(), 0u);
     EXPECT_EQ(Int::counter, 0u);
     EXPECT_TRUE(lst.empty());
     EXPECT_EQ(lst.begin(), lst.end());
@@ -498,7 +498,7 @@ TEST(ForwardList_Test, Merge) {
     lst.merge(other);
     EXPECT_TRUE(other.empty());
     EXPECT_EQ(Int::counter, 9u);
-    EXPECT_EQ(collector::get_live_object_count(), 11u);
+    EXPECT_EQ(collector::get_live_object_count(), 9u);
     std::vector<int> expected = {1, 2, 3, 3, 5, 6, 7, 8, 9};
     EXPECT_EQ(to_vector(lst), expected);
 
@@ -543,7 +543,7 @@ TEST(ForwardList_Test, SpliceAfterOtherList) {
     lst.splice_after(lst.begin(), other);
     EXPECT_TRUE(other.empty());
     EXPECT_EQ(Int::counter, 5u);
-    EXPECT_EQ(collector::get_live_object_count(), before + 7u);
+    EXPECT_EQ(collector::get_live_object_count(), before + 5u);
     std::vector<int> expected = {1, 4, 5, 2, 3};
     EXPECT_EQ(to_vector(lst), expected);
     lst.splice_after(lst.before_begin(), sgcl::forward_list<Int>{0});
@@ -590,7 +590,7 @@ TEST(ForwardList_Test, SpliceAfterOtherList) {
     EXPECT_EQ(to_vector(lst), expected);
     EXPECT_TRUE(other.empty());
     EXPECT_EQ(Int::counter, 16u);
-    EXPECT_EQ(collector::get_live_object_count(), 18u);
+    EXPECT_EQ(collector::get_live_object_count(), 16u);
 }
 
 TEST(ForwardList_Test, SpliceAfterSameList) {
@@ -612,7 +612,7 @@ TEST(ForwardList_Test, SpliceAfterSameList) {
     expected = {4, 1, 2, 3, 5, 6};
     EXPECT_EQ(to_vector(lst), expected);
     EXPECT_EQ(Int::counter, 6u);
-    EXPECT_EQ(collector::get_live_object_count(), 7u);
+    EXPECT_EQ(collector::get_live_object_count(), 6u);
 }
 
 TEST(ForwardList_Test, RemoveAndUnique) {
@@ -630,7 +630,7 @@ TEST(ForwardList_Test, RemoveAndUnique) {
     EXPECT_EQ(erase(lst, 1), 1u);
     EXPECT_TRUE(lst.empty());
     EXPECT_EQ(lst.remove_if([](const Int&) { return true; }), 0u);
-    EXPECT_EQ(collector::get_live_object_count(), 1u);
+    EXPECT_EQ(collector::get_live_object_count(), 0u);
     lst = {1, 2, 3};
     EXPECT_EQ(erase_if(lst, [](const Int& v) { return v != 2; }), 2u);
     EXPECT_EQ(lst.front(), 2);
@@ -655,7 +655,7 @@ TEST(ForwardList_Test, RemoveAndUnique) {
     sgcl::forward_list<int> empty;
     EXPECT_EQ(empty.unique(), 0u);
     EXPECT_EQ(empty.remove(1), 0u);
-    EXPECT_EQ(collector::get_live_object_count(), 7u);
+    EXPECT_EQ(collector::get_live_object_count(), 4u);
 }
 
 TEST(ForwardList_Test, Reverse) {
@@ -671,7 +671,7 @@ TEST(ForwardList_Test, Reverse) {
     expected = {5, 4, 3, 2, 1};
     EXPECT_EQ(to_vector(lst), expected);
     EXPECT_EQ(Int::counter, 5u);
-    EXPECT_EQ(collector::get_live_object_count(), 6u);
+    EXPECT_EQ(collector::get_live_object_count(), 5u);
 }
 
 TEST(ForwardList_Test, Sort) {
@@ -689,7 +689,7 @@ TEST(ForwardList_Test, Sort) {
     expected = {5, 4, 3, 2, 1, 1};
     EXPECT_EQ(to_vector(lst), expected);
     EXPECT_EQ(Int::counter, 6u);
-    EXPECT_EQ(collector::get_live_object_count(), 7u);
+    EXPECT_EQ(collector::get_live_object_count(), 6u);
 
     std::mt19937 rng(3);
     sgcl::forward_list<int> big;
@@ -745,7 +745,7 @@ TEST(ForwardList_Test, ThrowingComparator) {
         std::sort(after.begin(), after.end());
         EXPECT_EQ(after, oracle) << fail_at;
         EXPECT_EQ(Int::counter, 200u);
-        EXPECT_EQ(collector::get_live_object_count(), 201u);
+        EXPECT_EQ(collector::get_live_object_count(), 200u);
     }
     lst.sort();
     EXPECT_EQ(to_vector(lst), oracle);
@@ -763,7 +763,7 @@ TEST(ForwardList_Test, ThrowingComparator) {
     auto rest = to_vector(other);
     EXPECT_EQ(after.size() + rest.size(), 210u);
     EXPECT_EQ(Int::counter, 210u);
-    EXPECT_EQ(collector::get_live_object_count(), 212u);
+    EXPECT_EQ(collector::get_live_object_count(), 210u);
     after.insert(after.end(), rest.begin(), rest.end());
     std::sort(after.begin(), after.end());
     oracle.insert(oracle.end(), {0, 1, 2, 3, 4, 5, 6, 7, 8, 9});
@@ -854,7 +854,7 @@ TEST(ForwardList_Test, StringElements) {
         lst.clear();
     });
     EXPECT_EQ(length(copy), 4u);
-    EXPECT_EQ(collector::get_live_object_count(), 6u);
+    EXPECT_EQ(collector::get_live_object_count(), 4u);
 }
 
 TEST(ForwardList_Test, TrackedElements) {
@@ -865,7 +865,7 @@ TEST(ForwardList_Test, TrackedElements) {
         lst.emplace_after(lst.begin(), 7);
     });
     collector::force_collect(true);
-    EXPECT_EQ(collector::get_live_object_count(), 7u);   // the sentinel, three nodes, three Baz
+    EXPECT_EQ(collector::get_live_object_count(), 6u);   // three nodes, three Baz
     std::vector<int> values;
     off_frame([&] {
         for (auto& f : lst) {
@@ -877,9 +877,9 @@ TEST(ForwardList_Test, TrackedElements) {
     off_frame([&] {
         lst.erase_after(lst.begin());
     });
-    EXPECT_EQ(collector::get_live_object_count(), 5u);
+    EXPECT_EQ(collector::get_live_object_count(), 4u);
     lst.pop_front();
-    EXPECT_EQ(collector::get_live_object_count(), 3u);
+    EXPECT_EQ(collector::get_live_object_count(), 2u);
 
     sgcl::forward_list<tracked_ptr<Baz>> ptrs;
     for (int i = 0; i < 1000; ++i) {
@@ -897,10 +897,10 @@ TEST(ForwardList_Test, TrackedElements) {
         EXPECT_EQ(ptrs.front()->value, 0);
     });
     EXPECT_EQ(ptrs.remove_if([](const tracked_ptr<Baz>& p) { return p->value >= 500; }), 500u);
-    EXPECT_EQ(collector::get_live_object_count(), 3u + 1u + 500u + 500u);
+    EXPECT_EQ(collector::get_live_object_count(), 2u + 500u + 500u);
     ptrs.clear();
     lst.clear();
-    EXPECT_EQ(collector::get_live_object_count(), 2u);
+    EXPECT_EQ(collector::get_live_object_count(), 0u);
 }
 
 // Iterators are raw node pointers: they may sit in a std container or a
@@ -952,7 +952,7 @@ TEST(ForwardList_Test, IteratorAcrossCollection) {
     EXPECT_EQ(std::next(kept[1]), it);
     EXPECT_EQ(std::next(it), lst.end());
     EXPECT_EQ(Int::counter, 2u);
-    EXPECT_EQ(collector::get_live_object_count(), 3u);   // the sentinel and two nodes
+    EXPECT_EQ(collector::get_live_object_count(), 2u);   // two nodes
     lst.insert_after(it, 9);
     EXPECT_EQ(to_vector(lst), (std::vector<int>{2, 3, 9}));
     EXPECT_EQ(*std::next(it), 9);
@@ -974,8 +974,8 @@ TEST(ForwardList_Test, ListInsideManagedObject) {
         EXPECT_EQ(length(a->values), 3u);
         EXPECT_EQ(length(a->links.front()->values), 500u);
         EXPECT_EQ(Int::counter, 503u);
-        // two holders, four sentinels, 3 + 1 + 500 + 1 nodes
-        EXPECT_EQ(collector::get_live_object_count(), 2u + 4u + 505u);
+        // two holders, 3 + 1 + 500 + 1 nodes (the sentinels inside the holders)
+        EXPECT_EQ(collector::get_live_object_count(), 2u + 505u);
     });
     EXPECT_EQ(collector::get_live_object_count(), 0u);
     EXPECT_EQ(Int::counter, 0u);
@@ -1019,14 +1019,14 @@ TEST(ForwardList_Test, ExceptionSafety) {
     EXPECT_THROW(lst.assign(8, value), std::runtime_error);   // the first five are assigned, the sixth throws
     EXPECT_EQ(values().size(), 5u);
     EXPECT_EQ(Thrower::live, 9);
-    EXPECT_EQ(collector::get_live_object_count(), 6u);   // nodes built for the failed insertions are garbage
+    EXPECT_EQ(collector::get_live_object_count(), 5u);   // nodes built for the failed insertions are garbage
     Thrower::remaining = 3;
     EXPECT_THROW(sgcl::forward_list<Thrower>(5, value), std::runtime_error);
     EXPECT_EQ(Thrower::live, 9);
     Thrower::remaining = 2;
     EXPECT_THROW({ sgcl::forward_list<Thrower> copy(lst); }, std::runtime_error);
     EXPECT_EQ(Thrower::live, 9);
-    EXPECT_EQ(collector::get_live_object_count(), 6u);
+    EXPECT_EQ(collector::get_live_object_count(), 5u);
     Thrower::remaining = -1;
     lst.clear();
     range.clear();
@@ -1118,5 +1118,35 @@ TEST(ForwardList_Test, StressAgainstStdForwardList) {
     EXPECT_EQ(Int::counter, size);
     copy.clear();
     EXPECT_EQ(Int::counter, 0u);
-    EXPECT_EQ(collector::get_live_object_count(), 2u);
+    EXPECT_EQ(collector::get_live_object_count(), 0u);
+}
+
+// The sentinel is a link inside the list, not a node of its own: an
+// empty list allocates nothing (a node each before), and the list works
+// the same through it
+TEST(ForwardList_Test, AnEmptyListAllocatesNothing) {
+    EXPECT_EQ(managed_bytes_of(100000, [] {
+        sgcl::forward_list<int> l;
+        EXPECT_TRUE(l.empty());
+    }), 0u);
+    sgcl::forward_list<int> a, b;
+    a.push_front(2);
+    a.insert_after(a.before_begin(), 1);
+    b.insert_after(b.cbefore_begin(), {5, 4, 3});
+    b.splice_after(b.before_begin(), a);
+    EXPECT_TRUE(a.empty());
+    EXPECT_EQ(std::vector<int>(b.begin(), b.end()), (std::vector<int>{1, 2, 5, 4, 3}));
+    b.sort();
+    b.reverse();
+    a = std::move(b);
+    EXPECT_TRUE(b.empty());
+    EXPECT_EQ(std::vector<int>(a.begin(), a.end()), (std::vector<int>{5, 4, 3, 2, 1}));
+    sgcl::forward_list<int> c(std::move(a));
+    c.swap(a);
+    EXPECT_TRUE(c.empty());
+    EXPECT_EQ(++a.cbefore_begin(), a.cbegin());
+    a.erase_after(a.before_begin());
+    a.pop_front();
+    EXPECT_EQ(a.front(), 3);
+    EXPECT_EQ(std::distance(a.begin(), a.end()), 3);
 }

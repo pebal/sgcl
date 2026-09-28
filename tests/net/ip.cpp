@@ -124,13 +124,44 @@ TEST(NetIp_Tests, OrderAgainstGo) {
 
 // A text that is not an address, a network, an endpoint or a URL is an
 // error with the reason and the text, not an empty optional
+// A literal in the program is constructed, not parsed: the value parse
+// gives, or parse's error thrown (DESIGN 234)
+TEST(NetIp_Tests, LiteralsConstruct) {
+    EXPECT_EQ(ip_address::parse("192.168.7.9"), ip_address("192.168.7.9"));   // an expected compared whole: equal only with the value
+    EXPECT_EQ(ip_address::parse("fe80::1%en0"), ip_address("fe80::1%en0"));
+    ip_network lan("192.168.0.0/16");
+    EXPECT_EQ(ip_network::parse("192.168.0.0/16"), lan);
+    EXPECT_TRUE(lan.contains(ip_address("192.168.7.9")));
+    EXPECT_TRUE(lan.overlaps(ip_network("192.168.4.0/22")));
+    EXPECT_FALSE(lan.contains(ip_address("10.0.0.1")));
+    endpoint e("[::1]:443");
+    EXPECT_EQ(endpoint::parse("[::1]:443"), e);
+    EXPECT_EQ(e.port(), 443);
+    try {
+        ip_address("010.0.0.1");
+        FAIL() << "a leading zero is not an address";
+    } catch (const bad_expected_access<io::error>& x) {
+        EXPECT_EQ(x.error().code(), errc::invalid_address);
+        EXPECT_STREQ(x.what(), "parse IP address 010.0.0.1: invalid address");
+    }
+    EXPECT_THROW(ip_network("10.0.0.0/33"), bad_expected_access<io::error>);
+    EXPECT_THROW(endpoint("10.0.0.1"), bad_expected_access<io::error>);
+    static_assert(!std::is_convertible_v<const char*, ip_address>, "explicit: no text becomes an address by itself");
+    static_assert(!std::is_convertible_v<string, ip_network>, "explicit");
+    static_assert(!std::is_convertible_v<string, endpoint>, "explicit");
+}
+
 TEST(NetIp_Tests, ParseGivesTheReason) {
     auto a = ip_address::parse("10.0.0.x");
     ASSERT_FALSE(a);
     EXPECT_EQ(a.error().code(), errc::invalid_address);
     EXPECT_EQ(a.error().message(), "parse IP address 10.0.0.x: invalid address");
-    EXPECT_EQ(ip_network::parse("10.0.0.0/33").error().code(), errc::invalid_address);
-    EXPECT_EQ(endpoint::parse("10.0.0.1").error().code(), errc::invalid_address);   // no port
+    auto wide = ip_network::parse("10.0.0.0/33");
+    ASSERT_FALSE(wide);
+    EXPECT_EQ(wide.error().code(), errc::invalid_address);
+    auto portless = endpoint::parse("10.0.0.1");               // no port
+    ASSERT_FALSE(portless);
+    EXPECT_EQ(portless.error().code(), errc::invalid_address);
     auto u = url::parse("http://[::1");
     ASSERT_FALSE(u);
     EXPECT_EQ(u.error().code(), errc::invalid_url);
@@ -142,7 +173,9 @@ TEST(NetIp_Tests, ParseGivesTheReason) {
     ASSERT_FALSE(h);
     EXPECT_EQ(h.error().code(), errc::invalid_url);
     EXPECT_EQ(h.error().message(), "set URL host example.com: invalid URL");
-    EXPECT_EQ(mail.with_password("secret").error().message(), "set URL password: invalid URL");   // never the password
+    auto password = mail.with_password("secret");
+    ASSERT_FALSE(password);
+    EXPECT_EQ(password.error().message(), "set URL password: invalid URL");   // never the password
     EXPECT_EQ(url::parse("http://x/")->with_scheme("https")->to_string(), "https://x/");
 }
 
@@ -178,8 +211,9 @@ TEST(NetIp_Tests, Zones) {
     auto a = *ip_address::parse("fe80::1%en0");
     EXPECT_EQ(text(a.zone()), "en0");
     EXPECT_TRUE(a.has_zone());
-    EXPECT_NE(a, *ip_address::parse("fe80::1"));
-    EXPECT_LT(*ip_address::parse("fe80::1"), a);                     // no zone first
+    ip_address plain("fe80::1");
+    EXPECT_NE(a, plain);
+    EXPECT_LT(plain, a);                                              // no zone first
     auto b = a.with_zone("utun4");
     EXPECT_EQ(text(b.to_string()), "fe80::1%utun4");
     EXPECT_EQ(a.with_zone("").zone(), sgcl::string());
@@ -195,8 +229,8 @@ TEST(NetIp_Tests, Zones) {
     ASSERT_TRUE(odd);
     EXPECT_EQ(text(odd->address().zone()), "a]b");
     EXPECT_EQ(net::endpoint::parse(odd->to_string()), odd);
-    EXPECT_EQ(ip_network(a, 64).address(), *ip_address::parse("fe80::1"));   // a network has no zone
-    EXPECT_FALSE(ip_network(*ip_address::parse("fe80::"), 10).contains(a));   // nor matches an address with one
+    EXPECT_EQ(ip_network(a, 64).address(), plain);                   // a network has no zone
+    EXPECT_FALSE(ip_network(ip_address("fe80::"), 10).contains(a));   // nor matches an address with one
 }
 
 TEST(NetIp_Tests, NetworkConstruction) {
@@ -214,7 +248,7 @@ TEST(NetIp_Tests, NetworkConstruction) {
     EXPECT_EQ(text(n.masked().to_string()), "192.168.0.0/20");
     EXPECT_TRUE(n.contains(ip_address::v4(192, 168, 15, 255)));
     EXPECT_FALSE(n.contains(ip_address::v4(192, 168, 16, 0)));
-    EXPECT_FALSE(n.contains(*ip_address::parse("::ffff:192.168.1.1")));   // the mapped form is IPv6
+    EXPECT_FALSE(n.contains(ip_address("::ffff:192.168.1.1")));   // the mapped form is IPv6
     EXPECT_EQ(net::endpoint(), net::endpoint());
     EXPECT_EQ(text(net::endpoint().to_string()), "invalid AddrPort");
 }
@@ -228,7 +262,9 @@ TEST(NetIp_Tests, Hashes) {
     }
     for (auto& c : ip_oracle::addresses) {
         if (c.ok && !(c.flags & ip_oracle::ZoneTooLong)) {
-            EXPECT_TRUE(set.count(*ip_address::parse(c.text))) << c.input;   // equal values, equal hashes
+            auto same = ip_address::parse(c.text);
+            ASSERT_TRUE(same) << c.text;
+            EXPECT_TRUE(set.count(*same)) << c.input;   // equal values, equal hashes
         }
     }
     std::unordered_set<net::endpoint> eps = {net::endpoint(ip_address::loopback_v4(), 1), net::endpoint(ip_address::loopback_v4(), 2)};

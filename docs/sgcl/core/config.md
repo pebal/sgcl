@@ -99,7 +99,7 @@ static constexpr size_t heap_limit_percent = 90;
 static constexpr size_t heap_pressure_percent = 75;
 ```
 
-The default ceiling on committed managed memory is `heap_limit_percent` of the effective memory limit (the cgroup limit on Linux, else the physical memory), leaving the rest to everything outside the managed heap; `collector::set_memory_limit()` (`Collector::SetMemoryLimit()`) overrides it at run time, `0` disables it. Above `heap_pressure_percent` of the ceiling the collector cycles every `pressure_sleep_time` and returns every free chunk; at the ceiling an allocation forces a full collection and, failing that, throws `bad_alloc` ([collector](collector.md#get_memory_limit-set_memory_limit)).
+The default ceiling on committed managed memory is `heap_limit_percent` of the effective memory limit (the cgroup limit on Linux, else the physical memory), leaving the rest to everything outside the managed heap; `SGCL_MEMORY_LIMIT` in the environment (bytes with K, M or G, or a percentage, read once when the heap is first used) and `collector::set_memory_limit()` override it at run time, the call over the environment; `0` disables it. Above `heap_pressure_percent` of the ceiling the collector cycles every `pressure_sleep_time` and returns every free chunk; at the ceiling an allocation forces a full collection and, failing that, throws `bad_alloc` ([collector](collector.md#get_memory_limit-set_memory_limit)).
 
 ```cpp
 size_t ceiling = collector::get_memory_limit();          // heap_limit_percent of the machine's limit
@@ -188,7 +188,7 @@ clang++ -std=c++20 -DSGCL_BACKOFF_MAX=1024 app.cpp
 static constexpr unsigned workers = SGCL_WORKERS;
 ```
 
-The number of worker threads of the [scheduler](../async/scheduler.md); `0`, the default, is the hardware concurrency; 64 at most. The workers are started by the first `spawn`.
+The number of worker threads of the [scheduler](../async/scheduler.md) when neither the program (`async::scheduler::set_workers`) nor the environment (`SGCL_WORKERS=4 ./app`, read once at the scheduler's first start) says otherwise; `0`, the default, is the hardware concurrency; 64 at most. The workers are started by the first `spawn`.
 
 ```sh
 clang++ -std=c++20 -DSGCL_WORKERS=4 app.cpp
@@ -201,7 +201,7 @@ clang++ -std=c++20 -DSGCL_WORKERS=4 app.cpp
 static constexpr unsigned worker_spin_microseconds = SGCL_WORKER_SPIN_US;
 ```
 
-How long a worker with nothing to run looks for work (the global queue, the other workers' queues) before it sleeps in the kernel, in microseconds: a task made ready in that window costs no wake through the kernel; a longer window costs a core per idle worker for that long.
+How long a worker with nothing to run looks for work (the global queue, the other workers' queues) before it sleeps in the kernel, in microseconds: a task made ready in that window costs no wake through the kernel; a longer window costs a core per idle worker for that long. The default when neither `async::scheduler::set_worker_spin` nor `SGCL_WORKER_SPIN_US` in the environment sets it.
 
 ### SGCL_BLOCKING_THREADS, blocking_threads
 
@@ -210,7 +210,7 @@ How long a worker with nothing to run looks for work (the global queue, the othe
 static constexpr unsigned blocking_threads = SGCL_BLOCKING_THREADS;
 ```
 
-The most threads the [blocking pool](../async/blocking.md) grows to, for the calls a task hands off with `spawn_blocking`; `0`, the default, is the larger of 64 and four times the hardware concurrency: the threads block rather than compute, so there are more of them than cores. A job that finds every thread busy and the pool at its cap waits in the queue for the next thread to free up.
+The most threads the [blocking pool](../async/blocking.md) grows to, for the calls a task hands off with `spawn_blocking`, when neither `async::blocking_pool::set_threads` nor `SGCL_BLOCKING_THREADS` in the environment sets it; `0`, the default, is the larger of 64 and four times the hardware concurrency: the threads block rather than compute, so there are more of them than cores. A job that finds every thread busy and the pool at its cap waits in the queue for the next thread to free up.
 
 ```sh
 clang++ -std=c++20 -DSGCL_BLOCKING_THREADS=16 app.cpp
@@ -232,7 +232,7 @@ static constexpr size_t io_buffer_size = 0x2000;        // 8 KB
 static constexpr size_t io_copy_buffer_size = 0x8000;   // 32 KB
 ```
 
-The buffers of io: the block a [buffered reader or writer](../io/buffered.md) holds in front of its stream, and the block `io::copy` moves the data through. Each is one managed array without a header, so a divisor of `page_size` fills whole pages: 8 KB gives eight to a page, 32 KB two.
+The buffers of io: the block a [buffered reader or writer](../io/buffered.md) holds in front of its stream, and the block `io::copy` moves the data through. A buffered reader's is one managed array without a header, since the lines it hands out are slices of it, so a divisor of `page_size` fills whole pages: 8 KB gives eight to a page. The others hand no slice out: a buffered writer's is unmanaged memory of its own until its first async operation, `io::copy`'s 32 KB lies on the stack of the call. A block an async operation is handed is managed (`async_copy`'s, a buffered writer's from its first async write on), since the operation may run on the blocking pool and outlive the frame of a task let go of: the slice it is given holds the block.
 
 ### SGCL_HELPERS_GROWTH_THRESHOLD, helpers_growth_threshold
 
@@ -278,7 +278,6 @@ In `sgcl`:
 ```cpp
 #include "sgcl/sgcl.h"
 #include <algorithm>
-#include <iostream>
 #include <thread>
 
 using namespace sgcl;
@@ -287,22 +286,16 @@ using namespace sgcl;
 // collector does with it. Build with -DSGCL_GENERATIONAL=0 or
 // -DSGCL_SWEEP_THREADS_MAX=2 to see the values change.
 int main() {
-    std::cout << "page " << config::page_size / 1024 << " KB, chunk " << config::chunk_size / 1048576
-              << " MB, " << config::heap_free_chunk_reserve << " free chunks kept committed\n";
-    std::cout << "generational: " << (config::generational ? "yes" : "no") << ", a full cycle after "
-              << config::young_cycles_max << " young ones or " << config::full_cycle_growth_percent << "% growth\n";
+    println("page {} KB, chunk {} MB, {} free chunks kept committed", config::page_size / 1024, config::chunk_size / 1048576, config::heap_free_chunk_reserve);
+    println("generational: {}, a full cycle after {} young ones or {}% growth", (config::generational ? "yes" : "no"), config::young_cycles_max, config::full_cycle_growth_percent);
     size_t helpers = config::sweep_threads_max ? config::sweep_threads_max
                                              : std::min<size_t>(8, std::max<size_t>(1, std::thread::hardware_concurrency() / 2));
-    std::cout << "helpers: at most " << helpers << ", sweeping from " << config::sweep_page_threshold << " pages, marking from "
-              << config::mark_object_threshold << " objects, switched on by " << (config::helpers_growth_threshold >> 20)
-              << " MB of growth\n";
-    std::cout << "stack: " << config::stack_clear_size / 1024 << " KB zeroed before a count, "
-              << config::stack_guard_margin / 1024 << " KB guard\n";
+    println("helpers: at most {}, sweeping from {} pages, marking from {} objects, switched on by {} MB of growth", helpers, config::sweep_page_threshold, config::mark_object_threshold, (config::helpers_growth_threshold >> 20));
+    println("stack: {} KB zeroed before a count, {} KB guard", config::stack_clear_size / 1024, config::stack_guard_margin / 1024);
 
     // the ceiling the defaults produced on this machine, and the pressure line under it
     size_t ceiling = collector::get_memory_limit();
-    std::cout << "ceiling " << (ceiling >> 20) << " MB (" << config::heap_limit_percent << "% of the limit), pressure above "
-              << (ceiling / 100 * config::heap_pressure_percent >> 20) << " MB\n";
+    println("ceiling {} MB ({}% of the limit), pressure above {} MB", (ceiling >> 20), config::heap_limit_percent, (ceiling / 100 * config::heap_pressure_percent >> 20));
 
     // some work, then the counters that the constants above shape
     vector<tracked_ptr<int>> kept;
@@ -311,8 +304,7 @@ int main() {
     }
     collector::force_collect(true);   // optional, for the demonstration only: the collector runs its cycles by itself
     auto s = collector::get_statistics();
-    std::cout << s.cycles << " cycles, " << s.full_cycles << " full; helpers "
-              << (s.helpers_enabled ? "on" : "off") << ", " << s.helper_threads << " started\n";
+    println("{} cycles, {} full; helpers {}, {} started", s.cycles, s.full_cycles, (s.helpers_enabled ? "on" : "off"), s.helper_threads);
     return 0;
 }
 ```

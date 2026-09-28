@@ -52,7 +52,6 @@ public:
 #include "sgcl/sgcl.h"
 
 using namespace sgcl;
-using encoding::field_list;
 
 enum class role { reader, writer, admin };
 
@@ -60,7 +59,7 @@ struct address {
     string city;
     string street;
 
-    void describe(field_list& f) {
+    void describe(encoding::field_list& f) {
         f.add("city", city);
         f.add("street", street);
     }
@@ -75,7 +74,7 @@ struct user {
     role access = role::reader;
     map<string, int> scores;
 
-    void describe(field_list& f) {
+    void describe(encoding::field_list& f) {
         f.add("name", name).required();
         f.add("age", age).omit_empty();
         f.add("tags", tags);
@@ -89,15 +88,15 @@ struct user {
 int main() {
     auto u = encoding::json::parse<user>(R"({"name": "Ala", "age": 30, "tags": ["a"], "access": "admin",
         "manager": {"name": "Ola", "home": {"city": "Kraków", "street": "Długa"}}})");
-    io::stdout.write(u->name + " reports to " + u->manager->name + " in " + u->manager->home->city + "\n");
+    println("{} reports to {} in {}", u->name, u->manager->name, u->manager->home->city);
 
     u->scores = {{"go", 3}, {"cpp", 5}};
-    io::stdout.write(encoding::json::stringify(*u).value() + "\n");
+    println(encoding::json::stringify(*u).value());
 
     auto wrong = encoding::json::parse<user>(R"({"name": "Ala", "manager": {"name": "Ola", "age": "old"}})");
-    io::stdout.write(wrong.error().message() + "\n");
+    println(wrong.error().message());
     auto missing = encoding::json::parse<user>(R"({"age": 3})");
-    io::stdout.write(missing.error().message() + "\n");
+    println(missing.error().message());
 }
 ```
 

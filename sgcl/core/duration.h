@@ -119,6 +119,14 @@ namespace sgcl {
         // calendar is 23, 24 or 25 hours: that is a date's add_days).
         static expected<duration, duration_error> parse(const string& text);
 
+        // The duration a literal in the program spells: parse's value, or
+        // bad_expected_access<duration_error> with parse's message. Input
+        // is parsed; a text the program itself wrote is constructed
+        // (DESIGN 234)
+        explicit duration(const string& text)
+        : duration(parse(text).value()) {
+        }
+
         // The whole nanoseconds, microseconds and milliseconds, the last
         // two truncated toward zero
         constexpr int64_t nanoseconds() const noexcept {

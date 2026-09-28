@@ -380,7 +380,6 @@ assert(seen.contains(item));
 ```cpp
 #include "sgcl/sgcl.h"
 #include <cassert>
-#include <iostream>
 
 using namespace sgcl;
 
@@ -421,16 +420,16 @@ int main() {
 
     // A base class and the dynamic type
     tracked_ptr<Shape> shape = make_tracked<Circle>(2);
-    std::cout << "area " << shape->area() << '\n';
+    println("area {}", shape->area());
     if (shape.is<Circle>()) {
         tracked_ptr circle = shape.as<Circle>();   // tracked_ptr<Circle>
-        std::cout << "radius " << circle->r << '\n';
+        println("radius {}", circle->r);
     }
 
     // An alias into a member keeps the whole object
     tracked_ptr id(&b->id);                        // tracked_ptr<int>
     b = nullptr;
-    std::cout << "id " << *id << '\n';                   // 2: the ring is still alive
+    println("id {}", *id);                   // 2: the ring is still alive
 
     id = nullptr;                                        // nothing reaches the ring now
     collector::force_collect(true);                // optional, for the demonstration only: the collector runs its cycles by itself
@@ -441,7 +440,7 @@ int main() {
 The output:
 
 ```
-area 12.5664
+area 12.56636
 radius 2
 id 2
 ```

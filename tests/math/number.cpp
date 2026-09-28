@@ -257,7 +257,7 @@ TEST(Number_Tests, Pseudoprimes) {
         EXPECT_FALSE(big_integer(n).is_probable_prime()) << n;
     }
     for (const char* n : {"3825123056546413051", "318665857834031151167461", "3317044064679887385961981"}) {
-        EXPECT_FALSE(big_integer::parse(n)->is_probable_prime()) << n;
+        EXPECT_FALSE(value_of(big_integer::parse(n)).is_probable_prime()) << n;
     }
     // Strong Lucas pseudoprimes with Selfridge's parameters (OEIS A217255)
     const int64_t slpsp[] = {5459, 5777, 10877, 16109, 18971, 22499, 24569, 25199, 40309, 58519, 75077, 97439};

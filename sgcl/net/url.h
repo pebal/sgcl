@@ -44,6 +44,12 @@ namespace sgcl::net {
         // URLSearchParams does
         static query_params parse(const string& text);
 
+        // The same for a literal in the program (DESIGN 234): nothing to
+        // throw, since parse never fails; parse stays for text from outside
+        explicit query_params(const string& text)
+        : query_params(parse(text)) {
+        }
+
         // The first value of the name, or "" when there is none (has()
         // tells the two apart)
         string get(const string& name) const {
@@ -1423,6 +1429,95 @@ namespace sgcl::net {
         struct UrlAccess;
     }
 
+    namespace detail {
+        // The path url::parse("http://" + host + target)->path() gives, found
+        // without the parse and without making anything, for the request a
+        // server sees nearly always: a plain host and an origin-form
+        // target ("/a/b?q=1"); a slice of the target up to its '?'. nullopt,
+        // a refusal, for everything these rules do not settle, which the
+        // full parse answers. The rules are here, beside the parser they
+        // stand for, and nowhere else (net::http routes by them, and reads
+        // the url whole only when a handler asks for it); the host's are
+        // the parser's own tests, called, not copied. A differential
+        // test holds them to the parser (tests/net/url_origin.cpp). Refused:
+        //   - an empty target, one that does not start with '/', one that
+        //     starts with "//" (read as an authority);
+        //   - in the path: '%' (decoded and escaped again by rules of its
+        //     own), a '.' or '..' segment (removed), '\' (a slash in a
+        //     special scheme), '#' (a fragment);
+        //   - in the path: a byte the path percent-encodes (a control, a
+        //     space, '"', '<', '>', '`', '{', '}') and every byte past ASCII
+        //     (tabs and newlines, which the parser drops, among the controls);
+        //   - a host the one-pass parser (url::_parse_common) refuses or
+        //     leaves to the full one, by its own tests: empty, or with a
+        //     byte its table marks as no host byte (a forbidden domain code
+        //     point, '%', every byte past ASCII: IDNA; '[': IPv6), or ending
+        //     in a number that is not an IPv4 address (url_ends_in_number,
+        //     url_parse_ipv4: "a.0x", "1.2.3.256");
+        //   - a port that is not one to five digits up to 65535 (the parser
+        //     reads its digits in the automaton, with no function of their
+        //     own to call; it takes "h:" and "h:000080" too, refused here).
+        // The query is not looked at: nothing in it changes the path.
+        inline optional<std::string_view> origin_form_path(std::string_view host, std::string_view target) noexcept {
+            // the host
+            size_t colon = host.find(':');
+            std::string_view name = host.substr(0, colon);
+            if (colon != std::string_view::npos) {
+                auto port = host.substr(colon + 1);
+                if (port.empty() || port.size() > 5) {
+                    return nullopt;
+                }
+                unsigned value = 0;
+                for (char c : port) {
+                    if (!url_digit(uint8_t(c))) {
+                        return nullopt;
+                    }
+                    value = value * 10 + unsigned(c - '0');
+                }
+                if (value > 65535) {
+                    return nullopt;
+                }
+            }
+            if (name.empty()) {
+                return nullopt;
+            }
+            uint8_t odd = 0;   // the parser's host loop: its table, a byte a load
+            for (char c : name) {
+                odd |= url_bytes.kind[uint8_t(c)];
+            }
+            if (odd & UrlBytes::NotHost) {
+                return nullopt;
+            }
+            if (uint32_t address; url_ends_in_number(name) && !url_parse_ipv4(name, address)) {
+                return nullopt;   // case matters to neither: the parser gives them the host lowered
+            }
+            // the target
+            if (target.empty() || target[0] != '/' || (target.size() > 1 && target[1] == '/')) {
+                return nullopt;
+            }
+            size_t end = target.find('?');
+            if (end == std::string_view::npos) {
+                end = target.size();
+            }
+            size_t segment = 1;   // where the current segment starts (after its '/')
+            for (size_t i = 1; i <= end; ++i) {
+                if (i == end || target[i] == '/') {
+                    auto s = target.substr(segment, i - segment);
+                    if (s == "." || s == "..") {
+                        return nullopt;
+                    }
+                    segment = i + 1;
+                    continue;
+                }
+                unsigned char c = static_cast<unsigned char>(target[i]);
+                if (c <= 0x20 || c >= 0x7F || c == '%' || c == '\\' || c == '#' || c == '"' || c == '<' || c == '>' || c == '`' || c == '{' || c == '}') {
+                    return nullopt;
+                }
+            }
+            return target.substr(0, end);
+        }
+    }
+
     // A URL by the WHATWG URL Standard, the way browsers, curl, Node and
     // Deno read one: an immutable value, as a string is (one string of the
     // serialization and the places of its parts in it), made only by the
@@ -1449,10 +1544,25 @@ namespace sgcl::net {
             return _parsed(_parse(text, nullptr), text);
         }
 
+        // The URL a literal in the program spells: parse's value, or
+        // bad_expected_access<io::error> with parse's message. Input is
+        // parsed; a text the program itself wrote is constructed
+        // (DESIGN 234). A reference relative to a base: the constructor
+        // below.
+        explicit url(const string& text)
+        : url(parse(text).value()) {
+        }
+
         // A URL or a reference relative to base: "../c", "?q=2", "//host/x"
         static expected<url, io::error> parse(const string& text, const url& base) {
             auto b = base._record();
             return _parsed(_parse(text, &b), text);
+        }
+
+        // The same for a literal: parse(text, base)'s value, or its error
+        // thrown, as above
+        explicit url(const string& text, const url& base)
+        : url(parse(text, base).value()) {
         }
 
         // "https", without the ':'

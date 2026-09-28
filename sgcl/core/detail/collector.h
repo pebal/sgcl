@@ -1004,7 +1004,9 @@ namespace sgcl::detail {
         // pointer of either kind names by its start (data that happens to
         // look like an address, as two small ints packed in a word); and a
         // raw word whose target a tracked word of the same object holds (an
-        // owner beside a raw pointer into what it owns: slice, io::reader).
+        // owner beside a raw pointer into what it owns: slice, io::reader),
+        // or whose address is one past the end of such a target (a slice's
+        // end: the start of the next slot, which nothing reads through).
         void _check_removed_offsets(ChildPointers& childs, void* ptr) noexcept {
             if (childs.warned.load(std::memory_order_relaxed)) {
                 return;
@@ -1020,7 +1022,7 @@ namespace sgcl::detail {
                         continue;
                     }
                     auto start = page->pointer_of(page->index_of(word));
-                    if (start == ptr || word != start || _held_by(childs, ptr, start)) {
+                    if (start == ptr || word != start || _held_by(childs, ptr, start) || _ends_held(childs, ptr, word)) {
                         continue;
                     }
                     childs.warned.store(true, std::memory_order_relaxed);
@@ -1028,6 +1030,18 @@ namespace sgcl::detail {
                     return;
                 }
             }
+        }
+
+        // Whether word is one past the end of an object a word of the object
+        // still taken for a pointer names (the object holding word - 1 may be
+        // on the page before: a buffer ending at a page's end)
+        static bool _ends_held(ChildPointers& childs, void* ptr, const void* word) noexcept {
+            auto last = (const char*)word - 1;
+            auto page = Heap::page_of_checked(last);
+            if (!page || page->is_root_holder || !_is_registered(page, last)) {
+                return false;
+            }
+            return _held_by(childs, ptr, page->pointer_of(page->index_of(last)));
         }
 
         // Whether a word of the object still taken for a pointer names the

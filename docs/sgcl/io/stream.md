@@ -37,13 +37,13 @@ namespace sgcl::io {
 
 A stream is whatever has the primitive: `read(slice<byte>)`, which returns the bytes read, 0 at the end of the stream, and `write(slice<const byte>)`, which writes all of it, as Go's `Write`, or fails with an error that says how far it got. Both do their work now, on the calling thread: io is synchronous, as `read` and `write` are in POSIX, in `std` and in Go. A stream that can wait without holding a thread — a socket, a pipe on the reactor — has `async_read` and `async_write` as well, which return a `task` for `co_await`. No base class and nothing virtual on the stream's side: a class of your own is a reader by having `read`; a lambda that fills a buffer and says how much is a reader too, and one that takes the bytes is a writer. The requirements (`io::req::reader`, `req::async_reader`, `req::writer`, `req::async_writer`, `req::closer`, `req::async_closer`, `req::seeker`) are concepts, checked where the stream is passed: `io::async_copy` of a source that has only `read` does not compile, rather than hold a thread of the pool for every wait.
 
-The functions of io take any of them — an object by reference (`io::stdout`, a stream on the stack), a `tracked_ptr` to one on the managed heap (and the `unique_ptr` `make_tracked` gives), a callable — and the name without a prefix is the blocking form, `async_` the task's: `io::copy(io::stdout, up)` and `co_await io::async_copy(io::stdout, up)`; `read_full`, `read_all`, `read_all_text`, `write`, `write` the same. The classes of the library (`file`, `buffer`, `buffered_reader`, `connection`, the encoders) have the same as methods, from the mixins (`mixin::reader<Derived>`, `mixin::writer<Derived>`, `mixin::seeker<Derived>`), each the algorithm of `functions.h` over the class; a class of your own gets them by deriving from the mixin, with no virtual anywhere. `write` writes a string, a text slice (a line of a [buffered_reader](buffered.md)), a literal or a character array (to its first NUL, never past its end), a C string or a `std::string_view`, each from where it lies.
+The functions of io take any of them — a handle of the library (a `file`, a `buffer`, a `buffered_reader`, a `connection`), an object by reference (`io::stdout`, a stream of your own on the stack), a `tracked_ptr` to one on the managed heap, a callable — and the name without a prefix is the blocking form, `async_` the task's: `io::copy(io::stdout, up)` and `co_await io::async_copy(io::stdout, up)`; `read_full`, `read_all`, `read_all_text`, `write`, `write` the same. The classes of the library (`file`, `buffer`, `buffered_reader`, `connection`, the encoders) have the same as methods, from the mixins (`mixin::reader<Derived>`, `mixin::writer<Derived>`, `mixin::seeker<Derived>`), each the algorithm of `functions.h` over the class; a class of your own gets them by deriving from the mixin, with no virtual anywhere. `write` writes a string, a text slice (a line of a [buffered_reader](buffered.md)), a literal or a character array (to its first NUL, never past its end), a C string or a `std::string_view`, each from where it lies.
 
-Where a stream has to be kept — the source of a `buffered_reader`, the output of an encoder, a field of your class — `io::reader` and `io::writer` hold any of them as a value: a `tracked_ptr` of what keeps the stream, a pointer to it and a table of its methods, Go's interface value. A stream given by reference is referenced (its managed object kept, if it lies in one; one on a stack, a global or one a `unique_ptr` owns is the caller's to keep alive), one given by `tracked_ptr` held, a `unique_ptr` given as a temporary taken over, a callable or a temporary copied into a managed object of its own. The half a stream lacks is made from the other, and only in the handle: `read` of a stream that has only `async_read` waits for its task on the calling thread, `async_read` of one that has only `read` runs it on the [blocking pool](../async/blocking.md), a thread of which it holds for the whole wait; `has_read()` and `has_async_read()` say which halves are the stream's own; `io::reader(r)` written out is where the choice is made.
+Where a stream has to be kept — the source of a `buffered_reader`, the output of an encoder, a field of your class — `io::reader` and `io::writer` hold any of them as a value: a `tracked_ptr` of what keeps the stream, a pointer to it and a table of its methods, Go's interface value. A handle of the library is held by its object (the copies of a handle share it); a stream of your own given by reference is referenced (its managed object kept, if it lies in one; one on a stack or a global is the caller's to keep alive), one given by `tracked_ptr` held, a callable or a temporary copied into a managed object of its own. The half a stream lacks is made from the other, and only in the handle: `read` of a stream that has only `async_read` waits for its task on the calling thread, `async_read` of one that has only `read` runs it on the [blocking pool](../async/blocking.md), a thread of which it holds for the whole wait; `has_read()` and `has_async_read()` say which halves are the stream's own; `io::reader(r)` written out is where the choice is made.
 
 ## Rules
 
-- A stream of the library is a managed object (`make_tracked<io::buffer>()`, `io::open(p)`), or one of the three standard streams (`io::stdin`, `io::stdout`, `io::stderr`, objects of their own, [os](os.md)). No raw pointer is taken: a reference for an object on a stack or a global, a `tracked_ptr` for one on the managed heap.
+- A stream of the library is a handle of one word (`io::buffer out;`, `io::file f = io::open(p);`, `io::buffered_reader in(f);`): the handle is copyable, the copies share the object. A handle is a tracked word: on a stack, in a task, in a managed object; in a global or a std container, a [`rooted`](../core/rooted.md) of it (`rooted<io::buffer> log(std::in_place);`, then `log->write(...)`), never in a managed object or a task's frame, since a root is never part of a cycle. The three standard streams (`io::stdin`, `io::stdout`, `io::stderr`, [os](os.md)) are objects of their own. No raw pointer is taken: a reference for an object on a stack or a global, a `tracked_ptr` for one on the managed heap.
 - The destructor runs on the collector's thread after the sweep that finds the stream dead, which may be long after the last use: a stream that holds a descriptor is `close()`d when done, which releases it now and reports the error a deferred close cannot.
 - An async form is a coroutine over the stream: a stream given by reference is held by that reference while the task runs, so the caller keeps it alive until the task is done — which `co_await io::async_copy(w, r)` in one statement does by itself; a temporary (a lambda written in the call) is moved into the task's frame.
 - Errors are values: `expected<T, error>`, never an exception ([error](error.md)). The end is not an error.
@@ -78,7 +78,7 @@ expected<size_t, error> write(req::writer auto&& w, byte b);
 // async_read_full, async_read_all, async_read_all_text, async_write: the same, a task
 ```
 
-`copy` moves the bytes through one managed block of `config::io_copy_buffer_size` (32 KB), or in one call when the source has a way of its own (`write_to`, and `async_write_to` for `async_copy`, as Go's `WriterTo`: a `buffer` hands over what it holds).
+`copy` moves the bytes through one block of `config::io_copy_buffer_size` (32 KB), on the stack of the call; `async_copy`'s is managed, since its reads may run on the blocking pool and the slice a read is given holds the block; or in one call when the source has a way of its own (`write_to`, and `async_write_to` for `async_copy`, as Go's `WriterTo`: a `buffer` hands over what it holds). `read_all` gathers the stream in unmanaged memory, grown by doubling, and makes one `vector<byte>` of exactly its size at the end: one managed allocation, the result. `async_read_all` reads into managed blocks instead (8 KB, then 32 KB each for a longer stream), which a read on the pool holds, and copies them once into its result.
 
 ### mixin::reader, mixin::writer, mixin::seeker
 
@@ -128,18 +128,7 @@ class writer : public mixin::writer<writer> {
 
 Three words: the `tracked_ptr` of what keeps the stream, a pointer to it, a pointer to a table of its methods made once per type. Copying copies the words.
 
-What a handle keeps depends on what it was made from — one constructor takes them all, which is flexible, and the price is that a pointer and an object both become a handle without a word:
-
-| made from | the handle | the stream lives |
-|---|---|---|
-| a `tracked_ptr<T>` (`tracked_ptr src = make_tracked<io::buffer>()`, then `io::reader r = src;`) | holds the `tracked_ptr` | as long as the handle, at least |
-| a `unique_ptr` from `make_tracked` kept in a variable (`auto src = make_tracked<io::buffer>()`, then `io::reader r = src;` or `= *src;`) | refers to the object; a `unique_ptr`'s object is its own, no `tracked_ptr` may hold it | as long as `src`: the caller keeps it |
-| a `unique_ptr` as a temporary (`io::reader r = make_tracked<io::buffer>();`) | takes it over, as a `tracked_ptr` | as long as the handle |
-| an object by reference that lies on the managed heap (`*src` of a `tracked_ptr`, a member of a managed object) | refers to it and holds the managed object it lies in | as long as the handle, at least |
-| an object on a stack, or a global (`io::stdout`) | refers to it | as long as its scope, or the process: the caller keeps it |
-| a callable (a lambda) | copies it into a managed object of its own | as long as the handle |
-
-So `upper_reader up(src)` in the example below, with `src` the `unique_ptr` `make_tracked` returned, makes an `io::reader` that refers to the buffer `src` keeps: `up` is used while `src` is in scope. A reader kept longer than its source's variable — in a container, in a task that outlives the scope — is made from a `tracked_ptr`, which it then holds.
+A handle of the library — `file`, `buffer`, `buffered_reader`, `buffered_writer`, `net::connection` — is copyable, and the copies share one object; `io::reader`/`io::writer` made of one holds that object itself, so the handle it was made of may go first. A class of your own given by reference is referenced (the managed object it lies in held; one on a stack or a global is the caller's to keep alive), one given by `tracked_ptr` held, a callable or a temporary copied into a managed object of its own.
 
 ### limit_reader, tee_reader, multi_reader, multi_writer, transform_reader, discard
 
@@ -157,15 +146,21 @@ Each has `read` and `async_read` (`write` and `async_write`), over its streams' 
 ### buffer
 
 ```cpp
-buffer();  explicit buffer(const slice<const byte>& initial);  explicit buffer(const string& initial);
-expected<size_t, error> read(slice<byte> out);                task<expected<size_t, error>> async_read(slice<byte> out);
-expected<size_t, error> write(slice<const byte> in);          task<expected<size_t, error>> async_write(slice<const byte> in);
+buffer() noexcept;  explicit buffer(const slice<const byte>& initial);  explicit buffer(const string& initial);
+expected<size_t, error> read(const slice<byte>& out) const;         task<expected<size_t, error>> async_read(const slice<byte>& out) const;
+expected<size_t, error> write(const slice<const byte>& in) const;   task<expected<size_t, error>> async_write(const slice<const byte>& in) const;
 slice<const byte> data() const noexcept;             // what remains: valid until the next write
 string text() const;  size_t size() const noexcept;  bool empty() const noexcept;
-void clear() noexcept;  void reserve(size_t n);  vector<byte> release();
+void clear() const noexcept;  void reserve(size_t n) const;  vector<byte> release() const;
+expected<uint64_t, error> seek(int64_t offset, seek_from from = seek_from::begin) const;   // + tell(), rewind() (mixin::seeker)
+friend bool operator==(const buffer&, const buffer&) noexcept;   // the same buffer
 ```
 
 A growing block of bytes in memory (Go's `bytes.Buffer`), read from the front and written at the back: a parser's input, a response being built, the stream of a test. Its async forms never wait. As the source of `io::copy` it hands over what it holds in one write.
+
+A handle of one word, as `file` is: a copy is the same buffer, and both copies write to and read from the same bytes. `io::buffer out;` makes its (empty) buffer at once, as every constructor does.
+
+It seeks as a file does, for writing: the write position counts from the first byte held (`data()`), follows the end until a seek moves it, and a write there overwrites what is held and runs on past the end; a seek past the end is allowed, and a write there fills the gap with zeros, as `os.File` and `pwrite` do (a `std::stringstream` refuses the seek instead). Reads still consume from the front, and the position moves back with the bytes they take; a seek before the first byte is `std::errc::invalid_argument`. `seek(0, seek_from::end)` puts the position back at the end, where writes append. It is what a writer that must come back to its start needs in memory: a [7z archive](../compress/sevenzip.md) writes its signature header last. The buffer's own `size()` (bytes held) hides the mixin's.
 
 ## Example
 
@@ -185,7 +180,7 @@ public:
 
     async::task<expected<size_t, io::error>> async_read(slice<byte> b) {
         auto n = co_await _r.async_read(b);
-        if (n) for (auto& c : b.first(*n)) c = byte(std::toupper(int(c)));
+        if (n) for (auto& c : b.first(n)) c = byte(std::toupper(int(c)));
         co_return n;
     }
 
@@ -194,11 +189,11 @@ private:
 };
 
 int main() {
-    auto src = make_tracked<io::buffer>(string("hello, streams\n"));
-    upper_reader up(src);                                         // an io::reader over the buffer src keeps (the table under reader, writer)
-    auto n = io::async_copy(io::stdout, up).wait();                // a task, waited for by this thread: HELLO, STREAMS
+    io::buffer greeting("hello, streams\n");
+    upper_reader up(greeting);                                    // an io::reader holding the buffer (the table under reader, writer)
+    auto n = io::async_copy(io::stdout, up).wait();                    // a task, waited for by this thread: HELLO, STREAMS
     if (n) {
-        io::stdout.write(to_string(*n) + " bytes\n");
+        println("{} bytes", *n);
     }
 
     // a lambda is a reader too, here a blocking one: it fills the buffer and

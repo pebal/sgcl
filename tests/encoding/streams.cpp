@@ -25,19 +25,19 @@ namespace {
         auto enc = make(out);
         for (size_t at = 0; at < in.size(); at += piece) {
             size_t k = std::min(piece, in.size() - at);
-            auto w = enc->write(slice<const byte>(in.data() + at, k));
+            auto w = enc.write(slice<const byte>(in.data() + at, k));
             EXPECT_TRUE(w.has_value());
-            EXPECT_EQ(*w, k);
+            EXPECT_EQ(value_of(w), k);   // a function with a result: no ASSERT here
         }
-        EXPECT_TRUE(enc->close().has_value());
-        EXPECT_TRUE(enc->close().has_value());   // a second close does nothing
+        EXPECT_TRUE(enc.close().has_value());
+        EXPECT_TRUE(enc.close().has_value());   // a second close does nothing
         return out->text;
     }
 
     template<class Make>
     sgcl::expected<std::string, io::error> decoded_in_pieces(Make make, const std::string& text, size_t piece, size_t buffer) {
         auto dec = make(make_tracked<dribble>(text, piece));
-        return read_all(*dec, buffer);
+        return read_all(dec, buffer);
     }
 }
 
@@ -66,11 +66,11 @@ TEST(CodecStreams_Tests, DecodersReadInPieces) {
         for (size_t piece : Pieces) {
             for (size_t buffer : Pieces) {
                 auto where = std::to_string(n) + " fed by " + std::to_string(piece) + " read by " + std::to_string(buffer);
-                EXPECT_EQ(decoded_in_pieces([](auto r) { return base64::standard.decoder_from(std::move(r)); }, t64, piece, buffer).value(), want) << where;
-                EXPECT_EQ(decoded_in_pieces([](auto r) { return base64::raw_url.decoder_from(std::move(r)); }, t64r, piece, buffer).value(), want) << where;
-                EXPECT_EQ(decoded_in_pieces([](auto r) { return base32::standard.decoder_from(std::move(r)); }, t32, piece, buffer).value(), want) << where;
-                EXPECT_EQ(decoded_in_pieces([](auto r) { return base32::hex.without_padding().decoder_from(std::move(r)); }, t32r, piece, buffer).value(), want) << where;
-                EXPECT_EQ(decoded_in_pieces([](auto r) { return ascii85::decoder_from(std::move(r)); }, t85, piece, buffer).value(), want) << where;
+                EXPECT_EQ(value_of(decoded_in_pieces([](auto r) { return base64::standard.decoder_from(std::move(r)); }, t64, piece, buffer)), want) << where;
+                EXPECT_EQ(value_of(decoded_in_pieces([](auto r) { return base64::raw_url.decoder_from(std::move(r)); }, t64r, piece, buffer)), want) << where;
+                EXPECT_EQ(value_of(decoded_in_pieces([](auto r) { return base32::standard.decoder_from(std::move(r)); }, t32, piece, buffer)), want) << where;
+                EXPECT_EQ(value_of(decoded_in_pieces([](auto r) { return base32::hex.without_padding().decoder_from(std::move(r)); }, t32r, piece, buffer)), want) << where;
+                EXPECT_EQ(value_of(decoded_in_pieces([](auto r) { return ascii85::decoder_from(std::move(r)); }, t85, piece, buffer)), want) << where;
             }
         }
     }
@@ -94,11 +94,11 @@ TEST(CodecStreams_Tests, LenientDecoderAcrossLines) {
     }
     // a strict decoder refuses the first line ending
     auto dec = base64::standard.decoder_from(make_tracked<dribble>(wrapped, 7));
-    auto r = read_all(*dec, 100);
+    auto r = read_all(dec, 100);
     ASSERT_FALSE(r.has_value());
-    ASSERT_TRUE(dec->last_error().has_value());
-    EXPECT_EQ(dec->last_error()->offset(), 76u);
-    EXPECT_EQ(dec->last_error()->code(), encoding::errc::invalid_character);
+    ASSERT_TRUE(dec.last_error().has_value());
+    EXPECT_EQ(dec.last_error()->offset(), 76u);
+    EXPECT_EQ(dec.last_error()->code(), encoding::errc::invalid_character);
 }
 
 // An invalid text fails the read that reaches it, after the bytes before
@@ -116,7 +116,7 @@ TEST(CodecStreams_Tests, ErrorsOfAStreamAreTheErrorsOfTheText) {
                 std::vector<byte> buf(buffer);
                 expected<size_t, io::error> r;
                 do {
-                    r = dec->read(slice<byte>(buf.data(), buf.size()));
+                    r = dec.read(slice<byte>(buf.data(), buf.size()));
                     if (r) {
                         got.append(reinterpret_cast<const char*>(buf.data()), *r);
                     }
@@ -125,16 +125,16 @@ TEST(CodecStreams_Tests, ErrorsOfAStreamAreTheErrorsOfTheText) {
                 EXPECT_EQ(r.error().code(), make_error_code(whole.error().code())) << text;
                 EXPECT_EQ(r.error().code().category().name(), std::string_view("encoding"));
                 EXPECT_EQ(std::string_view(r.error().message()).substr(0, 14), "decode base64:");
-                ASSERT_TRUE(dec->last_error().has_value());
-                EXPECT_EQ(dec->last_error()->offset(), whole.error().offset()) << text << " by " << piece << "/" << buffer;
-                EXPECT_EQ(dec->last_error()->code(), whole.error().code()) << text;
+                ASSERT_TRUE(dec.last_error().has_value());
+                EXPECT_EQ(dec.last_error()->offset(), whole.error().offset()) << text << " by " << piece << "/" << buffer;
+                EXPECT_EQ(dec.last_error()->code(), whole.error().code()) << text;
                 // the bytes before the error came out
                 auto good = base64::standard.lenient().decode(string(std::string(text).substr(0, whole.error().offset() / 4 * 4)));
                 if (good) {
                     EXPECT_EQ(got.substr(0, good->size()), view_of(bytes_of(*good))) << text;
                 }
                 // and the error stays
-                auto again = dec->read(slice<byte>(buf.data(), buf.size()));
+                auto again = dec.read(slice<byte>(buf.data(), buf.size()));
                 EXPECT_FALSE(again.has_value());
             }
         }
@@ -142,35 +142,35 @@ TEST(CodecStreams_Tests, ErrorsOfAStreamAreTheErrorsOfTheText) {
     // the reader under it failing is that reader's error, and last_error
     // carries it with the offset reached
     auto dec = base64::standard.decoder_from(make_tracked<failing>("QUJD"));
-    auto r = read_all(*dec, 100);
+    auto r = read_all(dec, 100);
     ASSERT_FALSE(r.has_value());
     EXPECT_EQ(r.error().path(), "failing");
-    ASSERT_TRUE(dec->last_error().has_value());
-    EXPECT_EQ(dec->last_error()->code(), encoding::errc::io);
-    EXPECT_EQ(dec->last_error()->offset(), 4u);
-    ASSERT_TRUE(dec->last_error()->io_error().has_value());
-    EXPECT_EQ(dec->last_error()->io_error()->path(), "failing");
+    ASSERT_TRUE(dec.last_error().has_value());
+    EXPECT_EQ(dec.last_error()->code(), encoding::errc::io);
+    EXPECT_EQ(dec.last_error()->offset(), 4u);
+    ASSERT_TRUE(dec.last_error()->io_error().has_value());
+    EXPECT_EQ(dec.last_error()->io_error()->path(), "failing");
 }
 
 TEST(CodecStreams_Tests, EncoderAfterCloseAndOverABrokenWriter) {
     sgcl::tracked_ptr out = make_tracked<sink>();
     auto enc = base64::standard.encoder_to(out);
-    ASSERT_TRUE(enc->write("f").has_value());
+    ASSERT_TRUE(enc.write("f").has_value());
     EXPECT_EQ(out->text, "");            // one byte waits for its group
-    ASSERT_TRUE(enc->close().has_value());
+    ASSERT_TRUE(enc.close().has_value());
     EXPECT_EQ(out->text, "Zg==");
-    EXPECT_TRUE(enc->is_closed());
-    auto after = enc->write("x");
+    EXPECT_TRUE(enc.is_closed());
+    auto after = enc.write("x");
     ASSERT_FALSE(after.has_value());
     EXPECT_TRUE(after.error().is_closed());
 
     auto bad = base64::standard.encoder_to(make_tracked<broken>());
-    auto w = bad->write("abc");
+    auto w = bad.write("abc");
     ASSERT_FALSE(w.has_value());
     EXPECT_EQ(w.error().path(), "broken");
     auto bad2 = base64::standard.encoder_to(make_tracked<broken>());
-    ASSERT_TRUE(bad2->write("ab").has_value());   // carried, nothing written yet
-    EXPECT_FALSE(bad2->close().has_value());
+    ASSERT_TRUE(bad2.write("ab").has_value());   // carried, nothing written yet
+    EXPECT_FALSE(bad2.close().has_value());
 }
 
 // A writer underneath that fails once has lost the group being written:
@@ -180,19 +180,19 @@ TEST(CodecStreams_Tests, AFailureOfTheWriterUnderneathIsKept) {
     auto check = [](auto make, const char* what) {
         sgcl::tracked_ptr out = make_tracked<flaky>();
         auto enc = make(out);
-        ASSERT_TRUE(enc->write(as_slice(input(1))).has_value()) << what;   // carried
+        ASSERT_TRUE(enc.write(as_slice(input(1))).has_value()) << what;   // carried
         out->fail_next = 1;
-        auto w = enc->write(as_slice(input(40)));
+        auto w = enc.write(as_slice(input(40)));
         ASSERT_FALSE(w.has_value()) << what;
         EXPECT_EQ(w.error().path(), "flaky") << what;
-        auto again = enc->write(as_slice(input(40)));   // the writer works again; the encoder does not pretend
+        auto again = enc.write(as_slice(input(40)));   // the writer works again; the encoder does not pretend
         ASSERT_FALSE(again.has_value()) << what;
         EXPECT_EQ(again.error().path(), "flaky") << what;
-        auto c = enc->close();
+        auto c = enc.close();
         ASSERT_FALSE(c.has_value()) << what;
         EXPECT_EQ(c.error().path(), "flaky") << what;
-        EXPECT_TRUE(enc->is_closed()) << what;
-        EXPECT_FALSE(enc->close().has_value()) << what;
+        EXPECT_TRUE(enc.is_closed()) << what;
+        EXPECT_FALSE(enc.close().has_value()) << what;
         EXPECT_EQ(out->text, "") << what;
     };
     check([](auto out) { return base64::standard.encoder_to(out); }, "base64");
@@ -203,11 +203,11 @@ TEST(CodecStreams_Tests, AFailureOfTheWriterUnderneathIsKept) {
     // the failure at close: kept too
     sgcl::tracked_ptr out = make_tracked<flaky>();
     auto enc = base64::standard.encoder_to(out);
-    ASSERT_TRUE(enc->write("ab").has_value());
+    ASSERT_TRUE(enc.write("ab").has_value());
     out->fail_next = 1;
-    EXPECT_FALSE(enc->close().has_value());
-    EXPECT_FALSE(enc->close().has_value());
-    EXPECT_FALSE(enc->write("x").has_value());
+    EXPECT_FALSE(enc.close().has_value());
+    EXPECT_FALSE(enc.close().has_value());
+    EXPECT_FALSE(enc.write("x").has_value());
 }
 
 // The async forms on the paths of failure: the same errors as the
@@ -217,25 +217,25 @@ TEST(CodecStreams_Tests, AsyncFailures) {
         // the writer underneath failing, kept through async_write and async_close
         sgcl::tracked_ptr out = make_tracked<flaky>();
         auto enc = base64::standard.encoder_to(out);
-        co_await enc->async_write("a");
+        co_await enc.async_write("a");
         out->fail_next = 1;
-        if (co_await enc->async_write("bcdef")) {
+        if (co_await enc.async_write("bcdef")) {
             co_return -1;
         }
-        if (co_await enc->async_write("bcdef")) {
+        if (co_await enc.async_write("bcdef")) {
             co_return -2;
         }
-        if (enc->close()) {
+        if (enc.close()) {
             co_return -3;
         }
         sgcl::tracked_ptr dumped = make_tracked<flaky>();
         auto d = hex::dumper_to(dumped);
-        co_await d->async_write("0123456789");
+        co_await d.async_write("0123456789");
         dumped->fail_next = 1;
-        if (d->close()) {
+        if (d.close()) {
             co_return -4;
         }
-        if (co_await d->async_write("x")) {
+        if (co_await d.async_write("x")) {
             co_return -5;
         }
         // a text that goes wrong, read in a task
@@ -244,40 +244,40 @@ TEST(CodecStreams_Tests, AsyncFailures) {
         std::string got;
         expected<size_t, io::error> r;
         for (;;) {
-            r = co_await dec->async_read(slice<byte>(buf.data(), buf.size()));
+            r = co_await dec.async_read(slice<byte>(buf.data(), buf.size()));
             if (!r || *r == 0) {
                 break;
             }
             got.append(reinterpret_cast<const char*>(buf.data()), *r);
         }
-        if (r || got != "ABCD" || !dec->last_error() || dec->last_error()->offset() != 8) {
+        if (r || got != "ABCD" || !dec.last_error() || dec.last_error()->offset() != 8) {
             co_return -6;
         }
-        if (co_await dec->async_read(slice<byte>(buf.data(), buf.size()))) {
+        if (co_await dec.async_read(slice<byte>(buf.data(), buf.size()))) {
             co_return -7;
         }
         // the reader underneath failing
         auto broken_in = ascii85::decoder_from(make_tracked<failing>("87cUR"));
-        auto e = co_await broken_in->async_read(slice<byte>(buf.data(), buf.size()));
+        auto e = co_await broken_in.async_read(slice<byte>(buf.data(), buf.size()));
         while (e && *e) {
-            e = co_await broken_in->async_read(slice<byte>(buf.data(), buf.size()));
+            e = co_await broken_in.async_read(slice<byte>(buf.data(), buf.size()));
         }
-        if (e || broken_in->last_error()->code() != encoding::errc::io) {
+        if (e || broken_in.last_error()->code() != encoding::errc::io) {
             co_return -8;
         }
         // varints: past 64 bits and cut short
-        sgcl::tracked_ptr big = make_tracked<io::buffered_reader>(make_tracked<dribble>(std::string(9, '\xFF') + "\x02", 1));
-        auto v = co_await varint::async_read(*big);
+        io::buffered_reader big(make_tracked<dribble>(std::string(9, '\xFF') + "\x02", 1));
+        auto v = co_await varint::async_read(big);
         if (v || v.error().code() != make_error_code(encoding::errc::out_of_range)) {
             co_return -9;
         }
-        sgcl::tracked_ptr cut = make_tracked<io::buffered_reader>(make_tracked<dribble>("\x80\x80", 1));
-        auto u = co_await varint::async_read_signed(*cut);
+        io::buffered_reader cut(make_tracked<dribble>("\x80\x80", 1));
+        auto u = co_await varint::async_read_signed(cut);
         if (u || !u.error().is_eof()) {
             co_return -10;
         }
-        sgcl::tracked_ptr failed = make_tracked<io::buffered_reader>(make_tracked<failing>("\x80"));
-        auto f = co_await varint::async_read(*failed);
+        io::buffered_reader failed(make_tracked<failing>("\x80"));
+        auto f = co_await varint::async_read(failed);
         if (f || f.error().path() != "failing") {
             co_return -11;
         }
@@ -295,9 +295,9 @@ TEST(CodecStreams_Tests, DumperInPieces) {
             auto d = hex::dumper_to(out);
             for (size_t at = 0; at < in.size(); at += piece) {
                 size_t k = std::min(piece, in.size() - at);
-                ASSERT_TRUE(d->write(slice<const byte>(in.data() + at, k)).has_value());
+                ASSERT_TRUE(d.write(slice<const byte>(in.data() + at, k)).has_value());
             }
-            ASSERT_TRUE(d->close().has_value());
+            ASSERT_TRUE(d.close().has_value());
             EXPECT_EQ(out->text, hex::dump(as_slice(in)).view()) << n << " by " << piece;
         }
     }
@@ -309,12 +309,12 @@ TEST(CodecStreams_Tests, AsyncForms) {
         sgcl::tracked_ptr out = make_tracked<sink>();
         auto enc = base64::standard.encoder_to(out);
         for (size_t at = 0; at < in.size(); at += 7) {
-            auto w = co_await enc->async_write(slice<const byte>(in.data() + at, std::min<size_t>(7, in.size() - at)));
+            auto w = co_await enc.async_write(slice<const byte>(in.data() + at, std::min<size_t>(7, in.size() - at)));
             if (!w) {
                 co_return -1;
             }
         }
-        if (!(enc->close())) {
+        if (!(enc.close())) {
             co_return -2;
         }
         if (out->text != base64::standard.encode(as_slice(in)).view()) {
@@ -324,7 +324,7 @@ TEST(CodecStreams_Tests, AsyncForms) {
         std::string got;
         std::vector<byte> buf(5);
         for (;;) {
-            auto r = co_await dec->async_read(slice<byte>(buf.data(), buf.size()));
+            auto r = co_await dec.async_read(slice<byte>(buf.data(), buf.size()));
             if (!r) {
                 co_return -4;
             }
@@ -338,14 +338,14 @@ TEST(CodecStreams_Tests, AsyncForms) {
         }
         sgcl::tracked_ptr dumped = make_tracked<sink>();
         auto d = hex::dumper_to(dumped);
-        co_await d->async_write(slice<const byte>(in.data(), 40));
-        d->close();
+        co_await d.async_write(slice<const byte>(in.data(), 40));
+        d.close();
         if (dumped->text != hex::dump(slice<const byte>(in.data(), 40)).view()) {
             co_return -6;
         }
         auto a85 = ascii85::encoder_to(dumped);
-        co_await a85->async_write(slice<const byte>(in.data(), 3));
-        a85->close();
+        co_await a85.async_write(slice<const byte>(in.data(), 3));
+        a85.close();
         co_return 1;
     }());
     EXPECT_EQ(t.wait(), 1);
@@ -363,7 +363,7 @@ TEST(CodecStreams_Tests, SurvivesACollection) {
     std::vector<byte> buf(333);
     for (;;) {
         sgcl::collector::force_collect(true);
-        auto r = dec->read(slice<byte>(buf.data(), buf.size()));
+        auto r = dec.read(slice<byte>(buf.data(), buf.size()));
         ASSERT_TRUE(r.has_value());
         if (*r == 0) {
             break;
@@ -387,12 +387,12 @@ TEST(CodecStreams_Tests, HexAndAscii85HaveTheWholeFamily) {
     ASSERT_TRUE(m);
     EXPECT_EQ(std::string_view(reinterpret_cast<const char*>(back.data()), *m), "hello, codec");
 
-    tracked_ptr<io::buffer> sink = make_tracked<io::buffer>();
+    io::buffer sink;
     auto enc = hex::encoder_to(sink);
-    ASSERT_TRUE(enc->write(bytes));
-    ASSERT_TRUE(enc->close());
-    EXPECT_EQ(sink->text(), hex::encode(bytes));
-    auto dec = hex::decoder_from(make_tracked<io::buffer>(sink->text()));
+    ASSERT_TRUE(enc.write(bytes));
+    ASSERT_TRUE(enc.close());
+    EXPECT_EQ(sink.text(), hex::encode(bytes));
+    auto dec = hex::decoder_from(io::buffer(sink.text()));
     auto all = io::read_all(dec);
     ASSERT_TRUE(all);
     EXPECT_EQ(std::string_view(reinterpret_cast<const char*>(all->data()), all->size()), "hello, codec");
@@ -404,4 +404,43 @@ TEST(CodecStreams_Tests, HexAndAscii85HaveTheWholeFamily) {
     auto j = ascii85::decode_to(a85back.as_slice(), sgcl::string(a85.data(), k));
     ASSERT_TRUE(j);
     EXPECT_EQ(std::string_view(reinterpret_cast<const char*>(a85back.data()), *j), "hello, codec");
+}
+
+// The streams are handles of one word (detail/codec.h): a copy is the same
+// stream, a stream made of one binds its state, an empty one holds none,
+// and they take part in atomic<H> by their word
+static_assert(sgcl::req::handle<base64::encoder> && sgcl::req::handle<base64::decoder>);
+static_assert(sgcl::req::handle<base32::encoder> && sgcl::req::handle<base32::decoder>);
+static_assert(sgcl::req::handle<ascii85::encoder> && sgcl::req::handle<ascii85::decoder>);
+static_assert(sgcl::req::handle<hex::encoder> && sgcl::req::handle<hex::decoder> && sgcl::req::handle<hex::dumper>);
+
+TEST(CodecStreams_Tests, TheStreamsAreHandles) {
+    io::buffer out;
+    base64::encoder armored = base64::standard.encoder_to(out);
+    base64::encoder copy = armored;                  // the same stream
+    EXPECT_TRUE(copy == armored);
+    ASSERT_TRUE(armored.write("f").has_value());     // one byte carried in the state
+    ASSERT_TRUE(copy.close().has_value());           // closed through the copy: the carry written
+    EXPECT_EQ(out.text(), "Zg==");
+    EXPECT_TRUE(armored.is_closed());
+
+    io::buffer text("Zm9v");
+    io::reader r = base64::standard.decoder_from(text);   // the stream binds the state: the temporary handle may go
+    auto all = io::read_all(r);
+    ASSERT_TRUE(all);
+    EXPECT_EQ(std::string_view(reinterpret_cast<const char*>(all->data()), all->size()), "foo");
+
+    base64::encoder none;
+    EXPECT_FALSE(none);
+    EXPECT_TRUE(armored);
+
+    io::buffer first, second;
+    hex::dumper a = hex::dumper_to(first), b = hex::dumper_to(second);
+    sgcl::atomic<hex::dumper> current;
+    current.store(a);
+    EXPECT_TRUE(current.load() == a);
+    EXPECT_TRUE(current.exchange(b) == a);
+    ASSERT_TRUE(current.load().write("x").has_value());
+    ASSERT_TRUE(b.close().has_value());
+    EXPECT_EQ(second.text(), hex::dump("x"));
 }

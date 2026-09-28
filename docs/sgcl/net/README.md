@@ -1,6 +1,6 @@
 # sgcl::net
 
-What Go has in `net`, `net/netip` and `net/url`: IP addresses and networks as values, TCP and unix stream sockets, UDP, the system's resolver, and URLs by the WHATWG URL Standard. `#include "sgcl/net/net.h"` brings the module in; it depends on [`core`](../core/README.md), [`containers`](../core/README.md), [`async`](../async/README.md) (the reactor, the timers, the blocking pool, `select` and the stop tokens carry it) and [`io`](../io/README.md) (its errors and streams); the index of the whole interface is [`docs/sgcl/`](../README.md). This is stages 1a to 1c of the module; HTTP/1.1 is [`net::http`](http/README.md) (`#include "sgcl/net/http/http.h"`), and TLS and HTTP/2 come after `crypto`. [`net::url`](url.md) needs neither the reactor nor sockets: `#include "sgcl/net/url.h"` alone brings only it (and [`txt`](../txt/README.md)'s IDNA and escaping).
+What Go has in `net`, `net/netip` and `net/url`: IP addresses and networks as values, TCP and unix stream sockets, UDP, the system's resolver, and URLs by the WHATWG URL Standard. `#include "sgcl/net/net.h"` brings the module in; it depends on [`core`](../core/README.md), [`containers`](../core/README.md), [`async`](../async/README.md) (the reactor, the timers, the blocking pool, `select` and the stop tokens carry it) and [`io`](../io/README.md) (its errors and streams); the index of the whole interface is [`docs/sgcl/`](../README.md). This is stages 1a to 1c of the module; HTTP/1.1 is [`net::http`](http/README.md) (`#include "sgcl/net/http/http.h"`), TLS 1.3 is [`net::tls`](tls.md) (`#include "sgcl/net/tls.h"`, on [`crypto`](../crypto/README.md)), and HTTP/2 comes after it. [`net::url`](url.md) needs neither the reactor nor sockets: `#include "sgcl/net/url.h"` alone brings only it (and [`txt`](../txt/README.md)'s IDNA and escaping).
 
 ## The names
 
@@ -32,6 +32,7 @@ A connection's descriptor is closed by `close()` or, failing that, by the object
 | [socket](socket.md) | `sgcl/net/socket.h` | `tcp` (connect with happy eyeballs, listen), `udp` (bind, connect), `unix_domain` (connect, listen), `net::reuse_port` |
 | [url](url.md) | `sgcl/net/url.h` | `net::url` (the WHATWG URL Standard: parse, resolve, the parts, the setters as `with_*`, the origin), `net::query_params` (`application/x-www-form-urlencoded`) |
 | [http](http/README.md) | `sgcl/net/http/http.h` | HTTP/1.1: `net::http::client` (a pool, redirects), `net::http::server` (Go 1.22 routes, limits, shutdown), the messages, headers, cookies, statuses |
+| [tls](tls.md) | `sgcl/net/tls.h`, `sgcl/net/tls/error.h` | TLS 1.3: `net::tls::connect` and `net::tls::client` (the handshake before the connection, X25519MLKEM768 first), `net::tls::config`, `net::tls::identity`, `net::tls::state_of`; the alerts and certificate failures as `io::error`s of the category `"tls"` |
 | [dns](dns.md) | `sgcl/net/dns.h` | `net::dns::lookup`, `net::dns::reverse_lookup` and their `async_` forms, on the system's resolver |
 
 ## SGCL and Go

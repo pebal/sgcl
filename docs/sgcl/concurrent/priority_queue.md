@@ -118,7 +118,7 @@ A copy of the least element, taken under the lock, or nothing when the queue is 
 ```cpp
 concurrent::priority_queue<int> q = {5, 2, 8};
 if (auto least = q.try_top()) {   // a copy of 2; the queue still holds it
-    std::cout << *least << " " << q.size() << "\n";   // 2 3
+    println("{} {}", *least, q.size());   // 2 3
 }
 ```
 
@@ -131,7 +131,7 @@ concurrent::priority_queue<int> ties;
 ties.push(1);
 ties.push(1);
 ties.push(0);
-std::cout << *ties.try_pop() << *ties.try_pop() << *ties.try_pop() << "\n";   // 011
+println("{}{}{}", *ties.try_pop(), *ties.try_pop(), *ties.try_pop());   // 011
 ```
 
 ### empty, size
@@ -163,7 +163,6 @@ A copy of the comparator.
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -212,8 +211,7 @@ int main() {
         ++count[j->priority];
         ++taken;
     }
-    std::cout << taken << " jobs: " << count[0] << " of priority 0, " << count[1] << " of priority 1, "
-              << count[2] << " of priority 2; " << out_of_order << " out of order\n";
+    println("{} jobs: {} of priority 0, {} of priority 1, {} of priority 2; {} out of order", taken, count[0], count[1], count[2], out_of_order);
     return taken == 4000 && out_of_order == 0 ? 0 : 1;
 }
 ```

@@ -55,9 +55,20 @@ namespace sgcl::detail {
         // never a tracked pointer, so it goes in the buffer as std keeps
         // it (the trait would send it to a node: a word that is not
         // trivially constructible); function's assignment from one is
-        // noexcept and allocates nothing
+        // noexcept and allocates nothing. So does a trivially copyable
+        // value (a closure of a double, an int64, a raw pointer), which
+        // the trait sends to a node for a constructor that is not trivial:
+        // a pointer word's copy is not trivial (the write barrier), so no
+        // trivially copyable type holds one (the asserts below); vector.h
+        // asks the same pair before it copies a buffer by its bytes
         template<class T>
-        static constexpr bool Inline = (IsReferenceWrapper<T>::value || !MayContainTracked<T>::value) && sizeof(T) <= BufferSize && alignof(T) <= BufferAlign && std::is_nothrow_move_constructible_v<T>;
+        static constexpr bool PlainData = !TypeInfo<T>::MayContainTracked || std::is_trivially_copyable_v<T>;
+
+        static_assert(!std::is_trivially_copyable_v<tracked_ptr<void>> && !std::is_trivially_copyable_v<weak_ptr<void>> && !std::is_trivially_copyable_v<Pointer>,
+            "a pointer word is never trivially copyable: a trivially copyable value holds none");
+
+        template<class T>
+        static constexpr bool Inline = (IsReferenceWrapper<T>::value || PlainData<T>) && sizeof(T) <= BufferSize && alignof(T) <= BufferAlign && std::is_nothrow_move_constructible_v<T>;
 
         struct Manager {
             const std::type_info& type;

@@ -63,7 +63,7 @@ The live entries, each once, in the order of the table's list (the bit reversal 
 struct Session { int id; };
 concurrent::weak_map<Session, tracked_ptr<Stats>> stats;   // shared by the workers
 for (auto [session, s] : stats) {   // session: tracked_ptr<Session>, held; s: tracked_ptr<Stats>&
-    std::cout << session->id << ' ' << s->requests << '\n';
+    println("{} {}", session->id, s->requests.load());
 }
 ```
 
@@ -124,7 +124,6 @@ The entries, the dead ones not yet swept included; a snapshot under concurrent m
 
 ```cpp
 #include "sgcl/sgcl.h"
-#include <iostream>
 
 using namespace sgcl;
 
@@ -160,12 +159,12 @@ int main() {
             w.join();
         }
         for (auto [session, s] : stats) {   // session: tracked_ptr<Session>, held; s: tracked_ptr<Stats>&
-            std::cout << "session " << session->id << ": " << s->requests << " requests\n";
+            println("session {}: {} requests", session->id, s->requests.load());
         }
     }   // the guest's last strong pointer is gone
     collector::clear_stack();          // the dead frame zeroed, so that the conservative scan keeps nothing
     collector::force_collect(true);    // optional, for the demonstration: the cycle clears the guest's entry
-    std::cout << stats.size() << " entries, " << stats.sweep() << " swept, " << stats.size() << " left\n";
+    println("{} entries, {} swept, {} left", stats.size(), stats.sweep(), stats.size());
 }
 ```
 

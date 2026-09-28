@@ -32,6 +32,7 @@ void reset() noexcept;
 static /* the type of value() */ of(/* bytes or text */) noexcept;
 
 expected<size_t, io::error> copy_from(const io::reader& r);  async::task<expected<size_t, io::error>> async_copy_from(const io::reader& r);
+static expected</* the type of value() */, io::error> of_file(const string& path);  static async::task<expected</* the type of value() */, io::error>> async_of_file(const string& path);   // of() of the whole file, through copy_from
 ```
 
 ```cpp
@@ -53,20 +54,19 @@ The 128-bit result is sixteen bytes, the most significant first, so `value()` an
 ```cpp
 #include "sgcl/encoding/hex.h"
 #include "sgcl/hash/fnv.h"
-#include "sgcl/io/os.h"
-#include "sgcl/txt/format.h"
+#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
 int main() {
-    io::stdout.write(txt::format("{:08x}\n", hash::fnv32a::of("foobar")));
-    io::stdout.write(txt::format("{:016x}\n", hash::fnv64a::of("foobar")));
-    io::stdout.write(encoding::hex::encode(hash::fnv128a::of("a")) + "\n");
+    println("{:08x}", hash::fnv32a::of("foobar"));
+    println("{:016x}", hash::fnv64a::of("foobar"));
+    println(encoding::hex::encode(hash::fnv128a::of("a")));
 
     // going on from a value saved earlier
     auto h = hash::fnv64a::resume(hash::fnv64a::of("foo"));
     h.update("bar");
-    io::stdout.write(txt::format("{:016x}\n", h.value()));
+    println("{:016x}", h.value());
 }
 ```
 

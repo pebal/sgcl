@@ -61,7 +61,7 @@ namespace sgcl::async {
             }
 
             stop_source source;
-            wait_group running;
+            WaitGroupState running;
             std::atomic<bool> failed = {false};
             std::exception_ptr error;   // the first exception, written by the child that claimed `failed`, read after the wait
 
