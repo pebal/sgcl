@@ -23,6 +23,21 @@ target_include_directories(sgcl INTERFACE
     $<INSTALL_INTERFACE:include>
 )
 
+# The system frameworks codec::heif calls on Apple's systems (ImageIO for
+# HEIF and AVIF, CoreGraphics, CoreFoundation, vImage in Accelerate), linked
+# with the library. A program that makes no call still lists them (loaded
+# from the shared cache at start); -Wl,-dead_strip_dylibs drops them.
+# Their headers are never included: sgcl/codec/detail/apple_imageio.h
+# declares what it calls (the rule for platform headers).
+if(APPLE)
+    target_link_libraries(sgcl INTERFACE
+        "-framework ImageIO"
+        "-framework CoreGraphics"
+        "-framework CoreFoundation"
+        "-framework Accelerate"
+    )
+endif()
+
 # One subdirectory per module (core, containers, concurrent, async, io),
 # each with its own detail/; the includes inside are relative to the
 # including file, so the headers work from any include path.
@@ -73,7 +88,7 @@ if(SGCL_LIBCRYPTO AND EXISTS "${SGCL_OPENSSL_ROOT}/include/openssl/evp.h")
     set(SGCL_HAVE_OPENSSL TRUE)
 else()
     set(SGCL_HAVE_OPENSSL FALSE)
-    message(STATUS "SGCL: no OpenSSL 3 at SGCL_OPENSSL_ROOT (${SGCL_OPENSSL_ROOT}): tests_crypto not built")
+    message(STATUS "SGCL: no OpenSSL 3 at SGCL_OPENSSL_ROOT (${SGCL_OPENSSL_ROOT}): tests_crypto runs the vectors alone, without the oracle")
 endif()
 
 # liblzma (xz's): the oracle of the LZMA tests and the other side of

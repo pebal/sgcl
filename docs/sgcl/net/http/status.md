@@ -17,11 +17,31 @@ namespace sgcl::net::http {
 
 The codes of the IANA registry (RFC 9110 §15 and the RFCs it lists) as plain `int`s, Go's `http.StatusOK` and the rest: a status is a number on the wire, and a program compares it with one. `continue_` carries an underscore, since `continue` is a keyword; `payload_too_large` and `header_fields_too_large` are there beside the names RFC 9110 gave 413 and 431. `reason(code)` is the registry's phrase, `""` for a code it does not have (Go's `StatusText`).
 
+## Members
+
+### status
+
+```cpp
+namespace status {
+    inline constexpr int continue_ = 100, ok = 200, created = 201, no_content = 204, not_found = 404;   // …
+}
+```
+
+Every code of the registry as an `int` constant named after its phrase in snake case: `status::ok`, `status::not_found`, `status::service_unavailable`.
+
+### reason
+
+```cpp
+constexpr const char* reason(int code) noexcept;
+```
+
+The registry's phrase of a code, `"Not Found"` for 404; `""` for a code it does not have.
+
 ## Example
 
 ```cpp
-#include "sgcl/net/http/status.h"
-#include "sgcl/io/print.h"
+#include "sgcl/io/io.h"
+#include "sgcl/net/http/http.h"
 
 using namespace sgcl;
 

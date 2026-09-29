@@ -162,7 +162,8 @@ dynamic_array(InputIt, InputIt) -> dynamic_array<std::iter_value_t<InputIt>>;
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 #include <numeric>
 
 using namespace sgcl;
@@ -192,9 +193,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 sum of squares 140, reversed copy starts with 49, third 9
 ```
 

@@ -73,7 +73,9 @@ auto loop = [](async::broadcast<int>::subscription s, async::channel<void> quit)
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/async/async.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -137,9 +139,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 counter: 10 messages
 summer: 55
 late: 40 (6 + 7 + 8 + 9 + 10)

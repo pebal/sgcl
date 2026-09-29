@@ -1,12 +1,12 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
 #include "bytes.h"
-#include "cpu.h"
+#include "paths.h"
 
 #include <algorithm>
 #include <bit>
@@ -104,24 +104,24 @@ namespace sgcl::crypto::detail {
     // half carries a copy and is never read). Every index below is a
     // constant of the unrolled fold, so the compiler keeps the 25 lanes in
     // registers rather than in an array.
-    SGCL_CRYPTO_INLINE_SHA3
+    SGCL_INLINE_ARM64_SHA3
     inline void keccak_rounds_arm64(uint64x2_t (&v)[25]) noexcept {
         for (unsigned round = 0; round < 24; ++round) {
             uint64x2_t c[5], d[5], b[25];
-            [&]<size_t... X>(std::index_sequence<X...>) SGCL_CRYPTO_INLINE_SHA3 {
+            [&]<size_t... X>(std::index_sequence<X...>) SGCL_INLINE_ARM64_SHA3 {
                 ((c[X] = veor3q_u64(veor3q_u64(v[X], v[X + 5], v[X + 10]), v[X + 15], v[X + 20])), ...);
                 ((d[X] = vrax1q_u64(c[(X + 4) % 5], c[(X + 1) % 5])), ...);
             }(std::make_index_sequence<5>());
             // (the intrinsics are macros that a pack cannot expand through:
             // one lambda call per lane, each with its lane as a constant)
-            [&]<size_t... I>(std::index_sequence<I...>) SGCL_CRYPTO_INLINE_SHA3 {
+            [&]<size_t... I>(std::index_sequence<I...>) SGCL_INLINE_ARM64_SHA3 {
                 // θ and ρ in one: (lane ^ D) rotated left by ρ is rotated right by 64 - ρ
-                auto theta_rho = [&]<size_t L>(std::integral_constant<size_t, L>) SGCL_CRYPTO_INLINE_SHA3 {
+                auto theta_rho = [&]<size_t L>(std::integral_constant<size_t, L>) SGCL_INLINE_ARM64_SHA3 {
                     b[keccak_tables.pi[L]] = vxarq_u64(v[L], d[L % 5], (64 - keccak_tables.rho[L]) % 64);
                 };
                 (theta_rho(std::integral_constant<size_t, I>()), ...);
                 // χ: b ^ (~b[x + 1] & b[x + 2]) is BCAX(b, b[x + 2], b[x + 1])
-                auto chi = [&]<size_t L>(std::integral_constant<size_t, L>) SGCL_CRYPTO_INLINE_SHA3 {
+                auto chi = [&]<size_t L>(std::integral_constant<size_t, L>) SGCL_INLINE_ARM64_SHA3 {
                     v[L] = vbcaxq_u64(b[L], b[L - L % 5 + (L % 5 + 2) % 5], b[L - L % 5 + (L % 5 + 1) % 5]);
                 };
                 (chi(std::integral_constant<size_t, I>()), ...);
@@ -133,35 +133,35 @@ namespace sgcl::crypto::detail {
     // Whole blocks of `Rate` bytes XORed into the state and permuted, the
     // state kept in registers from the first block to the last
     template<size_t Rate>
-    SGCL_CRYPTO_TARGET_SHA3
+    SGCL_TARGET_ARM64_SHA3
     void keccak_absorb_arm64(uint64_t* a, const unsigned char* p, size_t blocks) noexcept {
         uint64x2_t v[25];
-        [&]<size_t... I>(std::index_sequence<I...>) SGCL_CRYPTO_INLINE_SHA3 {
+        [&]<size_t... I>(std::index_sequence<I...>) SGCL_INLINE_ARM64_SHA3 {
             ((v[I] = vdupq_n_u64(a[I])), ...);
         }(std::make_index_sequence<25>());
         for (; blocks != 0; --blocks, p += Rate) {
-            [&]<size_t... I>(std::index_sequence<I...>) SGCL_CRYPTO_INLINE_SHA3 {
+            [&]<size_t... I>(std::index_sequence<I...>) SGCL_INLINE_ARM64_SHA3 {
                 ((v[I] = veorq_u64(v[I], vdupq_n_u64(load_le64(p + 8 * I)))), ...);
             }(std::make_index_sequence<Rate / 8>());
             keccak_rounds_arm64(v);
         }
-        [&]<size_t... I>(std::index_sequence<I...>) SGCL_CRYPTO_INLINE_SHA3 {
-            auto store = [&]<size_t L>(std::integral_constant<size_t, L>) SGCL_CRYPTO_INLINE_SHA3 {
+        [&]<size_t... I>(std::index_sequence<I...>) SGCL_INLINE_ARM64_SHA3 {
+            auto store = [&]<size_t L>(std::integral_constant<size_t, L>) SGCL_INLINE_ARM64_SHA3 {
                 a[L] = vgetq_lane_u64(v[L], 0);
             };
             (store(std::integral_constant<size_t, I>()), ...);
         }(std::make_index_sequence<25>());
     }
 
-    SGCL_CRYPTO_TARGET_SHA3
+    SGCL_TARGET_ARM64_SHA3
     inline void keccak_permute_arm64(uint64_t* a) noexcept {
         uint64x2_t v[25];
-        [&]<size_t... I>(std::index_sequence<I...>) SGCL_CRYPTO_INLINE_SHA3 {
+        [&]<size_t... I>(std::index_sequence<I...>) SGCL_INLINE_ARM64_SHA3 {
             ((v[I] = vdupq_n_u64(a[I])), ...);
         }(std::make_index_sequence<25>());
         keccak_rounds_arm64(v);
-        [&]<size_t... I>(std::index_sequence<I...>) SGCL_CRYPTO_INLINE_SHA3 {
-            auto store = [&]<size_t L>(std::integral_constant<size_t, L>) SGCL_CRYPTO_INLINE_SHA3 {
+        [&]<size_t... I>(std::index_sequence<I...>) SGCL_INLINE_ARM64_SHA3 {
+            auto store = [&]<size_t L>(std::integral_constant<size_t, L>) SGCL_INLINE_ARM64_SHA3 {
                 a[L] = vgetq_lane_u64(v[L], 0);
             };
             (store(std::integral_constant<size_t, I>()), ...);
@@ -171,7 +171,7 @@ namespace sgcl::crypto::detail {
 
     inline void keccak_permute(uint64_t* a) noexcept {
 #if defined(SGCL_CRYPTO_ARM64)
-        if (cpu::sha3()) {
+        if (sgcl::detail::cpu::sha3()) {
             keccak_permute_arm64(a);
             return;
         }
@@ -182,7 +182,7 @@ namespace sgcl::crypto::detail {
     template<size_t Rate>
     void keccak_absorb(uint64_t* a, const unsigned char* p, size_t blocks) noexcept {
 #if defined(SGCL_CRYPTO_ARM64)
-        if (cpu::sha3()) {
+        if (sgcl::detail::cpu::sha3()) {
             keccak_absorb_arm64<Rate>(a, p, blocks);
             return;
         }

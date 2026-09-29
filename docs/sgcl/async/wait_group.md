@@ -38,7 +38,9 @@ all.wait();                                     // both done
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/async/async.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -76,14 +78,14 @@ int main() {
     }
     site->go.set();
     site->pending.wait();                                    // this thread waits for the twenty
-    println("{} pages", site->fetched);                // 20 pages
+    println("{} pages", site->fetched);
     return site->fetched == 20 ? 0 : 1;
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 20 pages
 ```
 

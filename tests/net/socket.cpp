@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -17,6 +17,8 @@ using namespace sgcl::async;
 #include <atomic>
 #include <chrono>
 #include <csignal>
+#include <cstring>
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <sys/resource.h>
@@ -347,6 +349,8 @@ TEST(NetSocket_Tests, DeadlinesOnTheManualClock) {
     clock.install();
     // a read waiting past its deadline
     server.set_read_deadline(clock.now() + 5s);
+    EXPECT_EQ(server.read_deadline(), clock.now() + 5s);   // the getters (DESIGN 328)
+    EXPECT_EQ(server.write_deadline(), time_point());
     auto reader = spawn([](net::connection c) -> task<expected<size_t, io::error>> {
         byte b[16];
         co_return co_await c.async_read(b);
@@ -658,6 +662,8 @@ TEST(NetSocket_Tests, UdpDatagramsAndTruncation) {
     EXPECT_EQ(awaited->remote_endpoint(), server->local_endpoint());
     // a deadline, and a close that ends a receive
     server->set_read_deadline(sgcl::clock::now() - 1s);
+    EXPECT_NE(server->read_deadline(), time_point());
+    EXPECT_EQ(server->write_deadline(), time_point());
     auto late = server->receive_from(back);
     ASSERT_FALSE(late);
     EXPECT_TRUE(late.error().is_timeout());
@@ -809,4 +815,127 @@ TEST(NetSocket_Tests, ARootedConnection) {
     ASSERT_TRUE(got);
     EXPECT_EQ(text(got.value()), "through the root");
     EXPECT_TRUE(ends[1]->close());
+}
+
+namespace {
+    // A file of n pattern bytes in the temporary directory, removed with the value
+    struct TempFile {
+        std::string path;
+        std::vector<unsigned char> data;
+
+        TempFile(size_t n, unsigned seed)
+        : path((std::filesystem::temp_directory_path() / ("sgcl_send_file_" + std::to_string(::getpid()) + "_" + std::to_string(seed))).string()) {
+            auto p = pattern(n, seed);
+            data.assign(reinterpret_cast<const unsigned char*>(p.data()), reinterpret_cast<const unsigned char*>(p.data()) + p.size());
+            EXPECT_TRUE(io::write_file(sgcl::string(path), p.as_slice()));
+        }
+
+        ~TempFile() {
+            std::filesystem::remove(path);
+        }
+
+        bool same(const vector<byte>& got, size_t from) const {
+            return got.size() == data.size() - from && std::memcmp(got.data(), data.data() + from, got.size()) == 0;
+        }
+    };
+
+    task<expected<vector<byte>, io::error>> read_to_end(net::connection c) {
+        co_return co_await c.async_read_all();
+    }
+
+    task<expected<size_t, io::error>> copy_in_task(net::connection c, io::file from) {
+        co_return co_await io::async_copy(c, from);
+    }
+}
+
+// io::copy of a file to a TCP connection goes by sendfile (the connection's
+// read_from): from the file's position to its end, a file far larger than
+// the socket's buffers, so the call is cut short and waits for room again
+// and again; the bytes are the file's, the position moves to the end
+TEST(NetSocket_Tests, CopyOfAFileToTcpGoesBySendfile) {
+    TempFile f(24 << 20, 7);
+    for (bool in_task : {false, true}) {
+        SCOPED_TRACE(in_task ? "async_copy" : "copy");
+        auto [client, server] = tcp_pair();
+        auto file = io::open(sgcl::string(f.path));
+        ASSERT_TRUE(file);
+        ASSERT_TRUE(file->seek(1000));
+        auto reader = spawn(read_to_end(server));
+        expected<size_t, io::error> sent;
+        if (in_task) {
+            sent = spawn(copy_in_task(client, *file)).wait();
+        } else {
+            sent = io::copy(client, *file);
+        }
+        ASSERT_TRUE(sent) << sent.error().message();
+        EXPECT_EQ(*sent, f.data.size() - 1000);
+        EXPECT_EQ(*file->seek(0, io::seek_from::current), f.data.size());
+        (void)client.close_write();
+        auto back = reader.wait();
+        ASSERT_TRUE(back);
+        EXPECT_TRUE(f.same(*back, 1000));
+        client.close();
+        server.close();
+    }
+}
+
+// A file at its end sends nothing; a pipe is no regular file: the copy's
+// loop, the bytes the same
+TEST(NetSocket_Tests, CopyOfAPipeOrAFileAtItsEnd) {
+    TempFile f(1 << 20, 9);
+    auto [client, server] = tcp_pair();
+    auto file = io::open(sgcl::string(f.path));
+    ASSERT_TRUE(file);
+    ASSERT_TRUE(file->seek(0, io::seek_from::end));
+    auto none = io::copy(client, *file);
+    ASSERT_TRUE(none);
+    EXPECT_EQ(*none, 0u);
+    auto ends = io::pipe();
+    ASSERT_TRUE(ends);
+    auto reader = spawn(read_to_end(server));
+    std::thread writer([&] {
+        auto p = pattern(1 << 20, 9);
+        (void)ends->write.write(p.as_slice());
+        (void)ends->write.close();
+    });
+    auto sent = io::copy(client, ends->read);
+    writer.join();
+    ASSERT_TRUE(sent) << sent.error().message();
+    EXPECT_EQ(*sent, f.data.size());
+    (void)client.close_write();
+    auto back = reader.wait();
+    ASSERT_TRUE(back);
+    EXPECT_TRUE(f.same(*back, 0));
+    client.close();
+    server.close();
+}
+
+// sendfile keeps the write's deadline (the peer reads nothing, the
+// buffers fill) and a closed peer is an error, not SIGPIPE
+TEST(NetSocket_Tests, SendfileKeepsTheDeadlineAndNoSignal) {
+    ASSERT_EQ(std::signal(SIGPIPE, SIG_DFL), SIG_DFL);
+    TempFile f(64 << 20, 11);
+    {
+        auto [client, server] = tcp_pair();
+        auto file = io::open(sgcl::string(f.path));
+        ASSERT_TRUE(file);
+        client.set_write_deadline(std::chrono::steady_clock::now() + 300ms);
+        auto sent = io::copy(client, *file);
+        ASSERT_FALSE(sent);
+        EXPECT_TRUE(sent.error().is_timeout()) << sent.error().message();
+        client.close();
+        server.close();
+    }
+    {
+        auto [client, server] = tcp_pair();
+        server.close();
+        auto file = io::open(sgcl::string(f.path));
+        ASSERT_TRUE(file);
+        auto sent = io::copy(client, *file);
+        ASSERT_FALSE(sent);
+        auto code = sent.error().code();
+        // macOS's sendfile names a reset peer ENOTCONN where send says EPIPE
+        EXPECT_TRUE(code == std::errc::broken_pipe || code == std::errc::connection_reset || code == std::errc::not_connected) << sent.error().message();
+        client.close();
+    }
 }

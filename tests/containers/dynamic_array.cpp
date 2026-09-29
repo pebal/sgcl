@@ -1,11 +1,13 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #include "tests/types.h"
 
 #include <functional>
+#include <array>
+#include <cstring>
 #include <iterator>
 #include <numeric>
 #include <sstream>
@@ -216,4 +218,45 @@ TEST(DynamicArray_Tests, ConstructorThatThrowsDestroysWhatItBuilt) {
     EXPECT_THROW(sgcl::dynamic_array<DefaultThrower> a(4), std::runtime_error);
     EXPECT_EQ(DefaultThrower::alive, 0);
     DefaultThrower::throw_at = -1;
+}
+
+namespace {
+    template<class Make>
+    void leave_garbage_da(size_t n, Make make) {
+        for (int round = 0; round < 20; ++round) {
+            auto a = make(n);
+            std::memset(static_cast<void*>(a.data()), 0xAB, n * sizeof(a[0]));
+        }
+        collector::force_collect(true);
+        collector::force_collect(true);
+    }
+
+    template<class C>
+    size_t nonzero_bytes_da(const C& c) {
+        auto p = reinterpret_cast<const unsigned char*>(c.data());
+        size_t bad = 0;
+        for (size_t i = 0; i < c.size() * sizeof(c[0]); ++i) {
+            bad += p[i] != 0;
+        }
+        return bad;
+    }
+}
+
+// dynamic_array(count) value-initializes: zeros for a trivial type, also
+// where the buffer reuses the slot or the pages of an earlier one that
+// held other bytes (a buffer of a type without tracked pointers is not
+// zeroed when it is issued: maker.h); past a page as well
+TEST(DynamicArray_Tests, CountValueInitializesAfterReuse) {
+    for (size_t n : {size_t(64), size_t(1000), size_t(100000), size_t(3000000)}) {
+        leave_garbage_da(n, [](size_t k) { return dynamic_array<std::byte>(k); });
+        for (int round = 0; round < 5; ++round) {
+            dynamic_array<std::byte> a(n);
+            EXPECT_EQ(nonzero_bytes_da(a), 0u) << "dynamic_array<byte>(" << n << ")";
+        }
+        leave_garbage_da(n, [](size_t k) { return dynamic_array<int>(k); });
+        for (int round = 0; round < 5; ++round) {
+            dynamic_array<int> a(n);
+            EXPECT_EQ(nonzero_bytes_da(a), 0u) << "dynamic_array<int>(" << n << ")";
+        }
+    }
 }

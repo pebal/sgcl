@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -7,6 +7,7 @@
 
 #include "chacha_core.h"
 #include "../secure_zero.h"
+#include "../../core/detail/bytes.h"
 
 #include <algorithm>
 #include <atomic>
@@ -262,7 +263,7 @@ namespace sgcl::crypto::detail {
                 drbg_refill(s);
             }
             const size_t take = std::min<size_t>(n, drbg_buffer_size - s.pos);
-            std::memcpy(out, s.buffer + s.pos, take);
+            sgcl::detail::copy_bytes(out, s.buffer + s.pos, take);
             secure_zero(s.buffer + s.pos, take);
             s.pos += uint32_t(take);
             s.given += take;

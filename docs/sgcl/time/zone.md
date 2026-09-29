@@ -63,7 +63,7 @@ optional<datetime> previous_transition(const datetime& t) const;   // strictly b
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/io/io.h"
 #include "sgcl/time/time.h"
 
 using namespace sgcl;

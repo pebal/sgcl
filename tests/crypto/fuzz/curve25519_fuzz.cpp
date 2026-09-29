@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -91,11 +91,11 @@ namespace {
             auto back = priv->to_pkcs8_der();
             // the key read is the one written back; the version, a public
             // key [1] and attributes [0] of the input are not kept
-            check(back.size() == 48 && std::memcmp(back.data() + 16, p + 16, 32) == 0, "a PKCS #8 read is not its key");
+            check(back.size() == 48 && std::memcmp(back.as_slice().data() + 16, p + 16, 32) == 0, "a PKCS #8 read is not its key");
             if (n == 48) {
                 std::vector<uint8_t> same(p, p + n);
                 same[4] = 0;
-                check(std::memcmp(back.data(), same.data(), 48) == 0, "a PKCS #8 read does not write itself back");
+                check(std::memcmp(back.as_slice().data(), same.data(), 48) == 0, "a PKCS #8 read does not write itself back");
             }
         }
         auto pub = Public::from_pkix_der(view(p, n));
@@ -124,7 +124,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     uint8_t expected[32];
     bool ok = ossl_x25519(key, peer, expected);
     check(ok == shared.has_value(), "x25519: one side refuses, the other does not");
-    check(!ok || std::memcmp(shared->data(), expected, 32) == 0, "x25519 differs from OpenSSL");
+    check(!ok || std::memcmp(shared->bytes().data(), expected, 32) == 0, "x25519 differs from OpenSSL");
 
     // a public key of any bytes, and a signature of any bytes under it
     auto pub = crypto::ed25519::public_key::from_bytes(view(peer, 32));

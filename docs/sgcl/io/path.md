@@ -10,6 +10,7 @@ namespace sgcl::io::path {
     string base(const string& p);  string dir(const string& p);  string ext(const string& p);  string stem(const string& p);
     pair<string, string> split(const string& p);  vector<string> split_list(const string& list);
     bool is_abs(const string& p) noexcept;
+    bool is_local(const string& name) noexcept;  expected<string, error> under(const string& dir, const string& name);
     expected<string, error> abs(const string& p);  expected<string, error> rel(const string& base, const string& target);
     expected<bool, error> match(const string& pattern, const string& name);  expected<vector<string>, error> glob(const string& pattern);
     string from_slash(const string& p);  string to_slash(const string& p);
@@ -23,6 +24,7 @@ Paths as strings, `path/filepath`: lexical operations on the text of a path in t
 - `clean` is applied by `join`, `dir`, `abs`, `rel`; `base`, `ext`, `split` work on the text as given.
 - `match` matches the whole name, element by element: `*` and `?` never match a separator.
 - A malformed pattern (an unclosed `[`, a trailing `\`, a reversed range) is `errc::invalid_pattern`, whatever the name.
+- **A name from outside** — an entry of an archive, the path of a request (which may have been `..%2f` before it was decoded), a name a user typed — goes through `under(dir, name)` before it becomes a file's path: the name joined to the directory when `is_local(name)`, `errc::insecure_path` when it is not, nothing joined. `is_local` is Go's `filepath.IsLocal`: not empty, not absolute, no NUL, no `\`, and no `..` that climbs above the start once the name is taken lexically (`a/../b` is local, `a/../..` is not). The archives' extraction ([`tar`](../compress/tar.md), [`zip`](../compress/zip.md), [`sevenzip`](../compress/sevenzip.md)) holds its names to the same rule.
 
 ## Members
 
@@ -38,6 +40,8 @@ string stem(const string& p);            // base without ext
 pair<string, string> split(const string& p);       // {dir with its trailing separator as written, file}
 vector<string> split_list(const string& list);     // a PATH-like list, empty elements skipped
 bool is_abs(const string& p) noexcept;
+bool is_local(const string& name) noexcept;                 // joined to a directory, it stays inside: Go's filepath.IsLocal
+expected<string, error> under(const string& dir, const string& name);   // dir joined with name, cleaned, when it is local; errc::insecure_path when not
 expected<string, error> abs(const string& p);               // the working directory joined when relative, cleaned
 expected<string, error> rel(const string& base, const string& target);   // the path from base to target with ".."; errc::invalid_path when one is absolute and the other not, or base begins with ".."
 expected<bool, error> match(const string& pattern, const string& name);  // '*' any run without a separator, '?' one character, '[a-z]' a class, '[^a-z]' its negation, '\' an escape
@@ -62,7 +66,29 @@ for (auto& p : *io::path::glob("tests/*/*.cpp")) ...
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/io/io.h"
+
+using namespace sgcl;
+
+int main() {
+    for (const char* name : {"docs/a.txt", "a/../b.txt", "../secret.txt", "/etc/passwd"}) {
+        auto file = io::path::under("public", name);
+        println("{} -> {}", name, file ? *file : file.error().message());
+    }
+}
+```
+
+Output:
+
+```text
+docs/a.txt -> public/docs/a.txt
+a/../b.txt -> public/b.txt
+../secret.txt -> under ../secret.txt: insecure path
+/etc/passwd -> under /etc/passwd: insecure path
+```
+
+```cpp
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -83,4 +109,4 @@ int main(int argc, char** argv) {
 ## See also
 
 - [fs](fs.md): what is at the path; [os](os.md): `working_dir`, the directories the platform names
-- `tests/io/path.cpp`: Go's table for `Clean`, `join`/`base`/`dir`/`ext`/`stem`/`split`, `abs`/`rel`, `match` with classes, escapes and code points, `glob` over a tree.
+- `tests/io/path.cpp`: Go's table for `IsLocal` with `under`, for `Clean`, `join`/`base`/`dir`/`ext`/`stem`/`split`, `abs`/`rel`, `match` with classes, escapes and code points, `glob` over a tree.

@@ -56,7 +56,8 @@ assert(pts.min([](point a, point b) { return a.y < b.y; }).x == 3);   // a compa
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -74,9 +75,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 3 2 1 5
 ```
 

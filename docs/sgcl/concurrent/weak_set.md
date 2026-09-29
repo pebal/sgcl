@@ -43,7 +43,9 @@ bool empty() const noexcept;
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/concurrent/concurrent.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -84,9 +86,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 8 connections reached, 400 entries, 392 swept, 8 left
 ```
 

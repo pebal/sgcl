@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -17,6 +17,7 @@
 #include "../io/stream.h"
 
 #include <cstddef>
+#include <string_view>
 
 namespace sgcl::encoding {
     namespace detail { using namespace sgcl::detail; }
@@ -118,6 +119,22 @@ namespace sgcl::encoding {
 
         expected<size_t, error> decode_to(const slice<byte>& out, const string& text) const {
             return detail::decode_to(_radix, out, text);
+        }
+
+        // The same from characters read where they lie, no string made: a
+        // file's bytes, a secret's (a private key's PEM, whose DER must not
+        // pass through managed memory: crypto's from_pem)
+        expected<size_t, error> decode_to(const slice<byte>& out, const slice<const char>& text) const {
+            return detail::decode_to(_radix, out, text.data(), text.size());
+        }
+
+        // A literal, a character array, a std::string_view: read where it
+        // lies (an exact match, else the conversions to a string and to a
+        // slice tie)
+        template<sgcl::detail::TextArgument T>
+        expected<size_t, error> decode_to(const slice<byte>& out, const T& text) const {
+            const std::string_view v(text);   // a literal to its first NUL, not past it
+            return decode_to(out, slice<const char>(v.data(), v.size()));
         }
 
         // A writer that encodes what is written to it into out (close()

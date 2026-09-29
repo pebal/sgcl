@@ -9,7 +9,7 @@ namespace sgcl::encoding {
 }
 ```
 
-A type of the program described by its fields, once for every format of the module: a method `void describe(field_list& f)` that names each field — `f.add("name", name)` — and JSON reads and writes it ([`json::parse<T>`](json.md), `json::stringify`, [`json::reader::read<T>`](json_reader.md), [`json::writer::value`](json_writer.md)), XML too ([`xml::parse<T>`](xml.md), `xml::stringify`, [`xml::reader::read<T>`](xml-reader.md), [`xml::writer::value`](xml-writer.md): a field is a child element, `attribute()` an attribute, `text()` the text), and CSV ([`csv::reader::read<T>`](csv.md)). What the tags of a Go structure are (`json:"name,omitempty"`), written as code: no macro, no pointer to a member, no template on the side of the type; the type stays an aggregate.
+A type of the program described by its fields, once for every format of the module: a method `void describe(field_list& f)` that names each field — `f.add("name", name)` — and JSON reads and writes it ([`json::parse<T>`](json.md), `json::stringify`, [`json::reader::read<T>`](json-reader.md), [`json::writer::value`](json-writer.md)), XML too ([`xml::parse<T>`](xml.md), `xml::stringify`, [`xml::reader::read<T>`](xml-reader.md), [`xml::writer::value`](xml-writer.md): a field is a child element, `attribute()` an attribute, `text()` the text), and CSV ([`csv::reader::read<T>`](csv.md)). What the tags of a Go structure are (`json:"name,omitempty"`), written as code: no macro, no pointer to a member, no template on the side of the type; the type stays an aggregate.
 
 ## Rules
 
@@ -49,7 +49,8 @@ public:
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -129,4 +130,4 @@ A format reads a described value through `detail::FieldAccess::fields(list)`: a 
 
 ## See also
 
-[`json`](json.md): `parse<T>`, `stringify`, `as<T>`; [`json::reader`](json_reader.md), [`json::writer`](json_writer.md); [`error`](error.md).
+[`json`](json.md): `parse<T>`, `stringify`, `as<T>`; [`json::reader`](json-reader.md), [`json::writer`](json-writer.md); [`error`](error.md).

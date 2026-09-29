@@ -49,7 +49,7 @@ assert(iv.is_sorted() && iv.binary_search(2));   // ordered; no sort(): nothing 
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -69,9 +69,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 sorted, 30 at 2
 ```
 

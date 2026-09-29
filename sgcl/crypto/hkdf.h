@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -7,6 +7,7 @@
 
 #include "detail/bytes.h"
 #include "hmac.h"
+#include "secret.h"
 #include "secure_zero.h"
 #include "sha256.h"
 #include "../core/aliases.h"
@@ -105,19 +106,21 @@ namespace sgcl::crypto {
 
         // n bytes of output keying material from the PRK, bound to info:
         // T(1) || T(2) || ... cut to n, T(i) = HMAC(PRK, T(i-1) || info ||
-        // i). n up to max_size, past it std::invalid_argument
-        static vector<byte> expand(const prk& key, const slice<const byte>& info, size_t n) {
-            vector<byte> out(_checked(n));
-            _expand(out.data(), n, key.bytes(), info);
+        // i). n up to max_size, past it std::invalid_argument. A secret:
+        // up to 64 bytes in the secret_bytes itself, past that in plain
+        // memory zeroed when it goes, never in managed memory
+        static secret_bytes expand(const prk& key, const slice<const byte>& info, size_t n) {
+            secret_bytes out(_checked(n));
+            _expand(out.as_slice().data(), n, key.bytes(), info);
             return out;
         }
 
         // The same from a PRK given as bytes (a secret a protocol computed
         // otherwise): RFC 5869 asks for at least the digest's size, which
         // is the caller's to keep
-        static vector<byte> expand(const slice<const byte>& key, const slice<const byte>& info, size_t n) {
-            vector<byte> out(_checked(n));
-            _expand(out.data(), n, key, info);
+        static secret_bytes expand(const slice<const byte>& key, const slice<const byte>& info, size_t n) {
+            secret_bytes out(_checked(n));
+            _expand(out.as_slice().data(), n, key, info);
             return out;
         }
 
@@ -132,7 +135,7 @@ namespace sgcl::crypto {
         }
 
         // extract() and expand() in one: n bytes from ikm under salt and info
-        static vector<byte> derive(const slice<const byte>& salt, const slice<const byte>& ikm, const slice<const byte>& info, size_t n) {
+        static secret_bytes derive(const slice<const byte>& salt, const slice<const byte>& ikm, const slice<const byte>& info, size_t n) {
             _checked(n);
             prk k = extract(salt, ikm);
             return expand(k, info, n);

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -914,6 +914,20 @@ namespace sgcl::txt {
             : _text(text.as_slice()) {
             }
 
+            // A C text — a literal among them, which a string and a
+            // slice would both take — as detail::c_text reads it, copied
+            // into a string the range holds
+            template<size_t N>
+            explicit segment_range(const char (&text)[N])
+            : _text(c_string(text).as_slice()) {
+            }
+
+            template<class P>
+            requires std::same_as<P, const char*> || std::same_as<P, char*>
+            explicit segment_range(P text)
+            : _text(c_string(text).as_slice()) {
+            }
+
             iterator begin() const noexcept {
                 return iterator(_text, 0);
             }
@@ -1124,6 +1138,19 @@ namespace sgcl::txt {
         : _text(text.as_slice()) {
         }
 
+        // A C text, copied into a string the range holds, as for the
+        // three ranges above
+        template<size_t N>
+        explicit line_breaks(const char (&text)[N])
+        : _text(detail::c_string(text).as_slice()) {
+        }
+
+        template<class P>
+        requires std::same_as<P, const char*> || std::same_as<P, char*>
+        explicit line_breaks(P text)
+        : _text(detail::c_string(text).as_slice()) {
+        }
+
         iterator begin() const noexcept {
             return iterator(_text, 0);
         }
@@ -1218,6 +1245,20 @@ namespace sgcl::txt {
         return wrap(text.as_slice(), width);
     }
 
+    // A C text — a literal among them, which a string and a slice would
+    // both take — as detail::c_text reads it, copied into a string the
+    // lines hold
+    template<size_t N>
+    inline vector<slice<const char>> wrap(const char (&text)[N], size_t width) {
+        return wrap(detail::c_string(text), width);
+    }
+
+    template<class P>
+    requires std::same_as<P, const char*> || std::same_as<P, char*>
+    inline vector<slice<const char>> wrap(P text, size_t width) {
+        return wrap(detail::c_string(text), width);
+    }
+
     // truncate: the text cut to fit the given number of columns, with the
     // ellipsis counted inside that number and the cut made at a grapheme
     // boundary — never in the middle of a character, however many code
@@ -1255,6 +1296,18 @@ namespace sgcl::txt {
 
     inline size_t grapheme_count(const string& text) noexcept {
         return graphemes(text).count();
+    }
+
+    // A C text, read where it lies as detail::c_text reads it
+    template<size_t N>
+    inline size_t grapheme_count(const char (&text)[N]) noexcept {
+        return grapheme_count(detail::c_text(text));
+    }
+
+    template<class P>
+    requires std::same_as<P, const char*> || std::same_as<P, char*>
+    inline size_t grapheme_count(P text) noexcept {
+        return grapheme_count(detail::c_text(text));
     }
 
     // Moving a cursor over the text: the start of the grapheme that holds
@@ -1311,5 +1364,40 @@ namespace sgcl::txt {
 
     inline size_t grapheme_prev(const string& text, size_t pos) noexcept {
         return grapheme_prev(text.as_slice(), pos);
+    }
+
+    // The same over a C text, read where it lies as detail::c_text
+    // reads it
+    template<size_t N>
+    inline size_t grapheme_start(const char (&text)[N], size_t pos) noexcept {
+        return grapheme_start(detail::c_text(text), pos);
+    }
+
+    template<class P>
+    requires std::same_as<P, const char*> || std::same_as<P, char*>
+    inline size_t grapheme_start(P text, size_t pos) noexcept {
+        return grapheme_start(detail::c_text(text), pos);
+    }
+
+    template<size_t N>
+    inline size_t grapheme_next(const char (&text)[N], size_t pos) noexcept {
+        return grapheme_next(detail::c_text(text), pos);
+    }
+
+    template<class P>
+    requires std::same_as<P, const char*> || std::same_as<P, char*>
+    inline size_t grapheme_next(P text, size_t pos) noexcept {
+        return grapheme_next(detail::c_text(text), pos);
+    }
+
+    template<size_t N>
+    inline size_t grapheme_prev(const char (&text)[N], size_t pos) noexcept {
+        return grapheme_prev(detail::c_text(text), pos);
+    }
+
+    template<class P>
+    requires std::same_as<P, const char*> || std::same_as<P, char*>
+    inline size_t grapheme_prev(P text, size_t pos) noexcept {
+        return grapheme_prev(detail::c_text(text), pos);
     }
 }

@@ -115,7 +115,9 @@ async::task<> on_click(async::executor& ui) {   // a handler on the UI thread
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/async/async.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 #include <thread>
 
 using namespace sgcl;
@@ -182,9 +184,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 starts on the main thread: true
 computes on a worker: true
 back on the main thread: true, the sum 499500

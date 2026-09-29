@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -25,12 +25,14 @@
 #include "sgcl/io/exec.h"
 #include "sgcl/net/tls.h"
 
+#include <array>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <string>
 #include <thread>
+#include <sys/socket.h>
 #include <unistd.h>
 
 namespace tls = sgcl::net::tls;
@@ -849,4 +851,103 @@ TEST(TlsInterop, ListenerInATaskWithOpenSsl) {
     EXPECT_TRUE(end.has_value() && !end->has_value());   // s_client's close_notify
     (void)c->close();
     (void)l->close();
+}
+
+namespace {
+    sgcl::async::task<expected<size_t, io::error>> copy_file_in_task(net::connection c, io::file from) {
+        co_return co_await io::async_copy(c, from);
+    }
+}
+
+// io::copy of a file to a TLS connection (the connection's read_from):
+// blocks read from the file, sealed into records where they lie, many
+// times the socket's buffers so the writes wait; the other side reads the
+// file's bytes from the position on, and the position moves to the end.
+// With a send buffer of 4 KB and a reader that pauses, the socket takes a
+// batch of records in part again and again: the rest of each write goes
+// on from the record it cut, and no record goes twice
+TEST(TlsInterop, CopyOfAFileOverTls) {
+    const std::string path = (std::filesystem::temp_directory_path() / ("sgcl_tls_file_" + std::to_string(::getpid()))).string();
+    std::string content(20 << 20, '\0');
+    uint32_t x = 12345;
+    for (auto& ch : content) {
+        x ^= x << 13;
+        x ^= x >> 17;
+        x ^= x << 5;
+        ch = char(x);
+    }
+    {
+        std::ofstream out(path, std::ios::binary);
+        out.write(content.data(), std::streamsize(content.size()));
+    }
+    for (int mode = 0; mode < 4; ++mode) {
+        const bool in_task = mode & 1;
+        const bool small = mode & 2;
+        SCOPED_TRACE(std::string(in_task ? "async_copy" : "copy") + (small ? ", a send buffer of 4 KB" : ""));
+        auto l = net::tcp::listen("127.0.0.1:0");
+        ASSERT_TRUE(l.has_value());
+        tls::config scfg = server_config("ecdsa");
+        std::string error;
+        size_t sent = 0;
+        uint64_t position = 0;
+        std::thread server([&] {
+            auto t = l->accept();
+            if (!t) {
+                error = "accept";
+                return;
+            }
+            auto c = tls::server(*t, scfg);
+            if (!c) {
+                error = std::string(c.error().message().view());
+                return;
+            }
+            if (small) {
+                const int fd = static_cast<net::detail::SocketConn&>(net::detail::ConnectionAccess::impl(*t)).fd();
+                const int bytes = 4096;
+                ::setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &bytes, sizeof(bytes));
+            }
+            auto f = io::open(sgcl::string(path));
+            if (!f || !f->seek(777)) {
+                error = "open";
+                return;
+            }
+            auto r = in_task ? sgcl::async::spawn(copy_file_in_task(*c, *f)).wait() : io::copy(*c, *f);
+            if (!r) {
+                error = std::string(r.error().message().view());
+            } else {
+                sent = *r;
+            }
+            position = f->seek(0, io::seek_from::current).value_or(0);
+            (void)c->close();
+        });
+        auto conn = tls::connect(sgcl::string(address_of(*l)), trusted());
+        std::string got;
+        if (conn) {
+            // read in pieces of 4 KB, a pause of 1 ms after each 256 KB
+            std::array<std::byte, 4096> piece;
+            size_t since = 0;
+            for (;;) {
+                auto n = conn->read(slice<byte>(piece.data(), piece.size()));
+                if (!n || *n == 0) {
+                    break;
+                }
+                got.append(reinterpret_cast<const char*>(piece.data()), *n);
+                since += *n;
+                if (small && since >= (256 << 10)) {
+                    since = 0;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                }
+            }
+            (void)conn->close();
+        }
+        server.join();
+        (void)l->close();
+        ASSERT_TRUE(conn.has_value());
+        EXPECT_TRUE(error.empty()) << error;
+        EXPECT_EQ(sent, content.size() - 777);
+        EXPECT_EQ(position, content.size());
+        ASSERT_EQ(got.size(), content.size() - 777);
+        EXPECT_TRUE(got == content.substr(777));
+    }
+    std::filesystem::remove(path);
 }

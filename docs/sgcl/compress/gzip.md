@@ -1,7 +1,7 @@
 # sgcl::compress::gzip
 
 ```cpp
-#include "sgcl/compress/gzip.h"   // or "sgcl/compress/compress.h"
+#include "sgcl/compress/gzip.h"   // or "sgcl/compress/compress.h", "sgcl/sgcl.h"
 
 namespace sgcl::compress {
     struct gzip_header {
@@ -22,6 +22,10 @@ namespace sgcl::compress {
 
         static vector<byte> compress(const slice<const byte>& data);          // and with options, and text
         static expected<vector<byte>, error> decompress(const slice<const byte>& data, const limits& l = {});
+
+        struct file_options { compress::level level; bool keep = true; };
+        static expected<void, error> compress_file(const string& path, const file_options& o = {});     // path + ".gz"; + async_compress_file
+        static expected<void, error> decompress_file(const string& path, const file_options& o = {});   // path without ".gz"; + async_decompress_file
     };
 }
 ```
@@ -34,6 +38,26 @@ gzip (RFC 1952): DEFLATE between a header — a name, a comment, the time the da
 - **The header's strings are ISO 8859-1** in the format (§2.3.1): the writer converts the program's UTF-8 and refuses a character past U+00FF, a NUL, or an extra field past 65 535 bytes with `errc::invalid_argument` at its first write (as Go does), and `compress` with `std::invalid_argument` (it returns no error); the reader converts back.
 - `header()` is the header of the member being read, read now if it was not yet (the first read reads it as well); `modified` is `nullopt` where the file says 0.
 - `decompress` takes the length the last member's trailer states as a hint for its first buffer, no larger than the data could make, and grows it when the hint is wrong (a member's length is kept modulo 2³²).
+
+## compress_file, decompress_file
+
+```cpp
+struct file_options {
+    compress::level level;   // compress_file: 6 by default
+    bool keep = true;        // the original stays; false removes it once the other is whole
+};
+
+static expected<void, error> compress_file(const string& path, const file_options& o = {});
+static async::task<expected<void, error>> async_compress_file(string path, file_options o = {});
+static expected<void, error> decompress_file(const string& path, const file_options& o = {});
+static async::task<expected<void, error>> async_decompress_file(string path, file_options o = {});
+```
+
+What gzip(1) and gunzip do to a file (each `= {}` is an overload without options, as a nested struct cannot be a default argument inside its class).
+
+- **`compress_file`** writes `path + ".gz"` beside the file, with the file's name in the header and its time and mode on the new file; a `.gz` there already is written over. The original stays unless `keep = false`, which removes it once the `.gz` is whole, as gzip without `-k`.
+- **`decompress_file`** takes a name ending in `.gz` (another is `errc::invalid_argument`) and writes the name without it, every member, with the time of the `.gz`; a file that is not gzip leaves nothing behind. The `.gz` stays unless `keep = false`.
+- The `async_` forms run on the [blocking pool](../async/blocking.md). Tested both ways against gzip(1) (`tests/compress/files.cpp`).
 
 ## reader
 
@@ -72,3 +96,28 @@ h.name = "report.csv";
 h.modified = time::now();
 compress::gzip::writer w(io::create("report.csv.gz"), {.level = 9, .header = h});
 ```
+
+## Example
+
+```cpp
+#include "sgcl/compress/compress.h"
+#include "sgcl/io/io.h"
+
+using namespace sgcl;
+
+int main() {
+    io::write_file("log.txt", "one line\nanother line\n");
+    compress::gzip::compress_file("log.txt", {.level = 9});   // log.txt.gz beside it, log.txt kept
+    io::remove("log.txt");
+    compress::gzip::decompress_file("log.txt.gz");
+    print("{}", io::read_text("log.txt").value_or(string("?")));
+}
+```
+
+Output:
+
+```text
+one line
+another line
+```
+

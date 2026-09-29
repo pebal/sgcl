@@ -28,9 +28,9 @@ A digest named by a value rather than by a type, Go's `crypto.Hash`: for where t
 ## Example
 
 ```cpp
-#include "sgcl/crypto/hash_id.h"
-#include "sgcl/encoding/hex.h"
-#include "sgcl/io/print.h"
+#include "sgcl/crypto/crypto.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 

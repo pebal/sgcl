@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -7,6 +7,7 @@
 
 #include "detail/bytes.h"
 #include "detail/keccak.h"
+#include "secret.h"
 #include "../core/aliases.h"
 #include "../core/array.h"
 #include "../core/slice.h"
@@ -99,9 +100,12 @@ namespace sgcl::crypto {
 
             // The next n bytes of the output, as many as asked: the first
             // read ends the input, and each read goes on where the last one
-            // stopped (two reads of 16 give the bytes of one read of 32)
-            vector<byte> read(size_t n) {
-                vector<byte> out(n);
+            // stopped (two reads of 16 give the bytes of one read of 32).
+            // Taken as a secret (SHAKE derives keys as often as not): up to
+            // 64 bytes in the secret_bytes itself; read_to for a buffer of
+            // one's own
+            secret_bytes read(size_t n) {
+                secret_bytes out(n);
                 read_to(out.as_slice());
                 return out;
             }
@@ -146,7 +150,7 @@ namespace sgcl::crypto {
     class shake128 : public detail::Shake<168> {
     public:
         // The first n bytes of the output over data, in one call
-        static vector<byte> of(const slice<const byte>& data, size_t n) {
+        static secret_bytes of(const slice<const byte>& data, size_t n) {
             shake128 x;
             x.update(data);
             return x.read(n);
@@ -156,7 +160,7 @@ namespace sgcl::crypto {
     // SHAKE256: 256 bits of security when at least 64 bytes are read
     class shake256 : public detail::Shake<136> {
     public:
-        static vector<byte> of(const slice<const byte>& data, size_t n) {
+        static secret_bytes of(const slice<const byte>& data, size_t n) {
             shake256 x;
             x.update(data);
             return x.read(n);

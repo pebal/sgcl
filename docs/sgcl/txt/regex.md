@@ -1,52 +1,17 @@
-# txt::regex
+# sgcl::txt::regex
 
 ```cpp
-#include "sgcl/txt/regex.h"
+#include "sgcl/txt/regex.h"   // or "sgcl/txt/txt.h"
+
+namespace sgcl::txt {
+    class regex;           // a pattern, matched in one pass over the text
+    class match;           // one match: its text, its place, its groups
+    class regex_matches;   // every match of a text, found as it is walked: what all() returns
+    class regex_error;     // why a pattern was refused, and where
+}
 ```
 
 Patterns in the style of RE2: everything a pattern can ask for here can be answered in **one pass over the text**, and nothing else is offered. The time a match takes is the length of the text times the length of the pattern, whatever the two are — there is no pattern that costs more, and that is what the class is for.
-
-```cpp
-class regex {
-    regex(const detail::regex_pattern& pattern);                    // a literal, read by the compiler
-    static expected<regex, regex_error> compile(const string& pattern);
-    static expected<regex, regex_error> compile(const slice<const char>& pattern);
-
-    const string& pattern() const noexcept;
-    size_t group_count() const noexcept;
-    optional<size_t> group_index(const string& name) const noexcept;
-    size_t program_size() const noexcept;
-
-    bool full_match(const string& text) const;                       // the whole text, end to end (Go's MatchString searches: contains)
-    bool contains(const string& text) const;
-    optional<match> find(const string& text, size_t from = 0) const;
-    regex_matches all(const string& text) const;                     // every match, never overlapping
-    size_t count(const string& text) const;
-
-    string replace(const string& text, const string& with) const;    // $1, ${name}, $0, $$
-    string replace_first(const string& text, const string& with) const;
-    vector<slice<const char>> split(const string& text, size_t limit = 0) const;
-};
-
-class match {
-    slice<const char> text() const noexcept;                         // the whole match
-    size_t begin_at() const noexcept;
-    size_t end_at() const noexcept;
-    bool empty() const noexcept;
-    size_t group_count() const noexcept;                             // groups, the whole match not counted
-    optional<slice<const char>> group(size_t n) const noexcept;      // 0 is the whole match
-    optional<slice<const char>> group(const string& name) const noexcept;
-    slice<const char> operator[](size_t n) const noexcept;           // a group that took no part reads as empty
-    const slice<const char>& subject() const noexcept;
-};
-
-class regex_error {
-    string message() const;                                          // the sentence, and where
-    size_t offset() const noexcept;                                  // the byte of the pattern
-};
-```
-
-Every name that takes a `const string&` takes a [`slice<const char>`](../core/slice.md) as well.
 
 ## What there is no backtracking for
 
@@ -99,13 +64,7 @@ Two smaller differences of definition: `$` is the end of the text, not the place
 
 ## A literal pattern is read by the compiler
 
-A pattern written into the program is checked where the program is compiled, as [`format`](format.md)'s pattern is:
-
-```cpp
-txt::regex re("(?<n>\\d+)\\s*(?i:kg)");     // no optional, no error to handle
-```
-
-`txt::regex bad("(a)\\1");` does not build. The compiler points at the line in `regex_pattern` that says why, and `regex::compile` gives the same sentence with the place in the pattern for a pattern that only arrives while the program runs.
+A pattern written into the program is checked where the program is compiled, as [`format`](format.md)'s pattern is: `txt::regex re("(?<n>\\d+)\\s*(?i:kg)");` has no optional and no error to handle. `txt::regex bad("(a)\\1");` does not build. The compiler points at the line in `regex_pattern` that says why, and `regex::compile` gives the same sentence with the place in the pattern for a pattern that only arrives while the program runs.
 
 ## What a match holds
 
@@ -115,47 +74,9 @@ A group that **took no part** in the match is nothing, which an empty group is n
 
 `all()` is a range of the library ([`mixin::enumerable`](../core/mixin/enumerable.md)) like [`words`](segment.md) and `graphemes`: decided as it is walked rather than gathered into a container first. A match of no width moves the search on by one code point, in `all()`, in `split()` and in `replace()`, or the walk would stand still.
 
-## Example
+## Limits
 
-```cpp
-#include "sgcl/sgcl.h"
-#include "sgcl/txt/regex.h"
-
-using namespace sgcl;
-
-int main() {
-    txt::regex date("(?<y>\\d{4})-(?<m>\\d{2})-(?<d>\\d{2})");
-    string text = "spotkanie 2026-09-23, a potem 2026-12-01";
-
-    if (auto m = date.find(text)) {
-        println("{}: rok {}", m->text(), *m->group("y"));
-    }
-    for (const auto& m : date.all(text)) {
-        println("{}: {}", m.begin_at(), m.text());
-    }
-    println("{}", date.replace(text, "${d}.${m}.${y}"));
-
-    for (auto piece : txt::regex("\\s*,\\s*").split(text)) {
-        println("[{}]", piece);
-    }
-
-    auto bad = txt::regex::compile(string("(a+)+\\1"));
-    println("{}", bad.error().message());
-    return 0;
-}
-```
-
-The output:
-
-```
-2026-09-23: rok 2026
-10: 2026-09-23
-30: 2026-12-01
-spotkanie 23.09.2026, a potem 01.12.2026
-[spotkanie 2026-09-23]
-[a potem 2026-12-01]
-sgcl::txt::regex: a backreference: this engine matches in time linear in the length of the text, carrying every alternative at once, and nothing in it can be asked to repeat what another part matched (at byte 5 of the pattern)
-```
+A pattern may nest 200 levels deep, count to 1000 in a `{n,m}`, have 250 capturing groups and spell out to 20000 instructions. None of these is a limit of the algorithm; they are the line past which a pattern is likelier a mistake or an attack than a question. Past one of them `compile` says which.
 
 ## What it costs
 
@@ -209,6 +130,126 @@ The generator's own first run did not return, because a pattern drawn at random 
 
 Beside that: eight patterns a backtracking engine goes exponential on, each with a **hard limit in milliseconds** in the test rather than an argument about why it should be fast; and a fuzzer of 60000 rounds under the address and undefined-behaviour sanitizers through every entry point, over texts with lone continuation bytes, a truncated sequence, an encoded surrogate, a Tibetan `0F73`, a final sigma, a sharp s and a Kelvin sign.
 
-## Limits
+## Members
 
-A pattern may nest 200 levels deep, count to 1000 in a `{n,m}`, have 250 capturing groups and spell out to 20000 instructions. None of these is a limit of the algorithm; they are the line past which a pattern is likelier a mistake or an attack than a question. Past one of them `compile` says which.
+```cpp
+class regex {
+    regex(const detail::regex_pattern& pattern);                    // a literal, read by the compiler
+    static expected<regex, regex_error> compile(const string& pattern);
+    static expected<regex, regex_error> compile(const slice<const char>& pattern);
+    template<size_t N>
+    static expected<regex, regex_error> compile(const char (&pattern)[N]);  // an array, a literal among them
+    static expected<regex, regex_error> compile(const char* pattern);        // char* too
+
+    const string& pattern() const noexcept;
+    size_t group_count() const noexcept;
+    optional<size_t> group_index(const string& name) const noexcept;
+    size_t program_size() const noexcept;
+
+    bool full_match(const string& text) const;                       // the whole text, end to end (Go's MatchString searches: contains)
+    bool contains(const string& text) const;
+    optional<match> find(const string& text, size_t from = 0) const;
+    regex_matches all(const string& text) const;                     // every match, never overlapping
+    size_t count(const string& text) const;
+
+    string replace(const string& text, const string& with) const;    // $1, ${name}, $0, $$
+    string replace_first(const string& text, const string& with) const;
+    vector<slice<const char>> split(const string& text, size_t limit = 0) const;
+};
+
+class match {
+    slice<const char> text() const noexcept;                         // the whole match
+    size_t begin_at() const noexcept;
+    size_t end_at() const noexcept;
+    bool empty() const noexcept;
+    size_t group_count() const noexcept;                             // groups, the whole match not counted
+    optional<slice<const char>> group(size_t n) const noexcept;      // 0 is the whole match
+    optional<slice<const char>> group(const string& name) const noexcept;
+    template<size_t N>
+    optional<slice<const char>> group(const char (&name)[N]) const noexcept;
+    optional<slice<const char>> group(const char* name) const noexcept;
+    slice<const char> operator[](size_t n) const noexcept;           // a group that took no part reads as empty
+    const slice<const char>& subject() const noexcept;
+};
+
+class regex_matches {                                                // mixin::enumerable
+    regex_matches(const regex& re, const slice<const char>& text);
+    template<size_t N>
+    regex_matches(const regex& re, const char (&text)[N]);
+    regex_matches(const regex& re, const char* text);
+    iterator begin() const;                                          // matches, found as they are walked
+    iterator end() const noexcept;
+    bool empty() const;
+    size_t count() const;                                            // walked and counted, not stored
+    const slice<const char>& text() const noexcept;
+};
+
+class regex_error {
+    string message() const;                                          // the sentence, and where
+    size_t offset() const noexcept;                                  // the byte of the pattern
+};
+```
+
+Every name that takes the pattern or the text as a `const string&` takes a [`slice<const char>`](../core/slice.md), an array of `char` and a `const char*` or `char*` as well, so a literal is taken as it is written. An array is read up to its first NUL or its end, whichever comes first, and never past it; a pointer up to its NUL; a `nullptr` does not compile. `replace` and `replace_first` take two arrays or two pointers, and an array beside a pointer goes through `string`. A `find`, an `all` and a `split` of an array or a pointer copy the text into a string the answer holds; the rest read it where it lies. `group` takes a name the same ways.
+
+## Examples
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    txt::regex date("(?<y>\\d{4})-(?<m>\\d{2})-(?<d>\\d{2})");
+    string text = "spotkanie 2026-09-23, a potem 2026-12-01";
+
+    if (auto m = date.find(text)) {
+        println("{}: rok {}", m->text(), *m->group("y"));
+    }
+    for (const auto& m : date.all(text)) {
+        println("{}: {}", m.begin_at(), m.text());
+    }
+    println("{}", date.replace(text, "${d}.${m}.${y}"));
+
+    for (auto piece : txt::regex("\\s*,\\s*").split(text)) {
+        println("[{}]", piece);
+    }
+    return 0;
+}
+```
+
+Output:
+
+```text
+2026-09-23: rok 2026
+10: 2026-09-23
+30: 2026-12-01
+spotkanie 23.09.2026, a potem 01.12.2026
+[spotkanie 2026-09-23]
+[a potem 2026-12-01]
+```
+
+A pattern that only arrives while the program runs, refused with the reason:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    auto bad = txt::regex::compile("(a+)+\\1");
+    println("{}", bad.error().message());
+}
+```
+
+Output:
+
+```text
+sgcl::txt::regex: a backreference: this engine matches in time linear in the length of the text, carrying every alternative at once, and nothing in it can be asked to repeat what another part matched (at byte 5 of the pattern)
+```
+
+## See also
+
+[The module](README.md); [`searcher`](search.md), the search a pattern's literal run goes through; [`format`](format.md), the other pattern read by the compiler; [`case`](case.md), the full folding.

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -17,6 +17,10 @@
 #include "../../io/stream.h"
 
 #include <cstdint>
+
+namespace sgcl::encoding {
+    class json;
+}
 
 namespace sgcl::net::http {
     namespace detail {
@@ -95,6 +99,20 @@ namespace sgcl::net::http {
             return _co_bytes(_impl);
         }
 
+        // The body as JSON: a value, or a T through describe (defined in
+        // download.h, which client.h and http.h bring in)
+        expected<encoding::json, io::error> json() const;
+        async::task<expected<encoding::json, io::error>> async_json() const;
+        template<class T>
+        expected<T, io::error> json() const;
+        template<class T>
+        async::task<expected<T, io::error>> async_json() const;
+
+        // The body streamed into the file at path, through path + ".part"
+        // renamed at its end (nothing half-written left): the bytes written
+        expected<uint64_t, io::error> save(const string& path) const;
+        async::task<expected<uint64_t, io::error>> async_save(string path) const;
+
         // The body as a stream; its end gives the connection back
         io::reader body() const {
             return io::reader(_impl->body);
@@ -128,11 +146,7 @@ namespace sgcl::net::http {
         }
 
         static async::task<expected<string, io::error>> _co_text(tracked_ptr<detail::ResponseImpl> impl) {
-            auto b = co_await impl->body->read_everything();
-            if (!b) {
-                co_return io::detail::fail(b);
-            }
-            co_return string(std::string_view(reinterpret_cast<const char*>(b->data()), b->size()));
+            co_return co_await impl->body->read_text();   // straight into the string
         }
 
     };

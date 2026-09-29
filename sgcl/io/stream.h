@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -360,11 +360,44 @@ namespace sgcl::io {
         // The halves a stream lacks, made from the other: a task waited for
         // on this thread, or the blocking call on the pool (the handle
         // copied into the job, so the stream lives while it runs)
+        // The blocking pool is never given a slice without an owner into
+        // plain memory: its job may outlive the frame of a task let go of,
+        // and the memory with it. Data to write: the slice as it is when it
+        // holds its owner (the job holds it too), else a copy in a managed
+        // block, made now, while the caller waits
+        inline slice<const byte> owned_for_pool(const slice<const byte>& data) {
+            if (data.owner() || data.empty()) {
+                return data;
+            }
+            slice<byte> b = AsyncStage::room(data.size());
+            sgcl::detail::copy_bytes(b.data(), data.data(), data.size());
+            return slice<const byte>(b.owner(), b.data(), data.size());
+        }
+
+        // A read on the pool into buffer (read(slice<byte>) run there): into
+        // it when it holds its owner, else into a managed block copied into
+        // it after, in the task, which resumes only when its caller is
+        // alive; a task let go of leaves the block to the job alone
+        template<class Read>
+        async::task<expected<size_t, error>> read_via_pool(slice<byte> buffer, Read read) {
+            if (buffer.owner() || buffer.empty()) {
+                co_return co_await async::spawn_blocking([read, buffer]() mutable { return read(buffer); });
+            }
+            slice<byte> b = AsyncStage::room(buffer.size());
+            b = slice<byte>(b.owner(), b.data(), buffer.size());
+            auto r = co_await async::spawn_blocking([read, b]() mutable { return read(b); });
+            if (r && *r) {
+                sgcl::detail::copy_bytes(buffer.data(), b.data(), *r);
+            }
+            co_return r;
+        }
+
         inline async::task<expected<size_t, error>> read_on_pool(reader self, slice<byte> buffer) {
-            co_return co_await async::spawn_blocking([self, buffer]() mutable { return self.read(buffer); });
+            co_return co_await read_via_pool(buffer, [self](const slice<byte>& b) mutable { return self.read(b); });
         }
 
         inline async::task<expected<size_t, error>> write_on_pool(writer self, slice<const byte> data) {
+            data = owned_for_pool(data);
             co_return co_await async::spawn_blocking([self, data]() mutable { return self.write(data); });
         }
 

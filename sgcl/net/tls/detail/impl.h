@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -42,6 +42,36 @@
 // handshake's result).
 namespace sgcl::net::tls::detail {
     using sgcl::io::detail::fail;
+
+    // The bytes of the write queue: a vector whose growth writes nothing
+    // into the new room (a record is sealed into it at once; a zeroing
+    // std::vector<uint8_t> wrote every byte of a large response's records
+    // twice)
+    template<class T>
+    struct NoZeroAllocator : std::allocator<T> {
+        template<class U>
+        struct rebind {
+            using other = NoZeroAllocator<U>;
+        };
+
+        NoZeroAllocator() noexcept = default;
+
+        template<class U>
+        NoZeroAllocator(const NoZeroAllocator<U>&) noexcept {
+        }
+
+        template<class U>
+        void construct(U* p) noexcept {
+            ::new (static_cast<void*>(p)) U;
+        }
+
+        template<class U, class... A>
+        void construct(U* p, A&&... a) {
+            ::new (static_cast<void*>(p)) U(std::forward<A>(a)...);
+        }
+    };
+
+    using QueueBytes = std::vector<uint8_t, NoZeroAllocator<uint8_t>>;
 
     class TlsImpl final : public net::detail::ConnImpl {
     public:
@@ -301,6 +331,98 @@ namespace sgcl::net::tls::detail {
             return taken;
         }
 
+        // The pieces of a write (ConnImpl::start_write_parts): each record's
+        // plaintext copied from the pieces straight into its place in the
+        // queue and sealed there, so the bytes of a response's body go from
+        // their blocks into the records with one copy. As try_raw_write
+        // otherwise: a record taken in part is kept, its plaintext counted
+        // as not taken, and the rest of the write finds it sealed
+        expected<size_t, io::error> try_raw_write_parts(const slice<const byte>* parts, size_t n) override {
+            if (!_record.try_lock()) {
+                return size_t(0);
+            }
+            size_t total = 0;
+            for (size_t i = 0; i < n; ++i) {
+                total += parts[i].size();
+            }
+            size_t taken = 0;
+            optional<io::error> error = _writable();
+            if (!error) {
+                _queue_wants();
+                auto f = _flush_try();
+                if (!f) {
+                    error = f.error();
+                } else if (*f) {
+                    // records sealed up to BatchBytes of them, then given
+                    // to the transport in one write (a large response in two
+                    // or three writes, where a write a record was five for
+                    // 64 KB); the plaintext of a batch it does not take whole
+                    // is counted as not taken, sealed already
+                    while (taken < total) {
+                        size_t k = 0;
+                        do {
+                            k += _seal_parts(parts, n, total, taken + k);
+                        } while (taken + k < total && _unsent_size() < BatchBytes);
+                        auto r = _flush_try();
+                        if (!r) {
+                            error = r.error();
+                            break;
+                        }
+                        if (!*r) {
+                            _sealed_at = n ? parts[0].data() : nullptr;
+                            _sealed_from = taken;
+                            _sealed_size = k;
+                            break;
+                        }
+                        taken += k;
+                    }
+                }
+            }
+            _trim();
+            _record.unlock();
+            _drain_try();
+            if (error) {
+                return fail(*error);
+            }
+            return taken;
+        }
+
+        async::task<expected<size_t, io::error>> awaited_raw_write_parts(vector<slice<const byte>> parts, size_t from) override {
+            size_t total = 0;
+            for (auto& p : parts) {
+                total += p.size();
+            }
+            size_t done = from;
+            bool first = true;
+            for (;;) {
+                auto g = co_await _record.scoped_lock();
+                if (auto e = _writable(); e) {
+                    co_return fail(*e);
+                }
+                if (first) {
+                    done += _skip_sealed_parts(parts.empty() ? nullptr : parts[0].data(), from);
+                    first = false;
+                }
+                _queue_wants();
+                if (done < total) {
+                    done += _seal_parts(parts.data(), parts.size(), total, done);
+                }
+                while (_unsent_size()) {
+                    auto w = co_await _t().awaited_raw_write(_unsent());
+                    if (!w) {
+                        co_return fail(_break(w.error()));
+                    }
+                    _sent(*w);
+                }
+                if (done == total) {
+                    _trim();
+                    break;
+                }
+            }
+            _drain_try();
+            co_return total - from;
+        }
+
         // close_notify without waiting (after the tail of a record in part
         // sent, never inside it; none when another write holds the record or
         // the socket does not take it at once), then the transport closed
@@ -366,6 +488,10 @@ namespace sgcl::net::tls::detail {
             net::detail::ConnectionAccess::impl(_transport).set_deadline(dir, t);
         }
 
+        time_point deadline(int dir) const override {
+            return net::detail::ConnectionAccess::impl(_transport).deadline(dir);
+        }
+
         endpoint local_endpoint() const override {
             return _transport.local_endpoint();
         }
@@ -399,7 +525,7 @@ namespace sgcl::net::tls::detail {
             HandshakeAssembler assembler;
             Epoch read_epoch = Epoch::initial;
             std::vector<uint8_t> out;               // the handshake's records to send
-            std::vector<uint8_t> queue;             // records sealed and not yet taken by the transport (under the record mutex)
+            QueueBytes queue;                       // records sealed and not yet taken by the transport (under the record mutex)
             size_t queue_sent = 0;
             uint8_t* plain = nullptr;               // a record's plaintext not yet read: a large block of RecordBlocks while held
             size_t plain_at = 0, plain_end = 0;
@@ -447,6 +573,7 @@ namespace sgcl::net::tls::detail {
         std::atomic<uint8_t> _want_alert = NoAlert;
         const byte* _sealed_at = nullptr;       // a record of a write that tried: its plaintext, sealed, its tail queued
         size_t _sealed_size = 0;
+        size_t _sealed_from = 0;                // of a write of pieces: where in them the sealed record starts
 
         // --- the handshake's two loops ----------------------------------------
 
@@ -655,7 +782,10 @@ namespace sgcl::net::tls::detail {
                         return;
                     }
                     _on_alert(*a);
-                    _broken = remote_error(a->description, "handshake", describe());
+                    // before the server's hello (its records still in the
+                    // clear): most likely a server without TLS 1.3
+                    _broken = !_server && _b->read_epoch == Epoch::initial ? before_hello_error(a->description, "handshake", describe())
+                                                                           : remote_error(a->description, "handshake", describe());
                     break;
                 }
                 default:
@@ -909,11 +1039,45 @@ namespace sgcl::net::tls::detail {
         // connection's life (the queue holds a small response's records)
         void _trim() noexcept {
             if (!_unsent_size() && _b->queue.capacity() > RecordBlocks::Small) {
-                std::vector<uint8_t>().swap(_b->queue);
+                // the room of a large write back to the thread, for the
+                // next large write of any of its connections (a malloc
+                // and a free a large response before), none kept by this one
+                QueueBytes room;
+                room.swap(_b->queue);
+                auto& spare = _spare();
+                if (room.capacity() <= SpareLimit && room.capacity() > spare.capacity()) {
+                    room.clear();
+                    spare.swap(room);
+                }
             }
         }
 
+        // Room for `more` bytes past what the queue holds, and for `want`
+        // when it is empty (a batch of records: taken at once, not grown
+        // into by doubling): the thread's spare room when it has enough
+        void _room(size_t more, size_t want = 0) {
+            auto& q = _b->queue;
+            if (q.empty() && q.capacity() < more) {
+                want = std::max(want, more);
+                auto& spare = _spare();
+                if (spare.capacity() >= want) {
+                    q.swap(spare);
+                } else {
+                    q.reserve(want);
+                }
+            }
+        }
+
+        static constexpr size_t SpareLimit = size_t(128) << 10;
+        static constexpr size_t BatchBytes = size_t(48) << 10;   // the records of a write of pieces sealed before one write to the transport
+
+        static QueueBytes& _spare() noexcept {
+            thread_local QueueBytes spare;
+            return spare;
+        }
+
         void _append(ContentType type, const uint8_t* p, size_t n) {
+            _room(_b->write.sealed_size(type, n));
             auto& q = _b->queue;
             size_t at = q.size();
             q.resize(at + _b->write.sealed_size(type, n));
@@ -955,6 +1119,48 @@ namespace sgcl::net::tls::detail {
             }
             size_t n = std::min(data.size() - from, _record_limit());
             _append(ContentType::application_data, reinterpret_cast<const uint8_t*>(data.data()) + from, n);
+            return n;
+        }
+
+        // One record of the pieces from byte `from` of them all: its
+        // plaintext copied into its place in the queue, sealed there (a
+        // KeyUpdate first when the keys near their limit, §5.5); the
+        // plaintext taken
+        size_t _seal_parts(const slice<const byte>* parts, size_t n, size_t total, size_t from) {
+            if (_b->write.needs_update()) {
+                _append_key_update();
+            }
+            const size_t k = std::min(total - from, _record_limit());
+            const size_t record = _b->write.sealed_size(ContentType::application_data, k);
+            _room(record, total - from > k ? BatchBytes + MaxRecord : 0);
+            auto& q = _b->queue;
+            const size_t at = q.size();
+            q.resize(at + _b->write.sealed_size(ContentType::application_data, k));
+            uint8_t* body = q.data() + at + HeaderSize;
+            size_t skip = from;
+            size_t w = 0;
+            for (size_t i = 0; i < n && w < k; ++i) {
+                const size_t size = parts[i].size();
+                if (skip >= size) {
+                    skip -= size;
+                    continue;
+                }
+                const size_t take = std::min(size - skip, k - w);
+                sgcl::detail::copy_bytes(body + w, parts[i].data() + skip, take);
+                w += take;
+                skip = 0;
+            }
+            _b->write.seal(ContentType::application_data, bytes_of(body, k), q.data() + at);
+            return k;
+        }
+
+        // The plaintext of a write of pieces a write that tried has sealed
+        // already: its record starts at `from` of the same pieces
+        size_t _skip_sealed_parts(const byte* first, size_t from) noexcept {
+            size_t n = _sealed_size && first == _sealed_at && from == _sealed_from ? _sealed_size : 0;
+            _sealed_at = nullptr;
+            _sealed_size = 0;
+            _sealed_from = 0;
             return n;
         }
 

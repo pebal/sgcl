@@ -52,7 +52,9 @@ key_equal key_eq() const;
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/concurrent/concurrent.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -76,9 +78,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 10000 claims, 10000 ids
 ```
 

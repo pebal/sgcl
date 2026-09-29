@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -322,7 +322,7 @@ TEST(HttpServer_Tests, CookiesHeadersAndNotFound) {
         c.http_only = true;
         c.max_age = 3600s;
         c.same_site = "lax";
-        w.set_cookie(c);
+        w.add_cookie(c);
         w.set_header("X-Got", req.cookie("id") + "|" + req.cookie("none") + "|" + req.query("q"));
     });
     s.not_found([](net::http::request, net::http::response_writer w) { w.set_status(418); });

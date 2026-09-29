@@ -22,7 +22,7 @@ The interface is the read side of `std::string` and all of `std::string_view`: `
 
 The hash is keyed: a hash of the characters under a key of four words drawn once per process (detail/hash_bytes.h), so which texts share a bucket is not known outside the process, and a map keyed by what a client sends — the names of HTTP headers, the keys of a JSON object — cannot be filled with keys of one bucket (HashDoS; Go and Rust key their maps the same way). The order of a `map` or a `set` of strings therefore differs between runs; the environment variable `SGCL_HASH_SEED`, a number, fixes the key, for a test that prints one. It is faster than the standard library's unkeyed hash at every length (2.4 ns for three bytes, 4.2 ns for a hundred, 10 GB/s over a long text) and is computed once per string, which keeps it. A `std::string` key hashes by `std::hash<std::string>`, which is not keyed: a map of untrusted keys is keyed by `sgcl::string`.
 
-Past `std::string`, what the strings of Go (`strings`) and Java have, each a new string or the same object when there is nothing to change: `split` (the pieces between the separators, a range of slices walked as it goes: `pieces`), `fields` (the words between runs of white space, the same range), `join` (static: the parts with a separator between each two, built once), `trim`, `trim_left`, `trim_right` (Unicode white space, or the characters given), `trim_prefix`, `trim_suffix`, `replace` (every occurrence, or the first `count`), `repeat`, `to_lower`, `to_upper` (by Unicode's simple case mapping: `"ŁÓDŹ"` to `"łódź"`; the full mapping, where `"ß"` becomes `"SS"`, and the locales are [`txt::to_upper_full`](../txt/case.md)), `equal_fold` (the same letters in either case). The text is UTF-8: `size()` counts bytes, `runes()` walks the code points, a `char32_t` is a character wherever a `char` is (`find(U'ż')`, `split(U'·')`) and an `int` — `'ż'`, a multi-character literal — is refused ([utf8](utf8.md)).
+Past `std::string`, what the strings of Go (`strings`) and Java have, each a new string or the same object when there is nothing to change: `split` (the pieces between the separators, a range of slices walked as it goes: `pieces`), `fields` (the words between runs of white space, the same range), `join` (static: the parts with a separator between each two, built once), `concat` (static: a few known pieces in order, built once), `trim`, `trim_left`, `trim_right` (Unicode white space, or the characters given), `trim_prefix`, `trim_suffix`, `replace` (every occurrence, or the first `count`), `repeat`, `to_lower`, `to_upper` (by Unicode's simple case mapping: `"ŁÓDŹ"` to `"łódź"`; the full mapping, where `"ß"` becomes `"SS"`, and the locales are [`txt::to_upper_full`](../txt/case.md)), `equal_fold` (the same letters in either case). The text is UTF-8: `size()` counts bytes, `runes()` walks the code points, a `char32_t` is a character wherever a `char` is (`find(U'ż')`, `split(U'·')`) and an `int` — `'ż'`, a multi-character literal — is refused ([utf8](utf8.md)).
 
 The word is a `tracked_ptr`, so a string lives where one may, as the containers do: on a stack or inside a managed object. A piece of a string is a [`slice`](slice.md) (`string_slice`, a `slice<const char>`): the string's object as the owner and a range in it, so `s.as_slice(pos, n)` is a substring with no copy and no lifetime to watch, and the pieces of `split` are such slices. The read interface below is the mixin `mixin::text`, which a text slice shares.
 
@@ -34,6 +34,7 @@ A map or a set keyed by strings is searched with a `std::string_view`, a slice o
 - Threads share a `string` the way they share a `tracked_ptr` ([The rules](README.md#the-rules), 6): the object itself is immutable and read from any thread without synchronization, and a string variable that one thread replaces while others read it is an [`atomic<string>`](atomic.md#atomicbasic_string), one word, a load for the string as it was and a store for a new one. The hash is computed by the first thread that asks and stored relaxed: every thread computes the same value.
 - `data()` and the iterators are valid while some string holds the object: a `std::string_view` taken from a temporary dangles as it would from a `std::string`; a slice does not, it holds the object.
 - A string's object is never traced and never zeroed: its bytes are characters and nothing else.
+- A string is made once, at its size. When the size is known up front, one allocation: `concat` of the pieces, `repeat`, `txt::format`, a number's `to_string`. When the text comes in pieces, they are gathered and joined once: `join` over a range of them, `concat` over a few known ones. It is never grown by `a + b + c` or by `+` in a loop, where each `+` is a string of its own. A `std::string` with `+=` and a copy into a `string` at the end is for code off the hot path only: its buffer doubles as it grows, and its bytes are copied once more at the end.
 
 ## Members
 
@@ -43,7 +44,8 @@ using const_iterator = const CharT*;  using const_reverse_iterator = std::revers
 static constexpr size_type npos;
 
 basic_string() noexcept;                                  // empty: null, nothing allocated
-basic_string(const CharT* s);
+template<size_t N> basic_string(const CharT (&s)[N]);    // an array, a literal: up to its first NUL or its end, never past it
+template<class P> basic_string(P s);                      // P is CharT* or const CharT*, no other pointer: up to its NUL
 basic_string(const CharT* s, size_type n);
 basic_string(view_type s);
 template<class V> explicit basic_string(const V& v);     // anything a view_type is made of: a std::string
@@ -70,9 +72,10 @@ int compare(...) const;  bool starts_with(...) const;  bool ends_with(...) const
 size_type find(...) const;  rfind, find_first_of, find_last_of, find_first_not_of, find_last_not_of         // the overloads of std::string_view
 basic_string substr(size_type pos = 0, size_type n = npos) const;   // a new string; the same object for the whole
 class pieces;                                             // a forward range of string_slices (slices that hold the object) into the string: what split and fields return
-pieces split(view_type sep, size_type max_parts = 0) const;   // and (CharT sep), (char32_t sep), (const CharT* sep), (const basic_string& sep): the pieces between the separators, in order
+pieces split(view_type sep, size_type max_parts = 0) const;   // and (CharT sep), (char32_t sep), (an array or a pointer), (const basic_string& sep): the pieces between the separators, in order
 pieces fields() const;                                    // the words between runs of Unicode white space, none empty
-template<std::ranges::input_range R> static basic_string join(R&& parts, view_type sep);   // and (R&&, CharT), (R&&, char32_t), (R&&, const CharT*): parts convertible to view_type
+template<std::ranges::input_range R> static basic_string join(R&& parts, view_type sep);   // and (R&&, CharT), (R&&, char32_t), (R&&, an array or a pointer): parts convertible to view_type
+template<class... A> static basic_string concat(const A&... pieces);   // the pieces in order (strings, slices, views, literals, CharT), their lengths summed first: one string, written once
 basic_string trim() const;  basic_string trim(view_type chars) const;  basic_string trim(std::u32string_view set) const;   // without Unicode white space (the characters of `chars`; the code points of `set`) at both ends
 basic_string trim_left() const;  basic_string trim_left(view_type chars) const;  basic_string trim_left(std::u32string_view set) const;   // at the start
 basic_string trim_right() const;  basic_string trim_right(view_type chars) const;  basic_string trim_right(std::u32string_view set) const;   // at the end
@@ -88,16 +91,18 @@ void swap(basic_string&) noexcept;
 size_t hash() const noexcept;                             // std::hash of the characters, computed once, kept in the object
 static size_t hash_of(view_type s) noexcept;              // the hash a string of these characters has: for a lookup by a view
 const void* object() const noexcept;                      // the object's address: the identity; null when empty
-bool operator==(view_type) const noexcept;  bool operator==(const CharT*) const noexcept;
-std::strong_ordering operator<=>(view_type) const noexcept;  std::strong_ordering operator<=>(const CharT*) const noexcept;
+bool operator==(view_type) const noexcept;  bool operator==(an array or a pointer) const noexcept;
+std::strong_ordering operator<=>(view_type) const noexcept;  std::strong_ordering operator<=>(an array or a pointer) const noexcept;
 ```
+
+A text given as characters comes as the constructor takes it, everywhere: an array of `CharT` (a literal) up to its first NUL or its end, whichever comes first, so an array filled to the brim is not read past its end; a `CharT*` or `const CharT*` up to its NUL; `nullptr` and every other pointer do not compile. Assignment, `compare`, `starts_with`, `ends_with`, `contains`, the six `find`s, `equal_fold`, `split`, `join`, `==`, `<=>`, `+` and `std::hash` take the array and the pointer; `trim`, `trim_left`, `trim_right`, `trim_prefix`, `trim_suffix`, `replace` and `concat` read an array the same way.
 
 The free functions, in `sgcl`:
 
 ```cpp
 bool operator==(const basic_string<CharT, Traits>&, const basic_string<CharT, Traits>&) noexcept;   // the same object, or the lengths, the hashes when known, the characters
 std::strong_ordering operator<=>(const basic_string<CharT, Traits>&, const basic_string<CharT, Traits>&) noexcept;
-basic_string operator+(string, string);  (string, std view);  (std view, string);  (string, const CharT*);  (const CharT*, string);  (string, CharT);  (CharT, string);
+basic_string operator+(string, string);  (string, std view);  (std view, string);  (string, array or pointer);  (array or pointer, string);  (string, CharT);  (CharT, string);
 std::basic_ostream& operator<<(std::basic_ostream&, const basic_string&);
 void swap(basic_string&, basic_string&) noexcept;
 template<class T> string to_string(T number);              // an integral or a floating-point number; "true"/"false" for a bool; a char as a string of one
@@ -134,6 +139,7 @@ for (string_slice part : line.trim().trim_prefix("name = ").split(',')) {   // a
 }
 assert(names.size() == 3 && names[1] == "bob");
 assert(string::join(names, "; ") == "alice; bob; carol");
+assert(string::concat(names[0], '@', "example.com") == "alice@example.com");   // one string of the known pieces
 vector<string_slice> words(line.fields());         // "name", "=", "alice,", "bob", ",carol": slices, each holding the line
 assert(words.size() == 5 && words[2] == "alice," && words[2].object() == line.object());
 size_t letters = 0;
@@ -165,7 +171,8 @@ for (char32_t c : city.runes()) {                           // the code points, 
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -203,15 +210,15 @@ int main() {
         }
         root->children.push_back(section);
     }
-    println("{} paragraphs, {} divs", count(root, p), count(root, "div"));   // 12 paragraphs, 4 divs
-    println("{}", root->children[0]->children[1]->text);                            // paragraph 1
+    println("{} paragraphs, {} divs", count(root, p), count(root, "div"));
+    println("{}", root->children[0]->children[1]->text);
     return 0;
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 12 paragraphs, 4 divs
 paragraph 1
 ```

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -7,6 +7,7 @@
 
 #include "der.h"
 #include "../error.h"
+#include "../secret.h"
 #include "../secure_zero.h"
 #include "../../core/aliases.h"
 #include "../../core/expected.h"
@@ -51,14 +52,16 @@ namespace sgcl::crypto::detail {
         return der_bytes(d, sizeof d);
     }
 
-    // the private key's 32 bytes are a secret: the stack copy is zeroed,
-    // the vector returned is the caller's to keep or clear
-    inline vector<byte> der_pkcs8(unsigned char oid, const unsigned char* key) {
-        unsigned char d[48] = {0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b,
-                               0x65, oid, 0x04, 0x22, 0x04, 0x20};
+    // the private key's 32 bytes are a secret: written straight into the
+    // secret_bytes (48 bytes, in the object itself), never in managed memory
+    inline secret_bytes der_pkcs8(unsigned char oid, const unsigned char* key) {
+        static constexpr unsigned char head[16] = {0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b,
+                                                   0x65, 0, 0x04, 0x22, 0x04, 0x20};
+        secret_bytes out(48);
+        auto* d = reinterpret_cast<unsigned char*>(out.as_slice().data());
+        std::memcpy(d, head, 16);
+        d[11] = oid;
         std::memcpy(d + 16, key, 32);
-        vector<byte> out = der_bytes(d, sizeof d);
-        secure_zero(d, sizeof d);
         return out;
     }
 

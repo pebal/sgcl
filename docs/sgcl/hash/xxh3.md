@@ -52,9 +52,9 @@ Inputs up to 240 bytes take one of six paths by length, a multiplication or a fe
 ## Example
 
 ```cpp
-#include "sgcl/encoding/hex.h"
-#include "sgcl/hash/xxh3.h"
-#include "sgcl/io/print.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/hash/hash.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 

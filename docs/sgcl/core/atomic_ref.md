@@ -1,7 +1,7 @@
 # sgcl::atomic_ref
 
 ```cpp
-#include "sgcl/core/atomic_ref.h"   // or "sgcl/sgcl.h"
+#include "sgcl/core/atomic_ref.h"   // or "sgcl/core/core.h"
 
 namespace sgcl {
     template<class T>
@@ -187,7 +187,8 @@ template<class T> atomic_ref(root_ptr<T>) -> atomic_ref<tracked_ptr<T>>;
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 #include <cassert>
 
 using namespace sgcl;
@@ -203,17 +204,17 @@ struct Item {
 };
 
 int main() {
-    vector<tracked_ptr<Item>> slots(64);       // 64 null slots in a managed buffer
+    vector<tracked_ptr<Item>> slots(64);  // 64 null slots in a managed buffer
 
     vector<thread> workers;
     for (int t : range(4)) {
-        workers.emplace_back([&slots, t] {              // a reference: the vector stays in main's frame
+        workers.emplace_back([&slots, t] {  // a reference: the vector stays in main's frame
             for (size_t i : range(slots.size())) {
-                tracked_ptr<Item> expected;         // null: the slot is free
+                tracked_ptr<Item> expected;  // null: the slot is free
                 tracked_ptr mine = make_tracked<Item>(t);
                 atomic_ref slot(slots[i]);
                 if (!slot.compare_exchange_strong(expected, mine)) {
-                    assert(expected);                   // somebody else's item, now held by `expected`
+                    assert(expected);  // somebody else's item, now held by `expected`
                 }
             }
         });
@@ -224,20 +225,21 @@ int main() {
 
     int counts[4] = {};
     for (const auto& s : slots) {
-        assert(s);                                      // every slot claimed exactly once
+        assert(s);  // every slot claimed exactly once
         ++counts[s->owner];
     }
     println("{} {} {} {}", counts[0], counts[1], counts[2], counts[3]);
 
-    collector::force_collect(true);     // optional, for the demonstration only: the collector runs its cycles by itself
+    // optional, for the demonstration only: the collector runs its cycles by itself
+    collector::force_collect(true);
     return 0;
 }
 ```
 
-The output of one run (the split between the workers varies):
+Sample output:
 
-```
-1 0 0 63
+```text
+0 0 0 64
 ```
 
 ## See also

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -55,6 +55,11 @@ namespace {
 
     slice<const byte> view(const uint8_t* p, size_t n) {
         return slice<const byte>(reinterpret_cast<const byte*>(p), n);
+    }
+
+    inline bytes_t to_bytes(const crypto::secret_bytes& s) {
+        auto v = s.as_slice();
+        return bytes_t(reinterpret_cast<const unsigned char*>(v.data()), reinterpret_cast<const unsigned char*>(v.data()) + v.size());
     }
 
     template<class R>

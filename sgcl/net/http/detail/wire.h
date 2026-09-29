@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -52,6 +52,18 @@ namespace sgcl::net::http::detail {
         // after the connection's first (WriterImpl: the one exchange that
         // writes at a time, its send awaited before the next begins)
         std::string out;
+
+        // At the point the connection waits for its next request: past
+        // OutKeep of room given back (a response written through `out`
+        // whole, chunked or flushed, grew it to its size, and the room
+        // stayed for the connection's life); the head's room stays
+        static constexpr size_t OutKeep = size_t(64) << 10;
+
+        void trim_out() noexcept {
+            if (out.capacity() > OutKeep) {
+                std::string().swap(out);
+            }
+        }
 
         size_t buffered() const noexcept {
             return _end - _begin;
@@ -347,6 +359,49 @@ namespace sgcl::net::http::detail {
         // a copy out of its buffer or a read of the connection in this
         // task (the reactor, never the pool), so the gathered bytes are
         // written by nothing that outlives the frame.
+        // The same as text (request::text, response::text): a length
+        // declared read straight into the string's object, of its size;
+        // any other body gathered and copied once into a string of its
+        // size (a vector first and a string of it was two of each)
+        async::task<expected<string, io::error>> read_text() {
+            static constexpr uint64_t ExactUpTo = uint64_t(1) << 20;
+            if (_framing.kind == Framing::length && _read_total == 0 && !_done && _framing.length && _framing.length <= ExactUpTo) {
+                const size_t n = static_cast<size_t>(_framing.length);
+                auto room = sgcl::detail::StringAccess::unfilled<string>(n);
+                size_t got = 0;
+                while (got < n) {
+                    auto r = co_await async_read(slice<byte>(reinterpret_cast<byte*>(room.chars) + got, n - got));
+                    if (!r) {
+                        co_return fail(r);
+                    }
+                    if (*r == 0) {
+                        break;
+                    }
+                    got += *r;
+                }
+                if (_h2 && !_done && !_failed) {
+                    auto end = co_await _h2->wait_end();
+                    if (!end) {
+                        co_return fail(_fail(end.error()));
+                    }
+                    _done = true;
+                    _finish(true);
+                }
+                co_return sgcl::detail::StringAccess::finish<string>(std::move(room), got);
+            }
+            io::detail::Gathered all;
+            for (;;) {
+                auto r = co_await async_read(all.room());
+                if (!r) {
+                    co_return fail(r);
+                }
+                if (*r == 0) {
+                    co_return all.take_text();
+                }
+                all.added(*r);
+            }
+        }
+
         async::task<expected<vector<byte>, io::error>> read_everything() {
             static constexpr uint64_t ExactUpTo = uint64_t(1) << 20;
             if (_framing.kind == Framing::length && _read_total == 0 && !_done && _framing.length && _framing.length <= ExactUpTo) {

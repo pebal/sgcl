@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -244,6 +244,7 @@ namespace sgcl::async {
             // seen by the look under the lock, since the push comes before
             // the submitter's own lock.
             void _run(Threads::iterator it) {
+                thread_place = PlaceBlockingPool;   // on_unhandled's default names the pool (coroutine.h)
                 const uintptr_t floor = dead_stack_floor();
                 for (;;) {
                     unsigned ran = _run_jobs();
@@ -433,6 +434,7 @@ namespace sgcl::async {
     auto spawn_blocking(F f) {
         using T = std::decay_t<std::invoke_result_t<F&>>;
         tracked_ptr<detail::BlockingJobOf<F, T>> job = make_tracked<detail::BlockingJobOf<F, T>>(std::move(f));
+        job->result.link();   // the promise's channel, before the job is given to the pool (ChannelState::link)
         detail::blocking_pool_instance().submit(job);
         return blocking_task<T>(job);
     }

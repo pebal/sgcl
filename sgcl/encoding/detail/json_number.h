@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -7,6 +7,7 @@
 
 #include "text_scan.h"
 #include "../../core/aliases.h"
+#include "../../core/detail/bytes.h"
 
 #include <bit>
 #include <charconv>
@@ -438,9 +439,12 @@ namespace sgcl::encoding::detail {
                     ++p;
                     bool down = p != end && *p == '-';
                     p += p != end && (*p == '-' || *p == '+');
+                    // held at 100000 once past it: the fast way takes a scale
+                    // of ±22 and leaves the rest to from_chars, and a longer
+                    // exponent (999999999999 digits) overflowed an int
                     int e = 0;
                     while (p != end && unsigned(*p - '0') < 10) {
-                        e = e * 10 + (*p - '0');
+                        e = e < 100000 ? e * 10 + (*p - '0') : e;
                         ++p;
                     }
                     scale += down ? -e : e;
@@ -519,16 +523,16 @@ namespace sgcl::encoding::detail {
         // x = 0.digits * 10^n, as ECMAScript's n
         int n = e10 + 1;
         if (k <= n && n <= 21) {
-            std::memcpy(o, digits, size_t(k));
+            sgcl::detail::copy_bytes(o, digits, size_t(k));
             o += k;
             for (int z = k; z < n; ++z) {
                 *o++ = '0';
             }
         } else if (0 < n && n <= 21) {
-            std::memcpy(o, digits, size_t(n));
+            sgcl::detail::copy_bytes(o, digits, size_t(n));
             o += n;
             *o++ = '.';
-            std::memcpy(o, digits + n, size_t(k - n));
+            sgcl::detail::copy_bytes(o, digits + n, size_t(k - n));
             o += k - n;
         } else if (-6 < n && n <= 0) {
             *o++ = '0';
@@ -536,13 +540,13 @@ namespace sgcl::encoding::detail {
             for (int z = 0; z < -n; ++z) {
                 *o++ = '0';
             }
-            std::memcpy(o, digits, size_t(k));
+            sgcl::detail::copy_bytes(o, digits, size_t(k));
             o += k;
         } else {
             *o++ = digits[0];
             if (k > 1) {
                 *o++ = '.';
-                std::memcpy(o, digits + 1, size_t(k - 1));
+                sgcl::detail::copy_bytes(o, digits + 1, size_t(k - 1));
                 o += k - 1;
             }
             *o++ = 'e';

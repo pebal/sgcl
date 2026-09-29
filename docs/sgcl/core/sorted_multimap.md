@@ -394,7 +394,8 @@ From an iterator pair or an initializer list, as for `std::multimap`; an initial
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -419,7 +420,7 @@ int main() {
     auto [from, to] = log.equal_range(1);
     print("day 1:");
     for (auto it = from; it != to; ++it) {
-        print(" {}", it->second->what);                  // boot login late entry
+        print(" {}", it->second->what);
     }
     println();
 
@@ -435,9 +436,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 a log, by day
 day 1: boot login late entry
 3 erased, 2 left, 7 live objects

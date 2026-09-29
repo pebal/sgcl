@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -45,8 +45,11 @@ namespace sgcl::concurrent {
         // container's kind to const T
         using snapshot = tracked_ptr<const T>;
 
+        // The value T(): value-initialized, zero for a number (make_tracked
+        // without arguments default-initializes, and the slot would give a
+        // trivial T the bytes of its last user)
         copy_on_write()
-        : _value(make_tracked<T>()) {
+        : _value(make_tracked<T>(T())) {
         }
 
         explicit copy_on_write(const T& value)

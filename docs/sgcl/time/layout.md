@@ -69,7 +69,7 @@ txt::format_to(buffer, "{:%R}", t);    // into a caller's buffer, nothing alloca
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/io/io.h"
 #include "sgcl/time/time.h"
 #include <chrono>
 

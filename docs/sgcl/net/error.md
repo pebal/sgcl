@@ -7,7 +7,7 @@ namespace sgcl::net {
     enum class errc { invalid_address = 1, host_not_found, no_suitable_address,   // the sockets and the resolver
                       invalid_url, unsupported_scheme, malformed_response,       // HTTP
                       header_too_large, body_too_large, too_many_redirects, server_closed,
-                      invalid_cookie };
+                      invalid_cookie, http_status };
     const std::error_category& category() noexcept;          // "net"
     const std::error_category& lookup_category() noexcept;   // "lookup": the EAI_* codes of getaddrinfo, gai_strerror's text
     error_code make_error_code(errc e) noexcept;
@@ -38,7 +38,8 @@ enum class errc {
     body_too_large,        // "body too large": a read of a body past its limit
     too_many_redirects,    // "stopped after too many redirects": more than the client's max_redirects (10 by default)
     server_closed,         // "server closed": serve after shutdown() or close(), Go's ErrServerClosed
-    invalid_cookie         // "invalid cookie": a Set-Cookie value that cookie::parse finds no cookie in
+    invalid_cookie,        // "invalid cookie": a Set-Cookie value that cookie::parse finds no cookie in
+    http_status            // "the response's status is not 2xx": http::download of a URL that answered 404 or 500, nothing written
 };
 ```
 

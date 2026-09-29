@@ -30,14 +30,21 @@ Go's `net/url` reads RFC 3986, loosely, and differs where the standard follows t
 
 ## Members
 
-### url
+### url: parsing
 
 ```cpp
 static expected<url, io::error> parse(const string& text);                   // an absolute URL, else errc::invalid_url
 static expected<url, io::error> parse(const string& text, const url& base);  // absolute, or relative to base
 explicit url(const string& text);                                          // a literal: parse(text), absolute, or bad_expected_access<io::error> (DESIGN 234)
 explicit url(const string& text, const url& base);                         // a literal reference: parse(text, base), or the same
+expected<url, io::error> resolve(const string& reference) const;           // parse(reference, *this)
+```
 
+`parse` is for text from outside, which may not be a URL; the constructors are for a URL the program writes itself, and throw where `parse` fails. A reference is resolved against a base by the same parser.
+
+### url: the parts
+
+```cpp
 string scheme() const;          // "https", without the ':'
 string username() const;        // escaped
 string password() const;
@@ -57,8 +64,13 @@ bool is_special() const;        // http, https, ws, wss, ftp, file
 string origin() const;          // "https://example.com:8443"; "null" for other schemes, file among them
 string request_target() const;  // the path and the query: what an HTTP request line carries
 net::query_params query_params() const;
+```
 
-expected<url, io::error> resolve(const string& reference) const;   // parse(reference, *this)
+Each part as the URL writes it, escaped; the host with its port and without it, the port written and the port in effect, and the query's pairs unescaped by `query_params()`.
+
+### url: the setters
+
+```cpp
 expected<url, io::error> with_scheme(const string& scheme) const;
 expected<url, io::error> with_username(const string& username) const;
 expected<url, io::error> with_password(const string& password) const;
@@ -70,13 +82,21 @@ url with_query(const string& query) const;              // "" removes it
 url with_query(const net::query_params& params) const;  // no pairs: no query
 url with_fragment(const string& fragment) const;        // "" removes it
 url without_fragment() const;
+```
 
+The standard's setters, each returning a new `url`. Those that may refuse the value return `net::errc::invalid_url`; the query and the fragment always apply.
+
+### url: text and comparison
+
+```cpp
 string to_string() const;       // the serialization (href)
 friend bool operator==(const url&, const url&) noexcept;
 friend std::strong_ordering operator<=>(const url&, const url&) noexcept;
 ```
 
-### query_params
+The serialization, and equality and order by it.
+
+### query_params: parsing and reading
 
 ```cpp
 query_params();
@@ -85,9 +105,23 @@ explicit query_params(const string& text);        // a literal: the same as pars
 string get(const string& name) const;             // the first value, or ""
 vector<string> get_all(const string& name) const;
 bool contains(const string& name) const;
+```
+
+A query read as the standard reads one, which never fails; a name's first value, all of them, or whether it is there.
+
+### query_params: writing
+
+```cpp
 query_params& add(const string& name, const string& value);   // at the end
 query_params& set(const string& name, const string& value);   // the first takes it, the others go
 query_params& erase(const string& name);                       // every pair of the name
+```
+
+A pair added at the end, a name's value set in the place of its first pair, or every pair of a name dropped.
+
+### query_params: iteration and text
+
+```cpp
 size_t size() const noexcept;
 bool empty() const noexcept;
 auto begin() const noexcept;    // pair<string, string>, in order
@@ -96,30 +130,24 @@ string to_string() const;       // "a=1&b=x+y"
 bool operator==(const query_params&) const;
 ```
 
-## Example
+The pairs in their order, and the query written back, a space as `+`.
+
+## Examples
+
+### The parts
 
 ```cpp
-#include "sgcl/net/url.h"
-#include "sgcl/io/print.h"
+#include "sgcl/io/io.h"
+#include "sgcl/net/net.h"
 
 using namespace sgcl;
 
 int main() {
-    net::url u("HTTPS://B\xC3\xBC" "cher.de/a/../suche?q=katze&page=2#treffer");   // a literal: the constructor
+    // a literal: the constructor
+    net::url u("HTTPS://B\xC3\xBC" "cher.de/a/../suche?q=katze&page=2#treffer");
     println(u.to_string());
     println("{} {} {}", u.host(), u.path(), u.effective_port());
     println(u.query_params().get("q"));
-
-    auto next = u.with_query(u.query_params().set("page", "3"));
-    println(next.to_string());
-
-    net::url logo("/img/logo.png", u);                        // a literal reference against a base
-    println(logo.to_string());
-
-    auto moved = u.with_port(8443)->without_fragment();
-    println("{} {}", moved.origin(), moved.request_target());
-
-    println(net::url::parse("/relative") ? "parsed" : "not a URL without a base");   // text that may fail: parse
 }
 ```
 
@@ -129,9 +157,55 @@ Output:
 https://xn--bcher-kva.de/suche?q=katze&page=2#treffer
 xn--bcher-kva.de /suche 443
 katze
+```
+
+### The setters
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/net/net.h"
+
+using namespace sgcl;
+
+int main() {
+    net::url u("HTTPS://B\xC3\xBC" "cher.de/a/../suche?q=katze&page=2#treffer");
+    auto next = u.with_query(u.query_params().set("page", "3"));
+    println(next.to_string());
+
+    auto moved = u.with_port(8443)->without_fragment();
+    println("{} {}", moved.origin(), moved.request_target());
+}
+```
+
+Output:
+
+```text
 https://xn--bcher-kva.de/suche?q=katze&page=3#treffer
-https://xn--bcher-kva.de/img/logo.png
 https://xn--bcher-kva.de:8443 /suche?q=katze&page=2
+```
+
+### References
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/net/net.h"
+
+using namespace sgcl;
+
+int main() {
+    net::url u("HTTPS://B\xC3\xBC" "cher.de/a/../suche?q=katze&page=2#treffer");
+    net::url logo("/img/logo.png", u);  // a literal reference against a base
+    println(logo.to_string());
+
+    // text that may fail: parse
+    println(net::url::parse("/relative") ? "parsed" : "not a URL without a base");
+}
+```
+
+Output:
+
+```text
+https://xn--bcher-kva.de/img/logo.png
 not a URL without a base
 ```
 

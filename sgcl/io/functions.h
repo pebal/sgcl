@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -142,6 +142,14 @@ namespace sgcl::io {
                 return out;
             }
 
+            // The same as text: one string of their size, one copy (a
+            // vector first and the string made of it was two)
+            string take_text() const {
+                return sgcl::detail::StringAccess::filled<string>(_size, [&](char* chars) {
+                    sgcl::detail::copy_bytes(chars, _data, _size);
+                });
+            }
+
         private:
             void _grow() {
                 size_t capacity = _capacity ? _capacity * 2 : config::io_buffer_size;
@@ -239,11 +247,35 @@ namespace sgcl::io {
         template<class R, class W>
         concept AsyncWritesTo = requires(R& r, W& w) { { r.async_write_to(w) } -> std::same_as<async::task<expected<size_t, error>>>; };
 
+        // A writer with a way of its own to take a reader's bytes (Go's
+        // ReaderFrom): a connection sends a file by sendfile
+        template<class W, class R>
+        concept ReadsFrom = requires(W& w, R& r) { { w.read_from(r) } -> std::convertible_to<expected<size_t, error>>; };
+
+        template<class W, class R>
+        concept AsyncReadsFrom = requires(W& w, R& r) { { w.async_read_from(r) } -> std::same_as<async::task<expected<size_t, error>>>; };
+
+        template<class W, class R>
+        expected<size_t, error> copy_loop(W& w, R& r);
+
+        template<class W, class R>
+        async::task<expected<size_t, error>> async_copy_loop(W& dst, R src);
+
         template<class W, class R>
         expected<size_t, error> copy(W& w, R& r) {
             if constexpr (WritesTo<R, W>) {
                 return r.write_to(w);
+            } else if constexpr (ReadsFrom<W, R>) {
+                return w.read_from(r);
             } else {
+                return copy_loop(w, r);
+            }
+        }
+
+        // The copy through a block, whatever the two have of their own
+        template<class W, class R>
+        expected<size_t, error> copy_loop(W& w, R& r) {
+            {
                 StackCopyBlock block;
                 size_t total = 0;
                 for (;;) {
@@ -268,26 +300,38 @@ namespace sgcl::io {
         async::task<expected<size_t, error>> async_copy(W w, R r) {
             auto& dst = target(w);
             auto& src = target(r);
-            if constexpr (AsyncWritesTo<std::remove_reference_t<decltype(src)>, std::remove_reference_t<decltype(dst)>>) {
+            using Dst = std::remove_reference_t<decltype(dst)>;
+            using Src = std::remove_reference_t<decltype(src)>;
+            if constexpr (AsyncWritesTo<Src, Dst>) {
                 co_return co_await src.async_write_to(dst);
+            } else if constexpr (AsyncReadsFrom<Dst, Src>) {
+                co_return co_await dst.async_read_from(src);
             } else {
-                tracked_ptr<CopyBlock> block = make_tracked<CopyBlock>();
-                size_t total = 0;
-                for (;;) {
-                    slice<byte> room(block, block->data(), block->size());
-                    auto got = co_await call_async_read(src, room);
-                    if (!got) {
-                        co_return fail(got);
-                    }
-                    if (*got == 0) {
-                        co_return total;
-                    }
-                    auto put = co_await call_async_write(dst, slice<const byte>(room.first(*got)));
-                    if (!put) {
-                        co_return fail(put);
-                    }
-                    total += *got;
+                co_return co_await async_copy_loop<Dst, Src&>(dst, src);
+            }
+        }
+
+        // The copy through a managed block, whatever the two have of their
+        // own; the reader held by the frame (a handle by value, or the
+        // caller's across the wait)
+        template<class W, class R>
+        async::task<expected<size_t, error>> async_copy_loop(W& dst, R src) {
+            tracked_ptr<CopyBlock> block = make_tracked<CopyBlock>();
+            size_t total = 0;
+            for (;;) {
+                slice<byte> room(block, block->data(), block->size());
+                auto got = co_await call_async_read(target(src), room);
+                if (!got) {
+                    co_return fail(got);
                 }
+                if (*got == 0) {
+                    co_return total;
+                }
+                auto put = co_await call_async_write(dst, slice<const byte>(room.first(*got)));
+                if (!put) {
+                    co_return fail(put);
+                }
+                total += *got;
             }
         }
 
@@ -327,14 +371,22 @@ namespace sgcl::io {
         return detail::async_read_all<detail::Held<R>>(std::forward<R>(r));
     }
 
-    // Everything to the end of the stream, as text
+    // Everything to the end of the stream, as text: gathered, then one
+    // string of their size
     template<req::reader R>
     expected<string, error> read_all_text(R&& r) {
-        auto all = detail::read_all(detail::target(r));
-        if (!all) {
-            return detail::fail(all);
+        detail::Gathered all;
+        auto&& from = detail::target(r);
+        for (;;) {
+            auto got = detail::call_read(from, all.room());
+            if (!got) {
+                return detail::fail(got);
+            }
+            if (*got == 0) {
+                return all.take_text();
+            }
+            all.added(*got);
         }
-        return detail::text_of(as_bytes(all->as_slice()));
     }
 
     template<req::async_reader R>

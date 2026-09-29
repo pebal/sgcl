@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SGCL: a C++20 application framework
+# SGCL: a C++20 application platform
 # Copyright (c) 2022-2026 Sebastian Nibisz
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -88,7 +88,7 @@ def main():
     nk, nw, nf = normal()
     ek, ew, ef = exponential()
     print("""//------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------

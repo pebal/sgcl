@@ -1,17 +1,44 @@
 # sgcl::compress::zip
 
 ```cpp
-#include "sgcl/compress/zip.h"   // or "sgcl/compress/compress.h"
+#include "sgcl/compress/zip.h"   // or "sgcl/compress/compress.h", "sgcl/sgcl.h"
 
 namespace sgcl::compress::zip {
     enum class method : uint16_t { store = 0, deflate = 8, deflate64 = 9 };   // deflate64: read, not written
     struct entry;
     class archive;   // an archive to read: its entries in any order
     class writer;    // an archive written entry after entry
+    struct options;  // extract's max_size, create's method
+
+    expected<void, error> extract(const string& archive, const string& directory, const options& o = {});   // + async_extract
+    expected<void, error> create(const string& directory, const string& archive, const options& o = {});    // + async_create
 }
 ```
 
 zip as PKWARE's APPNOTE 6.3.10 has it and as every tool writes it: entries stored or deflated, ZIP64 for more than 65 535 entries and past 4 GiB, names in UTF-8; entries of Deflate64 (method 9, as 7-Zip and Windows write large archives) are read. `.zip`, `.jar`, `.docx`, `.apk`.
+
+## extract, create
+
+```cpp
+struct options {
+    zip::method method = zip::method::deflate;   // create: deflate or store
+    uint64_t max_size = limits{}.max_size;       // extract: the files' bytes together past which nothing is written; 1 GiB, 0: none
+};
+
+expected<void, error> extract(const string& archive_path, const string& directory, const options& o = {});
+async::task<expected<void, error>> async_extract(string archive_path, string directory, options o = {});
+expected<void, error> create(const string& directory, const string& archive_path, const options& o = {});
+async::task<expected<void, error>> async_create(string directory, string archive_path, options o = {});
+```
+
+```cpp
+compress::zip::extract("upload.zip", "incoming", {.max_size = 100 << 20});
+compress::zip::create("photos", "photos.zip", {.method = compress::zip::method::store});   // JPEGs do not deflate
+```
+
+- **`extract`** checks every name before anything is written: an entry, or a link's target, that would leave the directory (the rule of [`io::path::is_local`](../io/path.md)) is `errc::insecure_path`, and nothing is written; so is a total size past `max_size` (`errc::too_large`), 1 GiB unless set, since an archive comes from outside. Then directories, files with their mode and time, and symbolic links, made last, their targets kept inside. A file there already is written over.
+- **`create`** names the entries from the directory, not with it (`index.html`, `css/`, `css/site.css`), as Go's `AddFS` names them, in lexical order, with their mode and time; a symbolic link is archived as a link; a socket, a device or a fifo is left out. A failure removes the half-made file.
+- The `async_` forms run on the [blocking pool](../async/blocking.md). Tested both ways against Info-ZIP's `zip` and `unzip` (`tests/compress/files.cpp`).
 
 ## entry
 
@@ -95,3 +122,28 @@ io::writer log = w.create("logs/app.log");
 for (auto& line : lines) log.write(line);
 if (auto r = w.close(); !r) println(r.error().message());   // a failure of any step above
 ```
+
+## Example
+
+```cpp
+#include "sgcl/compress/compress.h"
+#include "sgcl/io/io.h"
+
+using namespace sgcl;
+
+int main() {
+    io::mkdir_all("photos/2026");
+    io::write_file("photos/2026/list.txt", "beach.jpg\nhills.jpg\n");
+    compress::zip::create("photos", "photos.zip");
+    compress::zip::extract("photos.zip", "restored");
+    print("{}", io::read_text("restored/2026/list.txt").value_or(string("?")));
+}
+```
+
+Output:
+
+```text
+beach.jpg
+hills.jpg
+```
+

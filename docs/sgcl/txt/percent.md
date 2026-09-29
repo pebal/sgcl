@@ -1,22 +1,9 @@
-# txt::percent
+# sgcl::txt::percent
 
 ```cpp
-#include "sgcl/txt/percent.h"
-```
+#include "sgcl/txt/percent.h"   // or "sgcl/txt/txt.h"
 
-The bytes a URL may not carry as they stand, written as `%XX`, and back ([RFC 3986](https://www.rfc-editor.org/rfc/rfc3986) section 2.1).
-
-This header stands on its own. It has no tables, it knows nothing about Unicode and nothing about domain names, and it is a header of its own rather than a corner of [`idna`](idna.md) because nobody looking for percent encoding would think to open a file called `idna`. It is not a URL parser either — taking a URL apart belongs to `net`, and this is only the escaping that the parts of a URL need once they have been taken apart.
-
-## Names
-
-```cpp
-class percent_set {
-    constexpr percent_set() noexcept;
-    constexpr explicit percent_set(const char* chars) noexcept;   // the characters themselves
-    constexpr bool holds(char c) const noexcept;
-    constexpr percent_set operator|(const percent_set&) const noexcept;
-};
+class percent_set;   // a set of ASCII characters, a mask of 128 bits
 
 namespace percent {
     string encode(const string& text, percent_set keep = unreserved);
@@ -33,14 +20,9 @@ namespace percent {
 }
 ```
 
-```cpp
-using namespace sgcl;
+The bytes a URL may not carry as they stand, written as `%XX`, and back ([RFC 3986](https://www.rfc-editor.org/rfc/rfc3986) section 2.1).
 
-txt::percent::encode("/a b/c", txt::percent::path);   // "/a%20b/c"
-txt::percent::encode("/a b/c");                       // "%2Fa%20b%2Fc"
-txt::percent::decode("%C3%BC");                       // the two bytes of "ü"
-txt::percent::decode("a%");                           // nothing
-```
+This header stands on its own. It has no tables, it knows nothing about Unicode and nothing about domain names, and it is a header of its own rather than a corner of [`idna`](idna.md) because nobody looking for percent encoding would think to open a file called `idna`. It is not a URL parser either — taking a URL apart belongs to `net`, and this is only the escaping that the parts of a URL need once they have been taken apart.
 
 ## The set is an argument, not a default buried in the function
 
@@ -55,11 +37,7 @@ RFC 3986 gives a different set for every part of a URL, and the differences are 
 | `query`, `fragment` | `path` and the question mark (sections 3.4, 3.5) |
 | `userinfo` | unreserved, sub-delims and the colon (section 3.2.1) |
 
-`percent_set` is a 128 bit mask over ASCII, built from the characters themselves the way the RFC writes them — `percent_set{"!$&'()*+,;="}` is its sub-delims — and the sets compose with `|`, so a program with a set of its own says so in one line:
-
-```cpp
-inline constexpr auto mine = txt::percent::unreserved | txt::percent_set{"/:"};
-```
+`percent_set` is a 128 bit mask over ASCII, built from the characters themselves the way the RFC writes them — `percent_set{"!$&'()*+,;="}` is its sub-delims — and the sets compose with `|`, so a program with a set of its own says so in one line.
 
 ## Two families, and which one to reach for
 
@@ -95,3 +73,72 @@ What comes back is **bytes and not text**. An escape can spell a byte no UTF-8 h
 ## What it costs
 
 121 ns to escape a path of 23 bytes and 81 to read it back, over a stream of different values. Nothing is allocated per character: the output is laid out into one buffer and the string made once from it.
+
+## Members
+
+### percent_set
+
+```cpp
+class percent_set {
+    constexpr percent_set() noexcept;
+    constexpr explicit percent_set(const char* chars) noexcept;   // the characters themselves
+    constexpr bool holds(char c) const noexcept;
+    constexpr percent_set operator|(const percent_set&) const noexcept;
+};
+```
+
+Built from the characters themselves; `holds` asks whether a character is in the set, and `|` puts two sets together.
+
+## Examples
+
+The sets of RFC 3986, and a decoding that refuses a `%` that was cut:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    println("{}", txt::percent::encode("/a b/c", txt::percent::path));
+    println("{}", txt::percent::encode("/a b/c"));
+    println("{}", txt::percent::decode("%C3%BC"));  // the two bytes of "ü"
+    println("{}", txt::percent::decode("a%"));
+    return 0;
+}
+```
+
+Output:
+
+```text
+/a%20b/c
+%2Fa%20b%2Fc
+"ü"
+nullopt
+```
+
+A set of one's own, in one line:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+inline constexpr auto mine = txt::percent::unreserved | txt::percent_set{"/:"};
+
+int main() {
+    println("{}", txt::percent::encode("a b/c:d?", mine));
+    return 0;
+}
+```
+
+Output:
+
+```text
+a%20b/c:d%3F
+```
+
+## See also
+
+[The module](README.md); [`idna`](idna.md), the name of a host; [`encoding`](encoding.md), for the bytes a decoding gives back; [`net`](../net/README.md), which takes a URL apart.

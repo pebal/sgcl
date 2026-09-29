@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -57,6 +57,11 @@ namespace crypto_test {
 
     inline std::string hex(const bytes_t& v) {
         return hex(v.data(), v.size());
+    }
+
+    inline std::string hex(const sgcl::crypto::secret_bytes& s) {
+        auto v = s.as_slice();
+        return hex(reinterpret_cast<const unsigned char*>(v.data()), v.size());
     }
 
     template<class R>

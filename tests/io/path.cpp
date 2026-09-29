@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -198,4 +198,25 @@ TEST(IoPath_Tests, Glob) {
     ASSERT_EQ(g->size(), 0u);
     EXPECT_FALSE(path::glob("["));
     io::remove_all(dir);
+}
+
+// Go's filepath.IsLocal table (the POSIX half), and under() on it: a local
+// name joined and cleaned, any other errc::insecure_path with nothing
+// joined; "..%2fsecret.txt" as a route decodes it
+TEST(IoPath_Tests, IsLocalAndUnder) {
+    for (const char* name : {"a", "a/b", "a/b/c", "a/../b", "a/./b", "./a", ".", "a/.", "a/b/../c/..", "a..b", "..a"}) {
+        EXPECT_TRUE(path::is_local(name)) << name;
+    }
+    for (const char* name : {"", "..", "../a", "a/../..", "a/../../b", "/", "/a", "a\\b", "..\\a"}) {
+        EXPECT_FALSE(path::is_local(name)) << name;
+    }
+    EXPECT_FALSE(path::is_local(sgcl::string(std::string_view("a\0b", 3))));
+    auto inside = path::under("public", "a/../b.txt");
+    ASSERT_TRUE(inside);
+    EXPECT_EQ(v(*inside), "public/b.txt");
+    EXPECT_EQ(v(*path::under("/srv/files", ".")), "/srv/files");
+    auto escaped = path::under("public", "../secret.txt");
+    ASSERT_FALSE(escaped);
+    EXPECT_EQ(escaped.error().code(), io::errc::insecure_path);
+    EXPECT_FALSE(path::under("public", "/etc/passwd"));
 }

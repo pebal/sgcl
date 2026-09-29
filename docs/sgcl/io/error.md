@@ -1,7 +1,7 @@
 # sgcl::io::error
 
 ```cpp
-#include "sgcl/io/error.h"   // or "sgcl/io/io.h", "sgcl/sgcl.h"
+#include "sgcl/io/error.h"   // or "sgcl/io/io.h"
 
 namespace sgcl::io {
     enum class errc;                                      // the module's own codes, one std::error_category
@@ -25,10 +25,10 @@ What an operation of io reports when it fails, and the shape every operation ret
 ### errc
 
 ```cpp
-enum class errc { unexpected_eof = 1, closed, invalid_path, invalid_pattern, line_too_long, not_found, exit_status, process_done, wait_delay, unsupported };
+enum class errc { unexpected_eof = 1, closed, invalid_path, invalid_pattern, line_too_long, not_found, exit_status, process_done, wait_delay, unsupported, insecure_path, invalid_argument, help_requested };
 ```
 
-The failures no `errno` names: the end of a stream where more was required (`read_full`), a stream closed by the program (a read after `close()`), a path `rel` cannot express or a pattern `match` cannot parse, a line past the bound a `buffered_reader` was given; and, of a child process ([exec](exec.md)), no executable of the name in PATH (`not_found`), a failure status (`exit_status`), a second wait or a signal after the wait (`process_done`), the copying tasks outlasting `wait_delay` (`wait_delay`); and a wait on a descriptor whose number is past the reactor's table, four million numbers (`unsupported`: an operation that would wait fails rather than tries again forever). `make_error_code(errc)` puts one in a `error_code`; `std::is_error_code_enum` is specialized, so `code == errc::closed` compares directly.
+The failures no `errno` names: the end of a stream where more was required (`read_full`), a stream closed by the program (a read after `close()`), a path `rel` cannot express or a pattern `match` cannot parse, a line past the bound a `buffered_reader` was given; and, of a child process ([exec](exec.md)), no executable of the name in PATH (`not_found`), a failure status (`exit_status`), a second wait or a signal after the wait (`process_done`), the copying tasks outlasting `wait_delay` (`wait_delay`); and a wait on a descriptor whose number is past the reactor's table, four million numbers (`unsupported`: an operation that would wait fails rather than tries again forever); a name that would leave its directory once joined to it ([`path::under`](path.md), `insecure_path`); and of [flags](flags.md), a command line the flags do not take (`invalid_argument`, "invalid command line", with Go's message as the path) and `-h` (`help_requested`, "help requested": the message is `flag: help requested`, Go's `flag.ErrHelp`). `make_error_code(errc)` puts one in a `error_code`; `std::is_error_code_enum` is specialized, so `code == errc::closed` compares directly.
 
 ### error
 
@@ -86,7 +86,7 @@ error last_error(const string& op, const string& path = {}) noexcept;
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -100,6 +100,13 @@ int main() {
     auto bad = io::open("/nonexistent/file");
     println("{}: not found? {}", bad.error().message(), bad.error().is_not_found());
 }
+```
+
+Sample output:
+
+```text
+213 bytes
+open /nonexistent/file: No such file or directory: not found? true
 ```
 
 ## See also

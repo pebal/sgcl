@@ -1,11 +1,12 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
 #include "inflate.h"
+#include "../../core/detail/bytes.h"
 
 #include <algorithm>
 #include <bit>
@@ -19,19 +20,36 @@
 #endif
 
 namespace sgcl::compress::detail {
-    // The encoder of DEFLATE (RFC 1951): LZ77 over a window of 32 KB with
-    // chains of positions under a hash of three bytes, greedy matching at
-    // the fast levels and lazy matching (a match taken only when the next
-    // position has no longer one) from level 4; the symbols of a block
+    // The encoder of DEFLATE (RFC 1951): LZ77 over a window of 32 KB. Levels
+    // 1 to 6 (6 the default) look a position up in tables of the latest
+    // position under a hash of four bytes (and of seven from level 3), no
+    // chains, with one step of lazy matching from level 4: the kind of
+    // encoder Go's levels 1 to 6 are. Levels 7 to 9 walk chains of positions
+    // under a hash of three bytes with lazy matching (a match taken only when
+    // the next position has no longer one), zlib's 7 to 9.
+    // The positions in the tables are absolute, so a move of the window
+    // copies its last 32 KB and touches no table. The symbols of a block are
     // gathered with their frequencies, and the block written with the
-    // shortest of its three forms — its own Huffman codes, the fixed
-    // codes, or stored. Plain memory: the window, the chains and the
+    // shortest of its three forms — its own Huffman codes, the fixed codes,
+    // or stored. Level 0 frames the input as stored blocks, a whole block
+    // straight from the input. Plain memory: the window, the tables and the
     // symbols are std::vectors of the encoder.
 
+    // The two ways the encoder puts bytes into its output: a std::vector
+    // here, the stream's managed output beside its own type (stream.h)
+    inline void append_bytes(std::vector<uint8_t>& out, const uint8_t* p, size_t n) {
+        out.insert(out.end(), p, p + n);
+    }
+
+    inline void append_byte(std::vector<uint8_t>& out, uint8_t b) {
+        out.push_back(b);
+    }
+
     // Appends bits least significant first, as the format packs them
+    template<class Out>
     class BitWriter {
     public:
-        explicit BitWriter(std::vector<uint8_t>& out) noexcept
+        explicit BitWriter(Out& out) noexcept
         : _out(out) {
         }
 
@@ -40,7 +58,7 @@ namespace sgcl::compress::detail {
             _count += count;
             if (_count >= 32) {
                 uint8_t b[4] = {uint8_t(_bits), uint8_t(_bits >> 8), uint8_t(_bits >> 16), uint8_t(_bits >> 24)};
-                _out.insert(_out.end(), b, b + 4);
+                append_bytes(_out, b, 4);
                 _bits >>= 32;
                 _count -= 32;
             }
@@ -49,14 +67,14 @@ namespace sgcl::compress::detail {
         // To the byte boundary with zero bits
         void align() {
             while (_count > 0) {
-                _out.push_back(uint8_t(_bits));
+                append_byte(_out, uint8_t(_bits));
                 _bits >>= 8;
                 _count = _count > 8 ? _count - 8 : 0;
             }
             _bits = 0;
         }
 
-        std::vector<uint8_t>& out() noexcept {
+        Out& out() noexcept {
             return _out;
         }
 
@@ -74,7 +92,7 @@ namespace sgcl::compress::detail {
         }
 
     private:
-        std::vector<uint8_t>& _out;
+        Out& _out;
         uint64_t _bits = 0;
         uint32_t _count = 0;
     };
@@ -234,48 +252,114 @@ namespace sgcl::compress::detail {
         return distance <= 256 ? table.small[distance] : table.large[(distance - 1) >> 7];
     }
 
-    // The tuning of a level: matches this long are good enough to stop
-    // searching as hard, the lazy search stops above max_lazy, a match of
-    // nice length ends the search, and at most max_chain positions are
-    // tried. Levels 1 to 3 match greedily.
+    // The tuning of a level. Levels 1 to 6 are the table encoder: one
+    // table of the latest position under a hash of four bytes (hash_bits)
+    // and from level 3 one under seven (long_bits), one or two candidates a
+    // position and no chains, the positions inside a match inserted every
+    // insert_step-th (0: none), a run of misses skipped faster at levels 1
+    // and 2, one step of lazy matching from 4, two positions a bucket of the
+    // long table at 6. Levels 7 to 9 are chains
+    // under a hash of three bytes (hash_bits of heads, the previous
+    // position of each in a ring of 32 KB; four bytes made binary data 2 %
+    // larger, the matches of three bytes lost), zlib's tuning: matches this long
+    // (good) are good enough to search a quarter as hard, the lazy search
+    // stops above max_lazy, a match of nice length ends the search, at most
+    // max_chain positions are tried, zlib's own 7 to 9. Go 1.27's levels 1
+    // to 6 are table encoders too: Go's 6 is this 6, in speed and in size.
     struct LevelConfig {
         uint16_t good, max_lazy, nice, max_chain;
         bool lazy;
+        bool fast;
+        uint8_t hash_bits;
+        uint8_t long_bits;
+        uint8_t insert_step;
+        bool skip;
+        uint8_t ways = 1;   // the positions a bucket of the long table keeps, newest first
     };
 
     inline constexpr LevelConfig level_config(int level) noexcept {
         switch (level) {
-            case 1: return {4, 4, 8, 4, false};
-            case 2: return {4, 5, 16, 8, false};
-            case 3: return {4, 6, 32, 32, false};
-            case 4: return {4, 4, 16, 16, true};
-            case 5: return {8, 16, 32, 32, true};
-            case 7: return {8, 32, 128, 256, true};
-            case 8: return {32, 128, 258, 1024, true};
-            case 9: return {32, 258, 258, 4096, true};
-            default: return {8, 16, 128, 128, true};
+            case 1: return {0, 0, 258, 0, false, true, 14, 0, 4, true};
+            case 2: return {0, 0, 258, 0, false, true, 15, 0, 2, true};
+            case 3: return {0, 0, 258, 0, false, true, 15, 15, 2, false};
+            case 4: return {0, 0, 258, 0, true, true, 16, 15, 1, false};
+            case 5: return {0, 0, 258, 0, true, true, 16, 16, 1, false};
+            case 7: return {8, 32, 128, 256, true, false, 16, 0, 0, false};
+            case 8: return {32, 128, 258, 1024, true, false, 17, 0, 0, false};
+            case 9: return {32, 258, 258, 4096, true, false, 17, 0, 0, false};
+            default: return {0, 0, 258, 0, true, true, 16, 16, 1, false, 2};   // 6, the default
         }
+    }
+
+    // How many bytes of b match a from byte start on, at most max_len:
+    // sixteen at a step where NEON is, eight (XOR, trailing zeros) else
+    inline uint32_t match_length(const uint8_t* a, const uint8_t* b, uint32_t start, uint32_t max_len) noexcept {
+        uint32_t len = start;
+#if defined(__ARM_NEON)
+        // sixteen bytes a step: the bytes equal as a mask of four bits
+        // each (vshrn), the first that differs its trailing zeros / 4
+        while (len + 16 <= max_len) {
+            uint8x16_t eq = vceqq_u8(vld1q_u8(a + len), vld1q_u8(b + len));
+            uint64_t mask = vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16(vreinterpretq_u16_u8(eq), 4)), 0);
+            if (mask != ~uint64_t(0)) {
+                return std::min(len + (uint32_t(std::countr_zero(~mask)) >> 2), max_len);
+            }
+            len += 16;
+        }
+#endif
+        while (len + 8 <= max_len) {
+            uint64_t x, y;
+            std::memcpy(&x, a + len, 8);
+            std::memcpy(&y, b + len, 8);
+            if (uint64_t d = x ^ y) {
+                return std::min(len + (uint32_t(std::countr_zero(d)) >> 3), max_len);
+            }
+            len += 8;
+        }
+        while (len < max_len && a[len] == b[len]) {
+            ++len;
+        }
+        return len;
     }
 
     class Deflater {
     public:
-        static constexpr uint32_t HashBits = 15;
-        static constexpr uint32_t HashSize = 1u << HashBits;
         static constexpr uint32_t WindowMask = WindowSize - 1;
         static constexpr uint32_t MinMatch = 3;
         static constexpr uint32_t MinLookahead = MaxMatch + MinMatch + 1;
-        static constexpr uint32_t BufferSize = 2 * WindowSize;
+        static constexpr uint32_t InputSize = uint32_t(64) << 10;       // the input matched between two moves of the window
+        static constexpr uint32_t BufferSize = WindowSize + InputSize;   // the history and the input
+        static constexpr uint32_t Slack = 16;                            // read past the end by the loads of 8 and 16 bytes
+        static constexpr uint32_t StoredMax = 65535;
         static constexpr uint32_t MaxSymbols = 16384;
+        static inline uint32_t rebase_at = uint32_t(1) << 31;          // absolute positions brought back to 0 past this (lowered by a test)
         static constexpr int HuffmanOnly = -2;
 
         // level: 0 stores, 1..9, HuffmanOnly; the dictionary's last 32 KB
         // are the history the first matches may reach
         explicit Deflater(int level, const uint8_t* dictionary = nullptr, size_t dictionary_size = 0)
+        : Deflater(level, false, dictionary, dictionary_size) {
+        }
+
+        // filtered: data of small differences, as PNG's filtered rows (zlib's
+        // Z_FILTERED): the chain levels (7 to 9) take no match of 5 bytes or
+        // fewer, the bytes going as literals, whose codes such data makes
+        // short; the table levels (1 to 6) as without it
+        Deflater(int level, bool filtered, const uint8_t* dictionary = nullptr, size_t dictionary_size = 0)
         : _level(level)
+        , _filtered(filtered)
         , _config(level_config(level))
-        , _window(BufferSize + 8)
-        , _head(HashSize, 0)
-        , _prev(WindowSize, 0) {
+        , _window((level == 0 ? StoredMax : BufferSize) + Slack) {
+            if (level >= 1) {
+                _head.assign(size_t(1) << _config.hash_bits, 0u);
+                if (_config.fast) {
+                    if (_config.long_bits) {
+                        _long.assign(size_t(_config.ways) << _config.long_bits, 0u);
+                    }
+                } else {
+                    _prev.assign(WindowSize, 0u);
+                }
+            }
             _lit.reserve(MaxSymbols + 1);
             _dist.reserve(MaxSymbols + 1);
             _seed(dictionary, dictionary_size);
@@ -287,29 +371,47 @@ namespace sgcl::compress::detail {
             _seed(dictionary, dictionary_size);
         }
 
-        // The dictionary's last 32 KB as the history, in the chains
+        // The dictionary's last 32 KB as the history, in the tables
         void _seed(const uint8_t* dictionary, size_t dictionary_size) {
-            if (dictionary_size) {
+            if (dictionary_size && _level != 0) {
                 if (dictionary_size > WindowSize) {
                     dictionary += dictionary_size - WindowSize;
                     dictionary_size = WindowSize;
                 }
-                std::memcpy(_window.data(), dictionary, dictionary_size);
+                sgcl::detail::copy_bytes(_window.data(), dictionary, dictionary_size);
                 _end = uint32_t(dictionary_size);
                 _pos = _end;
                 _block_start = _end;
-                if (_level > 0) {
-                    for (uint32_t p = 0; p + MinMatch <= _end; ++p) {
-                        _insert(p);
+                if (_head.empty()) {
+                    return;   // huffman only: the history is never looked at
+                }
+                for (uint32_t p = 0; p + 8 <= _end; ++p) {
+                    _config.fast ? _insert_fast(p) : (void)_insert(p);
+                }
+                if (!_config.fast) {
+                    for (uint32_t p = _end >= 8 ? _end - 7 : 0; p + MinMatch <= _end; ++p) {
+                        _insert(p);   // the last positions, which the chains take from 3 bytes
                     }
                 }
             }
         }
 
-        // Back to the start: the same level, no history, nothing pending
+        // Back to the start: the same level, no history, nothing pending.
+        // The tables are not cleared: the positions of the new stream begin
+        // more than a window past the last of the old one, so every entry
+        // the old stream left is out of reach of every new match (cleared
+        // only when the positions come near the rebase)
         void reset() {
-            std::fill(_head.begin(), _head.end(), 0u);
-            std::fill(_prev.begin(), _prev.end(), 0u);
+            if (!_head.empty()) {
+                uint64_t next = uint64_t(_offset) + _end + WindowSize + 1;
+                if (next >= rebase_at) {
+                    std::fill(_head.begin(), _head.end(), 0u);
+                    std::fill(_prev.begin(), _prev.end(), 0u);
+                    std::fill(_long.begin(), _long.end(), 0u);
+                    next = 0;
+                }
+                _offset = uint32_t(next);
+            }
             _end = _pos = _block_start = 0;
             _lit.clear();
             _dist.clear();
@@ -317,29 +419,26 @@ namespace sgcl::compress::detail {
             std::fill(std::begin(_dist_freq), std::end(_dist_freq), 0u);
             _match_available = false;
             _prev_length = MinMatch - 1;
+            _misses = 0;
             _bits_value = 0;
             _bits_count = 0;
         }
 
         // Compresses what the window holds of data and appends to out the
         // blocks it completes; the rest waits for more input, flush or finish
-        void write(const uint8_t* data, size_t n, std::vector<uint8_t>& out) {
+        template<class Out>
+        void write(const uint8_t* data, size_t n, Out& out) {
+            if (_level == 0) {
+                _write_stored(data, n, out);
+                return;
+            }
             while (n) {
                 if (_end == BufferSize) {
-                    // at level 0 the block is the bytes: written while they
-                    // are in the window. A coded block goes on across the
-                    // move (its start below the window), and may then no
-                    // longer be stored, as in zlib
-                    if (_level == 0 && _block_start < int64_t(WindowSize)) {
-                        BitWriter w = _writer(out);
-                        _flush_block(false, w);
-                        _save(w);
-                    }
                     _slide();
                 }
                 size_t room = BufferSize - _end;
                 size_t take = std::min(room, n);
-                std::memcpy(_window.data() + _end, data, take);
+                sgcl::detail::copy_bytes(_window.data() + _end, data, take);
                 _end += uint32_t(take);
                 data += take;
                 n -= take;
@@ -349,54 +448,104 @@ namespace sgcl::compress::detail {
 
         // Everything written so far out, and the output on a byte
         // boundary: a sync flush (an empty stored block after the data)
-        void flush(std::vector<uint8_t>& out) {
-            _compress(true, out);
-            BitWriter w = _writer(out);
-            _flush_block(false, w);
+        template<class Out>
+        void flush(Out& out) {
+            if (_level != 0) {
+                _compress(true, out);
+            }
+            auto w = _writer(out);
+            if (_level == 0) {
+                if (_end) {
+                    _stored(false, w, _window.data(), _end);
+                    _end = 0;
+                }
+            } else {
+                _flush_block(false, w);
+            }
             // the empty stored block
             w.put(0, 3);
             w.align();
             const uint8_t marker[4] = {0, 0, 0xFF, 0xFF};
-            out.insert(out.end(), marker, marker + 4);
+            append_bytes(out, marker, 4);
             _save(w);
         }
 
         // The last block: everything out, the stream ended and aligned
-        void finish(std::vector<uint8_t>& out) {
+        template<class Out>
+        void finish(Out& out) {
+            if (_level == 0) {
+                auto w = _writer(out);
+                _stored(true, w, _window.data(), _end);
+                _end = 0;
+                w.align();
+                _save(w);
+                return;
+            }
             _compress(true, out);
-            BitWriter w = _writer(out);
+            auto w = _writer(out);
             _flush_block(true, w);
             w.align();
             _save(w);
         }
 
     private:
-        uint32_t _hash(uint32_t p) const noexcept {
-            const uint8_t* s = _window.data() + p;
-            uint32_t v = uint32_t(s[0]) | uint32_t(s[1]) << 8 | uint32_t(s[2]) << 16;
-            return (v * 0x9E3779B1u) >> (32 - HashBits);
+        static uint32_t _load32(const uint8_t* q) noexcept {
+            uint32_t v;
+            std::memcpy(&v, q, 4);
+            return v;
         }
 
-        // position p under its hash; the head and the chain keep p + 1, 0 is none
+        static uint64_t _load64(const uint8_t* q) noexcept {
+            uint64_t v;
+            std::memcpy(&v, q, 8);
+            return v;
+        }
+
+        uint32_t _hash4(uint32_t v) const noexcept {
+            return (v * 0x9E3779B1u) >> (32 - _config.hash_bits);
+        }
+
+        uint32_t _hash7(uint64_t v) const noexcept {
+            return uint32_t(((v << 8) * 0xCF1BBCDCB7A56463ull) >> (64 - _config.long_bits));
+        }
+
+        // position p under its hash (chains); the head and the ring keep
+        // the absolute position + 1, 0 is none
         uint32_t _insert(uint32_t p) noexcept {
-            uint32_t h = _hash(p);
+            const uint32_t abs = _offset + p;
+            uint32_t h = _hash4(_load32(_window.data() + p) & 0xFFFFFF);   // three bytes: the word's fourth is masked off
             uint32_t prev = _head[h];
-            _prev[p & WindowMask] = prev;
-            _head[h] = p + 1;
+            _prev[abs & WindowMask] = prev;
+            _head[h] = abs + 1;
             return prev;
         }
 
+        // position p in the tables of the table encoder (8 bytes readable)
+        void _insert_fast(uint32_t p) noexcept {
+            const uint64_t v = _load64(_window.data() + p);
+            const uint32_t e = _offset + p + 1;
+            _head[_hash4(uint32_t(v))] = e;
+            if (_config.long_bits) {
+                uint32_t* bucket = &_long[size_t(_hash7(v)) * _config.ways];
+                if (_config.ways == 2) {
+                    bucket[1] = bucket[0];
+                }
+                bucket[0] = e;
+            }
+        }
+
         // The longest match at p among the chain starting at candidate
-        // (p + 1 encoded), longer than best; its distance in *distance. A
-        // candidate is turned away by two loads when it cannot win: its first
-        // three bytes (the hash's collisions) and the two bytes where the best
-        // match so far ends.
+        // (an absolute position + 1), longer than best; its distance in
+        // *distance. A candidate is turned away by two loads when it cannot
+        // win: its first three bytes (the hash's collisions) and the two
+        // bytes where the best match so far ends.
         uint32_t _longest_match(uint32_t p, uint32_t candidate, uint32_t best, uint32_t& distance) const noexcept {
             uint32_t chain = _config.max_chain;
             if (best >= _config.good) {
                 chain >>= 2;
             }
-            uint32_t limit = p > WindowSize ? p - WindowSize : 0;
+            const uint32_t abs = _offset + p;
+            const uint32_t limit = abs > WindowSize ? abs - WindowSize : 0;
             uint32_t max_len = std::min<uint32_t>(MaxMatch, _end - p);
             if (best >= max_len || max_len < MinMatch) {
                 return best;
@@ -409,64 +558,80 @@ namespace sgcl::compress::detail {
                 std::memcpy(&v, q, 2);
                 return v;
             };
-            auto load32 = [](const uint8_t* q) noexcept {
-                uint32_t v;
-                std::memcpy(&v, q, 4);
-                return v;
-            };
-            // the window has 8 bytes of slack past its end, so the word at the start reads in bounds
-            const uint32_t start = load32(cur) & 0xFFFFFF;
+            // the window has slack past its end, so the word at the start reads in bounds
+            const uint32_t start = _load32(cur) & 0xFFFFFF;
             uint16_t tail = best >= 1 ? load16(cur + best - 1) : 0;
             while (candidate > limit && chain--) {
                 uint32_t c = candidate - 1;
-                const uint8_t* m = w + c;
+                const uint8_t* m = w + (c - _offset);
                 candidate = _prev[c & WindowMask];
                 // a slot overwritten by a newer position (32 KB on) would lead
                 // the chain round again: it goes only to older positions
                 if (candidate > c) {
                     candidate = 0;
                 }
-                if ((best >= 1 && load16(m + best - 1) != tail) || (load32(m) & 0xFFFFFF) != start) {
+                if ((best >= 1 && load16(m + best - 1) != tail) || (_load32(m) & 0xFFFFFF) != start) {
                     continue;
                 }
-                uint32_t len = MinMatch;
-#if defined(__ARM_NEON)
-                // sixteen bytes a step: the bytes equal as a mask of four bits
-                // each (vshrn), the first that differs its trailing zeros / 4
-                while (len + 16 <= max_len) {
-                    uint8x16_t eq = vceqq_u8(vld1q_u8(cur + len), vld1q_u8(m + len));
-                    uint64_t mask = vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16(vreinterpretq_u16_u8(eq), 4)), 0);
-                    if (mask != ~uint64_t(0)) {
-                        len += uint32_t(std::countr_zero(~mask)) >> 2;
-                        goto measured;
-                    }
-                    len += 16;
-                }
-#endif
-                while (len + 8 <= max_len) {
-                    uint64_t a, b;
-                    std::memcpy(&a, cur + len, 8);
-                    std::memcpy(&b, m + len, 8);
-                    uint64_t x = a ^ b;
-                    if (x) {
-                        len += uint32_t(std::countr_zero(x)) >> 3;
-                        goto measured;
-                    }
-                    len += 8;
-                }
-                while (len < max_len && m[len] == cur[len]) {
-                    ++len;
-                }
-            measured:
-                len = std::min(len, max_len);
+                uint32_t len = match_length(cur, m, MinMatch, max_len);
                 if (len > best) {
                     best = len;
-                    distance = p - c;
+                    distance = abs - c;
                     if (len >= nice) {
                         break;
                     }
                     tail = load16(cur + best - 1);
                 }
+            }
+            return best;
+        }
+
+        // The match at p of the table encoder: the long table's candidate
+        // (level 3 on), then the short one's; at least 4 bytes, within the
+        // window. The tables get p meanwhile when insert is asked
+        uint32_t _table_match(uint32_t p, uint32_t& distance, bool insert) noexcept {
+            const uint8_t* w = _window.data();
+            const uint64_t v = _load64(w + p);
+            const uint32_t abs = _offset + p;
+            const uint32_t max_len = std::min<uint32_t>(MaxMatch, _end - p);
+            uint32_t best = 0;
+            auto consider = [&](uint32_t e) {
+                if (e == 0) {
+                    return;
+                }
+                const uint32_t c = e - 1;
+                if (c >= abs || abs - c > WindowSize) {
+                    return;
+                }
+                const uint8_t* m = w + (c - _offset);
+                if (_load32(m) != uint32_t(v)) {
+                    return;
+                }
+                uint32_t len = match_length(w + p, m, 4, max_len);
+                if (len > best) {
+                    best = len;
+                    distance = abs - c;
+                }
+            };
+            if (_config.long_bits) {
+                uint32_t* bucket = &_long[size_t(_hash7(v)) * _config.ways];
+                consider(bucket[0]);
+                if (_config.ways == 2) {
+                    consider(bucket[1]);
+                }
+                if (insert) {
+                    if (_config.ways == 2) {
+                        bucket[1] = bucket[0];
+                    }
+                    bucket[0] = abs + 1;
+                }
+            }
+            uint32_t& slot = _head[_hash4(uint32_t(v))];
+            if (best < 16) {
+                consider(slot);
+            }
+            if (insert) {
+                slot = abs + 1;
             }
             return best;
         }
@@ -485,99 +650,81 @@ namespace sgcl::compress::detail {
             ++_dist_freq[distance_code(distance)];
         }
 
-        // Moves the second half of the window to the first
+        // The window's last 32 KB before the next byte to match moved to
+        // the front, with what follows it; the tables keep absolute
+        // positions and are not touched (brought back to 0 only past the
+        // rebase). The two runs never overlap: the window slides only when
+        // it is full, and _compress has then matched to within MinLookahead
+        // of its end, so what is moved (32 KB and the lookahead) starts past
+        // 64 KB less the lookahead
         void _slide() {
-            std::memmove(_window.data(), _window.data() + WindowSize, WindowSize);
-            for (auto& h : _head) {
-                h = h > WindowSize ? h - WindowSize : 0;
+            const uint32_t keep = std::min(_pos, WindowSize);
+            const uint32_t delta = _pos - keep;
+            sgcl::detail::copy_bytes(_window.data(), _window.data() + delta, _end - delta);
+            _offset += delta;
+            _end -= delta;
+            _pos -= delta;
+            _block_start -= delta;
+            if (_offset >= rebase_at) {
+                const uint32_t r = _offset;
+                for (auto* t : {&_head, &_prev, &_long}) {
+                    for (auto& e : *t) {
+                        e = e > r ? e - r : 0;
+                    }
+                }
+                _offset = 0;
             }
-            for (auto& h : _prev) {
-                h = h > WindowSize ? h - WindowSize : 0;
-            }
-            _end -= WindowSize;
-            _pos -= WindowSize;
-            _block_start -= WindowSize;
         }
 
         // Matches over the window up to MinLookahead from its end (or to
         // its end when there is no more input), writing out the blocks
         // that fill up
-        void _compress(bool final, std::vector<uint8_t>& out) {
+        template<class Out>
+        void _compress(bool final, Out& out) {
             uint32_t stop = final ? _end : (_end > MinLookahead ? _end - MinLookahead : 0);
-            if (_level == 0) {
-                // stored: the block is the bytes, written in pieces of 64 KB
-                _pos = std::max(_pos, stop);
-                if (int64_t(_pos) - _block_start >= 65535) {
-                    BitWriter w = _writer(out);
-                    _flush_block(false, w);
-                    _save(w);
-                }
-                return;
-            }
             if (_level == HuffmanOnly) {
                 while (_pos < stop) {
                     _literal(_window[_pos++]);
-                    if (_lit.size() >= MaxSymbols) {
-                        BitWriter w = _writer(out);
-                        _flush_block(false, w);
-                        _save(w);
-                    }
+                    _full(out);
                 }
+                return;
+            }
+            if (_config.fast) {
+                _compress_fast(stop, out);
                 return;
             }
             while (_pos < stop) {
                 uint32_t candidate = _pos + MinMatch <= _end ? _insert(_pos) : 0;
-                if (!_config.lazy) {
-                    uint32_t distance = 0;
-                    uint32_t len = candidate ? _longest_match(_pos, candidate, MinMatch - 1, distance) : 0;
-                    if (len >= MinMatch) {
-                        _match(len, distance);
-                        // the positions inside a short match go into the chains too
-                        uint32_t last = _pos + len;
-                        if (len <= _config.max_lazy) {
-                            for (uint32_t q = _pos + 1; q < last && q + MinMatch <= _end; ++q) {
-                                _insert(q);
-                            }
-                        }
-                        _pos = last;
-                    } else {
-                        _literal(_window[_pos++]);
+                uint32_t distance = 0;
+                uint32_t len = MinMatch - 1;
+                if (candidate && _prev_length < _config.max_lazy) {
+                    len = _longest_match(_pos, candidate, _prev_length, distance);
+                    // a match of three bytes far away costs more than three
+                    // literals; filtered data takes none of 5 bytes or fewer
+                    if ((len == MinMatch && distance > 256) || (_filtered && len <= 5)) {
+                        len = MinMatch - 1;
                     }
+                }
+                if (_prev_length >= MinMatch && len <= _prev_length) {
+                    // the match at the previous position is the better one
+                    _match(_prev_length, _prev_distance);
+                    uint32_t last = _pos - 1 + _prev_length;
+                    for (uint32_t q = _pos + 1; q < last && q + MinMatch <= _end; ++q) {
+                        _insert(q);
+                    }
+                    _pos = last;
+                    _match_available = false;
+                    _prev_length = MinMatch - 1;
                 } else {
-                    uint32_t distance = 0;
-                    uint32_t len = MinMatch - 1;
-                    if (candidate && _prev_length < _config.max_lazy) {
-                        len = _longest_match(_pos, candidate, _prev_length, distance);
-                        // a match of three bytes far away costs more than three literals
-                        if (len == MinMatch && distance > 4096) {
-                            len = MinMatch - 1;
-                        }
+                    if (_match_available) {
+                        _literal(_window[_pos - 1]);
                     }
-                    if (_prev_length >= MinMatch && len <= _prev_length) {
-                        // the match at the previous position is the better one
-                        _match(_prev_length, _prev_distance);
-                        uint32_t last = _pos - 1 + _prev_length;
-                        for (uint32_t q = _pos + 1; q < last && q + MinMatch <= _end; ++q) {
-                            _insert(q);
-                        }
-                        _pos = last;
-                        _match_available = false;
-                        _prev_length = MinMatch - 1;
-                    } else {
-                        if (_match_available) {
-                            _literal(_window[_pos - 1]);
-                        }
-                        _match_available = true;
-                        _prev_length = len;
-                        _prev_distance = distance;
-                        ++_pos;
-                    }
+                    _match_available = true;
+                    _prev_length = len;
+                    _prev_distance = distance;
+                    ++_pos;
                 }
-                if (_lit.size() >= MaxSymbols) {
-                    BitWriter w = _writer(out);
-                    _flush_block(false, w);
-                    _save(w);
-                }
+                _full(out);
             }
             if (final && _match_available) {
                 _literal(_window[_pos - 1]);
@@ -586,31 +733,108 @@ namespace sgcl::compress::detail {
             }
         }
 
-        BitWriter _writer(std::vector<uint8_t>& out) {
-            BitWriter w(out);
+        // The table encoder (levels 1 to 5) from _pos to stop
+        template<class Out>
+        void _compress_fast(uint32_t stop, Out& out) {
+            const uint8_t* w = _window.data();
+            while (_pos < stop) {
+                if (_pos + 8 > _end) {
+                    _literal(w[_pos++]);   // the last bytes of the stream
+                    _full(out);
+                    continue;
+                }
+                uint32_t distance = 0;
+                uint32_t len = _table_match(_pos, distance, true);
+                if (len == 0) {
+                    _literal(w[_pos++]);
+                    if (_config.skip && ++_misses > 32) {
+                        // a run that does not compress: further on in growing steps
+                        for (uint32_t k = std::min<uint32_t>((_misses - 32) >> 5, 32); k && _pos < stop; --k) {
+                            _literal(w[_pos++]);
+                        }
+                    }
+                    _full(out);
+                    continue;
+                }
+                _misses = 0;
+                if (_config.lazy && len < 32 && _pos + 1 + 8 <= _end && _pos + 1 < stop) {
+                    uint32_t next_distance = 0;
+                    uint32_t next = _table_match(_pos + 1, next_distance, true);
+                    if (next > len) {
+                        _literal(w[_pos++]);
+                        len = next;
+                        distance = next_distance;
+                    }
+                }
+                _match(len, distance);
+                const uint32_t last = _pos + len;
+                if (_config.insert_step) {
+                    for (uint32_t q = _pos + 1; q < last && q + 8 <= _end; q += _config.insert_step) {
+                        _insert_fast(q);
+                    }
+                }
+                _pos = last;
+                _full(out);
+            }
+        }
+
+        // A block written out when the symbols fill it
+        template<class Out>
+        void _full(Out& out) {
+            if (_lit.size() >= MaxSymbols) {
+                auto w = _writer(out);
+                _flush_block(false, w);
+                _save(w);
+            }
+        }
+
+        // Level 0: the input framed as stored blocks of 65535 bytes, a
+        // whole block straight from the input, only a block's remainder
+        // kept in the window until the next write, flush or finish
+        template<class Out>
+        void _write_stored(const uint8_t* data, size_t n, Out& out) {
+            auto w = _writer(out);
+            while (n) {
+                if (_end == 0 && n >= StoredMax) {
+                    _stored(false, w, data, StoredMax);
+                    data += StoredMax;
+                    n -= StoredMax;
+                    continue;
+                }
+                size_t take = std::min<size_t>(StoredMax - _end, n);
+                sgcl::detail::copy_bytes(_window.data() + _end, data, take);
+                _end += uint32_t(take);
+                data += take;
+                n -= take;
+                if (_end == StoredMax) {
+                    _stored(false, w, _window.data(), _end);
+                    _end = 0;
+                }
+            }
+            _save(w);
+        }
+
+        template<class Out>
+        BitWriter<Out> _writer(Out& out) {
+            BitWriter<Out> w(out);
             w.restore(_bits_value, _bits_count);
             return w;
         }
 
-        void _save(const BitWriter& w) noexcept {
+        template<class Out>
+        void _save(const BitWriter<Out>& w) noexcept {
             _bits_value = w.pending_value();
             _bits_count = w.pending_bits();
         }
 
         // The block of the symbols gathered (or, at level 0, of the bytes
         // since the block's start), in its shortest form
-        void _flush_block(bool last, BitWriter& w) {
+        template<class Out>
+        void _flush_block(bool last, BitWriter<Out>& w) {
             // the bytes the block covers: the symbols end where _pos is,
             // less a literal the lazy search still holds back
             uint32_t end = _pos - (_match_available ? 1 : 0);
             uint64_t raw = uint64_t(int64_t(end) - _block_start);
-            if (_level == 0) {
-                if (raw || last) {
-                    _stored(last, w, uint32_t(_block_start), uint32_t(raw));
-                }
-                _block_start = end;
-                return;
-            }
             if (_lit.empty() && !last) {
                 return;
             }
@@ -632,8 +856,8 @@ namespace sgcl::compress::detail {
             }
             // the code lengths of both tables, run-length coded
             uint8_t all[316];
-            std::memcpy(all, lit_len, hlit);
-            std::memcpy(all + hlit, dist_len, hdist);
+            sgcl::detail::copy_bytes(all, lit_len, hlit);
+            sgcl::detail::copy_bytes(all + hlit, dist_len, hdist);
             uint16_t rle[316];
             uint8_t rle_extra[316];
             unsigned rle_n = 0;
@@ -717,7 +941,7 @@ namespace sgcl::compress::detail {
             // stored: only while the bytes the block covers are all in the window
             uint64_t stored_bits = raw && _block_start >= 0 ? raw * 8 + ((raw + 65534) / 65535) * 40 + 8 : UINT64_MAX;
             if (stored_bits < dynamic_bits && stored_bits < fixed_bits) {
-                _stored(last, w, uint32_t(_block_start), uint32_t(raw));
+                _stored(last, w, _window.data() + _block_start, uint32_t(raw));
             } else if (fixed_bits <= dynamic_bits) {
                 w.put(last ? 1 : 0, 1);
                 w.put(1, 2);
@@ -753,7 +977,8 @@ namespace sgcl::compress::detail {
             _block_start = end;
         }
 
-        void _symbols(BitWriter& w, const uint8_t* lit_len, unsigned lit_count, const uint8_t* dist_len, unsigned dist_count) {
+        template<class Out>
+        void _symbols(BitWriter<Out>& w, const uint8_t* lit_len, unsigned lit_count, const uint8_t* dist_len, unsigned dist_count) {
             uint16_t lit_code[288], dist_code[30];
             canonical_codes(lit_len, lit_count, lit_code);
             canonical_codes(dist_len, dist_count, dist_code);
@@ -779,10 +1004,11 @@ namespace sgcl::compress::detail {
             w.put(lit_code[256], lit_len[256]);
         }
 
-        // Stored blocks of at most 65535 bytes over [start, start + n) of
-        // the window; the last one marked last when asked (one empty block
-        // when n is 0)
-        void _stored(bool last, BitWriter& w, uint32_t start, uint32_t n) {
+        // Stored blocks of at most 65535 bytes over the n bytes at p (of the
+        // window, or of the input at level 0); the last one marked last
+        // when asked (one empty block when n is 0)
+        template<class Out>
+        void _stored(bool last, BitWriter<Out>& w, const uint8_t* p, uint32_t n) {
             do {
                 uint32_t len = std::min<uint32_t>(n, 65535);
                 n -= len;
@@ -790,18 +1016,21 @@ namespace sgcl::compress::detail {
                 w.put(0, 2);
                 w.align();
                 uint8_t header[4] = {uint8_t(len), uint8_t(len >> 8), uint8_t(~len), uint8_t(~len >> 8)};
-                auto& out = w.out();
-                out.insert(out.end(), header, header + 4);
-                out.insert(out.end(), _window.data() + start, _window.data() + start + len);
-                start += len;
+                append_bytes(w.out(), header, 4);
+                append_bytes(w.out(), p, len);
+                p += len;
             } while (n);
         }
 
         int _level;
+        bool _filtered = false;
         LevelConfig _config;
-        std::vector<uint8_t> _window;     // two windows: the history and what is being matched
-        std::vector<uint32_t> _head;      // the latest position (+1) under each hash
-        std::vector<uint32_t> _prev;      // the position before it (+1) under the same hash, by position mod 32 KB
+        std::vector<uint8_t> _window;     // the history (32 KB) and the input being matched (64 KB); level 0: a stored block's remainder
+        std::vector<uint32_t> _head;      // the latest absolute position (+1) under each hash (chains: 3 bytes; the table encoder: 4) (0: none)
+        std::vector<uint32_t> _prev;      // chains: the position before it (+1) under the same hash, by position mod 32 KB
+        std::vector<uint32_t> _long;      // the table encoder from level 3: the latest position (+1) under each hash of 7 bytes
+        uint32_t _offset = 0;             // the absolute position of the window's first byte
+        uint32_t _misses = 0;             // the table encoder's positions without a match in a row
         uint32_t _end = 0;                // the bytes in the window
         uint32_t _pos = 0;                // the next byte to match
         int64_t _block_start = 0;         // the first byte of the current block; below 0 once it slid out of the window

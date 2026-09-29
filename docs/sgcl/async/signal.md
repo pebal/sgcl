@@ -67,7 +67,9 @@ reset_signals();                                           // both as they were 
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/async/async.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 #include <csignal>
 
 using namespace sgcl;
@@ -103,13 +105,13 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 5 jobs done, stopped by signal 2 (SIGINT)
 ```
 
 ## See also
 
-- [channel](channel.md): what `signals` returns; [select](select.md): the signal as a case; [stop_token](stop_token.md): the stop the signal usually requests, handed down as a token
+- [run](run.md): `async::run(f)`, the program's stop_token stopped by the first Ctrl-C, over these channels; [channel](channel.md): what `signals` returns; [select](select.md): the signal as a case; [stop_token](stop_token.md): the stop the signal usually requests, handed down as a token
 - `tests/async/signal.cpp`: every behaviour above, checked, under the thread sanitizer too.

@@ -51,76 +51,6 @@ The fast parser takes the longest match found, a repeat of a recent distance whe
 - Options out of range (lc past 8, lp or pb past 4, a dictionary under 4 KiB or past 1.5 GiB, `level::huffman_only`) are the program's mistake: `compress` throws `std::invalid_argument`, and a writer's first write reports `errc::invalid_argument`.
 - Nothing after the LZMA data is read by `decompress`; the reader reads its input 64 KB at a time, so it may take bytes past the end from its source.
 
-## writer
-
-```cpp
-explicit writer(const io::writer& out);
-writer(const io::writer& out, const options& o);
-expected<size_t, io::error> write(const slice<const byte>& data);   // and every form of io::mixin::writer, async_ included
-expected<void, io::error> close();                                   // + async_close
-bool is_closed() const noexcept;
-const optional<io::error>& last_error() const noexcept;             // the first error given, kept
-void reset(const io::writer& out);                                   // a new stream, the window and the tables kept
-```
-
-The writer copies what is written into a window of its own and codes it as the parser can see far enough ahead of each position (about 4 KB), so the output comes some way behind the input and all of it only at `close()`, which writes the end marker and the coder's last bytes and leaves `out` open. LZMA has no flush: nothing written is decodable before the close. The tables and the window are taken at the first write. The task's forms work in portions of 64 KB of input with a yield between them. Every error the writer gives is kept as its first (a failure of `out`, options out of range, a write after close): every write and close after it gives that error at once and writes nothing, so a stream is written freely and checked once, at the close; `last_error()` holds it (`reset` clears it).
-
-## reader
-
-```cpp
-explicit reader(const io::reader& in);
-reader(const io::reader& in, const limits& l);                      // max_memory for the dictionary
-expected<size_t, io::error> read(const slice<byte>& out);           // and every form of io::mixin::reader, async_ included
-const optional<error>& last_error() const noexcept;
-expected<void, io::error> close();                                  // closes in
-void reset(const io::reader& in);
-```
-
-The reader decodes into its dictionary, a window the output goes round, and hands the bytes out from there; the task's form lets the worker go every 64 KB handed out. A failure is the error of the read that reaches it and of every read after, `last_error()` the whole of it.
-
-## Example
-
-```cpp
-#include "sgcl/compress/lzma.h"
-#include "sgcl/io/print.h"
-
-using namespace sgcl;
-
-int main() {
-    string text = "the same words, the same words, the same words again";
-    vector<byte> packed = compress::lzma::compress(text, {.level = 9});
-    println("{} bytes into {}", text.size(), packed.size());
-
-    auto back = compress::lzma::decompress(packed);            // data from outside: checked
-    if (!back) {
-        println(back.error().message());
-        return 1;
-    }
-    println(back->size());
-
-    // the streams: a writer into a buffer, a reader out of it
-    io::buffer sink;
-    compress::lzma::writer w(sink, {.level = 1});
-    w.write(text);
-    w.write(text);
-    if (auto done = w.close(); !done) {                        // the first error of any write, kept
-        println(done.error().message());
-        return 1;
-    }
-    compress::lzma::reader r(sink);
-    string all = r.read_all_text();
-    println(all.size());
-}
-```
-
-Output:
-
-```text
-52 bytes into 43
-52
-104
-```
-
 ## Performance
 
 On an Apple M-series machine (`benchmarks/compress/lzma.cpp`, the median of five processes of two seconds each), MB/s of the uncompressed side, against liblzma 5.8.4 (xz's library, `lzma_alone_decoder` and `lzma_alone_encoder` at the same preset); the data in memory both ways, into a buffer made by the call:
@@ -135,6 +65,125 @@ On an Apple M-series machine (`benchmarks/compress/lzma.cpp`, the median of five
 | compress text, level 9 | 4.18 (12.537%) | 4.36 (12.522%) |
 
 The decoder is level with liblzma; its fast loop runs while a symbol's worth of input (32 bytes) and a match's worth of room are at hand, and the last bytes of a stream fed in pieces are decoded dry first to see whether a whole symbol is there. The encoder's sizes are within 0.2% of liblzma's (on the program 0.2% smaller at levels 6 and 9); level 0 hashes four bytes where xz's hashes three, which on text is 4% smaller and 12% faster.
+
+## Members
+
+### compress, decompress
+
+```cpp
+static vector<byte> compress(const slice<const byte>& data);
+static vector<byte> compress(const slice<const byte>& data, const options& o);
+static vector<byte> compress(const string& text);
+static vector<byte> compress(const string& text, const options& o);
+static expected<vector<byte>, error> decompress(const slice<const byte>& data);
+static expected<vector<byte>, error> decompress(const slice<const byte>& data, const limits& l);
+static constexpr size_t HeaderSize = 13;
+```
+
+The whole of the data at once: `compress` writes the size into the header and no end marker, and `decompress` checks the data against [`limits`](README.md#limits) (`max_memory` for the dictionary, `max_size` for the output). `HeaderSize` is the header's 13 bytes.
+
+### options
+
+```cpp
+struct options {
+    compress::level level;       // 0..9 as xz -0..-9; 6 unless told otherwise
+    bool extreme = false;        // xz -e
+    uint32_t dictionary = 0;     // 4 KiB .. 1.5 GiB; 0: the level's
+    uint8_t lc = 3, lp = 0, pb = 2;
+};
+```
+
+The level and its mode of the [table](#levels), a dictionary of another size, and the literal and position bits of the header (lc up to 8, lp and pb up to 4).
+
+### writer
+
+```cpp
+explicit writer(const io::writer& out);
+writer(const io::writer& out, const options& o);
+expected<size_t, io::error> write(const slice<const byte>& data);   // and every form of io::mixin::writer, async_ included
+expected<void, io::error> close();                                   // + async_close
+bool is_closed() const noexcept;
+const optional<io::error>& last_error() const noexcept;             // the first error given, kept
+void reset(const io::writer& out);                                   // a new stream, the window and the tables kept
+```
+
+The writer copies what is written into a window of its own and codes it as the parser can see far enough ahead of each position (about 4 KB), so the output comes some way behind the input and all of it only at `close()`, which writes the end marker and the coder's last bytes and leaves `out` open. LZMA has no flush: nothing written is decodable before the close. The tables and the window are taken at the first write. The task's forms work in portions of 64 KB of input with a yield between them. Every error the writer gives is kept as its first (a failure of `out`, options out of range, a write after close): every write and close after it gives that error at once and writes nothing, so a stream is written freely and checked once, at the close; `last_error()` holds it (`reset` clears it).
+
+### reader
+
+```cpp
+explicit reader(const io::reader& in);
+reader(const io::reader& in, const limits& l);                      // max_memory for the dictionary
+expected<size_t, io::error> read(const slice<byte>& out);           // and every form of io::mixin::reader, async_ included
+const optional<error>& last_error() const noexcept;
+expected<void, io::error> close();                                  // closes in
+void reset(const io::reader& in);
+```
+
+The reader decodes into its dictionary, a window the output goes round, and hands the bytes out from there; the task's form lets the worker go every 64 KB handed out. A failure is the error of the read that reaches it and of every read after, `last_error()` the whole of it.
+
+## Examples
+
+### In memory
+
+```cpp
+#include "sgcl/compress/compress.h"
+#include "sgcl/io/io.h"
+
+using namespace sgcl;
+
+int main() {
+    string text = "the same words, the same words, the same words again";
+    vector<byte> packed = compress::lzma::compress(text, {.level = 9});
+    println("{} bytes into {}", text.size(), packed.size());
+
+    auto back = compress::lzma::decompress(packed);  // data from outside: checked
+    if (!back) {
+        println(back.error().message());
+        return 1;
+    }
+    println(back->size());
+}
+```
+
+Output:
+
+```text
+52 bytes into 43
+52
+```
+
+### Streams
+
+A writer into a buffer, a reader out of it:
+
+```cpp
+#include "sgcl/compress/compress.h"
+#include "sgcl/io/io.h"
+
+using namespace sgcl;
+
+int main() {
+    string text = "the same words, the same words, the same words again";
+    io::buffer sink;
+    compress::lzma::writer w(sink, {.level = 1});
+    w.write(text);
+    w.write(text);
+    if (auto done = w.close(); !done) {  // the first error of any write, kept
+        println(done.error().message());
+        return 1;
+    }
+    compress::lzma::reader r(sink);
+    string all = r.read_all_text();
+    println(all.size());
+}
+```
+
+Output:
+
+```text
+104
+```
 
 ## See also
 

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -105,7 +105,7 @@ namespace sgcl::io {
 
         async::task<expected<size_t, error>> async_read(slice<byte> buffer) {
             if (!_reactor) {
-                co_return co_await async::spawn_blocking([self = tracked_ptr<FileState>(this), buffer] { return self->read(buffer); });
+                co_return co_await detail::read_via_pool(buffer, [self = tracked_ptr<FileState>(this)](const slice<byte>& b) { return self->read(b); });
             }
             detail::Operation op(_d);
             if (!op) {
@@ -163,6 +163,7 @@ namespace sgcl::io {
 
         async::task<expected<size_t, error>> async_write(slice<const byte> data) {
             if (!_reactor) {
+                data = detail::owned_for_pool(data);   // never plain memory without its owner on the pool
                 co_return co_await async::spawn_blocking([self = tracked_ptr<FileState>(this), data] { return self->write(data); });
             }
             detail::Operation op(_d);
@@ -377,10 +378,11 @@ namespace sgcl::io {
         }
 
         async::task<expected<size_t, error>> _co_read_at(slice<byte> buffer, uint64_t offset)  {
-            co_return co_await async::spawn_blocking([self = tracked_ptr<FileState>(this), buffer, offset] { return self->_block_read_at(buffer, offset); });
+            co_return co_await detail::read_via_pool(buffer, [self = tracked_ptr<FileState>(this), offset](const slice<byte>& b) { return self->_block_read_at(b, offset); });
         }
 
         async::task<expected<size_t, error>> _co_write_at(slice<const byte> data, uint64_t offset)  {
+            data = detail::owned_for_pool(data);   // never plain memory without its owner on the pool
             co_return co_await async::spawn_blocking([self = tracked_ptr<FileState>(this), data, offset] { return self->_block_write_at(data, offset); });
         }
     };
@@ -708,12 +710,57 @@ namespace sgcl::io {
     }
 
     namespace detail {
+    // The text read straight into the string's object, of the size fstat
+    // gives (a vector first and a string of it was two of each); a file
+    // that grew since the stat is read the vector's way, which reads on to
+    // its end
     inline expected<string, error> _block_read_text(const string& path)  {
-        auto r = _block_read_file(path);
-        if (!r) {
-            return detail::fail(r);
+        auto f = open(path);
+        if (!f) {
+            return detail::fail(f);
         }
-        return detail::text_of(as_bytes(r->as_slice()));
+        struct ::stat st;
+        if (::fstat(f->fd(), &st) != 0) {
+            return detail::fail(last_error("stat", path));
+        }
+        const size_t size = static_cast<size_t>(st.st_size);
+        if (size == 0 || size > string::max_size()) {
+            (void)f->close();
+            auto r = _block_read_file(path);
+            if (!r) {
+                return detail::fail(r);
+            }
+            return detail::text_of(as_bytes(r->as_slice()));
+        }
+        auto room = sgcl::detail::StringAccess::unfilled<string>(size);
+        size_t got = 0;   // a file that shrank since the stat gives what it has
+        while (got < size) {
+            auto n = f->read(slice<byte>(reinterpret_cast<byte*>(room.chars) + got, size - got));
+            if (!n) {
+                return detail::fail(n);
+            }
+            if (*n == 0) {
+                break;
+            }
+            got += *n;
+        }
+        if (got == size) {
+            byte probe;
+            auto n = f->read(slice<byte>(&probe, 1));
+            if (!n) {
+                return detail::fail(n);
+            }
+            if (*n) {
+                (void)f->close();   // it grew: read again, to its end
+                auto r = _block_read_file(path);
+                if (!r) {
+                    return detail::fail(r);
+                }
+                return detail::text_of(as_bytes(r->as_slice()));
+            }
+        }
+        (void)f->close();
+        return sgcl::detail::StringAccess::finish<string>(std::move(room), got);
     }
     }
 

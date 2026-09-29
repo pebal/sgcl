@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -16,6 +16,7 @@
 #include "sgcl/net/url.h"
 #include "url_oracle.h"
 
+#include <random>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -520,4 +521,33 @@ TEST(NetUrl_Tests, ValueSemantics) {
     EXPECT_NE(a, c);
     auto copy = a;
     EXPECT_EQ(copy.to_string(), "http://example.com/a");
+}
+
+// query_params::first(text, name) finds what parse(text).get(name) gives,
+// without the pairs before it made into strings: a name as written, a name
+// that is escaped or has '+', a value decoded, a value that is not UTF-8,
+// the first of two, a name absent, and random queries of those pieces
+TEST(NetUrl_Tests, QueryFirstIsParseGet) {
+    const char* texts[] = {"?a=1&b=x+y&a=2&c&=e&%zz=%41", "x=%FE%FF", "x=%F0%9F%98", "a+b=1&a%20b=2", "%61=v", "&&a&=&b=", "", "?",
+                           "k=%C5%BC%C3%B3%C5%82w&k=2"};
+    const char* names[] = {"a", "b", "c", "", "%zz", "x", "a b", "k", "missing"};
+    for (auto t : texts) {
+        auto parsed = net::query_params::parse(t);
+        for (auto n : names) {
+            EXPECT_EQ(net::query_params::first(t, n), parsed.get(n)) << t << " / " << n;
+        }
+    }
+    std::mt19937 rng(11);
+    const char* pieces[] = {"a", "b", "%41", "+", "%2B", "=", "&", "%FE", "x", "%20", "%"};
+    for (int round = 0; round < 2000; ++round) {
+        std::string q;
+        int k = int(rng() % 12);
+        for (int i = 0; i < k; ++i) {
+            q += pieces[rng() % std::size(pieces)];
+        }
+        auto parsed = net::query_params::parse(string(q));
+        for (auto& p : parsed) {
+            ASSERT_EQ(net::query_params::first(string(q), p.first), parsed.get(p.first)) << q;
+        }
+    }
 }

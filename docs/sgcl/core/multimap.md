@@ -412,7 +412,8 @@ multimap from_list = {std::pair{1, 2.5}};         // multimap<int, double>
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -436,7 +437,7 @@ int main() {
     auto [from, to] = topics.equal_range("error");
     print("error ->");
     for (auto it = from; it != to; ++it) {
-        print(" {}", it->second->name);                  // pager logger (the newest first)
+        print(" {}", it->second->name);                  // the newest first
     }
     println();
 
@@ -452,9 +453,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 listeners by topic
 error -> pager logger
 2 erased, 2 under info, 10 live objects

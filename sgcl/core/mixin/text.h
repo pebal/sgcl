@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -10,12 +10,25 @@
 #include "../utf8.h"
 
 #include <compare>
+#include <concepts>
 #include <cstddef>
 #include <string>
 #include <string_view>
 
 namespace sgcl {
     class runes;
+}
+
+namespace sgcl::detail {
+    // An array of characters as text: up to its first NUL or its end,
+    // whichever comes first — a literal without its terminator, and an
+    // array filled to the brim, which has no NUL, not read past its end
+    // (a pointer's strlen would go on into whatever follows it)
+    template<class CharT, class Traits, size_t N>
+    constexpr std::basic_string_view<CharT, Traits> array_text(const CharT (&text)[N]) noexcept {
+        const CharT* nul = Traits::find(text, N, CharT());
+        return std::basic_string_view<CharT, Traits>(text, nul ? size_t(nul - text) : N);
+    }
 }
 
 namespace sgcl::mixin {
@@ -66,40 +79,66 @@ namespace sgcl::mixin {
             return _self().data()[i];
         }
 
+        // A text given as an array of characters (a literal) is read up to
+        // its first NUL or its end, never past it; as a pointer (CharT* or
+        // const CharT*, no other) up to its NUL: the pair io's write_text
+        // has, so that an array does not decay into the pointer's strlen
         size_type copy(CharT* dest, size_type n, size_type pos = 0) const { return view().copy(dest, n, pos); }
         int compare(view_type s) const noexcept { return view().compare(s); }
         int compare(size_type pos, size_type n, view_type s) const { return view().compare(pos, n, s); }
         int compare(size_type pos, size_type n, view_type s, size_type pos2, size_type n2) const { return view().compare(pos, n, s, pos2, n2); }
-        int compare(const CharT* s) const noexcept { return view().compare(s); }
+        template<size_t N> int compare(size_type pos, size_type n, const CharT (&s)[N]) const { return view().compare(pos, n, _array(s)); }
+        template<size_t N> int compare(size_type pos, size_type n, const CharT (&s)[N], size_type pos2, size_type n2) const { return view().compare(pos, n, _array(s), pos2, n2); }
+        template<size_t N> int compare(const CharT (&s)[N]) const noexcept { return compare(_array(s)); }
+        template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+        int compare(P s) const noexcept { return view().compare(s); }
         bool starts_with(view_type s) const noexcept { return view().starts_with(s); }
         bool starts_with(CharT c) const noexcept { return view().starts_with(c); }
-        bool starts_with(const CharT* s) const noexcept { return view().starts_with(s); }
+        template<size_t N> bool starts_with(const CharT (&s)[N]) const noexcept { return starts_with(_array(s)); }
+        template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+        bool starts_with(P s) const noexcept { return view().starts_with(s); }
         bool ends_with(view_type s) const noexcept { return view().ends_with(s); }
         bool ends_with(CharT c) const noexcept { return view().ends_with(c); }
-        bool ends_with(const CharT* s) const noexcept { return view().ends_with(s); }
+        template<size_t N> bool ends_with(const CharT (&s)[N]) const noexcept { return ends_with(_array(s)); }
+        template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+        bool ends_with(P s) const noexcept { return view().ends_with(s); }
         bool contains(view_type s) const noexcept { return view().find(s) != npos; }
         bool contains(CharT c) const noexcept { return view().find(c) != npos; }
-        bool contains(const CharT* s) const noexcept { return view().find(s) != npos; }
+        template<size_t N> bool contains(const CharT (&s)[N]) const noexcept { return contains(_array(s)); }
+        template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+        bool contains(P s) const noexcept { return view().find(s) != npos; }
         size_type find(view_type s, size_type pos = 0) const noexcept { return view().find(s, pos); }
         size_type find(CharT c, size_type pos = 0) const noexcept { return view().find(c, pos); }
         size_type find(const CharT* s, size_type pos, size_type n) const noexcept { return view().find(s, pos, n); }
-        size_type find(const CharT* s, size_type pos = 0) const noexcept { return view().find(s, pos); }
+        template<size_t N> size_type find(const CharT (&s)[N], size_type pos = 0) const noexcept { return find(_array(s), pos); }
+        template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+        size_type find(P s, size_type pos = 0) const noexcept { return view().find(s, pos); }
         size_type rfind(view_type s, size_type pos = npos) const noexcept { return view().rfind(s, pos); }
         size_type rfind(CharT c, size_type pos = npos) const noexcept { return view().rfind(c, pos); }
         size_type rfind(const CharT* s, size_type pos, size_type n) const noexcept { return view().rfind(s, pos, n); }
-        size_type rfind(const CharT* s, size_type pos = npos) const noexcept { return view().rfind(s, pos); }
+        template<size_t N> size_type rfind(const CharT (&s)[N], size_type pos = npos) const noexcept { return rfind(_array(s), pos); }
+        template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+        size_type rfind(P s, size_type pos = npos) const noexcept { return view().rfind(s, pos); }
         size_type find_first_of(view_type s, size_type pos = 0) const noexcept { return view().find_first_of(s, pos); }
         size_type find_first_of(CharT c, size_type pos = 0) const noexcept { return view().find_first_of(c, pos); }
-        size_type find_first_of(const CharT* s, size_type pos = 0) const noexcept { return view().find_first_of(s, pos); }
+        template<size_t N> size_type find_first_of(const CharT (&s)[N], size_type pos = 0) const noexcept { return find_first_of(_array(s), pos); }
+        template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+        size_type find_first_of(P s, size_type pos = 0) const noexcept { return view().find_first_of(s, pos); }
         size_type find_last_of(view_type s, size_type pos = npos) const noexcept { return view().find_last_of(s, pos); }
         size_type find_last_of(CharT c, size_type pos = npos) const noexcept { return view().find_last_of(c, pos); }
-        size_type find_last_of(const CharT* s, size_type pos = npos) const noexcept { return view().find_last_of(s, pos); }
+        template<size_t N> size_type find_last_of(const CharT (&s)[N], size_type pos = npos) const noexcept { return find_last_of(_array(s), pos); }
+        template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+        size_type find_last_of(P s, size_type pos = npos) const noexcept { return view().find_last_of(s, pos); }
         size_type find_first_not_of(view_type s, size_type pos = 0) const noexcept { return view().find_first_not_of(s, pos); }
         size_type find_first_not_of(CharT c, size_type pos = 0) const noexcept { return view().find_first_not_of(c, pos); }
-        size_type find_first_not_of(const CharT* s, size_type pos = 0) const noexcept { return view().find_first_not_of(s, pos); }
+        template<size_t N> size_type find_first_not_of(const CharT (&s)[N], size_type pos = 0) const noexcept { return find_first_not_of(_array(s), pos); }
+        template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+        size_type find_first_not_of(P s, size_type pos = 0) const noexcept { return view().find_first_not_of(s, pos); }
         size_type find_last_not_of(view_type s, size_type pos = npos) const noexcept { return view().find_last_not_of(s, pos); }
         size_type find_last_not_of(CharT c, size_type pos = npos) const noexcept { return view().find_last_not_of(c, pos); }
-        size_type find_last_not_of(const CharT* s, size_type pos = npos) const noexcept { return view().find_last_not_of(s, pos); }
+        template<size_t N> size_type find_last_not_of(const CharT (&s)[N], size_type pos = npos) const noexcept { return find_last_not_of(_array(s), pos); }
+        template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+        size_type find_last_not_of(P s, size_type pos = npos) const noexcept { return view().find_last_not_of(s, pos); }
 
         // The Unicode characters: the code points of a UTF-8 string
         // decoded as they are walked (sgcl::runes, a range over a slice
@@ -199,7 +238,14 @@ namespace sgcl::mixin {
             }
         }
 
-        bool equal_fold(const CharT* s) const noexcept {
+        template<size_t N>
+        bool equal_fold(const CharT (&s)[N]) const noexcept {
+            return equal_fold(_array(s));
+        }
+
+        template<class P>
+        requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+        bool equal_fold(P s) const noexcept {
             return equal_fold(view_type(s));
         }
 
@@ -226,13 +272,25 @@ namespace sgcl::mixin {
         // (friends on Derived: an exact match on the object, so that a
         // literal does not also convert to Derived and tie)
         friend bool operator==(const Derived& a, view_type s) noexcept { return a.view() == s; }
-        friend bool operator==(const Derived& a, const CharT* s) noexcept { return a.view() == view_type(s); }
+        template<size_t N>
+        friend bool operator==(const Derived& a, const CharT (&s)[N]) noexcept { return a.view() == _array(s); }
+        template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+        friend bool operator==(const Derived& a, P s) noexcept { return a.view() == view_type(s); }
         friend std::strong_ordering operator<=>(const Derived& a, view_type s) noexcept { return a.view() <=> s; }
-        friend std::strong_ordering operator<=>(const Derived& a, const CharT* s) noexcept { return a.view() <=> view_type(s); }
+        template<size_t N>
+        friend std::strong_ordering operator<=>(const Derived& a, const CharT (&s)[N]) noexcept { return a.view() <=> _array(s); }
+        template<class P> requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+        friend std::strong_ordering operator<=>(const Derived& a, P s) noexcept { return a.view() <=> view_type(s); }
 
     protected:
         text() = default;
         ~text() = default;
+
+        // An array of characters as a view: to its first NUL or its end
+        template<size_t N>
+        static constexpr view_type _array(const CharT (&s)[N]) noexcept {
+            return detail::array_text<CharT, Traits>(s);
+        }
 
         // The characters as bytes, for the UTF-8 primitives (a char8_t
         // string is bytes too)

@@ -1,10 +1,12 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #include "tests/types.h"
 
+#include <array>
+#include <cstring>
 #include <iterator>
 #include <memory>
 #include <span>
@@ -1342,4 +1344,77 @@ TEST(Vector_Test, AVectorPastAPageFillsItsPages) {
     pointers.back() = make_tracked<int>(7);
     collector::force_collect(true);
     EXPECT_EQ(*pointers.back(), 7);
+}
+
+namespace {
+    // Buffers of `n` elements filled with 0xAB and dropped, the collector
+    // run, so that the next buffers of that size reuse their slots or
+    // their ranges of pages
+    template<class Make>
+    void leave_garbage(size_t n, Make make) {
+        for (int round = 0; round < 20; ++round) {
+            auto a = make(n);
+            std::memset(static_cast<void*>(a.data()), 0xAB, n * sizeof(a[0]));
+        }
+        collector::force_collect(true);
+        collector::force_collect(true);
+    }
+
+    template<class C>
+    size_t nonzero_bytes(const C& c, size_t from = 0) {
+        auto p = reinterpret_cast<const unsigned char*>(c.data());
+        size_t bad = 0;
+        for (size_t i = from * sizeof(c[0]); i < c.size() * sizeof(c[0]); ++i) {
+            bad += p[i] != 0;
+        }
+        return bad;
+    }
+
+    // Not trivial, with a trivial member: T() zeroes the member, `new T`
+    // would leave it as the slot was
+    struct Mixed {
+        std::string name;
+        int count;
+    };
+}
+
+// vector(count), resize(count) and emplace_back() value-initialize, as
+// std's do: zeros for a trivial type, also where the buffer reuses the
+// slot or the pages of an earlier one that held other bytes (a buffer of
+// a type without tracked pointers is not zeroed when it is issued); the
+// sizes go past a page, where a range of pages comes back as it was
+TEST(Vector_Tests, CountResizeAndEmplaceValueInitializeAfterReuse) {
+    for (size_t n : {size_t(64), size_t(1000), size_t(100000), size_t(3000000)}) {
+        leave_garbage(n, [](size_t k) { return vector<int>(k); });
+        for (int round = 0; round < 5; ++round) {
+            vector<int> v(n);
+            EXPECT_EQ(nonzero_bytes(v), 0u) << "vector(" << n << ")";
+        }
+        leave_garbage(n, [](size_t k) { return vector<std::byte>(k); });
+        for (int round = 0; round < 5; ++round) {
+            vector<std::byte> v;
+            v.resize(n);
+            EXPECT_EQ(nonzero_bytes(v), 0u) << "resize(" << n << ")";
+        }
+        leave_garbage(n, [](size_t k) { return vector<double>(k); });
+        for (int round = 0; round < 5; ++round) {
+            vector<double> v(n / 2, 1.5);
+            v.resize(n);   // the tail past the copies: zeros
+            EXPECT_EQ(nonzero_bytes(v, n / 2), 0u) << "resize past " << n / 2 << " to " << n;
+        }
+    }
+    // emplace_back() of nothing into a slot a popped element left
+    vector<uint64_t> v;
+    v.reserve(8);
+    v.push_back(0xABABABABABABABABull);
+    v.pop_back();
+    v.emplace_back();
+    EXPECT_EQ(v[0], 0u);
+    // a class with a trivial member: T() zeroes it
+    leave_garbage(100000, [](size_t k) { return vector<std::array<int, 8>>(k); });
+    vector<Mixed> m(3000);
+    for (auto& e : m) {
+        EXPECT_EQ(e.count, 0);
+        EXPECT_TRUE(e.name.empty());
+    }
 }

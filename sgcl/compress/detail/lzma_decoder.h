@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -7,6 +7,7 @@
 
 #include "range_coder.h"
 #include "../error.h"
+#include "../../core/detail/bytes.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -671,11 +672,11 @@ namespace sgcl::compress::detail {
                     }
                 }
                 if (d == 1) {
-                    std::memset(dst, *src, n);
+                    sgcl::detail::fill_bytes(dst, *src, n);
                     return;
                 }
                 if (d >= n) {
-                    std::memcpy(dst, src, n);
+                    sgcl::detail::copy_bytes(dst, src, n);
                     return;
                 }
                 size_t i = 0;

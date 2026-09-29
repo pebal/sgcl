@@ -1,19 +1,24 @@
 # sgcl::net::http::client
 
 ```cpp
-#include "sgcl/net/http/client.h"   // or "sgcl/net/http/http.h"
+#include "sgcl/net/http/client.h"   // or "sgcl/net/http/http.h", "sgcl/sgcl.h"
 
 namespace sgcl::net::http {
     class client;   // HTTP/1.1 and HTTP/2 with a pool of connections; a handle of one word, copies share the pool
     using dial_function = function<async::task<expected<net::connection, io::error>>(const net::url&, async::stop_token)>;
+
+    expected<response, io::error> download(const string& url, const string& path);   // through a client of the process's
+    async::task<expected<response, io::error>> async_download(string url, string path);
 }
 ```
 
 Go's `http.Client` and `http.Transport` in one. A request is sent, redirects are followed, and the response comes back with its head read and its body still on the connection: `res.text()`, `res.bytes()` or `res.body()` read it, and the end of the body gives the connection back to the pool by itself (Go asks for both the end and `Close`). The settings are public fields, as in [`io::command`](../../io/exec.md), read by each request when it starts. Over TLS it speaks HTTP/2 when the server chooses it (RFC 9113, as Go's Transport does by default): one connection per origin shared by the requests, a stream each, with nothing of the program's code changed but what `res.proto()` says.
 
+`download(url, path)` is curl's `-fo path url`: a GET whose body goes to the file through `path + ".part"`, renamed over `path` at its end, so a download cut in the middle leaves no file and the one there before untouched. A status other than 2xx is the error `net::errc::http_status` (`GET https://x/a.zip (404 Not Found): the response's status is not 2xx`) and writes nothing. The free `net::http::download` goes through a client the process makes at its first use, with the default settings; `web.download` through `web`, its pool and its settings.
+
 ## Rules
 
-- **Two forms.** `get`, `head`, `post` and `send` block the calling thread: the exchange runs on the scheduler and the thread waits for it, so they are for a thread of the program, never a worker. A task writes `co_await client.async_get(url)`; its body with `co_await res.async_text()`.
+- **Two forms.** `get`, `head`, `post`, `send` and `download` block the calling thread: the exchange runs on the scheduler and the thread waits for it, so they are for a thread of the program, never a worker. A task writes `co_await client.async_get(url)`; its body with `co_await res.async_text()`.
 - **The pool** is keyed by the origin (scheme, host, port). Idle connections are taken last in first out, at most `max_idle_per_host` of them are kept (16; Go keeps 2), and one idle for `idle_timeout` (90 s) is closed by a timer of the module's clock. A connection goes back when the body of its response was read to its end and the server did not say `Connection: close`; one whose body was not read stays out (`close()` of the response gives it back when the rest is already in the buffer, and closes it otherwise).
 - **Retries.** A request on a pooled HTTP/1.1 connection that fails before a byte of the response (the server closed the connection while it was idle) is sent once more on a new one, for an idempotent method or a body held in memory (RFC 9110 §9.2.2), as Go does. Over HTTP/2 a stream the server never processed goes again by itself, up to two more times: one it refused (`REFUSED_STREAM`, RFC 9113 §8.7) for any method, one above the last stream of its GOAWAY (§6.8) or lost with its connection before the head only for an idempotent method (Go sends any method again after a GOAWAY; this version does not). A body given as a stream is never sent twice.
 - **Redirects**, up to `max_redirects` (10; `too_many_redirects` past it): 301, 302 and 303 go on as GET without a body (HEAD stays HEAD, and 301 and 302 keep a GET), 307 and 308 keep the method and the body, unless the body is a stream (the 307 is then the response). `Authorization`, `Cookie`, `Proxy-Authorization` and `WWW-Authenticate` do not follow to a host that is neither the same nor under it. `res.url()` is the last URL.
@@ -39,6 +44,8 @@ expected<response, io::error> head(const string& url) const;
 async::task<expected<response, io::error>> async_head(const string& url) const;
 expected<response, io::error> post(const string& url, const string& content_type, const string& body) const;
 async::task<expected<response, io::error>> async_post(const string& url, const string& content_type, const string& body) const;
+expected<response, io::error> download(const string& url, const string& path) const;   // a 2xx body into the file
+async::task<expected<response, io::error>> async_download(string url, string path) const;
 
 void close_idle_connections() const;     // the pool's idle connections closed now
 
@@ -55,196 +62,162 @@ bool http2 = true;                                    // https: h2 offered first
 bool h2c = false;                                     // http://: HTTP/2 by prior knowledge
 ```
 
-## Example
+## Examples
 
 ```cpp
+#include "sgcl/io/io.h"
 #include "sgcl/net/http/http.h"
-#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
-async::task<> fetch(net::http::client web, string base) {
-    net::http::response res = co_await web.async_get(base + "/old");
-    string body = co_await res.async_text();
-    print("{} {} {}", res.status(), res.url().path(), body);
+int main() {
+    net::http::client web;
+    net::http::response file = web.download("https://www.apache.org/licenses/LICENSE-2.0.txt", "LICENSE-2.0.txt");
+    println("{}, {} bytes on disk", file.status(), io::stat("LICENSE-2.0.txt")->size);
 
-    net::http::request req("PUT", base + "/items/7");
-    req.set_header("Content-Type", "text/plain").set_body("seven");
-    net::http::response put = co_await web.async_send(req);
-    string reply = co_await put.async_text();
-    print("{} {}", put.status(), reply);
+    net::http::request note("POST", "https://httpbin.org/post");
+    note.set_header("Content-Type", "text/plain");
+    note.set_body("buy milk");
+    net::http::response res = web.send(note);
+    string reply = res.text();
+    println("{}, the note echoed: {}", res.status(), reply.contains("buy milk"));
+}
+```
+
+Output:
+
+```text
+200, 11357 bytes on disk
+200, the note echoed: true
+```
+
+### In a task
+
+A task awaits the same operations under the prefix `async_`:
+
+```cpp
+#include "sgcl/async/async.h"
+#include "sgcl/io/io.h"
+#include "sgcl/net/http/http.h"
+
+using namespace sgcl;
+
+async::task<int> program() {
+    net::http::client web;
+    net::http::response res = co_await web.async_get("https://www.apache.org/licenses/LICENSE-2.0.txt");
+    string text = co_await res.async_text();
+    println("{}, {} bytes", res.status(), text.size());
+    co_return 0;
 }
 
 int main() {
+    return async::run(program());
+}
+```
+
+Output:
+
+```text
+200, 11357 bytes
+```
+
+### Timeouts
+
+`timeout` bounds the whole exchange; past it the request is `ETIMEDOUT`:
+
+```cpp
+#include "sgcl/async/async.h"
+#include "sgcl/io/io.h"
+#include "sgcl/net/http/http.h"
+#include "sgcl/net/net.h"
+
+using namespace sgcl;
+
+int main() {
     net::http::server srv;
-    srv.route("GET /old", [](net::http::request, net::http::response_writer w) { w.redirect("/new"); });
-    srv.route("GET /new", [](net::http::request, net::http::response_writer w) { w.write("moved here\n"); });
-    srv.route("PUT /items/{id}", [](net::http::request req, net::http::response_writer w) -> async::task<> {
-        string body = co_await req.async_text();
-        w.set_status(net::http::status::created);
-        w.write("item " + req.path_value("id") + " = " + body + "\n");
+    srv.route("GET /slow", [](net::http::request, net::http::response_writer w) -> async::task<> {
+        co_await async::sleep(std::chrono::seconds(1));
+        w.write("late\n");
     });
     net::listener listener = net::tcp::listen("127.0.0.1:0");
     auto serving = async::spawn(srv.async_serve(listener));
 
     net::http::client web;
-    web.timeout = std::chrono::seconds(5);
-    auto base = "http://127.0.0.1:" + to_string(listener.local_endpoint().port());
-    async::spawn(fetch(web, base)).wait();
-
+    web.timeout = std::chrono::milliseconds(200);
+    auto slow = web.get("http://127.0.0.1:" + to_string(listener.local_endpoint().port()) + "/slow");
+    println("{}", slow.error().is_timeout());
     srv.close();
-    serving.wait();
 }
 ```
 
 Output:
 
 ```text
-200 /new moved here
-201 item 7 = seven
+true
 ```
 
 ### https
 
-A server of the same program over TLS, with the test certificate of the tree (`tests/net/tls_testdata`: a CA of its own and a leaf for localhost and 127.0.0.1), and two clients: one that trusts that CA, and one with the system's roots, which do not hold it. Run from the root of the tree.
+A client that trusts a CA of its own, against a server of the same program with the test certificate of the tree (`tests/net/tls_testdata`: a CA and a leaf for localhost and 127.0.0.1). A client with the system's roots refuses it: `tls: certificate signed by unknown authority`. Run from the root of the tree.
 
 ```cpp
+#include "sgcl/async/async.h"
+#include "sgcl/crypto/crypto.h"
+#include "sgcl/io/io.h"
 #include "sgcl/net/http/http.h"
-#include "sgcl/io/print.h"
+#include "sgcl/net/net.h"
+#include "sgcl/net/tls.h"
 
 using namespace sgcl;
 
 int main() {
-    net::tls::config server_tls;
-    server_tls.identities = {net::tls::identity(io::read_text("tests/net/tls_testdata/ecdsa.pem"), io::read_text("tests/net/tls_testdata/ecdsa.key"))};
+    net::tls::config tls;
+    tls.identities = {net::tls::identity(io::read_text("tests/net/tls_testdata/ecdsa.pem"), crypto::read_secret("tests/net/tls_testdata/ecdsa.key"))};
     net::http::server srv;
-    srv.route("GET /hello", [](net::http::request, net::http::response_writer w) {
-        w.write("hello over TLS\n");
-    });
-    net::listener listener = net::tls::listen("127.0.0.1:0", server_tls);
+    srv.route("GET /hello", [](net::http::request, net::http::response_writer w) { w.write("hello over TLS\n"); });
+    net::listener listener = net::tls::listen("127.0.0.1:0", tls);
     auto serving = async::spawn(srv.async_serve(listener));
 
     net::http::client web;
     web.tls.roots = crypto::x509::certificate_pool::from_pem(io::read_text("tests/net/tls_testdata/ca.pem"));
-    auto base = "https://localhost:" + to_string(listener.local_endpoint().port());
-    net::http::response res = web.get(base + "/hello");
+    net::http::response res = web.get("https://localhost:" + to_string(listener.local_endpoint().port()) + "/hello");
     string text = res.text();
     print(text);
-
-    net::http::client strict;                  // the system's roots: the test CA is not among them
-    auto refused = strict.get(base + "/hello");
-    println("{}", refused.error().message());
-
     srv.close();
-    serving.wait();
-}
-```
-
-Output (the port is the system's choice):
-
-```text
-hello over TLS
-GET https://localhost:65008/hello: tls: certificate signed by unknown authority
-```
-
-### HTTP/2
-
-The same server over TLS with `h2` in its ALPN list, and three requests sent at once: three streams of one connection. A request whose deadline passes resets its stream alone, and the next request goes on the same connection. Then a client with `http2` off gets HTTP/1.1 from the same server. Run from the root of the tree.
-
-```cpp
-#include "sgcl/net/http/http.h"
-#include "sgcl/io/print.h"
-
-using namespace sgcl;
-
-async::task<string> fetch(net::http::client web, string url) {
-    net::http::response res = co_await web.async_get(url);
-    string body = co_await res.async_text();
-    co_return res.proto() + ": " + body;
-}
-
-int main() {
-    net::tls::config server_tls;
-    server_tls.identities = {net::tls::identity(io::read_text("tests/net/tls_testdata/ecdsa.pem"), io::read_text("tests/net/tls_testdata/ecdsa.key"))};
-    server_tls.alpn = {"h2", "http/1.1"};
-    net::http::server srv;
-    srv.route("GET /items/{id}", [](net::http::request req, net::http::response_writer w) {
-        w.write("item " + req.path_value("id") + "\n");
-    });
-    srv.route("GET /slow", [](net::http::request, net::http::response_writer w) -> async::task<> {
-        co_await async::after(std::chrono::seconds(1));
-        w.write("late\n");
-    });
-    net::listener listener = net::tls::listen("127.0.0.1:0", server_tls);
-    auto serving = async::spawn(srv.async_serve(listener));
-
-    net::http::client web;
-    web.tls.roots = crypto::x509::certificate_pool::from_pem(io::read_text("tests/net/tls_testdata/ca.pem"));
-    auto base = "https://localhost:" + to_string(listener.local_endpoint().port());
-    auto first = async::spawn(fetch(web, base + "/items/1"));
-    auto second = async::spawn(fetch(web, base + "/items/2"));
-    auto third = async::spawn(fetch(web, base + "/items/3"));
-    print(first.wait());
-    print(second.wait());
-    print(third.wait());
-
-    web.timeout = std::chrono::milliseconds(200);
-    auto slow = web.get(base + "/slow");
-    println("{}", slow.error().is_timeout());
-    web.timeout = std::chrono::seconds(5);
-    print(fetch(web, base + "/items/4").wait());
-
-    net::http::client older = web;
-    older.http2 = false;
-    print(fetch(older, base + "/items/5").wait());
-
-    srv.close();
-    serving.wait();
 }
 ```
 
 Output:
 
 ```text
-HTTP/2.0: item 1
-HTTP/2.0: item 2
-HTTP/2.0: item 3
-true
-HTTP/2.0: item 4
-HTTP/1.1: item 5
+hello over TLS
 ```
 
-Over plain TCP a server with `h2c` on answers HTTP/2 by prior knowledge and HTTP/1.1 on the same port. A client with `h2c` on sends `http://` as HTTP/2:
+### HTTP/2
+
+Over TLS a client speaks HTTP/2 whenever the server chooses `h2` by ALPN, with nothing of the program changed. Over plain TCP a server with `h2c` on answers HTTP/2 by prior knowledge and HTTP/1.1 on the same port, and a client with `h2c` on sends `http://` as HTTP/2:
 
 ```cpp
+#include "sgcl/async/async.h"
+#include "sgcl/io/io.h"
 #include "sgcl/net/http/http.h"
-#include "sgcl/io/print.h"
+#include "sgcl/net/net.h"
 
 using namespace sgcl;
 
 int main() {
     net::http::server srv;
     srv.h2c = true;
-    srv.route("GET /", [](net::http::request req, net::http::response_writer w) {
-        w.write("asked over " + req.proto() + "\n");
-    });
+    srv.route("GET /", [](net::http::request req, net::http::response_writer w) { w.write("asked over " + req.proto() + "\n"); });
     net::listener listener = net::tcp::listen("127.0.0.1:0");
     auto serving = async::spawn(srv.async_serve(listener));
-    auto url = "http://127.0.0.1:" + to_string(listener.local_endpoint().port()) + "/";
 
-    net::http::client multiplexed;
-    multiplexed.h2c = true;
-    net::http::response res = multiplexed.get(url);
-    string body = res.text();
-    print("{}: {}", res.proto(), body);
-
-    net::http::client plain;
-    net::http::response old = plain.get(url);
-    string text = old.text();
-    print("{}: {}", old.proto(), text);
-
+    net::http::client web;
+    web.h2c = true;
+    net::http::response res = web.get("http://127.0.0.1:" + to_string(listener.local_endpoint().port()) + "/");
+    string text = res.text();
+    print("{}: {}", res.proto(), text);
     srv.close();
-    serving.wait();
 }
 ```
 
@@ -252,7 +225,6 @@ Output:
 
 ```text
 HTTP/2.0: asked over HTTP/2.0
-HTTP/1.1: asked over HTTP/1.1
 ```
 
 ## See also
@@ -260,4 +232,4 @@ HTTP/1.1: asked over HTTP/1.1
 - [request](request.md), [response](response.md): what is sent and what comes back; [server](server.md): the other side
 - [url](../url.md): how the URL is read; [connection](../connection.md): what `dial` returns
 - [tls](../tls.md): the connection under https and its errors
-- `tests/net/http/client.cpp` (a scripted server in memory: the pool, the retry, every framing, redirects, errors), `tests/net/http/go.cpp` (against Go's server), `tests/net/http/https.cpp` (https: against this module's server, Go's net/http over TLS and curl), `tests/net/http/h2_client.cpp` (HTTP/2 against Go's server by `tools/h2_oracle.go`, and a scripted server for REFUSED_STREAM, GOAWAY and a connection cut), `tests/net/http/h2_client_connection.cpp` (the client's side of the HTTP/2 machine, frame by frame, by the sections of RFC 9113)
+- `tests/net/http/client.cpp` (a scripted server in memory: the pool, the retry, every framing, redirects, errors), `tests/net/http/download.cpp` (`download` through the part file, a cut body, a status but 2xx, `save`, `json<T>`), `tests/net/http/go.cpp` (against Go's server), `tests/net/http/https.cpp` (https: against this module's server, Go's net/http over TLS and curl), `tests/net/http/h2_client.cpp` (HTTP/2 against Go's server by `tools/h2_oracle.go`, and a scripted server for REFUSED_STREAM, GOAWAY and a connection cut), `tests/net/http/h2_client_connection.cpp` (the client's side of the HTTP/2 machine, frame by frame, by the sections of RFC 9113)

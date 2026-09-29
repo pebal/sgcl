@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -10,6 +10,7 @@
 #include "../core/vector.h"
 
 #include "detail/drbg.h"
+#include "secret.h"
 
 #include <cstddef>
 
@@ -35,9 +36,18 @@ namespace sgcl::crypto {
             detail::drbg_fill(reinterpret_cast<unsigned char*>(out.data()), out.size());
         }
 
-        // n random bytes
+        // n random bytes, for what is not a secret: a salt, a nonce, an id
         inline vector<byte> bytes(size_t n) {
             vector<byte> out(n);
+            fill(out.as_slice());
+            return out;
+        }
+
+        // n random bytes that are a secret: a key, a seed. Up to 64 bytes in
+        // the secret_bytes itself, past that in plain memory zeroed when it
+        // goes, never in managed memory
+        inline secret_bytes secret(size_t n) {
+            secret_bytes out(n);
             fill(out.as_slice());
             return out;
         }

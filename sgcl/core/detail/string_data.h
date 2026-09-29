@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -14,6 +14,7 @@
 #include "type_info.h"
 
 #include <atomic>
+#include <cassert>
 #include <cstring>
 #include <string_view>
 
@@ -50,6 +51,13 @@ namespace sgcl::detail {
         template<class CharT>
         StringSlot(std::basic_string_view<CharT> s) noexcept {
             string_fill(bytes, s);
+        }
+
+        // The bytes left as they are, for the caller to write in place
+        // (StringMaker::make_bounded): nothing reads them before that
+        struct Unfilled {};
+
+        explicit StringSlot(Unfilled) noexcept {
         }
     };
 
@@ -91,6 +99,28 @@ namespace sgcl::detail {
         }
         return i;
     }();
+
+    // An object of a size class with its bytes left unwritten, for a
+    // string written in place (StringMaker::make_bounded)
+    template<size_t Bytes>
+    unique_ptr<void> make_unfilled_string_slot() {
+        return unique_ptr<void>(make_tracked<StringSlot<Bytes>>(typename StringSlot<Bytes>::Unfilled{}));
+    }
+
+    using UnfilledStringSlotFn = unique_ptr<void> (*)();
+
+    template<size_t... Is>
+    constexpr std::array<UnfilledStringSlotFn, sizeof...(Is)> unfilled_small_string_entries(std::index_sequence<Is...>) {
+        return {&make_unfilled_string_slot<(Is + 1) * 4>...};
+    }
+
+    template<size_t... Is>
+    constexpr std::array<UnfilledStringSlotFn, sizeof...(Is)> unfilled_large_string_entries(std::index_sequence<Is...>) {
+        return {&make_unfilled_string_slot<string_large_class(Is)>...};
+    }
+
+    inline constexpr auto unfilled_small_string_slots = unfilled_small_string_entries(std::make_index_sequence<StringSmallClasses>());
+    inline constexpr auto unfilled_large_string_slots = unfilled_large_string_entries(std::make_index_sequence<StringLargeClasses>());
 
     // The managed object for a string of `bytes` (header, characters and
     // terminator), from the smallest class that holds it, as the string's
@@ -137,6 +167,95 @@ namespace sgcl::detail {
                 }
             }
             return Word(make_buffer(s, bytes));
+        }
+
+        // A string written in place: the object for `bound` characters
+        // taken from the class that holds them, `fill(CharT* chars)`
+        // writes the characters straight into it and returns how many it
+        // wrote (at most `bound`), and the header and the terminator are
+        // set after it. Each character is written once, and nothing is
+        // allocated but the object: what a builder that knows its size,
+        // or a bound of it, uses in place of a std::string it would copy.
+        // Fewer characters than the bound, but at least half of it, are the
+        // length in the header only: the object keeps the size class of the
+        // bound (the bytes past the terminator are the class's slack, as
+        // the rounding to four is), never a part of it given back. Fewer
+        // than half are copied once more into an object of their exact
+        // class, and the bound's object goes back whole: a string does not
+        // keep more than its own size again as slack for its life (the
+        // bound of three bytes a character of txt::decode). None is the
+        // empty string, null, and the object goes back at once. A fill
+        // that throws lets the object go with it
+        template<class CharT, class Fill>
+        static Word make_bounded(size_t bound, Fill&& fill) {
+            if (bound > UINT32_MAX) {
+                throw length_error("sgcl::basic_string");
+            }
+            if (bound == 0) {
+                return Word();
+            }
+            CharT* chars = nullptr;
+            Slot slot = make_unfilled<CharT>(bound, chars);
+            const size_t used = fill(chars);
+            return finish<CharT>(std::move(slot), bound, used);
+        }
+
+        // The same in two steps, for a builder that cannot hand its writing
+        // over as a function (a read that waits, in a task): the object for
+        // `bound` (> 0) characters with their address in `chars`, unique
+        // until finish makes it the string of the first `used` of them (the
+        // same rules as make_bounded: none is the empty string, less than
+        // half the bound a copy of the exact class)
+        template<class CharT>
+        static Slot make_unfilled(size_t bound, CharT*& chars) {
+            if (bound == 0 || bound > UINT32_MAX) {
+                throw length_error("sgcl::basic_string");
+            }
+            const size_t bytes = sizeof(StringHeader) + (bound + 1) * sizeof(CharT);
+            Slot slot = bytes <= 256 ? unfilled_small_string_slots[(bytes - 1) / 4]() : _unfilled_large(bytes);
+            chars = reinterpret_cast<CharT*>(static_cast<unsigned char*>(slot.get()) + sizeof(StringHeader));
+            return slot;
+        }
+
+        template<class CharT>
+        static Word finish(Slot slot, size_t bound, size_t used) {
+            auto* p = static_cast<unsigned char*>(slot.get());
+            auto* chars = reinterpret_cast<CharT*>(p + sizeof(StringHeader));
+            assert(used <= bound && "a fill wrote past the bound it was given");
+            if (used == 0) {
+                return Word();
+            }
+            if (used < bound - used) {
+                // More than half the room left over (a bound of three bytes
+                // a character that took one): a copy in an object of the
+                // exact class, this one given back whole as it goes (never
+                // a part of it), rather than the slack kept for the
+                // string's life
+                return make(std::basic_string_view<CharT>(chars, used));
+            }
+            ::new(p) StringHeader{(uint32_t)used, {0}};
+            chars[used] = CharT();
+            return Word(std::move(slot));
+        }
+
+        // The same for exactly `n` characters: `fill(CharT* chars)` writes
+        // all of them
+        template<class CharT, class Fill>
+        static Word make_filled(size_t n, Fill&& fill) {
+            return make_bounded<CharT>(n, [&](CharT* chars) {
+                fill(chars);
+                return n;
+            });
+        }
+
+    private:
+        static Slot _unfilled_large(size_t bytes) {
+            for (size_t i = 0; i < StringLargeClasses; ++i) {
+                if (bytes <= string_large_class(i)) {
+                    return unfilled_large_string_slots[i]();
+                }
+            }
+            return Slot(unique_ptr<StringByte>(Maker<StringByte[]>::make_tracked_data(bytes)));
         }
 
     private:

@@ -1,11 +1,12 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
 #include "error.h"
+#include "detail/path.h"
 #include "../core/vector.h"
 #include "../core/aliases.h"
 #include "../core/string.h"
@@ -195,6 +196,28 @@ namespace sgcl::io::path {
 
     inline bool is_abs(const string& p) noexcept {
         return !p.empty() && p.front() == separator;
+    }
+
+    // Whether the name may be joined to a directory without leaving it
+    // (Go's filepath.IsLocal): not empty, not absolute, no NUL, no '\',
+    // and no ".." that climbs above its start once the name is taken
+    // lexically ("a/../b" is local, "a/../.." is not). A name from outside
+    // the program — an entry of an archive, the path of a request, which
+    // may have been "..%2f" before it was decoded — is checked so
+    inline bool is_local(const string& name) noexcept {
+        return io::detail::is_local_path(name.view());
+    }
+
+    // The name joined to the directory and cleaned, when it is local;
+    // errc::insecure_path when it is not, nothing joined. The one guard
+    // for a name from outside that becomes a file's path:
+    //
+    //     auto file = io::path::under("public", name);   // "public/a/b.txt", or the error for "../secret.txt"
+    inline expected<string, error> under(const string& directory, const string& name) {
+        if (!is_local(name)) {
+            return io::detail::fail(error(errc::insecure_path, "under", name));
+        }
+        return join(directory, name);
     }
 
     // The absolute form: the working directory joined when relative,

@@ -35,14 +35,6 @@ expected<size_t, io::error> copy_from(const io::reader& r);  async::task<expecte
 static expected</* the type of value() */, io::error> of_file(const string& path);  static async::task<expected</* the type of value() */, io::error>> async_of_file(const string& path);   // of() of the whole file, through copy_from
 ```
 
-```cpp
-using namespace sgcl;
-
-hash::fnv32a::of("foobar");     // 0xBF9CF968
-hash::fnv64a::of("foobar");     // 0x85944171F73967E8
-auto wide = hash::fnv128a::of("a");   // d2 28 cb 69 6f 1a 8c af 78 91 2b 70 4e 4a 89 64
-```
-
 The state of an FNV is its value, so the constructor from a value goes on where a saved hash left off, as [`crc32`](crc32.md) and [`adler32`](adler32.md) do (Go does it through `UnmarshalBinary`). There is no `combine`: the value after A says nothing that would let the hash of B be joined to it.
 
 ## 128 bits
@@ -52,9 +44,9 @@ The 128-bit result is sixteen bytes, the most significant first, so `value()` an
 ## Example
 
 ```cpp
-#include "sgcl/encoding/hex.h"
-#include "sgcl/hash/fnv.h"
-#include "sgcl/io/print.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/hash/hash.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 

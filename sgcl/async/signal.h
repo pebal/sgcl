@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -108,6 +108,32 @@ namespace sgcl::async {
                 }
 #else
                 (void)numbers;
+#endif
+            }
+
+            // One channel's registration dropped, for every number it was
+            // registered for (Go's signal.Stop): a number no channel is
+            // registered for any more gets back the disposition from
+            // before the first registration; the channels of the others
+            // stay as they are
+            void forget(const ChannelState<int>* ch) {
+#if SGCL_SIGNALS_POSIX
+                std::lock_guard lock(_m);
+                for (auto it = _waits.begin(); it != _waits.end();) {
+                    auto& ws = it->second;
+                    std::erase_if(ws, [ch](const root_ptr<SignalWait>& w) { return w->ch == ch; });
+                    if (!ws.empty()) {
+                        ++it;
+                        continue;
+                    }
+                    if (auto s = _saved.find(it->first); s != _saved.end()) {
+                        ::sigaction(it->first, &s->second, nullptr);
+                        _saved.erase(s);
+                    }
+                    it = _waits.erase(it);
+                }
+#else
+                (void)ch;
 #endif
             }
 
@@ -250,7 +276,7 @@ namespace sgcl::async {
     // delivered to the process from now on; `capacity` elements held
     // for a receiver that is not there yet, the rest dropped
     inline channel<int> signals(std::initializer_list<int> numbers, size_t capacity = 1) {
-        tracked_ptr<detail::ChannelState<int>> ch = make_tracked<detail::ChannelState<int>>(capacity);
+        tracked_ptr<detail::ChannelState<int>> ch = detail::make_linked_state<int>(capacity);
         detail::signals_instance().notify(numbers, ch, ch.get());
         return detail::ChannelAccess::make(std::move(ch));
     }

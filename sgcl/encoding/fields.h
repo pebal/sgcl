@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -905,10 +905,19 @@ namespace sgcl::encoding {
                 return static_cast<const T*>(p)->get();
             }
 
-            // a new object: a pointer read is never shared with another
+            // a new object: a pointer read is never shared with another.
+            // Value-initialized (U(), then moved in), as a member of the
+            // enclosing object is: a field the input does not name keeps
+            // this value, zero for a number, where make_tracked<U>() alone
+            // would leave the bytes of the slot's last user
             static void* emplace(void* p) {
                 auto& t = *static_cast<T*>(p);
-                tracked_ptr<U> made = make_tracked<U>();
+                tracked_ptr<U> made;
+                if constexpr(std::is_move_constructible_v<U>) {
+                    made = make_tracked<U>(U());
+                } else {
+                    made = make_tracked<U>();
+                }
                 t = made;
                 return made.get();
             }

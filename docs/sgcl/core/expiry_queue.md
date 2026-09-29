@@ -1,7 +1,7 @@
 # sgcl::expiry_queue
 
 ```cpp
-#include "sgcl/sgcl.h"        // or "sgcl/core/expiry_queue.h"
+#include "sgcl/core/expiry_queue.h"   // or "sgcl/core/core.h"
 
 namespace sgcl {
     template<class T>
@@ -144,7 +144,8 @@ assert(gone.empty());
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -167,35 +168,36 @@ static void use_textures(expiry_queue<Texture>& gone, tracked_ptr<Texture>& kept
         tracked_ptr texture = make_tracked<Texture>(id);
         gone.watch(texture, [](tracked_ptr<Texture> t) { release_texture(t->id); });
         if (id == 2) {
-            kept = texture;   // the program keeps this one
+            kept = texture;  // the program keeps this one
         }
     }
-}   // textures 1 and 3 are unreachable now; the queue keeps them for drain()
+}  // textures 1 and 3 are unreachable now; the queue keeps them for drain()
 
 int main() {
-    expiry_queue<Texture> gone;            // lives where a tracked_ptr may: here on the stack
+    expiry_queue<Texture> gone;  // lives where a tracked_ptr may: here on the stack
     tracked_ptr<Texture> kept;
     use_textures(gone, kept);
     println("{} textures watched", gone.size());
 
-    collector::force_collect(true);        // optional, for the demonstration only: the collector runs its cycles by itself
-    println("{} released by the first drain", gone.drain());   // 1 and 3, in either order
+    // optional, for the demonstration only: the collector runs its cycles by itself
+    collector::force_collect(true);
+    println("{} released by the first drain", gone.drain());  // 1 and 3, in either order
     println("{} still watched: texture {}", gone.size(), kept->id);
 
     // the function may keep the object: its return to life
     tracked_ptr<Texture> revived;
     gone.watch(kept, [&revived](tracked_ptr<Texture> t) { revived = t; });
     kept = nullptr;
-    collector::force_collect(true);        // optional, as above
-    gone.drain();                              // texture 2's first entry releases it, the second revives it
+    collector::force_collect(true);  // optional, as above
+    gone.drain();  // texture 2's first entry releases it, the second revives it
     println("texture {} is back", revived->id);
     return 0;
 }
 ```
 
-The output:
+Sample output:
 
-```
+```text
 3 textures watched
 texture 1 released
 texture 3 released

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -18,6 +18,9 @@
 #include "sgcl/net/http/detail/parser.h"
 
 #include <chrono>
+#if defined(__APPLE__)
+#include <malloc/malloc.h>
+#endif
 #include <cstring>
 #include <string>
 #include <thread>
@@ -378,4 +381,62 @@ TEST(HttpHeap_Tests, ABodyReadWholeIsOneVectorOfItsSize) {
         (void)a.close();
         (void)b.close();
     }
+}
+
+namespace {
+    // The bytes the system's allocator holds for the program now (the
+    // wire's `out` is a std::string: its room is one of them)
+    size_t malloc_in_use() {
+#if defined(__APPLE__)
+        malloc_statistics_t st;
+        malloc_zone_statistics(nullptr, &st);
+        return st.size_in_use;
+#else
+        return 0;
+#endif
+    }
+}
+
+// A response flushed in pieces of 2 MB goes out through the wire's buffer,
+// which grew to a piece; once the connection waits for its next request
+// the room past 64 KB is given back, so eight kept-alive connections that
+// each served one hold none of it (16 MB of the allocator's before)
+TEST(HttpHeap_Tests, AnIdleConnectionGivesBackALargeResponsesRoom) {
+#if !defined(__APPLE__)
+    GTEST_SKIP() << "the allocator's statistics are read on macOS";
+#endif
+    const string piece(std::string(2 << 20, 'x'));
+    http::server s;
+    s.route("GET /big", [&](http::request, http::response_writer w) -> async::task<> {
+        for (int i = 0; i < 4; ++i) {
+            w.write(piece);
+            (void)co_await w.async_flush();
+        }
+    });
+    s.route("GET /small", [&](http::request, http::response_writer w) {
+        w.write("ok");
+    });
+    Serving r(s);
+    constexpr int Connections = 8;
+    sgcl::vector<http::client> clients;
+    for (int i = 0; i < Connections; ++i) {
+        clients.push_back(http::client());
+    }
+    // a small exchange on each first: the connections open, kept by the
+    // clients, and what they keep anyway there before the count
+    for (auto& c : clients) {
+        auto res = c.get(r.url("/small"));
+        ASSERT_TRUE(res);
+    }
+    std::this_thread::sleep_for(200ms);
+    size_t before = malloc_in_use();
+    for (auto& c : clients) {
+        auto res = c.get(r.url("/big"));   // the same kept connection
+        ASSERT_TRUE(res);
+        ASSERT_EQ(res->text()->size(), piece.size() * 4);
+    }
+    std::this_thread::sleep_for(200ms);   // every connection back at its wait for the next request
+    size_t after = malloc_in_use();
+    size_t growth = after > before ? after - before : 0;
+    EXPECT_LT(growth, size_t(4) << 20) << "the allocator holds " << (growth >> 20) << " MB more";
 }

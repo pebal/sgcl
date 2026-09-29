@@ -39,18 +39,23 @@ public:
 ## stopwatch
 
 ```cpp
+duration d = time::stopwatch::measure([&] { build_index(); });   // how long it took
+
 class stopwatch {
 public:
     stopwatch() noexcept;                     // started at once
     duration elapsed() const noexcept;        // since the start
     duration restart() noexcept;              // what had elapsed, and a new start from now
+    template<class F> static duration measure(F&& f);   // how long f() takes; its value dropped
 };
 ```
 
-The time elapsed, on [`sgcl::clock`](../core/clock.md): the steady clock, which a change of the system's wall clock does not move, unless a test has installed a manual clock, and then the test's time, so that code that measures itself is tested with no real waiting. Go keeps such a monotonic reading inside every `time.Time`, where it is invisible and lost by the first `Round(0)` or a trip through text; here it has a name of its own, and a date and time stays a plain value. Eight bytes, a point of the clock.
+The time elapsed, on [`sgcl::clock`](../core/clock.md): the steady clock, which a change of the system's wall clock does not move, unless a test has installed a manual clock, and then the test's time, so that code that measures itself is tested with no real waiting. Go keeps such a monotonic reading inside every `time.Time`, where it is invisible and lost by the first `Round(0)` or a trip through text; here it has a name of its own, and a date and time stays a plain value. Eight bytes, a point of the clock. `stopwatch::measure(f)` is the one line for the common case, a stopwatch started, `f()` called and the time read: what `f` returns is dropped, and what it throws goes through, with no time measured.
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/async/async.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 #include "sgcl/time/time.h"
 #include <chrono>
 
@@ -62,8 +67,9 @@ int main() {
     clock.install();
     time::stopwatch sw;
     clock.advance(1500ms);
-    println("{}", sw.elapsed());               // 1.5s
-    println("{} {}", sw.restart(), sw.elapsed());   // 1.5s 0s
+    println("{}", sw.elapsed());
+    println("{} {}", sw.restart(), sw.elapsed());
+    println("{}", time::stopwatch::measure([&] { clock.advance(250ms); }));
     clock.uninstall();
 
     time::stopwatch real;                   // the steady clock again
@@ -71,7 +77,7 @@ int main() {
     for (int i : range(1000000)) {
         sum += i;
     }
-    println("{} {}", (real.elapsed() < 10 * second), sum);   // true 499999500000
+    println("{} {}", (real.elapsed() < 10 * second), sum);
     return 0;
 }
 ```
@@ -81,7 +87,8 @@ Output:
 ```text
 1.5s
 1.5s 0s
-1 499999500000
+250ms
+true 499999500000
 ```
 
 ## SGCL and Go

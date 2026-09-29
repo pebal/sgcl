@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -8,6 +8,7 @@
 #include "../../core/aliases.h"
 #include "../../core/slice.h"
 #include "bytes.h"
+#include "paths.h"
 
 #include <bit>
 #include <cstddef>
@@ -19,24 +20,7 @@
 #include <intrin.h>
 #endif
 
-// The product of two 64-bit words, and the choice
-// of the ciphers' path. The ciphers of C2 (AES, GHASH, ChaCha20, Poly1305)
-// have two bodies each: one on the instructions of arm64 (AESE/AESMC and
-// AESD/AESIMC, PMULL, NEON), compiled where the target has them, which the
-// default arm64-apple-macos target does; and one in portable C++ for every
-// other target and for SGCL_CRYPTO_PORTABLE, which the tests define to check
-// that the two agree. The choice is made per translation unit from the
-// target's flags, as sgcl/hash does it: every unit of a program must be
-// built for the same target and with the same setting of the macro (on
-// Linux on arm64, where the default target may lack the crypto extension,
-// one file built with -march=armv8-a+crypto and another without would give
-// the inline functions two bodies: build the whole program with one -march).
-#if defined(__aarch64__) && defined(__AARCH64EL__) && defined(__ARM_NEON) && !defined(SGCL_CRYPTO_PORTABLE)
-#define SGCL_CRYPTO_NEON 1
-#if defined(__ARM_FEATURE_AES)
-#define SGCL_CRYPTO_ARM64_AES 1
-#endif
-#endif
+// The product of two 64-bit words (the module's paths: paths.h)
 
 namespace sgcl::crypto::detail {
     inline uint32_t rotl32(uint32_t v, int n) noexcept {

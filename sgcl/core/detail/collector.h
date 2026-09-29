@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -17,8 +17,10 @@
 #include <functional>
 
 #if SGCL_LOG_PRINT_LEVEL > 0
+#include "diagnostics.h"
 #include <iomanip>
 #include <iostream>
+#include <sstream>
 #include <unordered_map>
 #endif
 
@@ -63,7 +65,7 @@ namespace sgcl::detail {
 
         bool force_collect(bool wait) noexcept {
 #if SGCL_LOG_PRINT_LEVEL > 0
-            std::cout << "[sgcl] force collect " << (wait ? "and wait " : "") << "from id: " << std::this_thread::get_id() << std::endl;
+            diagnostic_line(1, std::string("[sgcl] force collect ") + (wait ? "and wait " : "") + "from id: " + diagnostic_thread_id());
 #endif
             if (os::forked_child.load(std::memory_order_relaxed)) [[unlikely]] {
                 os::fail_after_fork("a collection requested");
@@ -110,8 +112,7 @@ namespace sgcl::detail {
 
         std::tuple<PauseGuard, std::vector<void*>> get_live_objects() noexcept {
 #if SGCL_LOG_PRINT_LEVEL > 0
-            std::cout << "[sgcl] get live objects from id: " << std::this_thread::get_id() << std::endl;
-            std::flush(std::cout);
+            diagnostic_line(1, "[sgcl] get live objects from id: " + diagnostic_thread_id());
 #endif
             std::unique_lock<std::mutex> lock(_mutex);
             if (!_terminating) {
@@ -2655,7 +2656,7 @@ namespace sgcl::detail {
     private:
         void _main_loop() noexcept {
 #if SGCL_LOG_PRINT_LEVEL > 0
-            std::cout << "[sgcl] start collector id: " << std::this_thread::get_id() << std::endl;
+            diagnostic_line(1, "[sgcl] start collector id: " + diagnostic_thread_id());
 #endif
             using namespace std::chrono_literals;
             int finalization_counter = 5;
@@ -2821,7 +2822,8 @@ namespace sgcl::detail {
                 }
 #if SGCL_LOG_PRINT_LEVEL >= 2
                 total_time += duration;
-                std::cout << "[sgcl] mem allocs:" << std::setw(7) << MemoryCounters::alloc_since_cycle()
+                std::ostringstream line;   // the same text as ever, then handed on whole
+                line << "[sgcl] mem allocs:" << std::setw(7) << MemoryCounters::alloc_since_cycle()
                           << ",    mem removed:" << std::setw(7) << MemoryCounters::free_since_cycle()
                           << ",    total mem:" << std::setw(7) << MemoryCounters::live_pages()
                           << ",    objects created:" << std::setw(9) << last_objects_created
@@ -2830,8 +2832,8 @@ namespace sgcl::detail {
                           << ",    cycle:" << (_full ? "full " : "young")
                           << ",    helpers:" << (_pool.enabled() ? "on " : "off") << " used:" << std::setw(2) << _pool.last_workers()
                           << ",    time:" << std::setw(8) << std::fixed << std::setprecision(3) << duration << "ms"
-                          << ",    total time:" << std::setw(10) << std::fixed << std::setprecision(3) << total_time << "ms"
-                          << std::endl;
+                          << ",    total time:" << std::setw(10) << std::fixed << std::setprecision(3) << total_time << "ms";
+                diagnostic_line(2, line.str());
 #endif
                 bool can_sleep = true;
                 if (_young_collect_count.load(std::memory_order_acquire)) {
@@ -2864,7 +2866,7 @@ namespace sgcl::detail {
                         if (_share_live_objects) {
                             std::unique_lock<std::mutex> lock(_mutex);
 #if SGCL_LOG_PRINT_LEVEL > 2
-                            std::cout << "[sgcl] suspended collector id: " << std::this_thread::get_id() << std::endl;
+                            diagnostic_line(3, "[sgcl] suspended collector id: " + diagnostic_thread_id());
 #endif
                             _cv_data_processed.wait(lock, [this] {
                                 return _dataProcessed;
@@ -2872,7 +2874,7 @@ namespace sgcl::detail {
                             _dataProcessed = false;
                             _share_live_objects = false;
 #if SGCL_LOG_PRINT_LEVEL > 2
-                            std::cout << "[sgcl] resumed collector id: " << std::this_thread::get_id() << std::endl;
+                            diagnostic_line(3, "[sgcl] resumed collector id: " + diagnostic_thread_id());
 #endif
                         }
                     }
@@ -2905,7 +2907,7 @@ namespace sgcl::detail {
                 }
             } while(finalization_counter);
 #if SGCL_LOG_PRINT_LEVEL > 0
-            std::cout << "[sgcl] stop collector id: " << std::this_thread::get_id() << std::endl;
+            diagnostic_line(1, "[sgcl] stop collector id: " + diagnostic_thread_id());
 #endif
             _pool.stop();
             if (_terminating) {
@@ -2952,7 +2954,7 @@ namespace sgcl::detail {
             }
             if (!_terminating) {
 #if SGCL_LOG_PRINT_LEVEL > 0
-                std::cout << "[sgcl] terminate collector from id: " << std::this_thread::get_id() << std::endl;
+                diagnostic_line(1, "[sgcl] terminate collector from id: " + diagnostic_thread_id());
 #endif
                 {
                     std::unique_lock<std::mutex> lock(_mutex);

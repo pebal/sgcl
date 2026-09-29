@@ -153,7 +153,8 @@ std::pair<iterator, iterator> equal_range(const key_pointer& object);
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -179,9 +180,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 42: checked
 42: created by the parser
 2 entries, 2 swept, 0 left

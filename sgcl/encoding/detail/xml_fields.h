@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -68,6 +68,43 @@ namespace sgcl::encoding::detail {
         return t;
     }
 
+    // Where a mapping is in the tree: a chain of links on the stack, one a
+    // level, made into the text of the path ("/order/item[2]/@sku") only
+    // when a mapping fails. A path built as a std::string at every field
+    // and element was two to four allocations a field on the way that did
+    // not fail, which is every way but one.
+    struct XmlPath {
+        const XmlPath* up = nullptr;
+        std::string_view name;   // an element's or an attribute's
+        size_t index = 0;        // the position of an element of a list, from 1
+        char kind = 0;           // 0 none, '/' an element, '@' an attribute, '[' a position, 't' the text
+
+        std::string text() const {
+            std::string out = up ? up->text() : std::string();
+            switch (kind) {
+                case '/':
+                    out += '/';
+                    out += name;
+                    break;
+                case '@':
+                    out += "/@";
+                    out += name;
+                    break;
+                case '[':
+                    out += '[';
+                    out += std::to_string(index);
+                    out += ']';
+                    break;
+                case 't':
+                    out += "/text()";
+                    break;
+                default:
+                    break;
+            }
+            return out;
+        }
+    };
+
     // What a mapping failed with: the code, the words, the path; the place
     // in the document is set by whoever read it
     struct XmlMapFailure {
@@ -90,7 +127,7 @@ namespace sgcl::encoding::detail {
         // The element `name` for the value; xml() and a failure when it
         // has no form
         // (fields and f: the field the value is of, for an enum's names)
-        xml element(const ValueOps* ops, const void* v, std::string_view name, const std::string& path, uint32_t depth,
+        xml element(const ValueOps* ops, const void* v, std::string_view name, const XmlPath& path, uint32_t depth,
                     const field_list* of = nullptr, const FieldInfo* field = nullptr) {
             if (depth > MaxDepth) {
                 _fail(errc::unsupported_value, "nested deeper than 512 elements: a cycle?", path);
@@ -126,7 +163,7 @@ namespace sgcl::encoding::detail {
                 if ((f.flags & OmitEmpty) && f.ops->is_empty(f.address)) {
                     continue;
                 }
-                std::string at = path + "/" + std::string(f.name);
+                XmlPath at{&path, f.name, 0, '/'};
                 if (f.flags & (Attribute | Text)) {
                     const ValueOps* ops_f = f.ops;
                     const void* value = f.address;
@@ -138,7 +175,7 @@ namespace sgcl::encoding::detail {
                         ops_f = ops_f->inner();
                     }
                     if (f.flags & Attribute) {
-                        at = path + "/@" + std::string(f.name);
+                        at = XmlPath{&path, f.name, 0, '@'};
                     }
                     if (!xml_scalar(ops_f->kind)) {
                         _fail(errc::unsupported_value, std::string(f.flags & Attribute ? "an attribute" : "the text of an element") + " holds text, not " + ops_f->name, at);
@@ -168,7 +205,7 @@ namespace sgcl::encoding::detail {
 
         // The elements of a field: one, none (null), or one a value of a
         // sequence
-        bool children(xml::builder& b, const FieldInfo& f, const field_list* fields, const std::string& path, uint32_t depth) {
+        bool children(xml::builder& b, const FieldInfo& f, const field_list* fields, const XmlPath& path, uint32_t depth) {
             auto ops = f.ops;
             switch (ops->kind) {
                 case ValueKind::sequence:
@@ -180,13 +217,13 @@ namespace sgcl::encoding::detail {
                         const FieldInfo* f;
                         const field_list* fields;
                         const ValueOps* inner;
-                        const std::string* path;
+                        const XmlPath* path;
                         uint32_t depth;
                         size_t index;
                     } ctx{this, &b, &f, fields, ops->inner(), &path, depth, 0};
                     return ops->for_each(f.address, &ctx, [](void* c, const void* e) {
                         auto& x = *static_cast<Ctx*>(c);
-                        std::string at = *x.path + "[" + std::to_string(++x.index) + "]";
+                        XmlPath at{x.path, {}, ++x.index, '['};
                         if (x.inner->kind == ValueKind::sequence || x.inner->kind == ValueKind::set || x.inner->kind == ValueKind::fixed) {
                             x.self->_fail(errc::unsupported_value, "a list of lists has no form in XML", at);
                             return false;
@@ -215,7 +252,7 @@ namespace sgcl::encoding::detail {
         }
 
         // The text of a value of a scalar kind
-        optional<string> text(const ValueOps* ops, const void* v, const field_list* fields, const FieldInfo* f, const std::string& path) {
+        optional<string> text(const ValueOps* ops, const void* v, const field_list* fields, const FieldInfo* f, const XmlPath& path) {
             char buf[64];
             switch (ops->kind) {
                 case ValueKind::boolean:
@@ -255,7 +292,7 @@ namespace sgcl::encoding::detail {
         // --- nodes into a value ---
 
         // The value from an element (or, for a scalar, from its text)
-        bool from_element(const ValueOps* ops, void* v, const xml& node, const std::string& path, uint32_t depth,
+        bool from_element(const ValueOps* ops, void* v, const xml& node, const XmlPath& path, uint32_t depth,
                           const field_list* of = nullptr, const FieldInfo* field = nullptr) {
             if (depth > MaxDepth) {
                 _fail(errc::depth_limit, "nested deeper than 512 elements", path);
@@ -283,7 +320,7 @@ namespace sgcl::encoding::detail {
             auto& list = FieldAccess::fields(fields);
             for (auto& f : list) {
                 if (f.flags & Attribute) {
-                    std::string at = path + "/@" + std::string(f.name);
+                    XmlPath at{&path, f.name, 0, '@'};
                     auto a = node.attribute(string(f.name));
                     if (!a) {
                         if (f.flags & Required) {
@@ -309,12 +346,12 @@ namespace sgcl::encoding::detail {
                     }
                     if (!any) {
                         if (f.flags & Required) {
-                            _fail(errc::missing_field, "the element has no text", path + "/text()");
+                            _fail(errc::missing_field, "the element has no text", XmlPath{&path, {}, 0, 't'});
                             return false;
                         }
                         continue;
                     }
-                    if (!_scalar_into(f.ops, f.address, own, &fields, &f, path + "/text()")) {
+                    if (!_scalar_into(f.ops, f.address, own, &fields, &f, XmlPath{&path, {}, 0, 't'})) {
                         return false;
                     }
                     continue;
@@ -329,7 +366,7 @@ namespace sgcl::encoding::detail {
         // A value of a scalar kind from its text: numbers and booleans with
         // the white space around them left out (XML Schema collapses it),
         // strings as they are
-        bool from_text(const ValueOps* ops, void* v, std::string_view t, const field_list* fields, const FieldInfo* f, const std::string& path) {
+        bool from_text(const ValueOps* ops, void* v, std::string_view t, const field_list* fields, const FieldInfo* f, const XmlPath& path) {
             switch (ops->kind) {
                 case ValueKind::boolean: {
                     auto s = xml_trimmed(t);
@@ -386,17 +423,18 @@ namespace sgcl::encoding::detail {
         }
 
     private:
-        void _fail(errc code, const std::string& what, const std::string& path) {
+        void _fail(errc code, const std::string& what, const XmlPath& path) {
             if (!failure) {
-                failure = XmlMapFailure{code, what, path.empty() ? "/" : path};
+                auto text = path.text();
+                failure = XmlMapFailure{code, what, text.empty() ? "/" : text};
             }
         }
 
-        void _unsupported(const ValueOps* ops, const std::string& path) {
+        void _unsupported(const ValueOps* ops, const XmlPath& path) {
             _fail(errc::unsupported_value, std::string(ops->name) + " of this kind (a map, a tuple, a variant, json) has no form in XML", path);
         }
 
-        void _unsupported_read(const ValueOps* ops, const std::string& path) {
+        void _unsupported_read(const ValueOps* ops, const XmlPath& path) {
             _fail(errc::type_mismatch, std::string(ops->name) + " of this kind (a map, a tuple, a variant, json) has no form in XML", path);
         }
 
@@ -409,7 +447,7 @@ namespace sgcl::encoding::detail {
             return false;
         }
 
-        bool _literal(const ValueOps* ops, void* v, std::string_view s, const std::string& path) {
+        bool _literal(const ValueOps* ops, void* v, std::string_view s, const XmlPath& path) {
             int r = ops->set_literal(v, s);
             if (r == 1) {
                 _fail(errc::type_mismatch, std::string("expected ") + ops->name + ", found \"" + std::string(s.substr(0, 40)) + "\"", path);
@@ -424,7 +462,7 @@ namespace sgcl::encoding::detail {
 
         // An attribute's or the text's value into a scalar field, or an
         // optional or pointer to one
-        bool _scalar_into(const ValueOps* ops, void* v, std::string_view t, const field_list* fields, const FieldInfo* f, const std::string& path) {
+        bool _scalar_into(const ValueOps* ops, void* v, std::string_view t, const field_list* fields, const FieldInfo* f, const XmlPath& path) {
             if (ops->kind == ValueKind::optional || ops->kind == ValueKind::pointer) {
                 return _scalar_into(ops->inner(), ops->emplace(v), t, fields, f, path);
             }
@@ -436,9 +474,9 @@ namespace sgcl::encoding::detail {
         }
 
         // A field that is elements: the children of that name
-        bool _field_from(const FieldInfo& f, const field_list* fields, const xml& node, const std::string& path, uint32_t depth) {
+        bool _field_from(const FieldInfo& f, const field_list* fields, const xml& node, const XmlPath& path, uint32_t depth) {
             auto ops = f.ops;
-            std::string at = path + "/" + std::string(f.name);
+            XmlPath at{&path, f.name, 0, '/'};
             string wanted(f.name);
             switch (ops->kind) {
                 case ValueKind::sequence:
@@ -448,7 +486,7 @@ namespace sgcl::encoding::detail {
                         const xml* node;
                         const string* wanted;
                         const ValueOps* inner;
-                        const std::string* at;
+                        const XmlPath* at;
                         uint32_t depth;
                         size_t next;     // the child to look from
                         size_t index;    // the elements read
@@ -471,7 +509,7 @@ namespace sgcl::encoding::detail {
                     };
                     auto read = [](void* c, void* e) {
                         auto& x = *static_cast<Ctx*>(c);
-                        std::string path_e = *x.at + "[" + std::to_string(++x.index) + "]";
+                        XmlPath path_e{x.at, {}, ++x.index, '['};
                         return x.self->from_element(x.inner, e, x.found, path_e, x.depth + 1, x.fields, x.f);
                     };
                     bool ok = ops->read_elements(f.address, &ctx, more, read);
@@ -497,7 +535,7 @@ namespace sgcl::encoding::detail {
                         const ValueOps* inner = nullptr;
                         void* e = ops->element(f.address, i, &inner);
                         ++i;
-                        if (!from_element(inner, e, k, at + "[" + std::to_string(i) + "]", depth + 1, fields, &f)) {
+                        if (!from_element(inner, e, k, XmlPath{&at, {}, i, '['}, depth + 1, fields, &f)) {
                             return false;
                         }
                     }
@@ -539,7 +577,7 @@ namespace sgcl::encoding {
         }
         T value{};
         detail::XmlMapper m;
-        if (!m.from_element(detail::value_ops<T>(), &value, *this, "/" + std::string(name().view()), 0)) {
+        if (!m.from_element(detail::value_ops<T>(), &value, *this, detail::XmlPath{nullptr, name().view(), 0, '/'}, 0)) {
             return unexpected<error>(detail::xml_map_error(*m.failure, offset));
         }
         return value;
@@ -553,7 +591,7 @@ namespace sgcl::encoding {
     template<class T>
     expected<xml, xml::error> xml::from(const string& name, const T& value) {
         detail::XmlMapper m;
-        auto n = m.element(detail::value_ops<T>(), &value, name.view(), "/" + std::string(name.view()), 0);
+        auto n = m.element(detail::value_ops<T>(), &value, name.view(), detail::XmlPath{nullptr, name.view(), 0, '/'}, 0);
         if (m.failure) {
             return unexpected<error>(detail::xml_map_error(*m.failure, 0));
         }

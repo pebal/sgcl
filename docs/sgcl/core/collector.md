@@ -1,7 +1,7 @@
 # sgcl::collector
 
 ```cpp
-#include "sgcl/sgcl.h"        // or "sgcl/core/collector.h"
+#include "sgcl/core/collector.h"   // or "sgcl/core/core.h"
 
 namespace sgcl {
     class collector;
@@ -20,6 +20,12 @@ Three of the functions (`get_live_object_count`, `get_live_objects`, `get_type_s
 - In the child of a `fork()` the collector does not run (the child has no thread but the one that forked): the child may read managed objects and `exec` or exit; `force_collect`, `terminate` and a managed allocation that needs a page terminate the child with a message ([Threads](../async/README.md#threads)).
 - The lists come back in `std::vector` and `std::tuple`, not in the library's containers, and that is deliberate: they are made while the collector is paused (and `get_live_objects` hands back the pause with them), when an allocation on the managed heap could wait for the very cycle the pause holds back, and the raw pointers of `get_live_objects` must not become objects the next cycle traces. They are the only std containers the library's interface returns.
 - `get_live_object_count`, `get_live_objects`, `get_type_statistics`, `force_collect` and `clear_stack` are declared always-inline, so that no frame of their own lies between the caller and the area they zero.
+
+## Its log
+
+With `SGCL_LOG_PRINT_LEVEL` above 0 ([config](config.md#sgcl_log_print_level)) the collector says what it does, in lines on `std::cout`: level 1 its start and stop and every `force_collect`, level 2 a line per cycle, level 3 the threads and its pauses. [`slog::collector_log`](../slog/README.md#the-collectors-log) makes them records of a logger instead (the last program under [Example](#example)).
+
+Without the call the same lines go to `std::cout` as they always did (`benchmarks/heap/heap_parse.py` reads them there). The collector's thread never touches managed memory for a line: it is copied into a queue of plain memory and written by a thread that may log ([slog](../slog/README.md#the-collectors-log)).
 
 ## Members
 
@@ -114,11 +120,8 @@ static void terminate() noexcept;
 Stops the collector: the current cycle finishes, cycles run until nothing dies any more (the objects still reachable are not destroyed), the helper threads and the collector thread exit, and the call returns. Optional: a program may simply end: the main thread's exit stops the collector the same way, before the static destructors run, and those may still use the library (a global `unique_ptr`'s object making objects in its destructor), since the main thread's registration is never undone. After it no cycle runs: objects are still allocated and destroyed through `unique_ptr`, tracked garbage stays until the process exits, and `force_collect(true)` returns `false`.
 
 ```cpp
-int main() {
-    run();                          // the program's work
-    collector::terminate();     // the collector's threads are gone from here on
-    return 0;
-}
+run();  // the program's work, at the end of main
+collector::terminate();  // the collector's threads are gone from here on
 ```
 
 ### statistics, get_statistics, phase_names
@@ -295,7 +298,41 @@ s.finish_cycle();                                    // registered now, found th
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
+
+using namespace sgcl;
+
+struct Node {
+    tracked_ptr<Node> next;
+    int value;
+};
+
+// the pointers in a frame of their own: the stack is scanned conservatively
+static void build_and_drop() {
+    tracked_ptr<Node> head;
+    for (int i : range(1000)) {
+        head = make_tracked<Node>(head, i);
+    }
+}  // the list is garbage
+
+int main() {
+    size_t before = collector::get_live_object_count();
+    build_and_drop();
+    // a full cycle first
+    println("{} new live objects", collector::get_live_object_count() - before);
+}
+```
+
+Output:
+
+```text
+0 new live objects
+```
+
+```cpp
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -315,7 +352,7 @@ static void build_and_drop(size_t count) {
         head = node;
     }
     println("with the list: {} live objects", collector::get_live_object_count());
-}   // head is gone: the whole list is garbage
+}  // head is gone: the whole list is garbage
 
 int main() {
     size_t before = collector::get_live_object_count();
@@ -330,25 +367,52 @@ int main() {
     // what the live heap is made of, by type: the ten nodes and the vector's buffer
     for (auto& t : collector::get_type_statistics()) {
         if (*t.type == typeid(Node) || *t.type == typeid(tracked_ptr<Node>[])) {
-            println("{}{}: {} x {} B", (t.buffers ? "buffers of " : ""), t.type->name(), t.live_objects, t.object_size);
+            println("{}{}: {} x {} B", (t.buffers ? "buffers of " : ""), t.type->name(),
+                    t.live_objects, t.object_size);
         }
     }
 
-    collector::force_collect(true);     // optional, for the demonstration only: the collector runs its cycles by itself
+    // optional, for the demonstration only: the collector runs its cycles by itself
+    collector::force_collect(true);
     auto s = collector::get_statistics();
-    println("{} cycles, {} live objects, last cycle {} ms, {} MB committed of a {} MB ceiling", s.cycles, s.live_objects, s.last_cycle_ms, collector::get_committed_memory() / 1048576, collector::get_memory_limit() / 1048576);
+    println("{} cycles, {} live objects, last cycle {} ms, {} MB committed of a {} MB ceiling",
+            s.cycles, s.live_objects, s.last_cycle_ms, collector::get_committed_memory() / 1048576,
+            collector::get_memory_limit() / 1048576);
     return 0;
 }
 ```
 
-The output of one run (the time of the cycle and the ceiling are the machine's):
+Sample output:
 
-```
+```text
 with the list: 1000 live objects
-after the list: 0 new live objects
+after the list: 3 new live objects
 4Node: 10 x 16 B
 buffers of A_N4sgcl11tracked_ptrI4NodeEE: 1 x 8 B
-10 cycles, 11 live objects, last cycle 0.138541 ms, 2 MB committed of a 58982 MB ceiling
+10 cycles, 14 live objects, last cycle 0.271959 ms, 2 MB committed of a 58982 MB ceiling
+```
+
+The collector's log as records of the default logger:
+
+```cpp
+#define SGCL_LOG_PRINT_LEVEL 2  // a line per cycle
+#include "sgcl/slog/slog.h"
+
+using namespace sgcl;
+
+int main() {
+    slog::collector_log();  // the lines from now on as records of the default logger
+    collector::force_collect(true);  // optional, for the demonstration only
+    slog::info("done");
+}
+```
+
+Sample output:
+
+```text
+time=2026-09-29T11:02:15.207+02:00 level=INFO msg=collector verbosity=1 line="force collect and wait from id: 0x16b0f3000"
+time=2026-09-29T11:02:15.208+02:00 level=INFO msg=collector verbosity=2 mem_allocs=3 mem_removed=0 total_mem=41 objects_created=1210 objects_removed=0 live_objects=1210 cycle=full helpers=false helpers_used=0 time_ms=0.412 total_time_ms=0.412
+time=2026-09-29T11:02:15.209+02:00 level=INFO msg=done
 ```
 
 ## See also

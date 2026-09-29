@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -28,6 +28,7 @@
 // or replayed by the library's own driver (tests/fuzz/driver.cpp).
 #include "sgcl/encoding/encoding.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -261,10 +262,22 @@ namespace {
             check(c.rows[i].size() == a.rows[i].size());
         }
         // each round takes one "\r" before a "\n" off a field ("\r\r\n"
-        // is read "\r\n", which is read "\n"): stable once they are gone
+        // is read "\r\n", which is read "\n"): stable once they are gone,
+        // so after as many rounds as the longest run of '\r' in a field,
+        // and one more to see it (a fixed 64 was too few for a field of 84)
+        size_t longest = 0;
+        for (auto& row : a.rows) {
+            for (auto& field : row) {
+                size_t run = 0;
+                for (char ch : field) {
+                    run = ch == '\r' ? run + 1 : 0;
+                    longest = std::max(longest, run);
+                }
+            }
+        }
         std::string text = first;
         bool stable = false;
-        for (int round = 0; round < 64 && !stable; ++round) {
+        for (size_t round = 0; round < longest + 2 && !stable; ++round) {
             csv::reader again(string(text), plain);
             Records d = records(again);
             check(!d.failed && d.rows.size() == a.rows.size());

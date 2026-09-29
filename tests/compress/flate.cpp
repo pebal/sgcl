@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -583,4 +583,171 @@ TEST(Gzip_Tests, ResetReusesTheWriterAndTheReader) {
     EXPECT_EQ(text(value_of(r.read_all())), "one");
     r.reset(dribble{cb, 4});
     EXPECT_EQ(text(value_of(r.read_all())), "two");
+}
+
+namespace {
+    // Rows of an image as PNG filters them: a smooth picture with a little
+    // noise, 400 × 150 RGB, each row's bytes less the prediction of Sub, Up
+    // or Paeth in turn (a filter byte first): data of small differences,
+    // what the filtered strategy is for
+    std::string filtered_rows() {
+        const size_t w = 400 * 3, h = 150;
+        std::mt19937 rng(3);
+        std::vector<uint8_t> img(w * h);
+        for (size_t y = 0; y < h; ++y) {
+            for (size_t x = 0; x < w; ++x) {
+                img[y * w + x] = uint8_t(128 + 60 * std::sin(double(x) / 90 + double(y) / 40) + (x % 3) * 20 + (rng() & 7));
+            }
+        }
+        auto paeth = [](int a, int b, int c) {
+            int p = a + b - c, pa = std::abs(p - a), pb = std::abs(p - b), pc = std::abs(p - c);
+            return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+        };
+        std::string out;
+        for (size_t y = 0; y < h; ++y) {
+            const int f = 1 + int(y % 3) + (y % 3 == 2 ? 1 : 0);   // 1 Sub, 2 Up, 4 Paeth
+            out += char(f);
+            for (size_t x = 0; x < w; ++x) {
+                const int cur = img[y * w + x];
+                const int a = x >= 3 ? img[y * w + x - 3] : 0;
+                const int b = y ? img[(y - 1) * w + x] : 0;
+                const int c = x >= 3 && y ? img[(y - 1) * w + x - 3] : 0;
+                const int pred = f == 1 ? a : f == 2 ? b : paeth(a, b, c);
+                out += char(uint8_t(cur - pred));
+            }
+        }
+        return out;
+    }
+
+    std::string deflate_with(const std::string& t, int level, bool filtered) {
+        compress::detail::Deflater d(level, filtered);
+        std::vector<uint8_t> out;
+        d.write(reinterpret_cast<const uint8_t*>(t.data()), t.size(), out);
+        d.finish(out);
+        return std::string(out.begin(), out.end());
+    }
+}
+
+// The filtered strategy (zlib's Z_FILTERED, what PNG's encoder asks for):
+// at the chain levels (7 to 9) no match of 5 bytes or fewer, and the output
+// no more than 1 % past zlib's with Z_FILTERED on the same data; the table
+// levels (1 to 6) unchanged by it; zlib inflating all of it
+TEST(Flate_Tests, TheFilteredStrategyAsZlibs) {
+    auto sources = corpus();
+    sources.push_back({"filtered rows", filtered_rows()});
+    for (auto& [name, t] : sources) {
+        for (int level : {1, 2, 3, 4, 5, 6, 7, 8, 9}) {
+            const std::string ours = deflate_with(t, level, true);
+            std::string back;
+            ASSERT_TRUE(z_inflate(ours, -15, back)) << name << " level " << level;
+            ASSERT_EQ(back, t) << name << " level " << level;
+            auto ours_back = flate::decompress(bytes(ours));
+            ASSERT_TRUE(ours_back) << name;
+            ASSERT_EQ(text(*ours_back), t) << name;
+            if (level <= 6) {
+                EXPECT_EQ(ours, deflate_with(t, level, false)) << name << " level " << level;
+                continue;
+            }
+            const size_t zlib_size = z_deflate(t, level, -15, Z_FILTERED).size();
+            EXPECT_LE(double(ours.size()), double(zlib_size) * 1.01 + 16) << name << " level " << level << ": ours " << ours.size() << ", zlib " << zlib_size;
+        }
+    }
+    // on filtered data it is what makes the difference: smaller than the
+    // default strategy at the lazy levels
+    const std::string rows = filtered_rows();
+    for (int level : {7, 9}) {
+        EXPECT_LT(deflate_with(rows, level, true).size(), deflate_with(rows, level, false).size()) << level;
+    }
+}
+
+// The levels in order: from 1 to 9 the output does not grow (the table
+// encoder of 1 to 6, the chains of 7 to 9, a step at most 1 % the wrong
+// way where a corpus favours the table's longer hashes), and the chain
+// levels are no more than 1 % past zlib's of the same level (their tuning
+// is zlib's), on text, PNG's filtered rows, and binary data
+TEST(Flate_Tests, TheLevelsInOrder) {
+    std::mt19937 rng(11);
+    std::string binary;
+    for (int i = 0; i < 4000; ++i) {
+        // records of a little-endian layout: small integers, a pointer-like
+        // word, a tag from a few, and some noise
+        uint32_t a = uint32_t(i), b = uint32_t(rng() % 100);
+        uint64_t ptr = 0x00007f0000000000ull + uint64_t(rng() % 4096) * 64;
+        binary.append(reinterpret_cast<const char*>(&a), 4);
+        binary.append(reinterpret_cast<const char*>(&b), 4);
+        binary.append(reinterpret_cast<const char*>(&ptr), 8);
+        binary += "TAG" + std::to_string(rng() % 7);
+        binary += char(rng());
+    }
+    std::vector<std::pair<std::string, std::string>> sources = {
+        {"e.txt", read_oracle("compress/e.txt")},
+        {"huffman-text", read_oracle("flate/huffman-text.in")},
+        {"filtered rows", filtered_rows()},
+        {"binary", binary},
+    };
+    for (auto& [name, t] : sources) {
+        size_t previous = SIZE_MAX;
+        for (int level = 1; level <= 9; ++level) {
+            const size_t n = flate::compress(bytes(t), {.level = level}).size();
+            EXPECT_LE(double(n), double(previous) * 1.01) << name << " level " << level << " is larger than level " << level - 1;
+            previous = n;
+            if (level >= 7) {
+                const size_t z = z_deflate(t, level, -15, Z_DEFAULT_STRATEGY).size();
+                EXPECT_LE(double(n), double(z) * 1.01 + 16) << name << " level " << level << ": ours " << n << ", zlib " << z;
+            }
+        }
+    }
+}
+
+// The positions in the tables are absolute and brought back to 0 past a
+// bound (2^31 in use, lowered here to 1 MB so a test reaches it): streams
+// longer than the bound, and a thousand resets of one encoder (each moving
+// the positions a window on, never clearing the tables), all decoding to
+// their input, at a table level and a chain level
+TEST(Flate_Tests, ThePositionsPastTheRebase) {
+    struct Lowered {
+        uint32_t was = compress::detail::Deflater::rebase_at;
+        Lowered() {
+            compress::detail::Deflater::rebase_at = uint32_t(1) << 20;
+        }
+        ~Lowered() {
+            compress::detail::Deflater::rebase_at = was;
+        }
+    } lowered;
+    std::string t;
+    const std::string words = read_oracle("compress/gettysburg.txt");
+    std::mt19937 rng(13);
+    while (t.size() < (size_t(5) << 20)) {
+        t += words.substr(rng() % words.size() / 2, 200 + rng() % 300);
+    }
+    for (int level : {1, 6, 7, 9}) {
+        std::string back;
+        const std::string c = deflate_with(t, level, false);
+        ASSERT_TRUE(z_inflate(c, -15, back)) << level;
+        ASSERT_EQ(back, t) << level;
+        compress::detail::Deflater d(level);
+        for (int i = 0; i < 1000; ++i) {
+            const std::string piece = t.substr(size_t(i) * 997 % (t.size() - 3000), 1000 + size_t(i) % 2000);
+            std::vector<uint8_t> out;
+            d.write(reinterpret_cast<const uint8_t*>(piece.data()), piece.size(), out);
+            d.finish(out);
+            ASSERT_TRUE(z_inflate(std::string(out.begin(), out.end()), -15, back)) << level << " reset " << i;
+            ASSERT_EQ(back, piece) << level << " reset " << i;
+            d.reset();
+        }
+    }
+}
+
+// Huffman only with a dictionary: the history is kept for nothing (no
+// tables to seed), and the stream decodes as any other
+TEST(Flate_Tests, HuffmanOnlyWithADictionary) {
+    const std::string dict = read_oracle("compress/gettysburg.txt");
+    const std::string t = dict.substr(100, 900) + "and more text after it";
+    compress::detail::Deflater d(compress::detail::Deflater::HuffmanOnly, reinterpret_cast<const uint8_t*>(dict.data()), dict.size());
+    std::vector<uint8_t> out;
+    d.write(reinterpret_cast<const uint8_t*>(t.data()), t.size(), out);
+    d.finish(out);
+    std::string back;
+    ASSERT_TRUE(z_inflate(std::string(out.begin(), out.end()), -15, back));
+    EXPECT_EQ(back, t);
 }

@@ -1,7 +1,7 @@
 # sgcl::net::http::request
 
 ```cpp
-#include "sgcl/net/http/request.h"   // or "sgcl/net/http/http.h"
+#include "sgcl/net/http/request.h"   // or "sgcl/net/http/http.h", "sgcl/sgcl.h"
 
 namespace sgcl::net::http {
     class request;   // one type for the client, which builds it, and the server, which hands it to a handler
@@ -49,49 +49,60 @@ io::reader body() const;
 http::headers trailers() const;
 ```
 
-## Example
+## Received by a handler
 
-A request built by the client and read by the server's handler. Run it and it prints what each side saw.
+The server hands a request to the handler of the route it matched: the wildcards by `path_value`, the query by `query`, the fields by `header`:
 
 ```cpp
 #include "sgcl/net/http/http.h"
-#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
 int main() {
     net::http::server srv;
-    srv.route("POST /notes/{id}", [](net::http::request req, net::http::response_writer w) -> async::task<> {
-        string body = co_await req.async_text();
+    srv.route("GET /notes/{id}", [](net::http::request req, net::http::response_writer w) {
         w.write(req.method() + " note " + req.path_value("id") + " by " + req.query("author") + "\n");
-        w.write("theme " + req.cookie("theme") + ", " + req.header("content-type") + ", " + to_string(req.content_length().value_or(0)) + " bytes\n");
-        w.write("body: " + body + "\n");
     });
-    net::listener listener = net::tcp::listen("127.0.0.1:0");
-    auto serving = async::spawn(srv.async_serve(listener));
-    auto base = "http://127.0.0.1:" + to_string(listener.local_endpoint().port());
+    srv.serve(":8080");
+}
+```
 
-    net::http::request note("POST", base + "/notes/42?author=Ann%20B");
-    note.set_header("Content-Type", "text/plain").set_header("Cookie", "theme=dark; lang=pl").set_body("buy milk");
-    println("{} {}", note.method(), note.url().path());
+A request to it:
+
+```text
+$ curl http://localhost:8080/notes/42?author=Ann%20B
+GET note 42 by Ann B
+```
+
+A handler that reads the body is a task and reads it with `co_await req.async_text()`, as on the [server](server.md) page.
+
+## Example
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/net/http/http.h"
+
+using namespace sgcl;
+
+int main() {
+    net::http::request note("POST", "https://httpbin.org/post");
+    note.set_header("Content-Type", "text/plain");
+    note.set_header("Cookie", "theme=dark; lang=pl");
+    note.set_body("buy milk");
+    println("{} {}", note.method(), note.header("Cookie"));
 
     net::http::client web;
     net::http::response res = web.send(note);
     string reply = res.text();
-    print(reply);
-
-    srv.close();
-    serving.wait();
+    println("{}, the note echoed: {}", res.status(), reply.contains("buy milk"));
 }
 ```
 
 Output:
 
 ```text
-POST /notes/42
-POST note 42 by Ann B
-theme dark, text/plain, 8 bytes
-body: buy milk
+POST theme=dark; lang=pl
+200, the note echoed: true
 ```
 
 ## See also

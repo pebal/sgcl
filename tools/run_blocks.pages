@@ -1,0 +1,17 @@
+# The options a page's programs need, so that the check of any page needs no
+# arguments and no network: one line per page, its path from the root of the
+# tree, then the options as the command line takes them (--tmp, --serve URL=FILE,
+# --echo URL, --tls HOST:PORT[=TEXT], --skip N for program N of the page,
+# page_N, that is not compiled: a fragment, a server with no request block,
+# a program that needs arguments). Pages not named here run with none.
+docs/sgcl/net/tls.md --tls example.com:443 --tls "localhost:8443=hello over tls\n"
+docs/sgcl/net/http/request.md --tmp --echo https://httpbin.org/post
+docs/sgcl/net/http/response.md --tmp --serve https://www.apache.org/licenses/LICENSE-2.0.txt=LICENSE --echo https://httpbin.org/post
+docs/sgcl/net/http/README.md --tmp --serve https://www.apache.org/licenses/LICENSE-2.0.txt=LICENSE --echo https://httpbin.org/post
+docs/sgcl/net/http/server.md --tmp
+docs/sgcl/net/http/client.md --tmp --serve https://www.apache.org/licenses/LICENSE-2.0.txt=LICENSE --echo https://httpbin.org/post
+docs/sgcl/io/mapping.md --tmp
+docs/sgcl/net/socket.md --skip 0
+docs/sgcl/io/fs.md --skip 0
+docs/sgcl/compress/sevenzip.md --tmp --skip 1
+docs/sgcl/crypto/x509.md --skip 2

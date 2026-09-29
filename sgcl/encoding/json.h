@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -224,6 +224,28 @@ namespace sgcl::encoding {
         static expected<string, error> stringify(const T& value);
         template<class T>
         static expected<string, error> stringify(const T& value, const style& s);
+
+        // --- files: one line each (DESIGN 285) ---
+
+        // The value of a file, read as it comes: json::load("config.json"),
+        // json::load<config>("config.json"); a file that does not open is
+        // errc::io, io_error() saying why
+        static expected<json, error> load(const string& path);
+        template<class T>
+        static expected<T, error> load(const string& path);
+        static async::task<expected<json, error>> async_load(string path);
+        template<class T>
+        static async::task<expected<T, error>> async_load(string path);
+
+        // The text of a T into a file, made or written over, with a new
+        // line after it: json::save("config.json", cfg); the value's own
+        // save(path) for a json
+        template<class T>
+        static expected<void, error> save(const string& path, const T& value);
+        template<class T>
+        static async::task<expected<void, error>> async_save(string path, T value);
+        expected<void, error> save(const string& path) const;
+        async::task<expected<void, error>> async_save(string path) const;
 
         // The value of a T, as xml::from makes an element of one: what
         // stringify writes, read back as a value (through the text: a
@@ -674,6 +696,24 @@ namespace sgcl::encoding {
 
             static const json::member* raw_members(const json& j) noexcept {
                 return j._members();
+            }
+
+            // A number's literal as JSON writes it: the text it was read
+            // with, else its digits written into `room` (a number, which
+            // is_number said j is)
+            static std::string_view number_literal(const json& j, char (&room)[NumberTextSize]) noexcept {
+                switch (j._tag) {
+                    case json::Tag::int64:
+                        return std::string_view(room, encoding::detail::integer_text(room, int64_t(j._bits)));
+                    case json::Tag::uint64:
+                        return std::string_view(room, encoding::detail::integer_text(room, j._bits));
+                    case json::Tag::float64:
+                        return std::string_view(room, encoding::detail::number_text(room, std::bit_cast<double>(j._bits)));
+                    case json::Tag::number_text:
+                        return j._string().view();
+                    default:
+                        return {};
+                }
             }
 
             // A number, a string, a boolean or null into the text
@@ -1517,7 +1557,26 @@ namespace sgcl::encoding {
                 const json* value;
                 size_t next;
             };
+            // The open values: a vector the thread keeps from one writing
+            // to the next (none of its calls writes inside another), so a
+            // value's writing allocates nothing here once one has run; one
+            // grown past 4096 levels is let go. (A stack of 32 levels on
+            // this frame, with a branch in every step, measured 3 per cent
+            // slower over a large document.)
+            thread_local std::vector<Frame> kept;
             std::vector<Frame> stack;
+            stack.swap(kept);
+            stack.clear();
+            struct GiveBack {
+                std::vector<Frame>& stack;
+                std::vector<Frame>& kept;
+                ~GiveBack() {
+                    if (stack.capacity() <= 4096) {
+                        stack.clear();
+                        kept.swap(stack);
+                    }
+                }
+            } give_back{stack, kept};
             auto emit = [&](const json& v) {
                 if (v.is_array() || v.is_object()) {
                     bool object = v.is_object();
@@ -1554,6 +1613,7 @@ namespace sgcl::encoding {
 
     inline string json::to_string(const style& s) const {
         detail::JsonOut out(s.indent, s.escape_html);
+        detail::JsonLent lent(out);   // the thread's block and stack: nothing allocated but the string
         detail::write_json(out, *this);
         return string(out.text().view());
     }
@@ -2993,7 +3053,10 @@ namespace sgcl::encoding {
                 co_return io::detail::fail(*e);
             }
             if (!_out.text().empty()) {
-                auto w = co_await _sink.async_write(_pending());
+                // a copy the write's slice holds: the stream may write on the
+                // pool, past the frame of a task let go of (io::detail::AsyncStage)
+                auto w = co_await _sink.async_write(_stage.stage(_pending()));
+                _stage.done();
                 if (!w) {
                     _error = w.error();
                     co_return io::detail::fail(w);
@@ -3025,6 +3088,7 @@ namespace sgcl::encoding {
 
         detail::JsonOut _out;
         io::writer _sink;
+        io::detail::AsyncStage _stage;   // the text a task's write is given
         style _style;
         optional<io::error> _error;
     };
@@ -4112,6 +4176,46 @@ namespace sgcl::encoding {
             // order of its own, and the text of one must not depend on the
             // key of the hash
             bool _sorted_set(const void* p, const ValueOps* ops, const FieldOptions& opt, uint32_t depth) {
+                if (_style.indent == 0 && !_style.escape_html) {
+                    // the compact text an element is sorted by is the text
+                    // it is written as: written once, into one text lent by
+                    // the thread (a line each), and copied out sorted
+                    struct Element {
+                        size_t from;
+                        size_t size;
+                    };
+                    struct Once {
+                        std::vector<Element> elements;
+                        JsonOut text;
+                        const ValueOps* inner;
+                        const FieldOptions* opt;
+                        const json::style* style;
+                    } once{{}, JsonOut(0, false, true), ops->inner(), &opt, &_style};
+                    JsonLent lent(once.text);
+                    ops->for_each(p, &once, [](void* c, const void* e) -> bool {
+                        auto& x = *static_cast<Once*>(c);
+                        size_t from = x.text.text().size();
+                        JsonTypedWriter w(x.text, *x.style, 512);
+                        w.value(e, x.inner, *x.opt, 0);
+                        size_t to = x.text.text().size();
+                        x.elements.push_back(Element{from, to > from ? to - from - 1 : 0});   // without its newline
+                        return !x.text.failed();
+                    });
+                    if (!once.text.failed()) {
+                        auto all = once.text.text().view();
+                        std::sort(once.elements.begin(), once.elements.end(), [&](const Element& a, const Element& b) {
+                            return all.substr(a.from, a.size) < all.substr(b.from, b.size);
+                        });
+                        _out.begin(false);
+                        for (auto& e : once.elements) {
+                            _out.literal(all.substr(e.from, e.size));
+                        }
+                        _out.end(false);
+                        return true;
+                    }
+                    // an element that cannot be written: the way below,
+                    // which says which one and why
+                }
                 struct Ctx {
                     std::vector<std::pair<std::string, const void*>> elements;
                     const ValueOps* inner;
@@ -4208,26 +4312,31 @@ namespace sgcl::encoding {
                     case ValueKind::signed_integer:
                     case ValueKind::unsigned_integer:
                     case ValueKind::floating: {
-                        std::string lit;
+                        // the literal as a view: of the json's own string,
+                        // of its number's text, or of a number written on
+                        // the stack; no allocation for a field
+                        char room[NumberTextSize];
+                        std::string_view lit;
+                        optional<string> text;
                         if (opt.as_string()) {
-                            auto s = j.as_string();
-                            if (!s) {
+                            text = j.as_string();
+                            if (!text) {
                                 return _mismatch(ops, j);
                             }
-                            lit.assign(s->view());
+                            lit = text->view();
                         } else {
                             if (!j.is_number()) {
                                 return _mismatch(ops, j);
                             }
-                            lit = _literal(j);
+                            lit = JsonAccess::number_literal(j, room);
                         }
                         switch (ops->set_literal(p, lit)) {
                             case 0:
                                 return true;
                             case 1:
-                                return _fail(errc::type_mismatch, "expected " + std::string(ops->name) + ", found " + lit.substr(0, 40));
+                                return _fail(errc::type_mismatch, "expected " + std::string(ops->name) + ", found " + std::string(lit.substr(0, 40)));
                             default:
-                                return _fail(errc::out_of_range, "the number " + lit.substr(0, 40) + " is out of the field's range");
+                                return _fail(errc::out_of_range, "the number " + std::string(lit.substr(0, 40)) + " is out of the field's range");
                         }
                     }
                     case ValueKind::string:
@@ -4399,13 +4508,6 @@ namespace sgcl::encoding {
                 return true;
             }
 
-            // A number's literal: its own text, or the text it is written as
-            static std::string _literal(const json& j) {
-                JsonOut out(0, false);
-                JsonAccess::write_scalar(out, j);
-                return std::string(out.text().view());
-            }
-
             bool _record(void* p, const ValueOps* ops, const json& j, uint32_t depth, std::string_view ignore) {
                 if (!_open(depth)) {
                     return false;
@@ -4563,6 +4665,7 @@ namespace sgcl::encoding {
     template<class T>
     expected<string, json::error> json::stringify(const T& value, const style& s) {
         detail::JsonOut out(s.indent, s.escape_html);
+        detail::JsonLent lent(out);   // the thread's block and stack: nothing allocated but the string
         string path;
         if constexpr (detail::JsonScalar<T>::value) {
             detail::write_scalar_value(out, value);
@@ -4674,5 +4777,58 @@ namespace sgcl::encoding {
             }
             co_return _typed_extent<T>();
         }
+    }
+}
+
+// The files of json: io's open and write_file under parse and stringify
+#include "detail/files.h"
+
+namespace sgcl::encoding {
+    namespace detail {
+        // A json's save in a task: the value copied into the frame (a task
+        // starts when it is awaited, the object it came from may be gone)
+        inline async::task<expected<void, json::error>> json_save_task(string path, json value) {
+            co_return co_await async::spawn_blocking([path, value] { return value.save(path); });
+        }
+    }
+
+    inline expected<json, json::error> json::load(const string& path) {
+        return detail::with_file(path, [](const io::reader& in) { return json::parse(in); });
+    }
+
+    template<class T>
+    expected<T, json::error> json::load(const string& path) {
+        return detail::with_file(path, [](const io::reader& in) { return json::parse<T>(in); });
+    }
+
+    inline async::task<expected<json, json::error>> json::async_load(string path) {
+        co_return co_await async::spawn_blocking([path] { return json::load(path); });
+    }
+
+    template<class T>
+    async::task<expected<T, json::error>> json::async_load(string path) {
+        co_return co_await async::spawn_blocking([path] { return json::load<T>(path); });
+    }
+
+    template<class T>
+    expected<void, json::error> json::save(const string& path, const T& value) {
+        auto text = stringify(value);
+        if (!text) {
+            return unexpected(text.error());
+        }
+        return detail::save_text(path, *text);
+    }
+
+    template<class T>
+    async::task<expected<void, json::error>> json::async_save(string path, T value) {
+        co_return co_await async::spawn_blocking([path, value] { return json::save(path, value); });
+    }
+
+    inline expected<void, json::error> json::save(const string& path) const {
+        return detail::save_text(path, to_string());
+    }
+
+    inline async::task<expected<void, json::error>> json::async_save(string path) const {
+        return detail::json_save_task(std::move(path), *this);
     }
 }

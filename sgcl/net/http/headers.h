@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -183,14 +183,14 @@ namespace sgcl::net::http {
             if (found) {
                 _fields.resize(kept);
             } else {
-                _fields.push_back(Field(name.as_slice(), v.as_slice()));
+                _push(Field(name.as_slice(), v.as_slice()));
             }
             return *this;
         }
 
         // A field at the end
         headers& add(const string& name, const string& value) {
-            _fields.push_back(Field(name.as_slice(), value.as_slice()));
+            _push(Field(name.as_slice(), value.as_slice()));
             return *this;
         }
 
@@ -291,6 +291,15 @@ namespace sgcl::net::http {
     private:
         friend struct detail::HeadersAccess;
         using Field = pair<slice<const char>, slice<const char>>;
+
+        // A field appended: room for eight at the first (a response's
+        // fields, set one at a time, grew by 1, 2, 4, 8)
+        void _push(Field f) {
+            if (_fields.capacity() == 0) {
+                _fields.reserve(8);
+            }
+            _fields.push_back(std::move(f));
+        }
 
         vector<Field> _fields;
     };

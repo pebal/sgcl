@@ -31,13 +31,6 @@ expected<size_t, io::error> copy_from(const io::reader& r);  async::task<expecte
 static expected<uint32_t, io::error> of_file(const string& path);  static async::task<expected<uint32_t, io::error>> async_of_file(const string& path);   // of() of the whole file, through copy_from
 ```
 
-```cpp
-using namespace sgcl;
-
-hash::adler32::of("Wikipedia");   // 0x11E60398
-hash::adler32::of("");            // 1
-```
-
 A value given to the constructor whose halves are 65521 or more is not a checksum; each half is taken modulo 65521, so that the sums never start above what the loop's bound allows.
 
 ## combine
@@ -51,8 +44,8 @@ The bytes go in blocks of 32. Over a block, `a` grows by the sum of its bytes an
 ## Example
 
 ```cpp
-#include "sgcl/hash/adler32.h"
-#include "sgcl/io/print.h"
+#include "sgcl/hash/hash.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 

@@ -47,7 +47,8 @@ bool empty() const noexcept;
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -65,20 +66,20 @@ int main() {
     {
         tracked_ptr dialog = make_tracked<Window>(2);
         windows.insert(dialog);
-        println("{} windows", windows.size());              // 2
+        println("{} windows", windows.size());
     }   // the dialog's last strong pointer is gone
     collector::clear_stack();          // the dead frame zeroed, so that the conservative scan keeps nothing
     collector::force_collect(true);    // optional, for the demonstration: the cycle clears the entry
     for (auto window : windows) {          // tracked_ptr<Window>, held: the live ones
-        println("window {}", window->id);              // window 1
+        println("window {}", window->id);
     }
-    println("{} gone, {} left", windows.sweep(), windows.size());   // 1 gone, 1 left
+    println("{} gone, {} left", windows.sweep(), windows.size());
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 2 windows
 window 1
 1 gone, 1 left

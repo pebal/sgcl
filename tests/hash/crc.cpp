@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -46,23 +46,35 @@ TEST(Hash_Crc, Catalogue) {
     EXPECT_EQ(hash::crc64::of(""), 0u);
 }
 
-// The arm64 path (folding, the CRC-32 instructions) against slicing by
+// The processor's path (arm64: folding and the CRC-32 instructions; x86-64:
+// folding on PCLMULQDQ) against slicing by
 // eight, called side by side in one program: every length 0…2100 at every
 // offset 0…15, random lengths to 64 KB, and a start register that is not
 // the initial one. tests_hash_portable, built with SGCL_HASH_PORTABLE, runs
 // the whole program on the portable path as well; this test is where the
 // two meet.
 TEST(Hash_Crc, TheTwoPathsAgree) {
+#if defined(SGCL_HASH_ARM64) || defined(SGCL_HASH_X86)
 #if defined(SGCL_HASH_ARM64)
+    if (!sgcl::detail::cpu::crypto()) {
+        GTEST_SKIP() << "no CRC32 and PMULL on this processor";
+    }
+    std::printf("[ path     ] arm64: PMULL folding, CRC32 instructions\n");
+#else
+    if (!sgcl::detail::cpu::aes()) {
+        GTEST_SKIP() << "no PCLMULQDQ on this processor";
+    }
+    std::printf("[ path     ] x86-64: PCLMULQDQ folding\n");
+#endif
     using namespace sgcl::hash::detail;
     auto data = pattern(0, 70000);
     std::mt19937_64 rng(11);
     auto both = [&](const unsigned char* p, size_t n, uint64_t start) {
         uint32_t s32 = uint32_t(start);
-        ASSERT_EQ(text(crc32_update_arm64<0xEDB88320u>(s32, p, n)), text(crc_update_portable<uint32_t, 0xEDB88320u>(s32, p, n))) << n;
-        ASSERT_EQ(text(crc32_update_arm64<0x82F63B78u>(s32, p, n)), text(crc_update_portable<uint32_t, 0x82F63B78u>(s32, p, n))) << n;
-        ASSERT_EQ(text(crc64_update_arm64<0xC96C5795D7870F42ull>(start, p, n)), text(crc_update_portable<uint64_t, 0xC96C5795D7870F42ull>(start, p, n))) << n;
-        ASSERT_EQ(text(crc64_update_arm64<0xD800000000000000ull>(start, p, n)), text(crc_update_portable<uint64_t, 0xD800000000000000ull>(start, p, n))) << n;
+        ASSERT_EQ(text(crc_update<uint32_t, 0xEDB88320u>(s32, p, n)), text(crc_update_portable<uint32_t, 0xEDB88320u>(s32, p, n))) << n;
+        ASSERT_EQ(text(crc_update<uint32_t, 0x82F63B78u>(s32, p, n)), text(crc_update_portable<uint32_t, 0x82F63B78u>(s32, p, n))) << n;
+        ASSERT_EQ(text(crc_update<uint64_t, 0xC96C5795D7870F42ull>(start, p, n)), text(crc_update_portable<uint64_t, 0xC96C5795D7870F42ull>(start, p, n))) << n;
+        ASSERT_EQ(text(crc_update<uint64_t, 0xD800000000000000ull>(start, p, n)), text(crc_update_portable<uint64_t, 0xD800000000000000ull>(start, p, n))) << n;
     };
     for (size_t offset = 0; offset < 16; ++offset) {
         for (size_t n = 0; n <= 2100; ++n) {

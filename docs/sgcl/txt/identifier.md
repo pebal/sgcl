@@ -1,14 +1,40 @@
-# txt::identifier
+# sgcl::txt::identifier — is_identifier, nfkc_casefold, skeleton, restriction_level_of
 
 ```cpp
-#include "sgcl/txt/identifier.h"
+#include "sgcl/txt/identifier.h"   // or "sgcl/txt/txt.h"
+
+namespace sgcl::txt {
+    struct program_syntax_t;                  // the profile of UAX #31 §2.3: program_syntax
+    enum class identifier_status : uint8_t;   // restricted, allowed
+    enum class identifier_type : uint16_t;    // why a code point is not allowed: a set
+    enum class restriction_level : uint8_t;   // ascii_only … unrestricted, the ladder of UTS #39 §5.2
+
+    // is_identifier_start, is_identifier_continue, is_identifier: UAX #31
+    // nfkc_casefold, is_nfkc_casefolded: the form names are compared in
+    // identifier_status_of, identifier_type_of, is_allowed_identifier, skeleton, is_confusable,
+    // is_single_script, restriction_level_of, is_highly_restrictive, is_moderately_restrictive: UTS #39
+}
 ```
 
 What may be a name, and when two names that are not the same look the same. Three specifications meet here, and they answer three different questions: [UAX #31](https://www.unicode.org/reports/tr31/) says which code points may spell an identifier, NFKC_Casefold ([UAX #15](https://www.unicode.org/reports/tr15/)) is the form two names are compared in, and [UTS #39](https://www.unicode.org/reports/tr39/) is the security half — whether a code point belongs in a name at all, which names look alike, and how many scripts a name is written in.
 
 Nothing here decides anything. It reports; whoever registers the name decides. **The limits of every report are written down**, below and in the header, because a security check whose limits are not stated is worse than none: it is trusted further than it reaches.
 
-## Identifiers (UAX #31)
+## What this does not catch
+
+A list, because the absence of one is what makes a security function dangerous.
+
+- **Script_Extensions is not used.** `is_single_script` and the levels ask the `Script` property. A code point that is `Common` although only two scripts use it — the Japanese prolonged sound mark `ー` is the one everybody meets — counts here as belonging to all of them. That makes the answer **more generous** than the specification's and never less, so a text this calls single script may be two by `Script_Extensions`.
+- **The confusables table is one judgement, in one font.** `"rn"` for `"m"` is in it, `"1"` for `"l"` is, `"paypa1"` is caught. Whether two glyphs look alike on the reader's screen, in the reader's font, at the reader's size is not a question any table answers.
+- **A similar name is not a confusable one.** `"paypal-inc"` against `"paypal"` is a different name, not the same one written differently, and nothing here will say a word about it. Whole-name similarity, edit distance and the domains people typo are a different problem.
+- **A mixed-script name is not necessarily an attack and a single-script one is not necessarily safe.** A wholly Cyrillic `"расчёт"` is single script and perfectly honest; a wholly Cyrillic `"расс"` written to be read as Latin `"pacc"` is single script too. The level is evidence, not a verdict.
+- **Nothing here looks at the bidirectional algorithm.** A name with a right-to-left override in it can be drawn in an order its bytes do not have; [`bidi`](bidi.md) is where that is asked about, and `is_allowed_identifier` refuses the overrides because UTS #39 does, not because this header reasons about them.
+- **This is not IDNA.** A domain label has rules of its own — the length, the hyphens in the third and fourth places, the Punycode — and they are not here.
+- **The tables are Unicode 16.0.0.** A code point assigned tomorrow is `not_character` and `Restricted` today, which is the safe way round and still a difference.
+
+## Members
+
+### Identifiers (UAX #31)
 
 ```cpp
 bool is_identifier_start(char32_t c) noexcept;                     // XID_Start
@@ -26,7 +52,7 @@ bool is_identifier(const string& text, program_syntax_t);
 
 **Rule R1a, the two joiners.** `U+200D ZERO WIDTH JOINER` and `U+200C ZERO WIDTH NON-JOINER` are formatting code points and are in neither `XID` set, and the Indic languages cannot be written without them: `क्ष` is a conjunct and `क्‍ष` with a joiner in it is not, and the two are different words. A joiner is allowed after a virama — a mark of combining class 9 — and a non-joiner is allowed there too and also where it breaks a cursive join that would otherwise happen, between a letter that joins to the left and one that joins to the right. That is the same line [RFC 5892](https://www.rfc-editor.org/rfc/rfc5892) draws for domain names. Anywhere else they are refused: `"a" ZWJ "b"` is not an identifier.
 
-## NFKC_Casefold
+### NFKC_Casefold
 
 ```cpp
 string nfkc_casefold(const string& text);
@@ -43,7 +69,7 @@ The order matters and is not the order one would guess. The text is **not** deco
 
 A text already in the form comes back as **the same object**, as with `normalize`: the two properties that answer it cost 14.4 ns over a name where the fold costs 100.
 
-## Security (UTS #39)
+### Security (UTS #39)
 
 ```cpp
 enum class identifier_status : uint8_t { restricted, allowed };
@@ -71,69 +97,6 @@ bool is_moderately_restrictive(const string& text);
 `restriction_level_of` is the ladder of §5.2, from `ascii_only` through `single_script`, `highly_restrictive` (one script, or one of the three writing systems that are more than one script — Japanese, Chinese, Korean — with Latin beside them), `moderately_restrictive` (Latin and one other recommended script, and not Cyrillic, Greek or Cherokee, whose letters are the ones Latin is mistaken for), `minimally_restrictive` (every code point allowed, the scripts mixed freely) to `unrestricted`. The specification suggests `moderately_restrictive` for a registry open to the world and `highly_restrictive` where a mistaken name costs something.
 
 **An empty text is `unrestricted`**, which is the least safe rung, and that is a decision rather than an accident: an empty name is not a name, and a function whose answer is acted on by refusing everything above a rung has to fail towards refusing. `is_allowed_identifier("")` is `false` and `is_identifier("")` is `false` for the same reason. The rule to read the whole header by is that where an answer is not clear-cut it comes out on the cautious side — which is worth stating precisely because a caller who assumed the opposite would be let through.
-
-## What this does not catch
-
-A list, because the absence of one is what makes a security function dangerous.
-
-- **Script_Extensions is not used.** `is_single_script` and the levels ask the `Script` property. A code point that is `Common` although only two scripts use it — the Japanese prolonged sound mark `ー` is the one everybody meets — counts here as belonging to all of them. That makes the answer **more generous** than the specification's and never less, so a text this calls single script may be two by `Script_Extensions`.
-- **The confusables table is one judgement, in one font.** `"rn"` for `"m"` is in it, `"1"` for `"l"` is, `"paypa1"` is caught. Whether two glyphs look alike on the reader's screen, in the reader's font, at the reader's size is not a question any table answers.
-- **A similar name is not a confusable one.** `"paypal-inc"` against `"paypal"` is a different name, not the same one written differently, and nothing here will say a word about it. Whole-name similarity, edit distance and the domains people typo are a different problem.
-- **A mixed-script name is not necessarily an attack and a single-script one is not necessarily safe.** A wholly Cyrillic `"расчёт"` is single script and perfectly honest; a wholly Cyrillic `"расс"` written to be read as Latin `"pacc"` is single script too. The level is evidence, not a verdict.
-- **Nothing here looks at the bidirectional algorithm.** A name with a right-to-left override in it can be drawn in an order its bytes do not have; [`bidi`](bidi.md) is where that is asked about, and `is_allowed_identifier` refuses the overrides because UTS #39 does, not because this header reasons about them.
-- **This is not IDNA.** A domain label has rules of its own — the length, the hyphens in the third and fourth places, the Punycode — and they are not here.
-- **The tables are Unicode 16.0.0.** A code point assigned tomorrow is `not_character` and `Restricted` today, which is the safe way round and still a difference.
-
-## Example
-
-```cpp
-#include "sgcl/sgcl.h"
-#include "sgcl/txt/identifier.h"
-
-using namespace sgcl;
-
-// A registry that will not let two names be told apart by nobody
-int main() {
-    for (auto s : {"wartość", "_name", "2name", "na me"}) {
-        println("{}: identifier {}, with the profile {}", s, txt::is_identifier(s), txt::is_identifier(s, txt::program_syntax));
-    }
-
-    for (auto s : {"ＦＵＬＬ", "ﬁle", "Straße", "①②③"}) {
-        print("{} -> {}   ", s, txt::nfkc_casefold(s));
-    }
-    println();
-
-    string wanted = "раypal";          // the а and the р are Cyrillic
-    string taken = "paypal";
-    println("{} vs {}: same bytes {}, same folded {}, confusable {}, single script {}", wanted, taken, (wanted == taken), (txt::nfkc_casefold(wanted) == txt::nfkc_casefold(taken)), txt::is_confusable(wanted, taken), txt::is_single_script(wanted));
-
-    for (auto s : {"paypal", "wartość", "変数",
-                   "раypal", "na me"}) {
-        const char* names[] = {"ascii_only", "single_script", "highly_restrictive",
-                               "moderately_restrictive", "minimally_restrictive", "unrestricted"};
-        println("{}: {}", s, names[size_t(txt::restriction_level_of(s))]);
-    }
-    return 0;
-}
-```
-
-The output:
-
-```
-wartość: identifier true, with the profile true
-_name: identifier false, with the profile true
-2name: identifier false, with the profile false
-na me: identifier false, with the profile false
-ＦＵＬＬ -> full   ﬁle -> file   Straße -> strasse   ①②③ -> 123   
-раypal vs paypal: same bytes false, same folded false, confusable true, single script false
-paypal: ascii_only
-wartość: single_script
-変数: single_script
-раypal: minimally_restrictive
-na me: unrestricted
-```
-
-Folding does **not** catch the Cyrillic name: `nfkc_casefold` is about how a name was written, and the Cyrillic а is a different letter and not a different writing of the same one. That is what `is_confusable` and the restriction level are for, and it is why a registry needs all three.
 
 ## What it is held to
 
@@ -174,3 +137,92 @@ The scripts of a text are counted into **eight words of stack** rather than into
 The `fold_case` row is the one to read against. Over `latin` the two are level — 101 against 105 — because the quick check settles two names in three before any folding happens, and over `folded`, where `fold_case` still pays its full 105, this costs 19. Over `upper`, where every name changes and the quick check saves nothing, the compatibility decomposition and the composition cost about 190 ns on top of the plain fold. That is the shape of the trade: the form is dearer than a folding only when it has work to do, and the names a registry sees mostly do not.
 
 The tables are **90.0 KB**: the confusable prototypes 59.4, `Identifier_Type` 13.0, `XID_Continue` 4.7, the joining types 4.2, `XID_Start` 4.1, the code points NFKC_Casefold changes 2.3, `Identifier_Status` 1.6 and the default ignorable ones 0.6. The NFKC_CF mapping would have been 91.4 KB more and is not here. A program that only asks `is_identifier` links the two `XID` sets, 8.8 KB, and the joining types rule R1a needs, 4.2 more; the confusables come in only with `skeleton`, and the linker drops what nothing asks about without a flag.
+
+## Examples
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    for (auto s : {"wartość", "_name", "2name", "na me"}) {
+        println("{}: identifier {}, with the profile {}", s, txt::is_identifier(s),
+                txt::is_identifier(s, txt::program_syntax));
+    }
+}
+```
+
+Output:
+
+```text
+wartość: identifier true, with the profile true
+_name: identifier false, with the profile true
+2name: identifier false, with the profile false
+na me: identifier false, with the profile false
+```
+
+The form two names are compared in:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    for (auto s : {"ＦＵＬＬ", "ﬁle", "Straße", "①②③"}) {
+        print("{} -> {}   ", s, txt::nfkc_casefold(s));
+    }
+    println();
+}
+```
+
+Output:
+
+```text
+ＦＵＬＬ -> full   ﬁle -> file   Straße -> strasse   ①②③ -> 123   
+```
+
+A registry that will not let two names be told apart by nobody:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    string wanted = "раypal";  // the а and the р are Cyrillic
+    string taken = "paypal";
+    println("{} vs {}: same bytes {}, same folded {}, confusable {}, single script {}", wanted,
+            taken, (wanted == taken), (txt::nfkc_casefold(wanted) == txt::nfkc_casefold(taken)),
+            txt::is_confusable(wanted, taken), txt::is_single_script(wanted));
+
+    for (auto s : {"paypal", "wartość", "変数",
+                   "раypal", "na me"}) {
+        const char* names[] = {"ascii_only", "single_script", "highly_restrictive",
+                               "moderately_restrictive", "minimally_restrictive", "unrestricted"};
+        println("{}: {}", s, names[size_t(txt::restriction_level_of(s))]);
+    }
+    return 0;
+}
+```
+
+Output:
+
+```text
+раypal vs paypal: same bytes false, same folded false, confusable true, single script false
+paypal: ascii_only
+wartość: single_script
+変数: single_script
+раypal: minimally_restrictive
+na me: unrestricted
+```
+
+Folding does **not** catch the Cyrillic name: `nfkc_casefold` is about how a name was written, and the Cyrillic а is a different letter and not a different writing of the same one. That is what `is_confusable` and the restriction level are for, and it is why a registry needs all three.
+
+## See also
+
+[The module](README.md); [`normalize`](normalize.md), the normal forms; [`idna`](idna.md), the rules of a domain label; [`bidi`](bidi.md), the order a name is drawn in.

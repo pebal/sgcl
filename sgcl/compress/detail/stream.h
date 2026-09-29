@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -70,6 +70,66 @@ namespace sgcl::compress::detail {
         return slice<const byte>(reinterpret_cast<const byte*>(v.data()), v.size());
     }
 
+    // The plain memory a whole compress gathers its output in (the coders
+    // write into a std::vector), lent by the thread: a vector kept from one
+    // call to the next, so that a compress in memory allocates its result
+    // and not, again, the room it was written in (a malloc and its growth a
+    // call before). Two are kept, for the second buffer of xz; a call made
+    // while both are out gets one of its own. One grown past KeepBytes is
+    // let go at the end of its call.
+    class LentOutput {
+    public:
+        LentOutput() {
+            auto& k = _kept();
+            for (auto& slot : k.slots) {
+                if (!slot.lent) {
+                    slot.lent = true;
+                    _slot = &slot;
+                    _out.swap(slot.room);
+                    break;
+                }
+            }
+            _out.clear();
+        }
+
+        LentOutput(const LentOutput&) = delete;
+        LentOutput& operator=(const LentOutput&) = delete;
+
+        ~LentOutput() {
+            if (_slot) {
+                if (_out.capacity() <= KeepBytes) {
+                    _out.clear();
+                    _slot->room.swap(_out);
+                }
+                _slot->lent = false;
+            }
+        }
+
+        std::vector<uint8_t>& out() noexcept {
+            return _out;
+        }
+
+    private:
+        static constexpr size_t KeepBytes = size_t(4) << 20;
+
+        struct Slot {
+            std::vector<uint8_t> room;
+            bool lent = false;
+        };
+
+        struct Kept {
+            Slot slots[2];
+        };
+
+        static Kept& _kept() noexcept {
+            thread_local Kept kept;
+            return kept;
+        }
+
+        std::vector<uint8_t> _out;
+        Slot* _slot = nullptr;
+    };
+
     inline vector<byte> to_vector(const uint8_t* p, size_t n) {
         auto b = reinterpret_cast<const byte*>(p);
         return vector<byte>(b, b + n);
@@ -112,12 +172,14 @@ namespace sgcl::compress::detail {
         return s;
     }
 
-    inline void put_le32(std::vector<uint8_t>& out, uint32_t v) {
+    template<class Out>
+    void put_le32(Out& out, uint32_t v) {
         uint8_t b[4] = {uint8_t(v), uint8_t(v >> 8), uint8_t(v >> 16), uint8_t(v >> 24)};
         out.insert(out.end(), b, b + 4);
     }
 
-    inline void put_be32(std::vector<uint8_t>& out, uint32_t v) {
+    template<class Out>
+    void put_be32(Out& out, uint32_t v) {
         uint8_t b[4] = {uint8_t(v >> 24), uint8_t(v >> 16), uint8_t(v >> 8), uint8_t(v)};
         out.insert(out.end(), b, b + 4);
     }
@@ -161,14 +223,16 @@ namespace sgcl::compress::detail {
         static constexpr const char* name = "flate";
         static constexpr bool members = false;
 
-        optional<error> start(std::vector<uint8_t>&, int) {
+        template<class Out>
+        optional<error> start(Out&, int) {
             return nullopt;
         }
 
         void update(const uint8_t*, size_t) noexcept {
         }
 
-        void finish(std::vector<uint8_t>&) {
+        template<class Out>
+        void finish(Out&) {
         }
 
         Parsed header(const uint8_t*, size_t) noexcept {
@@ -189,7 +253,8 @@ namespace sgcl::compress::detail {
         optional<uint32_t> dictionary_id;   // of the dictionary given (the writer's), or the one the stream asks for (the reader's)
         hash::adler32 sum;
 
-        optional<error> start(std::vector<uint8_t>& out, int lvl) {
+        template<class Out>
+        optional<error> start(Out& out, int lvl) {
             // CMF: deflate, a window of 32 KB; FLG: the level's hint, FDICT, the check bits
             uint8_t cmf = 0x78;
             uint8_t hint = lvl == level::store || lvl == level::huffman_only || lvl == level::fastest ? 0 : lvl < level::standard ? 1 : lvl == level::standard ? 2 : 3;
@@ -210,7 +275,8 @@ namespace sgcl::compress::detail {
             sum.update(slice<const byte>(reinterpret_cast<const byte*>(p), n));
         }
 
-        void finish(std::vector<uint8_t>& out) {
+        template<class Out>
+        void finish(Out& out) {
             put_be32(out, sum.value());
         }
 
@@ -259,7 +325,8 @@ namespace sgcl::compress::detail {
         hash::crc32 sum;
         uint32_t size = 0;
 
-        optional<error> start(std::vector<uint8_t>& out, int lvl) {
+        template<class Out>
+        optional<error> start(Out& out, int lvl) {
             auto name = utf8_to_latin1(head.name);
             auto comment = utf8_to_latin1(head.comment);
             if (!name || !comment) {
@@ -305,7 +372,8 @@ namespace sgcl::compress::detail {
             size += uint32_t(n);
         }
 
-        void finish(std::vector<uint8_t>& out) {
+        template<class Out>
+        void finish(Out& out) {
             put_le32(out, sum.value());
             put_le32(out, size);
         }
@@ -573,7 +641,7 @@ namespace sgcl::compress::detail {
             if (_pending.empty()) {
                 return nullopt;
             }
-            auto w = _out.write(view(_pending));
+            auto w = _out.write(_pending.bytes());
             _pending.clear();
             if (!w) {
                 _error = w.error();
@@ -586,7 +654,7 @@ namespace sgcl::compress::detail {
             if (_pending.empty()) {
                 co_return nullopt;
             }
-            auto w = co_await _out.async_write(_stage.stage(_pending));   // a task's write may run on the pool: the bytes it is given are managed
+            auto w = co_await _out.async_write(_pending.bytes());   // a task's write may run on the pool: the bytes it is given are managed, the block's own
             _pending.clear();
             if (!w) {
                 _error = w.error();
@@ -600,8 +668,7 @@ namespace sgcl::compress::detail {
         int _level;
         std::vector<uint8_t> _dictionary;
         std::unique_ptr<Deflater> _deflater;
-        std::vector<uint8_t> _pending;
-        OutputStage _stage;   // the pending bytes for a task's write (block.h)
+        ManagedOutput _pending;   // what the encoder made, in managed memory: given to the writes as it is (block.h)
         optional<io::error> _error;
         bool _started = false;
         bool _closed = false;
@@ -1000,7 +1067,8 @@ namespace sgcl::compress::detail {
     // The whole of data compressed, in memory
     template<class Format>
     vector<byte> compress_all(const uint8_t* p, size_t n, int level, Format format, const slice<const byte>& dictionary) {
-        std::vector<uint8_t> out;
+        LentOutput lent;   // the thread's room, kept from call to call
+        std::vector<uint8_t>& out = lent.out();
         out.reserve(n / 2 + 64);
         // a header the format cannot write (a gzip name past ISO 8859-1)
         // is the program's mistake here: compress returns no error

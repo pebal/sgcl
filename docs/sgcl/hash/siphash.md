@@ -14,16 +14,7 @@ It is not a hash for integrity or for passwords: 64 bits of output are a table's
 
 ## Rules
 
-- **The key is mandatory**: sixteen bytes, and no hasher is made without it — `siphash()` does not exist, and neither does `siphash::of(data)`. A program makes a key once from a source of randomness and keeps it secret; until `crypto` brings its generator, `std::random_device` is that source:
-
-  ```cpp
-  array<byte, 16> key;
-  std::random_device device;
-  for (auto& b : key) {
-      b = byte(device());
-  }
-  ```
-
+- **The key is mandatory**: sixteen bytes, and no hasher is made without it — `siphash()` does not exist, and neither does `siphash::of(data)`. A program makes a key once from a source of randomness and keeps it secret; until `crypto` brings its generator, `std::random_device` is that source, one call of it for each of the sixteen bytes.
 - **The key's bytes** are read as two little-endian words, as the paper and the reference implementation read them, so a key written down as bytes gives the reference's values.
 - **The value** is the 64-bit result, as the paper writes it; `digest()` is, as every digest of the module, that number most significant byte first. The reference implementation and Go's `dchest/siphash` write the same number least significant byte first: to compare with their bytes, compare `value()`.
 - **`reset()` keeps the key.** A hasher is eight words: the four of the state, the key, the length and the bytes of a word not yet complete.
@@ -46,12 +37,22 @@ static uint64_t of(/* bytes or text */, const array<byte, 16>& key) noexcept;
 expected<size_t, io::error> copy_from(const io::reader& r);  async::task<expected<size_t, io::error>> async_copy_from(const io::reader& r);
 ```
 
+## SGCL and Go
+
+| Go (`github.com/dchest/siphash`) | sgcl::hash | note |
+|---|---|---|
+| `siphash.New(key)` | `siphash(key)` | a key of sixteen bytes |
+| `siphash.Hash(k0, k1, p)` | `siphash::of(p, key)` | the key as bytes: k0 its first eight, little-endian |
+| `h.Sum64()` | `h.value()` | |
+| `h.Sum(nil)` | `h.digest()` | the same number, the other way round: big-endian here, as every digest of the module |
+| `siphash.New128`, `Hash128` | — | the 128-bit variant is not here |
+
 ## Example
 
 ```cpp
-#include "sgcl/core/range.h"
-#include "sgcl/hash/siphash.h"
-#include "sgcl/io/print.h"
+#include "sgcl/core/core.h"
+#include "sgcl/hash/hash.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -81,16 +82,6 @@ Output:
 a129ca6149be45e5
 true
 ```
-
-## SGCL and Go
-
-| Go (`github.com/dchest/siphash`) | sgcl::hash | note |
-|---|---|---|
-| `siphash.New(key)` | `siphash(key)` | a key of sixteen bytes |
-| `siphash.Hash(k0, k1, p)` | `siphash::of(p, key)` | the key as bytes: k0 its first eight, little-endian |
-| `h.Sum64()` | `h.value()` | |
-| `h.Sum(nil)` | `h.digest()` | the same number, the other way round: big-endian here, as every digest of the module |
-| `siphash.New128`, `Hash128` | — | the 128-bit variant is not here |
 
 ## See also
 

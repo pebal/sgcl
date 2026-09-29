@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -361,7 +361,8 @@ namespace sgcl::compress {
         static vector<byte> compress(const slice<const byte>& data, order o, int literal_width) {
             detail::lzw_check_width(literal_width);
             detail::LzwEncoder e(o == order::msb, literal_width);
-            std::vector<uint8_t> out;
+            detail::LentOutput lent;   // the thread's room, kept from call to call
+            std::vector<uint8_t>& out = lent.out();
             out.reserve(data.size() / 2 + 16);
             if (!e.write(detail::bytes(data), data.size(), out)) {
                 throw std::invalid_argument("compress::lzw: a byte past the literal width");

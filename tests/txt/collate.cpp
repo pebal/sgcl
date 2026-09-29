@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -1241,4 +1241,63 @@ TEST(Collate_Tests, ThePositionsOfTheElementsAscend) {
         }
     }
     EXPECT_GT(checked, 2000u);
+}
+
+// Past the inline part of the scratch buffers (256 elements of a text, 64
+// code points of the window): texts of a thousand letters with marks, and a
+// combining sequence of a hundred marks, which the window must hold whole.
+// Every answer must be the one the short texts give: the sign of compare,
+// the order of the keys, an equal text equal, and a search that finds a
+// long pattern where it was put.
+TEST(Collate_Tests, PastTheInlineBuffers) {
+    auto latin = [](size_t n, const char* last) {
+        static const char* letters[] = {"a", "b", "c", "d", "e", "é", "ż", "ó", "ł", "k"};
+        std::string out;
+        for (size_t i = 0; i + 1 < n; ++i) {
+            out += letters[(i * 7 + i / 3) % 10];
+        }
+        out += last;
+        return string(out.data(), out.size());
+    };
+    auto of = [](const std::string& s) {
+        return string(s.data(), s.size());
+    };
+    txt::collator root;
+    for (size_t n : {200u, 255u, 256u, 257u, 1000u, 3000u}) {
+        string y = latin(n, "y");
+        string z = latin(n, "z");
+        EXPECT_LT(root.compare(y, z), 0) << n;
+        EXPECT_GT(root.compare(z, y), 0) << n;
+        EXPECT_EQ(root.compare(y, latin(n, "y")), 0) << n;
+        EXPECT_LT(by_bytes(root.key(y), root.key(z)), 0) << n;
+        EXPECT_EQ(by_bytes(root.key(y), root.key(latin(n, "y"))), 0) << n;
+        // a difference of case at the start, settled only on the third
+        // level after both texts were read whole on the first
+        std::string upper(y.data(), y.size());
+        upper[0] = 'A';
+        EXPECT_GT(root.compare(of(upper), y), 0) << n;
+        EXPECT_GT(by_bytes(root.key(of(upper)), root.key(y)), 0) << n;
+    }
+
+    // a hundred marks on one letter: one combining sequence, in the window
+    // whole, then the letter after it
+    std::string marks;
+    for (int i = 0; i < 100; ++i) {
+        marks += (i % 2) ? "\xcc\x81" : "\xcc\xa3";   // U+0301 and U+0323, put in canonical order by the window
+    }
+    string mb = of("a" + marks + "b");
+    string mc = of("a" + marks + "c");
+    EXPECT_LT(root.compare(mb, mc), 0);
+    EXPECT_LT(by_bytes(root.key(mb), root.key(mc)), 0);
+    EXPECT_EQ(root.compare(mb, of("a" + marks + "b")), 0);
+
+    // a pattern of 400 letters, found where it was put in a longer text
+    string needle = latin(400, "q");
+    std::string hay = "xx ";
+    hay.append(needle.data(), needle.size());
+    hay += " yy";
+    auto hit = root.find(of(hay), needle);
+    ASSERT_TRUE(hit);
+    EXPECT_EQ(hit->at, 3u);
+    EXPECT_EQ(hit->size, needle.size());
 }

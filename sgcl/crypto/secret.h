@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -8,10 +8,12 @@
 #include "constant_time.h"
 #include "secure_zero.h"
 #include "../core/aliases.h"
+#include "../core/detail/small_vector.h"
 #include "../core/slice.h"
 
 #include <cstddef>
 #include <cstring>
+#include <new>
 
 namespace sgcl::crypto {
     template<size_t N>
@@ -97,5 +99,88 @@ namespace sgcl::crypto {
         void _wipe() noexcept {
             detail::secure_zero(_bytes, N);
         }
+    };
+
+    // Bytes that are a secret, of a length known when the program runs: a
+    // key read from a file, what HKDF or PBKDF2 derives, the plaintext AEAD
+    // opens, a private key's export. Never in managed memory: up to 64
+    // bytes in the object itself (keys of 32, 48 or 64 bytes, derived
+    // secrets, shared secrets: no allocation at all), past that in a block
+    // of plain memory zeroed before it is freed, and the old block zeroed
+    // when a growth leaves it. Move-only: a copy is asked for by name with
+    // clone(); a move leaves the source empty. The destructor zeroes what
+    // it held. Read and written through as_slice(), a slice without an
+    // owner, which every function of the module that takes bytes takes; no
+    // push_back, no operator[]. Kept on the stack or in a unique_ptr its
+    // bytes are gone when its scope ends; in a managed object the inline
+    // ones stay in managed memory until the cycle that finds the object
+    // dead, so a secret_bytes belongs on the stack or in plain memory.
+    // secret<N> is the one for a length known when the program is compiled.
+    // The storage is the core's SmallVector with the wiping policy
+    // (core/detail/small_vector.h, secure_zero.h: WipingPolicy), which
+    // zeroes every byte it lets go of.
+    class secret_bytes {
+    public:
+        static constexpr size_t inline_capacity = 64;
+
+        // Empty
+        secret_bytes() noexcept = default;
+
+        // n bytes, all zero
+        explicit secret_bytes(size_t n)
+        : _bytes(n) {
+        }
+
+        secret_bytes(const secret_bytes&) = delete;
+        secret_bytes& operator=(const secret_bytes&) = delete;
+
+        secret_bytes(secret_bytes&&) noexcept = default;
+        secret_bytes& operator=(secret_bytes&&) noexcept = default;
+
+        secret_bytes clone() const {
+            secret_bytes s(size());
+            if (size()) {
+                std::memcpy(s._bytes.data(), _bytes.data(), size());
+            }
+            return s;
+        }
+
+        slice<const byte> as_slice() const noexcept {
+            return slice<const byte>(_bytes.data(), _bytes.size());
+        }
+
+        slice<byte> as_slice() noexcept {
+            return slice<byte>(_bytes.data(), _bytes.size());
+        }
+
+        // As secret<N>: where the module takes bytes, a secret_bytes is taken
+        operator slice<const byte>() const noexcept {
+            return as_slice();
+        }
+
+        size_t size() const noexcept {
+            return _bytes.size();
+        }
+
+        bool empty() const noexcept {
+            return _bytes.empty();
+        }
+
+        // n bytes: the first min(n, size()) kept, the rest zero. Past the
+        // capacity a new block of exactly n (the old one, or the inline
+        // bytes, zeroed); a shrink zeroes the bytes it drops and keeps the
+        // room
+        void resize(size_t n) {
+            _bytes.resize(n);
+        }
+
+        // The same bytes, compared in constant time (the lengths are not
+        // secret: of different lengths, unequal at once)
+        friend bool operator==(const secret_bytes& a, const secret_bytes& b) noexcept {
+            return a.size() == b.size() && constant_time::equal(a.as_slice(), b.as_slice());
+        }
+
+    private:
+        sgcl::detail::SmallVector<byte, inline_capacity, detail::WipingPolicy> _bytes;
     };
 }

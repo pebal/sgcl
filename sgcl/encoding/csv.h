@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -67,6 +67,25 @@ namespace sgcl::encoding {
         class row;
         class reader;
         class writer;
+
+        // --- files: one line each (DESIGN 285) ---
+
+        // The records of a file as values of T, the first line the header
+        // whose names the fields are found by (reader::read<T>):
+        // csv::load<visit>("visits.csv"); a file that does not open is
+        // errc::io, a record that does not read the reader's error
+        template<class T>
+        static expected<vector<T>, error> load(const string& path);
+        template<class T>
+        static async::task<expected<vector<T>, error>> async_load(string path);
+
+        // The values into a file, made or written over: a header of the
+        // fields' names, then a record for each (writer::write<T>):
+        // csv::save("visits.csv", visits)
+        template<class R>
+        static expected<void, error> save(const string& path, const R& records);
+        template<class R>
+        static async::task<expected<void, error>> async_save(string path, R records);
 
     private:
         csv() = delete;
@@ -991,7 +1010,10 @@ namespace sgcl::encoding {
                 co_return io::detail::fail(*_error);
             }
             if (!_text.empty()) {
-                auto w = co_await _out.async_write(slice<const byte>(reinterpret_cast<const byte*>(_text.data()), _text.size()));
+                // a copy the write's slice holds: the stream may write on the
+                // pool, past the frame of a task let go of (io::detail::AsyncStage)
+                auto w = co_await _out.async_write(_stage.stage(slice<const byte>(reinterpret_cast<const byte*>(_text.data()), _text.size())));
+                _stage.done();
                 if (!w) {
                     _error = w.error();
                     co_return io::detail::fail(w);
@@ -1068,6 +1090,7 @@ namespace sgcl::encoding {
         friend struct detail::CsvRecordWriter;
 
         io::writer _out;
+        io::detail::AsyncStage _stage;   // the text a task's write is given
         options _options;
         std::string _text;
         optional<io::error> _error;
@@ -1305,5 +1328,60 @@ namespace sgcl::encoding {
             }
             co_return _typed<T>();
         }
+    }
+}
+
+// The files of csv: io's open and create under the reader and the writer
+#include "detail/files.h"
+
+namespace sgcl::encoding {
+    template<class T>
+    expected<vector<T>, csv::error> csv::load(const string& path) {
+        return detail::with_file(path, [](const io::reader& in) -> expected<vector<T>, error> {
+            csv::reader r(in);
+            vector<T> out;
+            while (auto v = r.template read<T>()) {
+                out.push_back(std::move(*v));
+            }
+            if (r.last_error()) {
+                return unexpected(*r.last_error());
+            }
+            return out;
+        });
+    }
+
+    template<class T>
+    async::task<expected<vector<T>, csv::error>> csv::async_load(string path) {
+        co_return co_await async::spawn_blocking([path] { return csv::load<T>(path); });
+    }
+
+    template<class R>
+    expected<void, csv::error> csv::save(const string& path, const R& records) {
+        auto file = io::create(path);
+        if (!file) {
+            return unexpected(error(file.error(), 0));
+        }
+        expected<void, error> r;
+        {
+            csv::writer w{io::writer(*file)};
+            for (const auto& record : records) {
+                w.write(record);
+            }
+            if (auto f = w.flush(); !f) {
+                r = unexpected(error(f.error(), 0));
+            }
+        }
+        if (auto c = file->close(); r && !c) {
+            r = unexpected(error(c.error(), 0));
+        }
+        if (!r) {
+            (void)io::remove(path);
+        }
+        return r;
+    }
+
+    template<class R>
+    async::task<expected<void, csv::error>> csv::async_save(string path, R records) {
+        co_return co_await async::spawn_blocking([path, records] { return csv::save(path, records); });
     }
 }

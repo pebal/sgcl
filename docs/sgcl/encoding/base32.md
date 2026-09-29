@@ -40,22 +40,32 @@ public:
 ## Example
 
 ```cpp
-#include "sgcl/encoding/base32.h"
-#include "sgcl/io/print.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
 int main() {
-    println(encoding::base32::standard.encode("foobar"));                               // MZXW6YTBOI======
-    println(encoding::base32::hex.encode("foobar"));                                    // CPNMUOJ1E8======
+    println(encoding::base32::standard.encode("foobar"));
+    println(encoding::base32::hex.encode("foobar"));
     // the secret of a one-time password: base32 without padding
     auto secret = encoding::base32::standard.without_padding().decode("JBSWY3DPEHPK3PXP");
-    println("{} bytes", secret->size());          // 10 bytes
+    println("{} bytes", secret->size());
     // strict: the bits past the data must be zero
     auto odd = encoding::base32::standard.decode("MZ======");
-    println(odd.error().message());                                 // offset 1: bits past the data in the last character
-    println("{} byte", encoding::base32::standard.lenient().decode("MZ======")->size());             // 1 byte
+    println(odd.error().message());
+    println("{} byte", encoding::base32::standard.lenient().decode("MZ======")->size());
 }
+```
+
+Output:
+
+```text
+MZXW6YTBOI======
+CPNMUOJ1E8======
+10 bytes
+offset 1: bits past the data in the last character
+1 byte
 ```
 
 ## See also

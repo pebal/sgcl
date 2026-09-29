@@ -19,27 +19,53 @@ The fields of a head: a list of names and values in the order of the wire, a nam
 
 ## Members
 
+### Reading
+
 ```cpp
 headers();
 string get(const string& name) const;
 vector<string> get_all(const string& name) const;
 bool contains(const string& name) const;
+```
+
+The first value of a name, `""` when there is none; every value of it, in order; and whether it is there at all. A name is found in any ASCII case.
+
+### Writing
+
+```cpp
 headers& set(const string& name, const string& value);
 headers& add(const string& name, const string& value);
 headers& erase(const string& name);
+```
+
+`set` takes the place of the first field of the name and drops the others, `add` appends one, `erase` drops every field of the name.
+
+### Dates
+
+```cpp
 optional<time::datetime> date(const string& name) const;           // RFC 9110 §5.6.7, in UTC
 headers& set_date(const string& name, const time::datetime& t);    // "Sun, 06 Nov 1994 08:49:37 GMT"
+```
+
+A field of a date read in any of the three forms of RFC 9110, `nullopt` when there is none or it is not a date, and written as IMF-fixdate.
+
+### Size and iteration
+
+```cpp
 size_t size() const noexcept;
 bool empty() const noexcept;
 iterator begin() const noexcept;   // pair<string, string>, in order
 iterator end() const noexcept;
 ```
 
+The number of fields, and each as a `pair<string, string>` in the order of the wire.
+
 ## Example
 
 ```cpp
-#include "sgcl/net/http/headers.h"
-#include "sgcl/io/print.h"
+#include "sgcl/io/io.h"
+#include "sgcl/net/http/http.h"
+#include "sgcl/time/time.h"
 
 using namespace sgcl;
 
@@ -60,11 +86,12 @@ Output:
 
 ```text
 a=1 2
-1
+true
 Set-Cookie: a=1
 set-cookie: b=2
 Content-Type: text/plain
-X-Name: line one  Injected: yes
+X-Name: line one
+Injected: yes
 Last-Modified: Sun, 06 Nov 1994 08:49:37 GMT
 ```
 

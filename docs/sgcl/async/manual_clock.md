@@ -65,7 +65,9 @@ clock.uninstall();                               // the steady clock again
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/async/async.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -105,9 +107,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 3 heartbeats, the request timed out, in under a second of wall time
 ```
 

@@ -501,7 +501,8 @@ map from_list = {std::pair{1, 2.5}};         // map<int, double>
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -546,9 +547,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 a registry of nodes, by id
 one is node 1
 2 in the registry, 13 live objects

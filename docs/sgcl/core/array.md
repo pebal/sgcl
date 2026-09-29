@@ -177,7 +177,8 @@ auto b = to_array({3, 2, 1});            // array<int, 3>
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -219,9 +220,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 node behind keep 2, squares up to 25, 3 even
 ```
 

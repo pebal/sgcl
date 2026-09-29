@@ -50,11 +50,15 @@ public:
 };
 ```
 
+## The oracle
+
+The fourteen examples of RFC 7468 itself — figures 6 to 19, the non-conforming labels of appendix A among them — are read as the RFC prints them (the explanatory text of figure 7 included), give the type and the bytes Go's `pem.Decode` gives, are each one DER value of its own length, and write back as the RFC wrote them. Beside them, blocks Go's `EncodeToMemory` writes and texts its `Decode` reads.
+
 ## Example
 
 ```cpp
-#include "sgcl/encoding/pem.h"
-#include "sgcl/io/print.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -69,11 +73,12 @@ int main() {
         "-----END CERTIFICATE-----\n";
     auto blocks = encoding::pem::parse_all(chain);
     for (auto& block : blocks.value()) {
-        println("{}: {} bytes", block.type(), block.bytes().size());   // CERTIFICATE: 15 bytes
+        println("{}: {} bytes", block.type(), block.bytes().size());
     }
 
-    auto bad = encoding::pem::parse("-----BEGIN PRIVATE KEY-----\nMIIB\n-----END PUBLIC KEY-----\n");
-    println(bad.error().message());   // 3:10: END PUBLIC KEY does not match BEGIN PRIVATE KEY
+    auto bad = encoding::pem::parse(
+        "-----BEGIN PRIVATE KEY-----\nMIIB\n-----END PUBLIC KEY-----\n");
+    println(bad.error().message());
 
     ordered_map<string, string> headers;
     headers.insert_or_assign("Comment", "made by hand");
@@ -82,17 +87,18 @@ int main() {
 }
 ```
 
-```
+Output:
+
+```text
+CERTIFICATE: 15 bytes
+CERTIFICATE: 15 bytes
+3:10: END PUBLIC KEY does not match BEGIN PRIVATE KEY
 -----BEGIN EC PRIVATE KEY-----
 Comment: made by hand
 
 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
 -----END EC PRIVATE KEY-----
 ```
-
-## The oracle
-
-The fourteen examples of RFC 7468 itself — figures 6 to 19, the non-conforming labels of appendix A among them — are read as the RFC prints them (the explanatory text of figure 7 included), give the type and the bytes Go's `pem.Decode` gives, are each one DER value of its own length, and write back as the RFC wrote them. Beside them, blocks Go's `EncodeToMemory` writes and texts its `Decode` reads.
 
 ## See also
 

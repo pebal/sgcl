@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -173,4 +173,47 @@ TEST(CopyOnWrite_Test, SnapshotsAreWhole) {
     });
     EXPECT_FALSE(torn.load());
     EXPECT_EQ(p.load()->a, 40000);
+}
+
+namespace {
+    // Slots of T's pool left holding `garbage`: many objects made with it,
+    // every eighth kept (so that the pages stay the type's and are not
+    // zeroed on their way back to the heap), the rest collected
+    template<class T>
+    sgcl::vector<tracked_ptr<T>> slots_left_with(const T& garbage) {
+        sgcl::vector<tracked_ptr<T>> kept;
+        {
+            sgcl::vector<tracked_ptr<T>> all;
+            for (int i = 0; i < 20000; ++i) {
+                all.push_back(sgcl::make_tracked<T>(garbage));
+            }
+            for (size_t i = 0; i < all.size(); i += 8) {
+                kept.push_back(all[i]);
+            }
+        }
+        sgcl::collector::force_collect(true);
+        sgcl::collector::force_collect(true);
+        return kept;
+    }
+
+    struct Plain {
+        long a;
+        long b;
+    };
+}
+
+// copy_on_write<T>() holds T(): zero for a number and for the members of
+// a plain struct, also in a slot whose last object held other bytes
+TEST(CopyOnWrite_Test, DefaultIsValueInitialized) {
+    auto kept_ints = slots_left_with<long>(0x5A5A5A5A5A5A5A5Al);
+    auto kept_plain = slots_left_with<Plain>(Plain{0x5A5A5A5A, 0x5A5A5A5A});
+    for (int i = 0; i < 2000; ++i) {
+        sgcl::concurrent::copy_on_write<long> n;
+        ASSERT_EQ(*n.load(), 0) << i;
+        sgcl::concurrent::copy_on_write<Plain> p;
+        ASSERT_EQ(p.load()->a, 0) << i;
+        ASSERT_EQ(p.load()->b, 0) << i;
+    }
+    EXPECT_FALSE(kept_ints.empty());
+    EXPECT_FALSE(kept_plain.empty());
 }

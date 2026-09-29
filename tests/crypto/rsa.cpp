@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -811,7 +811,7 @@ TEST(Crypto_Rsa, OaepFailuresAreOneError) {
         std::string text;
     };
     std::vector<Seen> errors;
-    auto expect_error = [&](const expected<vector<byte>, crypto::error>& e, const char* what) {
+    auto expect_error = [&](const auto& e, const char* what) {
         ASSERT_FALSE(e.has_value()) << what;
         errors.push_back(Seen{e.error().code(), e.error().offset(), text_of(e.error())});
     };

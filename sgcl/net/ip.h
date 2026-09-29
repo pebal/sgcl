@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -660,21 +660,34 @@ namespace sgcl::net {
 
         // "10.0.0.0/8"; "invalid Prefix" for the empty network (Go's text)
         string to_string() const {
+            char buf[MaxText];
+            return string(std::string_view(buf, write_text(buf)));
+        }
+
+        // The most bytes write_text writes
+        static constexpr size_t MaxText = ip_address::MaxText + 4;
+
+        // What to_string writes, into out (MaxText bytes): its length; for
+        // a line made without a string (slog)
+        size_t write_text(char* out) const noexcept {
             if (!is_valid()) {
-                return string("invalid Prefix");
+                static constexpr char Invalid[] = "invalid Prefix";
+                for (size_t i = 0; i + 1 < sizeof Invalid; ++i) {
+                    out[i] = Invalid[i];
+                }
+                return sizeof Invalid - 1;
             }
-            char buf[ip_address::MaxText + 4];
-            size_t n = _address.write_text(buf);
-            buf[n++] = '/';
+            size_t n = _address.write_text(out);
+            out[n++] = '/';
             int b = _bits;
             if (b >= 100) {
-                buf[n++] = char('0' + b / 100);
+                out[n++] = char('0' + b / 100);
             }
             if (b >= 10) {
-                buf[n++] = char('0' + b / 10 % 10);
+                out[n++] = char('0' + b / 10 % 10);
             }
-            buf[n++] = char('0' + b % 10);
-            return string(std::string_view(buf, n));
+            out[n++] = char('0' + b % 10);
+            return n;
         }
 
         auto operator<=>(const ip_network&) const noexcept = default;
@@ -756,19 +769,32 @@ namespace sgcl::net {
 
         // "1.2.3.4:80", "[::1]:80"; "invalid AddrPort" for the empty one
         string to_string() const {
+            char buf[MaxText];
+            return string(std::string_view(buf, write_text(buf)));
+        }
+
+        // The most bytes write_text writes
+        static constexpr size_t MaxText = ip_address::MaxText + 8;
+
+        // What to_string writes, into out (MaxText bytes): its length; for
+        // a line made without a string (slog, a server's access log)
+        size_t write_text(char* out) const noexcept {
             if (!is_valid()) {
-                return string("invalid AddrPort");
+                static constexpr char Invalid[] = "invalid AddrPort";
+                for (size_t i = 0; i + 1 < sizeof Invalid; ++i) {
+                    out[i] = Invalid[i];
+                }
+                return sizeof Invalid - 1;
             }
-            char buf[ip_address::MaxText + 8];
             size_t n = 0;
             if (_address.is_v6()) {
-                buf[n++] = '[';
+                out[n++] = '[';
             }
-            n += _address.write_text(buf + n);
+            n += _address.write_text(out + n);
             if (_address.is_v6()) {
-                buf[n++] = ']';
+                out[n++] = ']';
             }
-            buf[n++] = ':';
+            out[n++] = ':';
             char digits[5];
             int d = 0;
             unsigned p = _port;
@@ -777,9 +803,9 @@ namespace sgcl::net {
                 p /= 10;
             } while (p);
             while (d) {
-                buf[n++] = digits[--d];
+                out[n++] = digits[--d];
             }
-            return string(std::string_view(buf, n));
+            return n;
         }
 
         auto operator<=>(const endpoint&) const noexcept = default;

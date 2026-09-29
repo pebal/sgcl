@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -14,11 +14,16 @@
 // - the data as plaintext seals and opens back to itself, in place too;
 // - the sealed data with one bit changed (the bit chosen by the input) does
 //   not open;
-// - open_random of xchacha20_poly1305 on the data fails.
+// - open_random of xchacha20_poly1305 on the data fails;
+// - the processor's path is the portable one's: AES-GCM sealed by the key's
+//   path (AESE/PMULL, AES-NI/PCLMULQDQ) and by the bitsliced one alike,
+//   ChaCha20's keystream by the vector groups and block by block alike.
 //
 // Built with the driver of tests/fuzz/driver.cpp under ASan and UBSan
 // (its header has the command), or with -fsanitize=fuzzer where libFuzzer is.
 #include "sgcl/crypto/crypto.h"
+#include "sgcl/crypto/detail/chacha_core.h"
+#include "sgcl/crypto/detail/gcm_core.h"
 
 #include <cstdint>
 #include <cstdlib>
@@ -65,7 +70,7 @@ namespace {
         auto sealed = a.seal(nonce, data, aad);
         check(sealed.size() == data.size() + Aead::tag_size);
         auto back = a.open(nonce, sealed, aad);
-        check(back.has_value() && back->size() == data.size() && (data.empty() || std::memcmp(back->data(), data.data(), data.size()) == 0));
+        check(back.has_value() && back->size() == data.size() && (data.empty() || std::memcmp(back->as_slice().data(), data.data(), data.size()) == 0));
         bytes buffer = data;
         buffer.resize(data.size() + Aead::tag_size);
         check(a.seal_to(buffer, nonce, slice<const std::byte>(buffer.data(), data.size()), aad) == buffer.size());
@@ -77,6 +82,46 @@ namespace {
         const size_t bit = flip % (damaged.size() * 8);
         damaged[bit / 8] ^= std::byte(1u << (bit % 8));
         check(!a.open(nonce, damaged, aad).has_value());
+    }
+}
+
+namespace {
+    namespace d = sgcl::crypto::detail;
+
+    const unsigned char* u(const bytes& b) {
+        return reinterpret_cast<const unsigned char*>(b.data());
+    }
+
+    void gcm_paths(const bytes& key, const bytes& nonce, const bytes& aad, const bytes& data) {
+        d::GcmKey fast;
+        d::gcm_setup(fast, u(key), key.size());
+        d::GcmKey plain;
+        plain.aes.path = d::AesPath::portable;
+        plain.aes.portable = d::AesPortableKey{};
+        d::aes_setup_portable(plain.aes.portable, u(key), key.size());
+        plain.aes.rounds = plain.aes.portable.rounds;
+        unsigned char h[16] = {};
+        d::aes_encrypt_block(plain.aes, h, h);
+        d::ghash_init(plain.ghash, h, d::AesPath::portable);
+        std::vector<unsigned char> a(data.size() + 16), b(data.size() + 16);
+        d::gcm_seal(fast, u(nonce), u(data), data.size(), u(aad), aad.size(), a.data());
+        d::gcm_seal(plain, u(nonce), u(data), data.size(), u(aad), aad.size(), b.data());
+        check(a == b);
+    }
+
+    void chacha_paths(const bytes& key, const bytes& nonce, const bytes& data, uint32_t counter) {
+        d::ChachaState s;
+        d::chacha_load(s, u(key), u(nonce));
+        std::vector<unsigned char> fast(data.size()), plain(data.size());
+        d::chacha_xor(s, counter, u(data), fast.data(), data.size());
+        unsigned char block[64];
+        for (size_t at = 0; at < data.size(); at += 64) {
+            d::chacha_block(s, counter + uint32_t(at / 64), block);
+            for (size_t i = at; i < data.size() && i < at + 64; ++i) {
+                plain[i] = (unsigned char)(u(data)[i] ^ block[i - at]);
+            }
+        }
+        check(fast == plain);
     }
 }
 
@@ -101,10 +146,14 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* p, size_t size) {
     left -= a;
     bytes data(reinterpret_cast<const std::byte*>(p), reinterpret_cast<const std::byte*>(p) + left);
     switch (which) {
-        case 0: key.resize(16); nonce.resize(12); run<crypto::aes_gcm>(key, nonce, aad, data, flip); break;
-        case 1: key.resize(24); nonce.resize(12); run<crypto::aes_gcm>(key, nonce, aad, data, flip); break;
-        case 2: nonce.resize(12); run<crypto::aes_gcm>(key, nonce, aad, data, flip); break;
-        case 3: nonce.resize(12); run<crypto::chacha20_poly1305>(key, nonce, aad, data, flip); break;
+        case 0: key.resize(16); nonce.resize(12); run<crypto::aes_gcm>(key, nonce, aad, data, flip); gcm_paths(key, nonce, aad, data); break;
+        case 1: key.resize(24); nonce.resize(12); run<crypto::aes_gcm>(key, nonce, aad, data, flip); gcm_paths(key, nonce, aad, data); break;
+        case 2: nonce.resize(12); run<crypto::aes_gcm>(key, nonce, aad, data, flip); gcm_paths(key, nonce, aad, data); break;
+        case 3:
+            nonce.resize(12);
+            run<crypto::chacha20_poly1305>(key, nonce, aad, data, flip);
+            chacha_paths(key, nonce, data, uint32_t(flip));
+            break;
         default: {
             run<crypto::xchacha20_poly1305>(key, nonce, aad, data, flip);
             crypto::xchacha20_poly1305 x(key);

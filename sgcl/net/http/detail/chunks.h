@@ -1,11 +1,12 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
 #include "../../../async/scheduler.h"
+#include "../../../core/detail/bytes.h"
 #include "../../../core/make_tracked.h"
 #include "../../../core/root_ptr.h"
 #include "../../../core/slice.h"
@@ -157,6 +158,31 @@ namespace sgcl::net::http::detail {
             append(s.data(), s.size());
         }
 
+        // Bytes read straight into the room at the tail (a block from the
+        // pool when there is none): read(at, room) puts up to room bytes at
+        // `at` and says how many, 0 at the end (or a failure), and it is
+        // called until then. No buffer between the source and the blocks
+        template<class Read>
+        void append_read(Read&& read) {
+            for (;;) {
+                if (!_tail || _tail->end == ByteChunk::Room) {
+                    tracked_ptr fresh = ChunkPool::take();
+                    if (_tail) {
+                        _tail->next = fresh;
+                    } else {
+                        _head = fresh;
+                    }
+                    _tail = fresh;
+                }
+                const size_t got = read(_tail->bytes + _tail->end, ByteChunk::Room - _tail->end);
+                if (got == 0) {
+                    return;
+                }
+                _tail->end += uint32_t(got);
+                _size += got;
+            }
+        }
+
         // Up to n bytes from the head into out: how many
         size_t take(void* out, size_t n) {
             std::byte* o = static_cast<std::byte*>(out);
@@ -187,6 +213,27 @@ namespace sgcl::net::http::detail {
             _head = tracked_ptr<ByteChunk>();
             _tail = tracked_ptr<ByteChunk>();
             _size = 0;
+            while (c) {
+                tracked_ptr<ByteChunk> next = c->next;
+                ChunkPool::give(c);
+                c = next;
+            }
+        }
+
+        // The blocks handed over as their list (first and last), the queue
+        // empty: for whoever gives them back to the pool later, once no
+        // slice of them is left (an HTTP/2 connection, after the write
+        // that sends them in place)
+        void detach(tracked_ptr<ByteChunk>& first, tracked_ptr<ByteChunk>& last) noexcept {
+            first = std::move(_head);
+            last = std::move(_tail);
+            _head = tracked_ptr<ByteChunk>();
+            _tail = tracked_ptr<ByteChunk>();
+            _size = 0;
+        }
+
+        // Every block of a list from detach given back to the worker's pool
+        static void give_back(tracked_ptr<ByteChunk> c) {
             while (c) {
                 tracked_ptr<ByteChunk> next = c->next;
                 ChunkPool::give(c);
@@ -251,7 +298,7 @@ namespace sgcl::net::http::detail {
 
         void append(const void* data, size_t n) {
             if (_chunks.empty() && _small_n + n <= Inline) {
-                std::memcpy(_small + _small_n, data, n);
+                sgcl::detail::copy_bytes(_small + _small_n, data, n);
                 _small_n += uint8_t(n);
                 return;
             }
@@ -266,6 +313,17 @@ namespace sgcl::net::http::detail {
             append(s.data(), s.size());
         }
 
+        // Bytes read straight into the blocks (ByteChunks::append_read),
+        // after what the buffer holds
+        template<class Read>
+        void append_read(Read&& read) {
+            if (_small_n) {
+                _chunks.append(_small, _small_n);
+                _small_n = 0;
+            }
+            _chunks.append_read(std::forward<Read>(read));
+        }
+
         void clear() noexcept {
             _small_n = 0;
             _chunks.clear();
@@ -275,6 +333,13 @@ namespace sgcl::net::http::detail {
         void release() {
             _small_n = 0;
             _chunks.release();
+        }
+
+        // The blocks handed over (ByteChunks::detach), the in-place bytes
+        // dropped: the buffer empty
+        void detach(tracked_ptr<ByteChunk>& first, tracked_ptr<ByteChunk>& last) noexcept {
+            _small_n = 0;
+            _chunks.detach(first, last);
         }
 
         // The bytes as slices in order (the in-place ones copied by the

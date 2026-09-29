@@ -91,7 +91,7 @@ assert(described == "text");
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -128,16 +128,16 @@ int main() {
     children.push_back(make_tracked<Node>(Node{"name"}));
     children.push_back(make_tracked<Node>(Node{2.5}));
     root->value = std::move(children);
-    println("{}", sum(root));              // 4
+    println("{}", sum(root));
     root->value = 0.0;                           // the children unreferenced: collected
     collector::force_collect(true);          // optional, for the demonstration only
     return 0;
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 4
 ```
 

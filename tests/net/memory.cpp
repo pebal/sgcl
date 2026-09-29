@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -140,6 +140,12 @@ TEST(NetMemory_Tests, DeadlinesOnTheManualClock) {
     sgcl::async::manual_clock clock;
     clock.install();
     b.set_read_deadline(clock.now() + 2s);
+    EXPECT_EQ(b.read_deadline(), clock.now() + 2s);   // the getters (DESIGN 328)
+    EXPECT_EQ(b.write_deadline(), time_point());
+    EXPECT_EQ(b.max_line(), size_t(64 * 1024));
+    b.set_max_line(100);
+    EXPECT_EQ(b.max_line(), 100u);
+    b.set_max_line(64 * 1024);
     auto reader = spawn([](net::connection c) -> task<expected<size_t, io::error>> {
         byte buf[8];
         co_return co_await c.async_read(buf);

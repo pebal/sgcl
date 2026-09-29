@@ -58,7 +58,9 @@ async::task<> fetch_all(vector<string> urls, async::channel<string> out, async::
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/async/async.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -93,9 +95,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 worker 3 failed, 7 left on the stop, 0 running
 ```
 

@@ -1,60 +1,26 @@
-# txt::format
+# sgcl::txt::format
 
 ```cpp
-#include "sgcl/txt/format.h"
+#include "sgcl/txt/format.h"   // or "sgcl/txt/txt.h"
+
+template<class... A> string format(pattern, const A&... args);
+template<class... A> size_t format_to(const slice<char>& buffer, pattern, const A&... args);
+
+template<class... A> optional<string> format(runtime_pattern, const A&... args);
+template<class... A> optional<size_t> format_to(slice<char>, runtime_pattern, const A&... args);
+template<class... A> bool fits(const runtime_pattern&);
+
+runtime_pattern runtime(const string& text);
+
+struct format_spec;     // one field's specification, as it was read
+class format_sink;      // where a value is written: room the caller lends, and a count
+class growing_sink;     // room that grows, for a long text written in steps
+template<class T, class = void> struct formatter;
 ```
 
 Text built from a pattern and the values that go in it. The pattern is the one of [`std::format`](https://en.cppreference.com/w/cpp/utility/format/spec) — a pair of braces for a value, a colon and a specification after it for how to write it — and it is **read where the program is compiled**, not where it runs: a pattern that does not fit the values it is given is an error of the compiler and not a surprise at the customer's.
 
-```cpp
-using namespace sgcl;
-
-string s = txt::format("{} left of {}", 3, total);
-string t = txt::format("{:>8.2f} | {:#06x} | {:^10}", 3.14159, 255, name);
-```
-
-## The names
-
-```cpp
-template<class... A> string format(pattern, const A&... args);
-template<class... A> size_t format_to(const slice<char>& buffer, pattern, const A&... args);
-
-struct format_spec { char fill; char align; char sign; bool alternate; bool zero;
-                     unsigned width; int precision; char type; };
-class format_sink { void put(char); void put(std::string_view); void fill(char, size_t);
-                    size_t size() const; };
-class growing_sink { format_sink& out(); size_t capacity() const;
-                     size_t take_room(size_t want, size_t mark);
-                     size_t size() const; string text() const; };
-template<class T, class = void> struct formatter;
-```
-
-`format` returns a [`string`](../core/string.md). `format_to` writes into memory the caller lends and returns **what the whole text takes**, whether or not it fitted — so a buffer can be sized from a first call with an empty one, and a caller who knows its text is short pays no allocation at all:
-
-```cpp
-char room[64];
-size_t needed = txt::format_to(room, "{} left", n);
-if (needed > sizeof room) { /* the text was cut; ask for that much */ }
-```
-
-`growing_sink` is the other half of that, for whoever writes a long text in steps rather than a message in one: it starts over room the caller lends, and when a step runs off the end `take_room` takes twice as much, carries over what stood before the step and hands back the new capacity, so that **one step** can be written again. Nothing here uses it — `format` writes a text that did not fit a second time instead, and that is measured and stays that way, because a pattern's second pass is `to_chars` and `memcpy`. [`stencil.h`](stencil.md) is what it is for, where a second pass is every branch, every row and every `upper()` walked over again.
-
-The capacity is asked for **once** and kept in a variable of the caller's, and the test is marked unlikely. Both matter and both were measured: a field of the sink has to be read back after every call a step makes, and a test whose other side calls is otherwise laid out with the common case jumping over the call, which cost fourteen per cent of a page that fitted and needed no growing at all.
-
-```cpp
-char room[1024];
-txt::growing_sink page(room, sizeof room);
-size_t cap = page.capacity();
-for (auto& step : steps) {
-    size_t mark = page.size();
-    write(page.out(), step);
-    if (page.size() > cap) [[unlikely]] {
-        cap = page.take_room(page.size(), mark);
-        write(page.out(), step);        // there is room for it now
-    }
-}
-return page.text();
-```
+`format` returns a [`string`](../core/string.md). `format_to` writes into memory the caller lends and returns **what the whole text takes**, whether or not it fitted — so a buffer can be sized from a first call with an empty one, and a caller who knows its text is short pays no allocation at all.
 
 ## Why this is in txt and not in core
 
@@ -62,15 +28,9 @@ Two reasons, and the second is the real one.
 
 An unqualified `format(...)` next to a [`string`](../core/string.md) of ours **is not ours**. `basic_string` names `std::char_traits` among its arguments, so `std` is an associated namespace of it and the call is found there — and it does not announce a clash, it simply wins, and fails later on a `std::string` that will not convert. Written as `txt::format`, nothing is ambiguous and `format` left bare still means the standard's.
 
-And a field of text cannot be measured without the tables that live here. **The width and the precision count what the standard counts, not bytes**: width counts grapheme clusters as std::format does; for terminal columns use txt::columns. A cluster is one, or two when its first code point is East Asian Wide or Fullwidth or in the blocks the standard names ([format.string.std]/13); a control, a format character and a mark that begins a cluster are one as well, where [`columns`](properties.md) gives them none:
+And a field of text cannot be measured without the tables that live here. **The width and the precision count what the standard counts, not bytes**: width counts grapheme clusters as std::format does; for terminal columns use txt::columns. A cluster is one, or two when its first code point is East Asian Wide or Fullwidth or in the blocks the standard names ([format.string.std]/13); a control, a format character and a mark that begins a cluster are one as well, where [`columns`](properties.md) gives them none.
 
-```cpp
-txt::format("[{:>10}]", "żółć");    // [      żółć]   eight bytes, four clusters
-txt::format("[{:>8}]",  "日本");     // [    日本]     two clusters, four wide
-txt::format("{:.3}",    "żółć");    // żół            stops on a cluster
-```
-
-Cut by its bytes, the last of those would leave a lead byte with nothing behind it, which is not text any more; cut by its code points, a letter would lose its accent. The output is held to the standard's own implementation, with two exceptions by name: libc++ counts CR LF as two clusters where UAX #29 (GB3) makes it one, and it counts the zero before the point of a value below one among the digits of `{:#g}` (`{:#.3g}` of 0.5 is `0.50` there), where printf and this header write `0.500`.
+Cut by its bytes, `{:.3}` of `żółć` would leave a lead byte with nothing behind it, which is not text any more; cut by its code points, a letter would lose its accent. The output is held to the standard's own implementation, with two exceptions by name: libc++ counts CR LF as two clusters where UAX #29 (GB3) makes it one, and it counts the zero before the point of a value below one among the digits of `{:#g}` (`{:#.3g}` of 0.5 is `0.50` there), where printf and this header write `0.500`.
 
 ## What a specification may say
 
@@ -97,53 +57,19 @@ Everything `std::format` specifies for the types below, in the same order — `[
 
 `{}` writes text to be read. `{:?}` writes it to be **told apart**: in quotes, with what a terminal cannot show written as an escape.
 
-```cpp
-txt::format("{:?}", "a\tb");          // "a\tb"
-txt::format("{:?}", "a\"b");          // "a\"b"
-txt::format("{:?}", 'x');             // 'x'          — a character in single quotes
-txt::format("{:?}", "żółć");          // "żółć"       — a letter is shown, not escaped
-txt::format("{:?}", "\u00a0");    // "\u{a0}"     — a no-break space is not
-```
-
 `\t`, `\n`, `\r`, `\\` and the quote that surrounds it have escapes of their own; everything else that cannot be shown is `\u{...}`, in lower-case hexadecimal with no leading zeros. Which code points those are is the standard's list, and the categories are the ones [`properties`](properties.md) already answers: the controls (`Cc`), the format characters (`Cf`), the surrogates (`Cs`), the private use area (`Co`), the unassigned (`Cn`), the line and paragraph separators (`Zl`, `Zp`), and every space separator (`Zs`) **but the space itself**. A byte that is part of no sequence at all is not a character, so it goes out as `\x{ff}` — the byte it was, not the `U+FFFD` it would decode to.
 
 A width and a precision are over what comes out, escapes and quotes included, and the field is still measured in columns.
 
 ### The elements of a range take this form by default
 
-This is the point of it, and it is the one change here that alters what an already-written program prints:
-
-```cpp
-vector<string> words = /* "a, b" and "c" */;
-txt::format("{}", words);             // ["a, b", "c"]
-txt::format("{::s}", words);          // [a, b, c]        — the same eight characters as
-                                      //                    a list of three words
-```
+This is the point of it, and it is the one change here that alters what an already-written program prints.
 
 Without the quotes those two are indistinguishable, which is why C++23 does the same (it is `set_debug_format` over there). It applies to the elements of a range, to the members of a pair or tuple, and to what an `optional` holds — so `optional<string>` holding the word `nullopt` is `"nullopt"` and an empty one is `nullopt`. Only text and characters have a debug form, so a list of numbers is untouched, and naming any type at all in the element specification — `{::s}` — takes it back.
 
 ## Values made of other values
 
-A list goes in brackets, a table in braces, a pair in parentheses, and a value that may not be there is either itself or the word `nullopt`. The shapes are the ones C++23 settled on, because they are the ones people already read:
-
-```cpp
-using namespace sgcl;
-
-vector<int> v = {1, 42, 255};
-txt::format("{}", v);                          // [1, 42, 255]
-txt::format("{:n}", v);                        // 1, 42, 255        — 'n' drops the brackets
-txt::format("{::>5}", v);                      // [    1,    42,   255]
-txt::format("{::#x}", v);                      // [0x1, 0x2a, 0xff]
-
-sorted_map<int, string> m = /* 1 → one, 2 → two */;
-txt::format("{}", m);                          // {1: "one", 2: "two"}
-txt::format("{}", sorted_set<int>{1, 3});      // {1, 3}
-
-txt::format("{}", pair<int, int>(1, 2));       // (1, 2)
-txt::format("{:m}", pair<int, int>(1, 2));     // 1: 2
-txt::format("{}", optional<int>(42));          // 42
-txt::format("{}", optional<int>());            // nullopt
-```
+A list goes in brackets, a table in braces, a pair in parentheses, and a value that may not be there is either itself or the word `nullopt`. The shapes are the ones C++23 settled on, because they are the ones people already read.
 
 The elements of all of these are written in the debug form by default — see above.
 
@@ -153,96 +79,35 @@ Text is a range of characters and is not taken for one — a [`string`](../core/
 
 ### What follows a second colon
 
-Everything after it belongs to the elements, and it goes down as many levels as the type has, one colon read at each:
-
-```cpp
-txt::format("{::>5}", v);                      // the elements padded to five
-txt::format("{:n:#06x}", v);                   // no brackets, each element 0x00ff
-txt::format("{:::>4}", deep);                  // a list of lists, the numbers padded
-```
+Everything after it belongs to the elements, and it goes down as many levels as the type has, one colon read at each.
 
 A colon is still an ordinary character to pad with for every value that holds nothing — `txt::format("{::>6}", 42)` is `::::42`, as it always was. Only a value made of other values reads it as theirs, which is the rule C++23 uses and for the same reason. One small thing did change with it: a **closing brace can no longer be the fill character** (`{:}<6}`), because a field now ends at the first `}`. C++23 forbids it too.
 
-A width applies to the whole:
-
-```cpp
-txt::format("[{:>16}]", v);                    // [    [1, 42, 255]]
-```
-
-and it is measured in columns like any other field, so a list of Polish or Japanese words sits in its field as a word does. That is the one road here that is not written straight into the caller's sink: the padding cannot be known until the whole is written, so the body goes first into room the thread keeps for the purpose and is padded where it lies. It is written **once**. It used to be written twice, once to be counted and once to be kept, and over a value made of values that stopped being a constant — every level doubled the level below it. After that it went into 256 bytes of the call's own stack, and a level that did not fit was written again with every level under it, so a nest whose every level passed 256 bytes still doubled: sixteen levels of three hundred bytes took 443 ms. The levels of one field share one room now and grow it for one another, and the same nest is 0.17 ms; a list of 400 numbers in `{:>2000}` is 3.7 µs through `format_to` against 6.7. The room is kept between calls up to 64 KB, so only the first large field on a thread is written a second time, and only its innermost level. A range without a width costs nothing extra either way.
+A width applies to the whole, and it is measured in columns like any other field, so a list of Polish or Japanese words sits in its field as a word does. That is the one road here that is not written straight into the caller's sink: the padding cannot be known until the whole is written, so the body goes first into room the thread keeps for the purpose and is padded where it lies. It is written **once**. It used to be written twice, once to be counted and once to be kept, and over a value made of values that stopped being a constant — every level doubled the level below it. After that it went into 256 bytes of the call's own stack, and a level that did not fit was written again with every level under it, so a nest whose every level passed 256 bytes still doubled: sixteen levels of three hundred bytes took 443 ms. The levels of one field share one room now and grow it for one another, and the same nest is 0.17 ms; a list of 400 numbers in `{:>2000}` is 3.7 µs through `format_to` against 6.7. The room is kept between calls up to 64 KB, so only the first large field on a thread is written a second time, and only its innermost level. A range without a width costs nothing extra either way.
 
 ### A pattern of time
 
 A time reads the rest of its field as a pattern of its own, which is the grammar `std::format` gives the types of `<chrono>`: `[[fill]align][width]` and then everything from the first `%` to the brace, colons included, so `{:%H:%M}` is one field and not a nest.
 
-```cpp
-txt::format("{:%H:%M}", t);                    // 12:41
-txt::format("[{:>12%F}]", t.date());           // [  2026-09-24]
-txt::format("{::%d.%m}", dates);               // [02.01, 04.03]: a list hands the pattern on
-txt::format("{} {:%T}", sys_seconds, 90s);     // the types of <chrono> too
-```
-
 The module [`time`](../time/layout.md) brings the formatters — its own `datetime`, `date` and `weekday`, and `sys_time`, `local_time`, `year_month_day`, `weekday`, `hh_mm_ss` and `duration` of `<chrono>`, written as `std::format` writes them — and the pattern is checked where the program is compiled like any other specification (`{:%Q}` of a datetime is an error). A formatter of one's own reads such a field by having a `static constexpr bool takes_layout(std::string_view pattern)` (the pattern, or a view over nothing when none was written) and a `write(format_sink&, const T&, const format_spec&, std::string_view pattern)`; a sign, `#`, `0` and a type are not read for it. A [stencil](stencil.md)'s values are its own kinds (text, numbers, lists, tables), so a time goes into one as the text it was written to.
 
 ## An enumeration
 
-Neither an `enum class` nor a plain `enum` is an integral type, so an enumeration used to have no formatter at all and did not compile. It is written as **the number it is**, with the whole numeric specification over it, taken from the underlying type — which is also what decides whether there is a sign:
-
-```cpp
-enum class colour : uint8_t { red = 0, green = 7, blue = 255 };
-
-txt::format("{}", colour::blue);        // 255
-txt::format("{:#04x}", colour::blue);   // 0xff
-txt::format("[{:>6}]", colour::green);  // [     7]
-txt::format("{:02x}", byte{10});   // 0a   — byte is one too
-```
+Neither an `enum class` nor a plain `enum` is an integral type, so an enumeration used to have no formatter at all and did not compile. It is written as **the number it is**, with the whole numeric specification over it, taken from the underlying type — which is also what decides whether there is a sign.
 
 The number and not the name, because C++20 has no reflection and a table of names would have to be written by you in any case. `s` is deliberately left free: it is the shape you reach for when you do write them.
 
-**The names are yours to give**, the same way any other type of your own gives them — a `format_value` beside the enumeration, which wins over the formatter above:
-
-```cpp
-namespace cards {
-    enum class suit { hearts, spades, diamonds, clubs };
-
-    void format_value(txt::format_sink& out, suit s, const txt::format_spec& spec) {
-        static const char* names[] = {"hearts", "spades", "diamonds", "clubs"};
-        txt::detail::write_text(out, names[int(s)], spec);
-    }
-}
-
-txt::format("[{:>8}]", cards::suit::spades);    // [  spades]
-```
+**The names are yours to give**, the same way any other type of your own gives them — a `format_value` beside the enumeration, which wins over the formatter above.
 
 Nothing here has to be opened or specialized for that, and the field still pads the name in columns. A `formatter<suit>` of your own works too and wins over both, if you want to say which specifications the names accept.
 
 ## A pattern the compiler never saw
 
-A catalogue of translations is read from a file when the program starts, and the text of a message is then chosen by the language of whoever is reading it. No `consteval` can help there, so the asking moves to where the pattern arrives — and because it can now fail, what comes back is an [`optional`](../core/aliases.md):
-
-```cpp
-template<class... A> optional<string> format(runtime_pattern, const A&... args);
-template<class... A> optional<size_t> format_to(slice<char>, runtime_pattern, const A&... args);
-template<class... A> bool fits(const runtime_pattern&);
-
-runtime_pattern runtime(const string& text);
-```
-
-```cpp
-string entry = catalogue.at("items-left");                 // "pozostało: {}"
-string s = txt::format(txt::runtime(entry), n)
-               .value_or(txt::format("{} left", n));       // the built-in pattern if it does not fit
-```
+A catalogue of translations is read from a file when the program starts, and the text of a message is then chosen by the language of whoever is reading it. No `consteval` can help there, so the asking moves to where the pattern arrives — and because it can now fail, what comes back is an [`optional`](../core/aliases.md).
 
 The pattern is walked once, and every field is weighed just before it is written; the first that does not fit stops the walk, and what was written by then is thrown away, so nothing half built is ever handed out. Everything the compiler refuses on the other road — a brace left open, a number with no value behind it, a precision asked of a whole number, `{:d}` over a name — is `nullopt` here.
 
-It is **not** an exception and **not** a reason: every reason has the same remedy, which is to fall back on the pattern the program was written with, and that one is a literal the compiler already checked. Whoever wants to know earlier asks `fits` where the catalogue is loaded, naming the types the program will pass:
-
-```cpp
-for (auto& [key, text] : catalogue) {
-    if (!txt::fits<int>(txt::runtime(text))) { /* this translation is broken */ }
-}
-```
+It is **not** an exception and **not** a reason: every reason has the same remedy, which is to fall back on the pattern the program was written with, and that one is a literal the compiler already checked. Whoever wants to know earlier asks `fits` where the catalogue is loaded, naming the types the program will pass.
 
 `runtime_pattern` keeps the [`string`](../core/string.md) rather than pointing into it, so a pattern looked up in a table and handed straight to `format` is safe; a string of this library is shared and immutable, so keeping it costs a pointer and no characters. Naming a value by number — `{1} {0}` — matters more here than anywhere, because word order is the first thing a translation changes.
 
@@ -250,22 +115,7 @@ One thing is still not asked and cannot be: `{:c}` of a number no character hold
 
 ## A type of your own
 
-Give it a `format_value` beside it, in its own namespace, and it is found there:
-
-```cpp
-namespace geometry {
-    struct point { int x, y; };
-
-    void format_value(txt::format_sink& out, const point& p, const txt::format_spec& spec) {
-        char room[32];
-        int n = std::snprintf(room, sizeof room, "(%d, %d)", p.x, p.y);
-        txt::detail::put_padded(out, {room, size_t(n)}, spec);
-    }
-}
-
-txt::format("{}", geometry::point{1, 2});          // (1, 2)
-txt::format("[{:>10}]", geometry::point{3, 4});    // [    (3, 4)]
-```
+Give it a `format_value` beside it, in its own namespace, and it is found there.
 
 Nothing here has to be opened for that, and a type that says nothing at all is a message from the compiler rather than a link error.
 
@@ -350,3 +200,477 @@ For a `float` the saving is larger still, because the standard's `to_chars` for 
 Everything else — a fraction, a value at or above 2^53, any form with a type or a precision — is the standard's `to_chars`, and stays that way: the algorithms that find the shortest representation in general (Ryu, Schubfach) are no faster than what it already does.
 
 The writing is kept apart from the padding for the same reason. A value that asks for no width — which is most of them — goes out as itself, and only a value in a field wider than itself takes the road that pads it. Written as one function, the compiler made a frame of 112 bytes and spilled six pairs of registers before anything happened, because the copying ladder appears in it four times over, and every value paid that whether or not it had a width: writing one number went from 9.8 ns to 7.1.
+
+## Members
+
+### format_spec
+
+```cpp
+struct format_spec { char fill; char align; char sign; bool alternate; bool zero;
+                     unsigned width; int precision; char type; };
+```
+
+One field's specification as it was read, `[[fill]align][sign][#][0][width][.precision][type]`, each part in the member of its name; what a `format_value` of one's own is handed.
+
+### format_sink
+
+```cpp
+class format_sink { void put(char); void put(std::string_view); void fill(char, size_t);
+                    size_t size() const; };
+```
+
+Room the caller lends, and a count: what does not fit is counted and not written, and `size` is the whole count.
+
+### write_padded
+
+```cpp
+constexpr void write_padded(format_sink& out, std::string_view text, const format_spec& spec) noexcept;
+```
+
+The text in its field, as a string with the same spec is written — the fill, the alignment, the width in columns and a precision cut on a grapheme cluster — for the `format_value` of a type of one's own.
+
+### growing_sink
+
+```cpp
+class growing_sink { format_sink& out(); size_t capacity() const;
+                     size_t take_room(size_t want, size_t mark);
+                     size_t size() const; string text() const; };
+```
+
+`growing_sink` is the other half of what `format_to` does, for whoever writes a long text in steps rather than a message in one: it starts over room the caller lends, and when a step runs off the end `take_room` takes twice as much, carries over what stood before the step and hands back the new capacity, so that **one step** can be written again. Nothing here uses it — `format` writes a text that did not fit a second time instead, and that is measured and stays that way, because a pattern's second pass is `to_chars` and `memcpy`. [`stencil.h`](stencil.md) is what it is for, where a second pass is every branch, every row and every `upper()` walked over again.
+
+The capacity is asked for **once** and kept in a variable of the caller's, and the test is marked unlikely. Both matter and both were measured: a field of the sink has to be read back after every call a step makes, and a test whose other side calls is otherwise laid out with the common case jumping over the call, which cost fourteen per cent of a page that fitted and needed no growing at all.
+
+## Examples
+
+A pattern and the values that go in it:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    int total = 10;
+    string name = "Ada";
+    string s = txt::format("{} left of {}", 3, total);
+    string t = txt::format("{:>8.2f} | {:#06x} | {:^10}", 3.14159, 255, name);
+    println("{}", s);
+    println("{}", t);
+    return 0;
+}
+```
+
+Output:
+
+```text
+3 left of 10
+    3.14 | 0x00ff |    Ada    
+```
+
+Into memory the caller lends, with what the whole text takes:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    char room[64];
+    int n = 3;
+    size_t needed = txt::format_to(room, "{} left", n);
+    if (needed > sizeof room) {
+        println("the text was cut; ask for {} bytes", needed);
+        return 1;
+    }
+    println("{} ({} bytes)", std::string_view(room, needed), needed);
+    return 0;
+}
+```
+
+Output:
+
+```text
+3 left (6 bytes)
+```
+
+A long text written in steps into room that grows, one step written again when it ran off the end:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    char room[16];
+    txt::growing_sink page(room, sizeof room);
+    size_t cap = page.capacity();
+    for (auto step : {"one ", "two ", "three ", "four ", "five"}) {
+        size_t mark = page.size();
+        page.out().put(step);
+        if (page.size() > cap) [[unlikely]] {
+            cap = page.take_room(page.size(), mark);
+            page.out().put(step);  // there is room for it now
+        }
+    }
+    println("{} ({} bytes of room)", page.text(), cap);
+    return 0;
+}
+```
+
+Output:
+
+```text
+one two three four five (32 bytes of room)
+```
+
+A field of text measured in clusters, and a precision that stops on one:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    println("{}", txt::format("[{:>10}]", "żółć"));  // eight bytes, four clusters
+    println("{}", txt::format("[{:>8}]", "日本"));  // two clusters, four wide
+    println("{}", txt::format("{:.3}", "żółć"));  // stops on a cluster
+    return 0;
+}
+```
+
+Output:
+
+```text
+[      żółć]
+[    日本]
+żół
+```
+
+`{:?}`, text as a program would write it:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    println("{}", txt::format("{:?}", "a\tb"));
+    println("{}", txt::format("{:?}", "a\"b"));
+    println("{}", txt::format("{:?}", 'x'));  // a character in single quotes
+    println("{}", txt::format("{:?}", "żółć"));  // a letter is shown, not escaped
+    println("{}", txt::format("{:?}", "\u00a0"));  // a no-break space is not
+    return 0;
+}
+```
+
+Output:
+
+```text
+"a\tb"
+"a\"b"
+'x'
+"żółć"
+"\u{a0}"
+```
+
+The elements of a range take the debug form by default:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    vector<string> words = {"a, b", "c"};
+    println("{}", txt::format("{}", words));
+    // the same eight characters as a list of three words
+    println("{}", txt::format("{::s}", words));
+    return 0;
+}
+```
+
+Output:
+
+```text
+["a, b", "c"]
+[a, b, c]
+```
+
+A list:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    vector<int> v = {1, 42, 255};
+    println("{}", txt::format("{}", v));
+    println("{}", txt::format("{:n}", v));  // 'n' drops the brackets
+    println("{}", txt::format("{::>5}", v));
+    println("{}", txt::format("{::#x}", v));
+    return 0;
+}
+```
+
+Output:
+
+```text
+[1, 42, 255]
+1, 42, 255
+[    1,    42,   255]
+[0x1, 0x2a, 0xff]
+```
+
+A table, a pair and a value that may not be there:
+
+```cpp
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    sorted_map<int, string> m = {{1, "one"}, {2, "two"}};
+    println("{}", txt::format("{}", m));
+    println("{}", txt::format("{}", sorted_set<int>{1, 3}));
+
+    println("{}", txt::format("{}", pair<int, int>(1, 2)));
+    println("{}", txt::format("{:m}", pair<int, int>(1, 2)));
+    println("{}", txt::format("{}", optional<int>(42)));
+    println("{}", txt::format("{}", optional<int>()));
+    return 0;
+}
+```
+
+Output:
+
+```text
+{1: "one", 2: "two"}
+{1, 3}
+(1, 2)
+1: 2
+42
+nullopt
+```
+
+What follows a second colon, and a width over the whole:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    vector<int> v = {1, 42, 255};
+    vector<vector<int>> deep = {{1, 2}, {30}};
+    println("{}", txt::format("{::>5}", v));  // the elements padded to five
+    println("{}", txt::format("{:n:#06x}", v));  // no brackets, each element 0x00ff
+    println("{}", txt::format("{:::>4}", deep));  // a list of lists, the numbers padded
+    println("{}", txt::format("{::>6}", 42));  // a number holds nothing: the colon pads
+    println("{}", txt::format("[{:>16}]", v));  // a width applies to the whole
+    return 0;
+}
+```
+
+Output:
+
+```text
+[    1,    42,   255]
+0x0001, 0x002a, 0x00ff
+[[   1,    2], [  30]]
+::::42
+[    [1, 42, 255]]
+```
+
+A pattern of time, with the formatters the module [`time`](../time/layout.md) brings:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/time/time.h"
+#include "sgcl/txt/txt.h"
+#include <chrono>
+
+using namespace sgcl;
+using namespace std::chrono_literals;
+
+int main() {
+    std::chrono::sys_seconds t = std::chrono::sys_days{2026y / 9 / 24} + 12h + 41min;
+    vector<std::chrono::year_month_day> dates = {2026y / 1 / 2, 2026y / 3 / 4};
+    println("{}", txt::format("{:%H:%M}", t));
+    println("{}", txt::format("[{:>12%F}]", std::chrono::year_month_day{2026y / 9 / 24}));
+    println("{}", txt::format("{::%d.%m}", dates));  // a list hands the pattern on
+    println("{}", txt::format("{} {:%T}", t, 90s));
+    return 0;
+}
+```
+
+Output:
+
+```text
+12:41
+[  2026-09-24]
+[02.01, 04.03]
+2026-09-24 12:41:00 00:01:30
+```
+
+An enumeration, written as the number it is:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+enum class colour : uint8_t { red = 0, green = 7, blue = 255 };
+
+int main() {
+    println("{}", txt::format("{}", colour::blue));
+    println("{}", txt::format("{:#04x}", colour::blue));
+    println("{}", txt::format("[{:>6}]", colour::green));
+    println("{}", txt::format("{:02x}", byte{10}));  // byte is one too
+    return 0;
+}
+```
+
+Output:
+
+```text
+255
+0xff
+[     7]
+0a
+```
+
+And its names, given by a `format_value` beside it:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+namespace cards {
+    enum class suit { hearts, spades, diamonds, clubs };
+
+    void format_value(txt::format_sink& out, suit s, const txt::format_spec& spec) {
+        static const char* names[] = {"hearts", "spades", "diamonds", "clubs"};
+        txt::write_padded(out, names[int(s)], spec);
+    }
+}
+
+int main() {
+    println("{}", txt::format("[{:>8}]", cards::suit::spades));
+    return 0;
+}
+```
+
+Output:
+
+```text
+[  spades]
+```
+
+A pattern out of a catalogue of translations, and the built-in one where it does not fit:
+
+```cpp
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    map<string, string> catalogue = {{"items-left", "pozostało: {}"},
+                                     {"broken", "pozostało: {1}"}};
+    int n = 3;
+    for (auto key : {"items-left", "broken"}) {
+        string entry = catalogue.at(key);
+        // the built-in pattern if it does not fit
+        string s = txt::format(txt::runtime(entry), n).value_or(txt::format("{} left", n));
+        println("{}", s);
+    }
+    return 0;
+}
+```
+
+Output:
+
+```text
+pozostało: 3
+3 left
+```
+
+The catalogue asked where it is loaded:
+
+```cpp
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    map<string, string> catalogue = {{"items-left", "pozostało: {}"},
+                                     {"broken", "pozostało: {:s}"}};
+    for (auto& [key, text] : catalogue) {
+        if (!txt::fits<int>(txt::runtime(text))) {
+            println("{}: this translation is broken", key);
+        }
+    }
+    return 0;
+}
+```
+
+Output:
+
+```text
+broken: this translation is broken
+```
+
+A type of your own:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+#include <cstdio>
+
+using namespace sgcl;
+
+namespace geometry {
+    struct point { int x, y; };
+
+    void format_value(txt::format_sink& out, const point& p, const txt::format_spec& spec) {
+        char room[32];
+        int n = std::snprintf(room, sizeof room, "(%d, %d)", p.x, p.y);
+        txt::write_padded(out, {room, size_t(n)}, spec);
+    }
+}
+
+int main() {
+    println("{}", txt::format("{}", geometry::point{1, 2}));
+    println("{}", txt::format("[{:>10}]", geometry::point{3, 4}));
+    return 0;
+}
+```
+
+Output:
+
+```text
+(1, 2)
+[    (3, 4)]
+```
+
+## See also
+
+[The module](README.md); [`stencil`](stencil.md), a template whose fields are written by this header; [`properties`](properties.md), `columns` for terminal cells; [`print`](../io/print.md), which writes through `format`; [`time`](../time/layout.md), the formatters of time.

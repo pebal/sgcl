@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -713,4 +713,51 @@ TEST(JsonTyped_Tests, AValueFromAT) {
     EXPECT_EQ(n->as_int(), 42);
     auto nan = json::from(std::numeric_limits<double>::quiet_NaN());
     EXPECT_FALSE(nan);                                        // what stringify refuses, from refuses
+}
+
+namespace typed {
+    // A struct without initializers behind a pointer field: what the input
+    // does not name is value-initialized (zero), as a member of the outer
+    // object would be
+    struct bare {
+        int64_t a;
+        int64_t b;
+        void describe(field_list& f) {
+            f.add("a", a);
+            f.add("b", b);
+        }
+    };
+
+    struct holds_bare {
+        sgcl::tracked_ptr<bare> p;
+        void describe(field_list& f) {
+            f.add("p", p);
+        }
+    };
+}
+
+// A pointer field read from the input makes its object value-initialized:
+// a field the input leaves out is zero, also where the object's slot held
+// another object's bytes before
+TEST(JsonTyped_Tests, APointerFieldsMissingMembersAreZero) {
+    sgcl::vector<sgcl::tracked_ptr<typed::bare>> kept;
+    {
+        sgcl::vector<sgcl::tracked_ptr<typed::bare>> all;
+        for (int i = 0; i < 20000; ++i) {
+            all.push_back(sgcl::make_tracked<typed::bare>(typed::bare{0x5A5A5A5A, 0x5A5A5A5A}));
+        }
+        for (size_t i = 0; i < all.size(); i += 8) {
+            kept.push_back(all[i]);   // the pages stay the type's: their free slots keep the bytes
+        }
+    }
+    sgcl::collector::force_collect(true);
+    sgcl::collector::force_collect(true);
+    for (int i = 0; i < 2000; ++i) {
+        auto h = json::parse<typed::holds_bare>(text(R"({"p": {"a": 1}})"));
+        ASSERT_TRUE(h) << h.error().message();
+        ASSERT_TRUE(h->p);
+        EXPECT_EQ(h->p->a, 1);
+        ASSERT_EQ(h->p->b, 0) << i;
+    }
+    EXPECT_FALSE(kept.empty());
 }

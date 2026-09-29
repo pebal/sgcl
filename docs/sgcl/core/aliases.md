@@ -35,7 +35,7 @@ The exceptions the library throws have the library's names as well: `out_of_rang
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -62,20 +62,20 @@ int main() {
     head->next->next = make_tracked<Node>(9);
 
     if (auto found = first_above(head, 4)) {
-        println("{}", (*found)->value);                     // 5
+        println("{}", (*found)->value);
     }
-    println("{}", first_above(head, 10).has_value());       // false
+    println("{}", first_above(head, 10).has_value());
 
     pair<tracked_ptr<Node>, int> counted{head, 3};    // a pointer and a count, each in a word of its own
     auto [node, count] = counted;
-    println("{} {}", node->value, count);             // 1 3
+    println("{} {}", node->value, count);
     return 0;
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 5
 false
 1 3

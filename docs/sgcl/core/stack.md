@@ -118,7 +118,8 @@ bool less = a < b;                  // true: a prefix
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -169,9 +170,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 a tree walked depth first
 1023 nodes visited, last value 1022, 2 live objects
 ```

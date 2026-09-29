@@ -30,7 +30,10 @@ static_assert(!req::immutable<vector<int>> && !req::immutable<slice<const int>> 
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/async/async.h"
+#include "sgcl/core/core.h"
+#include "sgcl/immutable/immutable.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -58,9 +61,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 4 even of the first eight, 16 in the latest
 ```
 

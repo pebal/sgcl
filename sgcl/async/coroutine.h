@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -9,13 +9,26 @@
 #include "operation.h"
 #include "../core/coroutine.h"
 #include "../core/detail/frame_word.h"
+#include "../core/detail/os.h"
 #include "../core/tracked_ptr.h"
 
 #include <atomic>
 #include <coroutine>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <exception>
 #include <optional>
+#include <thread>
+#include <typeinfo>
 #include <utility>
+#if __has_include(<cxxabi.h>) && !defined(_MSC_VER)
+#include <cxxabi.h>
+#endif
+#if defined(__linux__)
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif
 
 namespace sgcl::async::detail {
     using namespace sgcl::detail;
@@ -112,6 +125,106 @@ namespace sgcl::async::detail {
 namespace sgcl::async {
     namespace detail { using namespace sgcl::detail; }
     namespace detail {
+        // Where the calling thread belongs, for the default's line: the
+        // index of a scheduler's worker (set by the worker, scheduler.h:
+        // _run), the blocking pool (blocking.h: _run), or neither
+        inline constexpr int PlaceThread = -1;
+        inline constexpr int PlaceBlockingPool = -2;
+        inline thread_local int thread_place = PlaceThread;
+
+        // The system's number of the calling thread, the one a debugger
+        // and the system's tools show
+        inline unsigned long long os_thread_id() noexcept {
+#if defined(_WIN32)
+            return (unsigned long long)::GetCurrentThreadId();
+#elif defined(__APPLE__)
+            uint64_t id = 0;
+            ::pthread_threadid_np(nullptr, &id);
+            return id;
+#elif defined(__linux__)
+            return (unsigned long long)::syscall(SYS_gettid);
+#else
+            return (unsigned long long)std::hash<std::thread::id>()(std::this_thread::get_id());
+#endif
+        }
+
+        // The name of a type as the source spells it, into out: demangled
+        // where the ABI has a demangler (clang, gcc), name() as it is on
+        // MSVC; the standard library's inline namespaces (libc++'s __1,
+        // libstdc++'s __cxx11) dropped, so it reads std::system_error
+        inline void type_name(const std::type_info& type, char* out, size_t size) noexcept {
+            const char* name = type.name();
+            char* demangled = nullptr;
+#if __has_include(<cxxabi.h>) && !defined(_MSC_VER)
+            int status = 0;
+            demangled = abi::__cxa_demangle(name, nullptr, nullptr, &status);
+            if (demangled && status == 0) {
+                name = demangled;
+            }
+#endif
+            size_t n = 0;
+            for (const char* p = name; *p && n + 1 < size;) {
+                if (std::strncmp(p, "__1::", 5) == 0) {
+                    p += 5;
+                } else if (std::strncmp(p, "__cxx11::", 9) == 0) {
+                    p += 9;
+                } else {
+                    out[n++] = *p++;
+                }
+            }
+            out[n] = 0;
+            std::free(demangled);
+        }
+
+        // The default of on_unhandled, Go's panic in a goroutine: one line
+        // on stderr — the exception's type, what(), and where the task
+        // ended (a worker's index, the blocking pool, or the thread's
+        // number) — then std::terminate. Where the task was started is not
+        // kept by its frame, so the line cannot say it
+        [[noreturn]] inline void unhandled_default(std::exception_ptr e) noexcept {
+            char place[48];
+            if (thread_place >= 0) {
+                std::snprintf(place, sizeof(place), "on worker %d", thread_place);
+            } else if (thread_place == PlaceBlockingPool) {
+                std::snprintf(place, sizeof(place), "in the blocking pool");
+            } else {
+                std::snprintf(place, sizeof(place), "on thread %llu", os_thread_id());
+            }
+            try {
+                std::rethrow_exception(e);
+            } catch (const std::exception& x) {
+                char type[256];
+                type_name(typeid(x), type, sizeof(type));
+                std::fprintf(stderr, "sgcl::async: unhandled exception in a detached task %s: %s: %s\n", place, type, x.what());
+            } catch (...) {
+                std::fprintf(stderr, "sgcl::async: unhandled exception in a detached task %s: unknown exception\n", place);
+            }
+            std::fflush(stderr);
+            std::terminate();
+        }
+
+        inline std::atomic<void (*)(std::exception_ptr)> unhandled_handler = {&unhandled_default};
+    }
+
+    // What becomes of an exception that a task let go of threw and nobody
+    // reads: a task started by go(), detached, or whose object was dropped
+    // after it started (a task let go of, DESIGN 302). The handler is
+    // called with it once, on the thread that ends the task (a worker),
+    // that detaches a task already ended, or that destroys the object
+    // holding one (the collector's, for a task in a managed object); it
+    // must not throw. The default writes one line to stderr (the type,
+    // what(), where the task ended) and calls std::terminate, as an
+    // unhandled panic of a goroutine ends a Go program; a handler of the
+    // program's replaces it (a log, and on), nullptr puts the default
+    // back. The previous handler is returned. An exception that result(),
+    // wait() or co_await gave to someone is theirs, never the handler's;
+    // one of a task that lost a race (when_any, with_timeout,
+    // with_deadline) is dropped with its value
+    inline void (*on_unhandled(void (*handler)(std::exception_ptr)) noexcept)(std::exception_ptr) {
+        return detail::unhandled_handler.exchange(handler ? handler : &detail::unhandled_default, std::memory_order_acq_rel);
+    }
+
+    namespace detail {
         // What every task's promise has besides its value: the state of
         // the task (running until its final suspension; done after) for
         // the ones that wait for it, a thread on the word (join), a
@@ -152,6 +265,15 @@ namespace sgcl::async {
             tracked_ptr<FrameWord> continuation_frame;
             tracked_ptr<void> continuation_keep;   // the continuation's object, held while the task runs
             std::exception_ptr error;
+            bool error_taken = false;   // given to someone by result() (wait, co_await): never the unhandled handler's
+
+            // A task let go of ends, or one ended is let go of: its
+            // exception, if nobody took it, to on_unhandled's handler
+            void report_unhandled() noexcept {
+                if (error && !error_taken) {
+                    unhandled_handler.load(std::memory_order_acquire)(error);
+                }
+            }
 
             // The awaiter of the final suspension: done, and everyone told
             struct final_awaiter {
@@ -179,6 +301,7 @@ namespace sgcl::async {
                     // memory the collector's. Nothing of the frame is touched
                     // past the destroy.
                     if (p.released.exchange(true, std::memory_order_acq_rel)) {
+                        p.report_unhandled();   // a task let go of: nobody will read what it threw
                         h.destroy();
                     }
                 }
@@ -308,6 +431,24 @@ namespace sgcl::async {
         template<class> friend struct detail::TimeoutRace;   // timeout.h: starts the task and installs its continuation
 
         task() noexcept = default;
+        task(task&&) noexcept = default;
+
+        // A task let go of (its object dropped or assigned over; DESIGN
+        // 302): one that started runs on to its end, as detach() lets it,
+        // and nothing it waits for resumes a destroyed coroutine; one that
+        // never started is destroyed with its frame. Cancellation is the
+        // task's own, through its stop_token
+        task& operator=(task&& o) noexcept {
+            if (this != &o) {
+                _let_go();
+                _frame = std::move(o._frame);
+            }
+            return *this;
+        }
+
+        ~task() {
+            _let_go();
+        }
 
         // On the scheduler: queued, run by a worker to its next suspension.
         // Nodiscard: the task object destroys the coroutine when dropped;
@@ -353,6 +494,7 @@ namespace sgcl::async {
             }
             auto& p = _frame.promise();
             if (p.error) {
+                p.error_taken = true;
                 std::rethrow_exception(p.error);
             }
             return *p.value;
@@ -368,6 +510,7 @@ namespace sgcl::async {
         // never runs leaves its frame to the collector as it is
         void detach() noexcept {
             if (_frame.promise().released.exchange(true, std::memory_order_acq_rel)) {
+                _frame.promise().report_unhandled();   // done already, what it threw unread
                 _frame.destroy();   // done already: destroyed now
             } else {
                 (void)_frame.release();   // running or waiting: destroys itself when done
@@ -378,6 +521,13 @@ namespace sgcl::async {
         // a task that never ran or is done
         void destroy() noexcept {
             _frame.destroy();
+        }
+
+        // What the object's end and a move-assignment over it do (above)
+        void _let_go() noexcept {
+            if (_frame && _frame.promise().started.load(std::memory_order_acquire)) {
+                detach();
+            }
         }
 
     private:
@@ -474,6 +624,24 @@ namespace sgcl::async {
         template<class> friend struct detail::TimeoutRace;   // timeout.h: starts the task and installs its continuation
 
         task() noexcept = default;
+        task(task&&) noexcept = default;
+
+        // A task let go of (its object dropped or assigned over; DESIGN
+        // 302): one that started runs on to its end, as detach() lets it,
+        // and nothing it waits for resumes a destroyed coroutine; one that
+        // never started is destroyed with its frame. Cancellation is the
+        // task's own, through its stop_token
+        task& operator=(task&& o) noexcept {
+            if (this != &o) {
+                _let_go();
+                _frame = std::move(o._frame);
+            }
+            return *this;
+        }
+
+        ~task() {
+            _let_go();
+        }
 
         [[nodiscard]] task& spawn() {
             assert(_frame && !_frame.done() && "a task is spawned once, before it runs");
@@ -513,6 +681,7 @@ namespace sgcl::async {
                 _wait();
             }
             if (auto& p = _frame.promise(); p.error) {
+                p.error_taken = true;
                 std::rethrow_exception(p.error);
             }
         }
@@ -523,6 +692,7 @@ namespace sgcl::async {
 
         void detach() noexcept {
             if (_frame.promise().released.exchange(true, std::memory_order_acq_rel)) {
+                _frame.promise().report_unhandled();   // done already, what it threw unread
                 _frame.destroy();   // done already: destroyed now
             } else {
                 (void)_frame.release();   // running or waiting: destroys itself when done
@@ -531,6 +701,13 @@ namespace sgcl::async {
 
         void destroy() noexcept {
             _frame.destroy();
+        }
+
+        // What the object's end and a move-assignment over it do (task<T>)
+        void _let_go() noexcept {
+            if (_frame && _frame.promise().started.load(std::memory_order_acquire)) {
+                detach();
+            }
         }
 
     private:

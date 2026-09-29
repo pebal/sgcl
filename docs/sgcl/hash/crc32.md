@@ -34,22 +34,6 @@ static expected<uint32_t, io::error> of_file(const string& path);  static async:
 
 `crc32c` has the same members.
 
-```cpp
-using namespace sgcl;
-
-hash::crc32::of("123456789");                  // 0xCBF43926, the catalogue's check
-hash::crc32c::of("123456789");                 // 0xE3069283
-
-hash::crc32 h;
-h.update(header);
-h.update(body);
-uint32_t sum = h.value();
-
-// A CRC saved with the data, extended later with what was appended
-auto more = hash::crc32::resume(saved_crc);
-more.update(appended);
-```
-
 ## combine
 
 `combine(first, second, n)` is the CRC of A followed by B, given the CRC of A, the CRC of B and `n`, the length of B in bytes: zlib's `crc32_combine`, for both types. Moving a CRC past `n` zero bytes is a multiplication by x^(8n) modulo the polynomial, and the powers x^(8·2^k) are a table the compiler computes, so a combine is one multiplication for every set bit of `n`, for any length up to 2^64 − 1. It is `constexpr`. The [module's page](README.md#two-pieces-one-checksum) has it hashing a buffer on four tasks.
@@ -65,13 +49,13 @@ On arm64 an input of 128 bytes or more is folded 64 bytes at a time by carry-les
 ## Example
 
 ```cpp
-#include "sgcl/hash/crc32.h"
-#include "sgcl/io/print.h"
+#include "sgcl/hash/hash.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
 int main() {
-    println("{:08x}", hash::crc32::of("123456789"));          // the catalogue's check
+    println("{:08x}", hash::crc32::of("123456789"));  // the catalogue's check
     println("{:08x}", hash::crc32c::of("123456789"));
 
     // a file's CRC kept beside it, extended when more is appended

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -72,6 +72,49 @@ namespace sgcl {
             static S over(const tracked_ptr<const void>& word) noexcept {
                 return S(word);
             }
+
+            // A string of `n` characters that `fill(CharT* chars)` writes
+            // in place, and one of at most `bound` whose fill returns how
+            // many it wrote (StringMaker::make_bounded: one object, each
+            // character written once): the library's builders that know
+            // their size, or a bound of it
+            template<class S, class Fill>
+            static S filled(size_t n, Fill&& fill) {
+                return S::_filled(n, std::forward<Fill>(fill));
+            }
+
+            template<class S, class Fill>
+            static S bounded(size_t bound, Fill&& fill) {
+                return S::_bounded(bound, std::forward<Fill>(fill));
+            }
+
+            // The two steps of bounded, for a writing that waits (a read in
+            // a task): the object with room for `bound` characters, then
+            // the string of the first `used` of them
+            template<class S>
+            struct Unfilled {
+                unique_ptr<void> slot;
+                typename S::value_type* chars = nullptr;
+                size_t bound = 0;
+            };
+
+            template<class S>
+            static Unfilled<S> unfilled(size_t bound) {
+                Unfilled<S> u;
+                u.bound = bound;
+                if (bound) {
+                    u.slot = StringMaker::make_unfilled<typename S::value_type>(bound, u.chars);
+                }
+                return u;
+            }
+
+            template<class S>
+            static S finish(Unfilled<S>&& u, size_t used) {
+                if (!u.bound) {
+                    return S();
+                }
+                return S(StringMaker::finish<typename S::value_type>(std::move(u.slot), u.bound, used));
+            }
         };
     }
 
@@ -111,7 +154,20 @@ namespace sgcl {
 
         constexpr basic_string(std::nullptr_t) = delete;
 
-        basic_string(const CharT* s)
+        // From an array of characters (a literal): up to its first NUL or
+        // its end, whichever comes first — an array filled to the brim has
+        // no NUL and is not read past its end. From a pointer (CharT* or
+        // const CharT*, no other pointer converts): up to its NUL. The pair
+        // io's write_text has: the array's overload is the better match,
+        // so an array never decays into the pointer's strlen
+        template<size_t N>
+        basic_string(const CharT (&s)[N])
+        : basic_string(detail::array_text<CharT, Traits>(s)) {
+        }
+
+        template<class P>
+        requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+        basic_string(P s)
         : basic_string(view_type(s)) {
         }
 
@@ -132,12 +188,18 @@ namespace sgcl {
         }
 
         basic_string(size_type n, CharT c)
-        : basic_string(std::basic_string<CharT, Traits>(n, c)) {
+        : _word(Maker::template make_filled<CharT>(n, [&](CharT* chars) { std::fill_n(chars, n, c); })) {
         }
 
         template<std::input_iterator It>
         basic_string(It first, It last)
         : basic_string(std::basic_string<CharT, Traits>(first, last)) {
+        }
+
+        // A forward range is counted first and written in place
+        template<std::forward_iterator It>
+        basic_string(It first, It last)
+        : _word(Maker::template make_filled<CharT>(size_t(std::distance(first, last)), [&](CharT* chars) { std::copy(first, last, chars); })) {
         }
 
         basic_string(std::initializer_list<CharT> il)
@@ -171,7 +233,14 @@ namespace sgcl {
         basic_string& operator=(const basic_string&) noexcept = default;
         basic_string& operator=(basic_string&&) noexcept = default;
 
-        basic_string& operator=(const CharT* s) {
+        template<size_t N>
+        basic_string& operator=(const CharT (&s)[N]) {
+            return *this = basic_string(s);
+        }
+
+        template<class P>
+        requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+        basic_string& operator=(P s) {
             return *this = basic_string(s);
         }
 
@@ -282,7 +351,14 @@ namespace sgcl {
             return pieces(*this, sep, max_parts);
         }
 
-        pieces split(const CharT* sep, size_type max_parts = 0) const {
+        template<size_t N>
+        pieces split(const CharT (&sep)[N], size_type max_parts = 0) const {
+            return split(detail::array_text<CharT, Traits>(sep), max_parts);
+        }
+
+        template<class P>
+        requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+        pieces split(P sep, size_type max_parts = 0) const {
             return split(view_type(sep), max_parts);
         }
 
@@ -309,16 +385,44 @@ namespace sgcl {
         template<std::ranges::input_range R>
         requires std::is_convertible_v<std::ranges::range_reference_t<R>, view_type>
         static basic_string join(R&& parts, view_type sep) {
-            std::basic_string<CharT, Traits> s;
-            bool first = true;
-            for (auto&& part : parts) {
-                if (!first) {
-                    s.append(sep);
+            if constexpr(std::ranges::forward_range<R>) {
+                // A range walked twice: the lengths summed, then each part
+                // and separator written once into a string of that size
+                size_t total = 0;
+                size_t count = 0;
+                for (auto&& part : parts) {
+                    total += view_type(part).size();
+                    ++count;
                 }
-                s.append(view_type(part));
-                first = false;
+                if (count > 1) {
+                    total += (count - 1) * sep.size();
+                }
+                return _filled(total, [&](CharT* at) {
+                    bool first = true;
+                    for (auto&& part : parts) {
+                        if (!first) {
+                            detail::copy_bytes(at, sep.data(), sep.size() * sizeof(CharT));
+                            at += sep.size();
+                        }
+                        view_type v(part);
+                        detail::copy_bytes(at, v.data(), v.size() * sizeof(CharT));
+                        at += v.size();
+                        first = false;
+                    }
+                });
+            } else {
+                // a single pass: gathered, as its length is not known
+                std::basic_string<CharT, Traits> s;
+                bool first = true;
+                for (auto&& part : parts) {
+                    if (!first) {
+                        s.append(sep);
+                    }
+                    s.append(view_type(part));
+                    first = false;
+                }
+                return basic_string(view_type(s));
             }
-            return basic_string(view_type(s));
         }
 
         template<std::ranges::input_range R>
@@ -327,9 +431,16 @@ namespace sgcl {
             return join(std::forward<R>(parts), view_type(&sep, 1));
         }
 
-        template<std::ranges::input_range R>
+        template<std::ranges::input_range R, size_t N>
         requires std::is_convertible_v<std::ranges::range_reference_t<R>, view_type>
-        static basic_string join(R&& parts, const CharT* sep) {
+        static basic_string join(R&& parts, const CharT (&sep)[N]) {
+            return join(std::forward<R>(parts), detail::array_text<CharT, Traits>(sep));
+        }
+
+        template<std::ranges::input_range R, class P>
+        requires std::is_convertible_v<std::ranges::range_reference_t<R>, view_type>
+              && (std::same_as<P, const CharT*> || std::same_as<P, CharT*>)
+        static basic_string join(R&& parts, P sep) {
             return join(std::forward<R>(parts), view_type(sep));
         }
 
@@ -341,6 +452,20 @@ namespace sgcl {
 
         template<std::ranges::input_range R>
         static basic_string join(R&&, int) = delete;   // 'ż' is an int: write U'ż'
+
+        // One string of the pieces in order — strings, slices, views,
+        // literals, characters — their lengths summed first and each
+        // written once into a string of that size: a text made of a few
+        // known parts, without the steps of a+b+c (each + a string of its
+        // own) or of appending
+        template<class... A>
+        requires (sizeof...(A) > 0) && ((std::is_convertible_v<const A&, view_type> || std::is_same_v<A, CharT>) && ...)
+        static basic_string concat(const A&... pieces) {
+            const size_type total = (size_type(0) + ... + _piece(pieces).size());
+            return _filled(total, [&](CharT* at) {
+                ((detail::copy_bytes(at, _piece(pieces).data(), _piece(pieces).size() * sizeof(CharT)), at += _piece(pieces).size()), ...);
+            });
+        }
 
         // Without the characters of `chars` (Unicode white space by
         // default, unicode::is_space; a set of code points as a
@@ -359,6 +484,11 @@ namespace sgcl {
             }
             auto to = v.find_last_not_of(chars) + 1;
             return _part(from, to);
+        }
+
+        template<size_t N>
+        basic_string trim(const CharT (&chars)[N]) const {
+            return trim(detail::array_text<CharT, Traits>(chars));
         }
 
         basic_string trim(std::u32string_view set) const requires (sizeof(CharT) == 1) {
@@ -385,6 +515,11 @@ namespace sgcl {
             return from == npos ? basic_string() : _part(from, size());
         }
 
+        template<size_t N>
+        basic_string trim_left(const CharT (&chars)[N]) const {
+            return trim_left(detail::array_text<CharT, Traits>(chars));
+        }
+
         basic_string trim_right() const {
             return _part(0, this->_end_without_spaces());
         }
@@ -399,6 +534,11 @@ namespace sgcl {
             return to == npos ? basic_string() : _part(0, to + 1);
         }
 
+        template<size_t N>
+        basic_string trim_right(const CharT (&chars)[N]) const {
+            return trim_right(detail::array_text<CharT, Traits>(chars));
+        }
+
         // Without `prefix` at the start (`suffix` at the end) when it is
         // there; the same object when it is not
         basic_string trim_prefix(view_type prefix) const {
@@ -407,6 +547,16 @@ namespace sgcl {
 
         basic_string trim_suffix(view_type suffix) const {
             return this->ends_with(suffix) ? _part(0, size() - suffix.size()) : *this;
+        }
+
+        template<size_t N>
+        basic_string trim_prefix(const CharT (&prefix)[N]) const {
+            return trim_prefix(detail::array_text<CharT, Traits>(prefix));
+        }
+
+        template<size_t N>
+        basic_string trim_suffix(const CharT (&suffix)[N]) const {
+            return trim_suffix(detail::array_text<CharT, Traits>(suffix));
         }
 
         // With every occurrence of `from` (the first `count` of them, when
@@ -419,16 +569,46 @@ namespace sgcl {
             if (at == npos) {
                 return *this;
             }
-            std::basic_string<CharT, Traits> s;
-            size_type pos = 0;
-            size_type n = 0;
-            while (at != npos) {
-                s.append(v, pos, at - pos).append(to);
-                pos = at + from.size();
-                at = (count && ++n == count) ? npos : v.find(from, pos);
+            // A pass that counts the occurrences (as the writing will take
+            // them: left to right, not overlapping, the first `count`), then
+            // the text written once into a string of the size they make
+            size_type hits = 0;
+            for (auto k = at; k != npos; k = (count && hits == count) ? npos : v.find(from, k + from.size())) {
+                ++hits;
             }
-            s.append(v, pos);
-            return basic_string(view_type(s));
+            const size_type total = v.size() - hits * from.size() + hits * to.size();
+            return _filled(total, [&](CharT* out) {
+                size_type pos = 0;
+                auto put = [&](const CharT* p, size_type k) {
+                    detail::copy_bytes(out, p, k * sizeof(CharT));
+                    out += k;
+                };
+                for (size_type h = 0, k = at; h < hits; ++h) {
+                    put(v.data() + pos, k - pos);
+                    put(to.data(), to.size());
+                    pos = k + from.size();
+                    if (h + 1 < hits) {
+                        k = v.find(from, pos);
+                    }
+                }
+                put(v.data() + pos, v.size() - pos);
+            });
+        }
+
+        // An array on either side, or both, read to its end as well
+        template<size_t N, size_t M>
+        basic_string replace(const CharT (&from)[N], const CharT (&to)[M], size_type count = 0) const {
+            return replace(detail::array_text<CharT, Traits>(from), detail::array_text<CharT, Traits>(to), count);
+        }
+
+        template<size_t N>
+        basic_string replace(const CharT (&from)[N], view_type to, size_type count = 0) const {
+            return replace(detail::array_text<CharT, Traits>(from), to, count);
+        }
+
+        template<size_t M>
+        basic_string replace(view_type from, const CharT (&to)[M], size_type count = 0) const {
+            return replace(from, detail::array_text<CharT, Traits>(to), count);
         }
 
         basic_string replace(CharT from, CharT to, size_type count = 0) const {
@@ -453,12 +633,11 @@ namespace sgcl {
             if (v.size() > max_size() / count) {
                 throw length_error("sgcl::basic_string::repeat");
             }
-            std::basic_string<CharT, Traits> s;
-            s.reserve(v.size() * count);
-            for (size_type i = 0; i < count; ++i) {
-                s.append(v);
-            }
-            return basic_string(view_type(s));
+            return _filled(v.size() * count, [&](CharT* chars) {
+                for (size_type i = 0; i < count; ++i) {
+                    detail::copy_bytes(chars + i * v.size(), v.data(), v.size() * sizeof(CharT));
+                }
+            });
         }
 
         // With every letter in lower (upper) case by Unicode's simple
@@ -571,18 +750,36 @@ namespace sgcl {
         // a table about each
         basic_string _ascii_cased(char lo, char hi, int by) const {
             auto v = this->view();
-            std::basic_string<CharT, Traits> s(v);
-            bool changed = false;
             // Without a branch, because one here costs twelve times what
             // the work does: the letters of a text do not alternate in
             // any way a processor can predict, and a branch is also what
-            // stops the loop being done a word at a time
-            for (auto& c : s) {
-                bool letter = uint8_t(uint8_t(c) - uint8_t(lo)) <= uint8_t(hi - lo);
-                c = CharT(int(c) + (letter ? by : 0));
-                changed |= letter;
+            // stops the loop being done a word at a time. A pass that only
+            // reads says whether anything changes (the same object when
+            // not); the second writes the new string in place
+            bool changed = false;
+            for (CharT c : v) {
+                changed |= uint8_t(uint8_t(c) - uint8_t(lo)) <= uint8_t(hi - lo);
             }
-            return changed ? basic_string(s.data(), s.size()) : *this;
+            if (!changed) {
+                return *this;
+            }
+            // The bounds, the step and the source in locals of the fill: a
+            // store through a character pointer may alias any memory, the
+            // lambda's captures included, so read from the captures the
+            // compiler reloads them at every byte and does not do the loop
+            // a vector at a time (three to four times slower, measured);
+            // locals whose address is never taken it keeps in registers
+            return _filled(v.size(), [&](CharT* chars) {
+                const CharT* from = v.data();
+                const size_type n = v.size();
+                const uint8_t first = uint8_t(lo), span = uint8_t(hi - lo);
+                const int step = by;
+                for (size_type i = 0; i < n; ++i) {
+                    CharT c = from[i];
+                    bool letter = uint8_t(uint8_t(c) - first) <= span;
+                    chars[i] = CharT(int(c) + (letter ? step : 0));
+                }
+            });
         }
 
         // The characters mapped one by one (a code point at a time in
@@ -604,31 +801,43 @@ namespace sgcl {
                 if (first == bytes.size()) {
                     return *this;
                 }
-                std::basic_string<CharT, Traits> s(v.substr(0, first));
-                s.reserve(v.size());
+                // A mapped letter may take more bytes or fewer than its own
+                // (ɐ 2 → Ɐ 3, K 3 → k 1): a pass over the rest counts the
+                // difference, and the string is written once at its size
+                ptrdiff_t grew = 0;
                 for (size_type i = first; i < bytes.size();) {
                     auto [c, n] = utf8::decode(bytes, i);
                     auto m = map(c);
-                    if (m == c) {
-                        s.append(v, i, n);
-                    } else {
-                        char out[utf8::max_width];
-                        auto w = utf8::encode(m, out);
-                        s.append(reinterpret_cast<const CharT*>(out), w);
+                    if (m != c) {
+                        grew += ptrdiff_t(utf8::width(m)) - ptrdiff_t(n);
                     }
                     i += n;
                 }
-                return basic_string(view_type(s));
+                return _filled(size_type(ptrdiff_t(v.size()) + grew), [&](CharT* chars) {
+                    detail::copy_bytes(chars, v.data(), first);
+                    CharT* w = chars + first;
+                    for (size_type i = first; i < bytes.size();) {
+                        auto [c, n] = utf8::decode(bytes, i);
+                        auto m = map(c);
+                        if (m == c) {
+                            detail::copy_bytes(w, v.data() + i, n);
+                            w += n;
+                        } else {
+                            w += utf8::encode(m, reinterpret_cast<char*>(w));
+                        }
+                        i += n;
+                    }
+                });
             } else {
                 auto changes = [&](CharT c) { return map(char32_t(c)) != char32_t(c); };
                 if (std::find_if(v.begin(), v.end(), changes) == v.end()) {
                     return *this;
                 }
-                std::basic_string<CharT, Traits> s(v);
-                for (auto& c : s) {
-                    c = CharT(map(char32_t(c)));
-                }
-                return basic_string(view_type(s));
+                return _filled(v.size(), [&](CharT* chars) {
+                    for (size_type i = 0; i < v.size(); ++i) {
+                        chars[i] = CharT(map(char32_t(v[i])));
+                    }
+                });
             }
         }
 
@@ -658,6 +867,29 @@ namespace sgcl {
 
         explicit basic_string(const tracked_ptr<const void>& w) noexcept
         : _word(w) {
+        }
+
+        // A piece of concat as a view: a character as one of itself
+        template<class A>
+        static view_type _piece(const A& a) noexcept {
+            if constexpr(std::is_same_v<A, CharT>) {
+                return view_type(&a, 1);
+            } else if constexpr(std::is_array_v<A>) {
+                return detail::array_text<CharT, Traits>(a);   // to its first NUL or its end
+            } else {
+                return view_type(a);
+            }
+        }
+
+        // A string written in place (detail::StringAccess::filled, bounded)
+        template<class Fill>
+        static basic_string _filled(size_type n, Fill&& fill) {
+            return basic_string(Maker::template make_filled<CharT>(n, std::forward<Fill>(fill)));
+        }
+
+        template<class Fill>
+        static basic_string _bounded(size_type bound, Fill&& fill) {
+            return basic_string(Maker::template make_bounded<CharT>(bound, std::forward<Fill>(fill)));
         }
 
         // The handle's word, for the atomics (detail/handle_word.h)
@@ -910,10 +1142,10 @@ namespace sgcl {
     namespace detail {
         template<class S, class CharT, class Traits>
         S string_concat(std::basic_string_view<CharT, Traits> a, std::basic_string_view<CharT, Traits> b) {
-            std::basic_string<CharT, Traits> s;
-            s.reserve(a.size() + b.size());
-            s.append(a).append(b);
-            return S(std::basic_string_view<CharT, Traits>(s));
+            return StringAccess::filled<S>(a.size() + b.size(), [&](CharT* chars) {
+                copy_bytes(chars, a.data(), a.size() * sizeof(CharT));
+                copy_bytes(chars + a.size(), b.data(), b.size() * sizeof(CharT));
+            });
         }
     }
 
@@ -932,13 +1164,27 @@ namespace sgcl {
         return detail::string_concat<basic_string<CharT, Traits>>(a, std::basic_string_view<CharT, Traits>(b));
     }
 
-    template<class CharT, class Traits>
-    basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a, const CharT* b) {
+    // An array (a literal) up to its first NUL or its end; a pointer
+    // (CharT* or const CharT*) up to its NUL
+    template<class CharT, class Traits, size_t N>
+    basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a, const CharT (&b)[N]) {
+        return detail::string_concat<basic_string<CharT, Traits>>(std::basic_string_view<CharT, Traits>(a), detail::array_text<CharT, Traits>(b));
+    }
+
+    template<class CharT, class Traits, class P>
+    requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+    basic_string<CharT, Traits> operator+(const basic_string<CharT, Traits>& a, P b) {
         return detail::string_concat<basic_string<CharT, Traits>>(std::basic_string_view<CharT, Traits>(a), std::basic_string_view<CharT, Traits>(b));
     }
 
-    template<class CharT, class Traits>
-    basic_string<CharT, Traits> operator+(const CharT* a, const basic_string<CharT, Traits>& b) {
+    template<class CharT, class Traits, size_t N>
+    basic_string<CharT, Traits> operator+(const CharT (&a)[N], const basic_string<CharT, Traits>& b) {
+        return detail::string_concat<basic_string<CharT, Traits>>(detail::array_text<CharT, Traits>(a), std::basic_string_view<CharT, Traits>(b));
+    }
+
+    template<class CharT, class Traits, class P>
+    requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+    basic_string<CharT, Traits> operator+(P a, const basic_string<CharT, Traits>& b) {
         return detail::string_concat<basic_string<CharT, Traits>>(std::basic_string_view<CharT, Traits>(a), std::basic_string_view<CharT, Traits>(b));
     }
 
@@ -1109,7 +1355,14 @@ namespace std {
             return sgcl::basic_string<CharT, Traits>::hash_of(s);
         }
 
-        size_t operator()(const CharT* s) const noexcept {
+        template<size_t N>
+        size_t operator()(const CharT (&s)[N]) const noexcept {
+            return sgcl::basic_string<CharT, Traits>::hash_of(sgcl::detail::array_text<CharT, Traits>(s));
+        }
+
+        template<class P>
+        requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+        size_t operator()(P s) const noexcept {
             return sgcl::basic_string<CharT, Traits>::hash_of(s);
         }
     };
@@ -1131,7 +1384,14 @@ namespace std {
             return sgcl::basic_string<CharT>::hash_of(s);
         }
 
-        size_t operator()(const CharT* s) const noexcept {
+        template<size_t N>
+        size_t operator()(const CharT (&s)[N]) const noexcept {
+            return sgcl::basic_string<CharT>::hash_of(sgcl::detail::array_text<CharT, std::char_traits<CharT>>(s));
+        }
+
+        template<class P>
+        requires std::same_as<P, const CharT*> || std::same_as<P, CharT*>
+        size_t operator()(P s) const noexcept {
             return sgcl::basic_string<CharT>::hash_of(s);
         }
     };

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -31,9 +31,18 @@ namespace sgcl::async {
         struct StopDeadline;
 
         struct StopState {
-            ChannelState<void> signal;                   // closed: the stop requested
+            ChannelState<void> signal{ChannelLinked{}, 0};   // closed: the stop requested (linked by stop_source())
             tracked_ptr<StopState> parent;
-            concurrent::queue<weak_ptr<StopState>> children;
+            concurrent::queue<weak_ptr<StopState>>::first_node children_first;
+            concurrent::queue<weak_ptr<StopState>> children{concurrent::detail::QueueUnlinked{}};
+
+            // the channel's lists and the children's queue linked to their
+            // first nodes: once, by the code that made the state, right
+            // after make_tracked (ChannelState::link)
+            void link() noexcept {
+                signal.link();
+                children.link(children_first);
+            }
             atomic<tracked_ptr<StopDeadline>> deadline;  // the earliest deadline armed, if any: cancelled by the stop
 
             bool stopped() const noexcept {
@@ -174,11 +183,13 @@ namespace sgcl::async {
     public:
         stop_source()
         : _s(make_tracked<detail::StopState>()) {
+            _s->link();   // before the state is given to anyone
         }
 
         // A child of the source the token belongs to: stopped with it
         explicit stop_source(const stop_token& parent)
         : _s(make_tracked<detail::StopState>()) {
+            _s->link();
             if (parent._s) {
                 _s->parent = parent._s;
                 // the entries of children gone popped from the head first, so

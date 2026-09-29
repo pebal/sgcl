@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -54,24 +54,26 @@ namespace sgcl::encoding::detail {
     // buffered streams, 8 KB, eight to a page, no header
     using CodecBlock = array<byte, config::io_buffer_size>;
 
-    // The text of n bytes. Laid out once into a std::string of the size
-    // the codec says and copied into the string at the end: one pass of
-    // the codec and one copy, where a string grown a character at a time
-    // costs ten times the writing. A result longer than a string can hold
-    // (4 G characters) is length_error, as std::string's own limit is.
+    // The text of n bytes, written by the codec straight into the
+    // string's object, taken for the size the codec says: one pass and
+    // each character written once, no staging copy and no allocation but
+    // the string. The size is exact for base64, base32 and hex and a
+    // bound for ascii85 (a 'z' is one character for four), whose string
+    // keeps the class of the bound with the length it wrote. A result
+    // longer than a string can hold (4 G characters) is length_error.
     template<class Codec>
     string encode_text(const Codec& c, const uint8_t* p, size_t n) {
         size_t bound = c.encode_bound(n);
         if (bound > string::max_size()) {
             throw length_error("sgcl: an encoding longer than a string can hold");
         }
-        std::string s;
-        s.resize(bound);
-        char* o = s.data();
-        auto q = p;
-        c.encode_groups(q, p + n, o, s.data() + bound);
-        c.encode_final(q, size_t(p + n - q), o);
-        return string(s.data(), size_t(o - s.data()));
+        return sgcl::detail::StringAccess::bounded<string>(bound, [&](char* chars) {
+            char* o = chars;
+            auto q = p;
+            c.encode_groups(q, p + n, o, chars + bound);
+            c.encode_final(q, size_t(p + n - q), o);
+            return size_t(o - chars);
+        });
     }
 
     // Into a caller's buffer, which holds encode_bound(n): the characters
@@ -126,11 +128,16 @@ namespace sgcl::encoding::detail {
     }
 
     template<class Codec>
-    expected<size_t, error> decode_to(const Codec& c, const slice<byte>& out, const string& text) {
-        if (out.size() < c.decode_bound(text.data(), text.size())) {
+    expected<size_t, error> decode_to(const Codec& c, const slice<byte>& out, const char* p, size_t n) {
+        if (out.size() < c.decode_bound(p, n)) {
             throw length_error("sgcl: the buffer is smaller than the most the text decodes to");
         }
-        return decode_into(c, text.data(), text.size(), reinterpret_cast<uint8_t*>(out.data()), out.size());
+        return decode_into(c, p, n, reinterpret_cast<uint8_t*>(out.data()), out.size());
+    }
+
+    template<class Codec>
+    expected<size_t, error> decode_to(const Codec& c, const slice<byte>& out, const string& text) {
+        return decode_to(c, out, text.data(), text.size());
     }
 
     // The encoder as a stream: a writer whose bytes go out encoded to

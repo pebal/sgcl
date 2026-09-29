@@ -1,7 +1,7 @@
 # sgcl::immutable::map
 
 ```cpp
-#include "sgcl/immutable/map.h"   // or "sgcl/immutable/immutable.h", "sgcl/sgcl.h"
+#include "sgcl/immutable/map.h"   // or "sgcl/immutable/immutable.h"
 
 namespace sgcl::immutable {
     template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
@@ -22,6 +22,10 @@ The map is two words and its function objects: the size and a `tracked_ptr` to t
 - With a transparent hash and equality (`is_transparent`, as `std::hash` and `std::equal_to` of a [string](../core/string.md) are) the lookups take a key of another type and build none: a `string_view` or a literal finds a `string` key with no string made for the search.
 - Sharing between threads: any number of threads read any version. A `map` variable that one thread replaces while others read it is the one thing that needs synchronization, and `concurrent::copy_on_write<map<Key, T>>` is the shape for it: `load()` is one atomic load for a snapshot, `update(f)` copies two words, applies `f` (an `insert`, an `erase`) and swings the pointer, so an update costs O(log *n*) where a `concurrent::copy_on_write<sgcl::map<Key, T>>`, over the mutable map, costs a copy of everything. An `atomic<tracked_ptr<map<Key, T>>>` does the same with the version in a managed object of its own.
 - The order of iteration is the trie's, the bits of the hashes; it changes with nothing but the elements.
+
+## Measured
+
+On an Apple M-series core, `-O2`, `map<long, long>` of 200,000 random keys (`bench_immutable`): `insert` 480 ns a version each (`std::unordered_map`: 52), `find` 24 ns (`std::unordered_map`: 10), the constructor from a range 91 ns per element; against [immer](https://github.com/arximboldi/immer)'s map, the same trie over atomic reference counts, 452, 16 and 154 ([Benchmarks](benchmarks.md)). An insert or an erase copies four nodes, three of them full: the links copied without the barrier and each source node shaded once ([tracked_ptr: shade](../core/tracked_ptr.md#shade-storep-barrieroff)), the elements as any copy, which is where the time goes; the find's gap to immer is the entry holding its link and its element apart, a load more per level. One version of a hundred thousand `int` pairs is 2.99 MB, 30 bytes per element; a second version differing in one value adds 1.6 KB, a third with one more element 1.7 KB.
 
 ## Members
 
@@ -192,7 +196,10 @@ assert(*m.get(1) == 10 && !m.get(2) && m.value_or(2, 0) == 0 && m.contains_key(1
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/concurrent/concurrent.h"
+#include "sgcl/core/core.h"
+#include "sgcl/immutable/immutable.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -201,23 +208,26 @@ using namespace sgcl;
 // publishes a new version that shares all but one path with the old
 // one, and nobody copies a map or takes a lock
 int main() {
-    concurrent::copy_on_write<immutable::map<string, int>> limits(immutable::map<string, int>{{"connections", 100}, {"requests", 1000}});
+    concurrent::copy_on_write<immutable::map<string, int>> limits(
+        immutable::map<string, int>{{"connections", 100}, {"requests", 1000}});
     atomic stop = false;
     atomic<long> reads = 0, inconsistent = 0;
     vector<thread> readers;
     for (int r : range(4)) {
         readers.emplace_back([&] {
             while (!stop) {
-                auto snapshot = limits.load();                      // one load: this version, for as long as snapshot lives
+                // one load: this version, for as long as snapshot lives
+                auto snapshot = limits.load();
                 auto c = snapshot->try_get("connections");
                 auto q = snapshot->try_get("requests");
-                inconsistent += !c || !q || *q != 10 * *c;          // the writer keeps the ratio: a snapshot is whole
+                // the writer keeps the ratio: a snapshot is whole
+                inconsistent += !c || !q || *q != 10 * *c;
                 ++reads;
             }
         });
     }
     for (int i : range(1, 101)) {
-        limits.update([i](auto& m) {                                // two paths copied, the rest of the map shared
+        limits.update([i](auto& m) {  // two paths copied, the rest of the map shared
             m = m.set("connections", 100 * i).set("requests", 1000 * i);
         });
     }
@@ -226,20 +236,17 @@ int main() {
         r.join();
     }
     auto final = limits.load();
-    println("{} reads, {} inconsistent, connections {}, {} keys", reads.load(), inconsistent.load(), final->at("connections"), final->size());
+    println("{} reads, {} inconsistent, connections {}, {} keys", reads.load(), inconsistent.load(),
+            final->at("connections"), final->size());
     return inconsistent == 0 && final->at("requests") == 100000 ? 0 : 1;
 }
 ```
 
-The output of one run (the reads depend on how the threads interleave):
+Sample output:
 
+```text
+922 reads, 0 inconsistent, connections 10000, 2 keys
 ```
-878 reads, 0 inconsistent, connections 10000, 2 keys
-```
-
-## Measured
-
-On an Apple M-series core, `-O2`, `map<long, long>` of 200,000 random keys (`bench_immutable`): `insert` 480 ns a version each (`std::unordered_map`: 52), `find` 24 ns (`std::unordered_map`: 10), the constructor from a range 91 ns per element; against [immer](https://github.com/arximboldi/immer)'s map, the same trie over atomic reference counts, 452, 16 and 154 ([Benchmarks](benchmarks.md)). An insert or an erase copies four nodes, three of them full: the links copied without the barrier and each source node shaded once ([tracked_ptr: shade](../core/tracked_ptr.md#shade-storep-barrieroff)), the elements as any copy, which is where the time goes; the find's gap to immer is the entry holding its link and its element apart, a load more per level. One version of a hundred thousand `int` pairs is 2.99 MB, 30 bytes per element; a second version differing in one value adds 1.6 KB, a third with one more element 1.7 KB.
 
 ## See also
 

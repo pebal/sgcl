@@ -28,7 +28,7 @@ assert sorted(codes) == list(range(257)), 'Huffman: 257 symbols expected, got %d
 
 lines = []
 lines.append('''//------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -367,8 +367,7 @@ namespace sgcl::async {
                 } else if (t->period != duration::zero()) {
                     t->ch->try_send();   // a tick nobody took is dropped
                 } else {
-                    t->ch->try_send();   // after: one signal, then the close
-                    t->ch->close();
+                    t->ch->close();   // after, at: the event set: set is the close, one event; a wait woken by it finds it set
                 }
             }
 
@@ -605,13 +604,13 @@ namespace sgcl::async {
         // The channels of signals under after, at and tick: one signal (or
         // one per period) and, for a single one, the close
         inline tracked_ptr<ChannelState<void>> after_state(duration d) {
-            tracked_ptr<ChannelState<void>> ch = make_tracked<ChannelState<void>>(1);
+            tracked_ptr<ChannelState<void>> ch = make_linked_state<void>(1);
             add_timer(d, duration::zero(), ch, ch.get());
             return ch;
         }
 
         inline tracked_ptr<ChannelState<void>> at_state(time_point t) {
-            tracked_ptr<ChannelState<void>> ch = make_tracked<ChannelState<void>>(1);
+            tracked_ptr<ChannelState<void>> ch = make_linked_state<void>(1);
             add_timer(t, duration::zero(), ch, ch.get());
             return ch;
         }
@@ -631,14 +630,14 @@ namespace sgcl::async {
     // A channel that gets a signal every d until it is closed; a tick
     // nobody has taken yet is dropped (the channel holds one)
     inline channel<void> tick(duration d) {
-        tracked_ptr<detail::ChannelState<void>> ch = make_tracked<detail::ChannelState<void>>(1);
+        tracked_ptr<detail::ChannelState<void>> ch = detail::make_linked_state<void>(1);
         detail::add_timer(d, d, ch, ch.get());
         return detail::ChannelAccess::make(std::move(ch));
     }
 
     // The same with the first tick at `first` (a whole second, say), then every d
     inline channel<void> tick(duration d, time_point first) {
-        tracked_ptr<detail::ChannelState<void>> ch = make_tracked<detail::ChannelState<void>>(1);
+        tracked_ptr<detail::ChannelState<void>> ch = detail::make_linked_state<void>(1);
         detail::add_timer(first, d, ch, ch.get());
         return detail::ChannelAccess::make(std::move(ch));
     }

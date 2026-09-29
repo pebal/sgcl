@@ -187,7 +187,7 @@ assert(!shape && !mutable_shape && !circle && back);
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/io/io.h"
 #include <cassert>
 
 using namespace sgcl;
@@ -222,14 +222,14 @@ int main() {
     shared = nullptr;                             // still alive: the registry keeps it
 
     collector::force_collect(true);           // optional, for the demonstration only: "Node 2 destroyed", on a collector thread
-    println("registry -> {}", registry->next->id);   // 3
+    println("registry -> {}", registry->next->id);
     return 0;
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 Node 1 destroyed
 Node 2 destroyed
 registry -> 3

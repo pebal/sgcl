@@ -96,7 +96,9 @@ Pops every element there is, destroying each on the calling thread.
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/concurrent/concurrent.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -139,9 +141,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 4000 messages, 0 out of order
 ```
 

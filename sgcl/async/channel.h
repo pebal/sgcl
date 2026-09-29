@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -21,6 +21,7 @@
 #include <coroutine>
 #include <cstdint>
 #include <iterator>
+#include <type_traits>
 #include <utility>
 
 namespace sgcl::async {
@@ -44,6 +45,13 @@ namespace sgcl::async {
 
         template<class... Cases>
         class Select;
+
+        // The tag of a channel's state whose lists keep their first nodes
+        // in the state (ChannelState::link): made by make_linked_state,
+        // which links them at once; any other state takes a node of its
+        // own for each list, as before (a state that may lie off the
+        // managed heap: a field of a semaphore on a stack)
+        struct ChannelLinked {};
     }
 
     // A channel of Go: a queue with the synchronization of both ends. A
@@ -231,6 +239,11 @@ namespace sgcl::async {
             : counted(counted) {
             }
 
+            Waiters(bool counted, ChannelLinked) noexcept
+            : list(concurrent::detail::QueueUnlinked{})
+            , counted(counted) {
+            }
+
             void push(const WaiterPtr& w) {
                 list.push(w);
                 if (counted) {
@@ -272,10 +285,24 @@ namespace sgcl::async {
         // has a ring too, of a few slots, through which a waiting sender's
         // element passes to the receiver that serves it (_refill), so that
         // the waiting senders are served in their order.
+        // A ring of MinSlots (a rendezvous, a signal's channel, any capacity
+        // up to 8) of small elements lies in the state itself: the same
+        // slots, one object less for every such channel (a channel<void>(1)
+        // was four: the state, this ring and the two lists' first nodes);
+        // a larger ring, or one of large elements, is an array of its own
         struct Slot {
             atomic<size_t> seq = {0};
             optional<T> value;
         };
+
+        static constexpr size_t MinSlots = 8;   // the ring of a rendezvous, or of a small capacity
+        static constexpr bool InlineRing = sizeof(Slot) <= 64;
+        struct NoSlots {};
+        using InlineSlots = std::conditional_t<InlineRing, Slot[MinSlots], NoSlots>;
+
+        static size_t _ring_size(size_t capacity) noexcept {
+            return std::bit_ceil(capacity < MinSlots ? MinSlots : capacity);
+        }
 
     public:
         using value_type = T;
@@ -283,13 +310,29 @@ namespace sgcl::async {
 
         // A channel of capacity n; 0, the default, is a rendezvous
         explicit ChannelState(size_type capacity = 0)
-        : _ring(std::bit_ceil(capacity < MinSlots ? MinSlots : capacity))
+        : _ring(InlineRing && _ring_size(capacity) == MinSlots ? 0 : _ring_size(capacity))
         , _receivers(capacity != 0)
         , _senders(capacity != 0)
         , _capacity(capacity) {
-            for (size_t i = 0; i < _ring.size(); ++i) {
-                _ring[i].seq.store(i, std::memory_order_relaxed);
-            }
+            _init_ring();
+        }
+
+        // The same with the lists' first nodes in the state: linked by
+        // link() before the state is used (make_linked_state)
+        ChannelState(ChannelLinked, size_type capacity)
+        : _ring(InlineRing && _ring_size(capacity) == MinSlots ? 0 : _ring_size(capacity))
+        , _receivers(capacity != 0, ChannelLinked{})
+        , _senders(capacity != 0, ChannelLinked{})
+        , _capacity(capacity) {
+            _init_ring();
+        }
+
+        // The lists linked to their first nodes: once, by the code that
+        // made the state, after make_tracked let it go and before anyone
+        // sees it (concurrent::queue::link)
+        void link() noexcept {
+            _receivers.list.link(_first[0]);
+            _senders.list.link(_first[1]);
         }
 
         ChannelState(const ChannelState&) = delete;
@@ -819,7 +862,7 @@ namespace sgcl::async {
         // push between the check and the claim) leaves the claimed one to
         // be put back (_requeue).
         WaiterPtr _refill() {
-            auto limit = _capacity ? _capacity : _ring.size();
+            auto limit = _capacity ? _capacity : _slot_count;
             if (!_can_push(limit) || (_capacity && _senders.empty())) {   // the count: a buffered channel's fast path (Waiters)
                 return WaiterPtr();
             }
@@ -911,7 +954,7 @@ namespace sgcl::async {
                     if (_head.compare_exchange_weak(pos, pos + 1, std::memory_order_relaxed)) {
                         optional<T> v(std::in_place, std::move(*slot.value));
                         slot.value.reset();
-                        slot.seq.store(pos + _ring.size(), std::memory_order_release);
+                        slot.seq.store(pos + _slot_count, std::memory_order_release);
                         return v;
                     }
                 } else if (dif < 0) {
@@ -923,12 +966,24 @@ namespace sgcl::async {
             }
         }
 
+        void _init_ring() noexcept {
+            if constexpr (InlineRing) {
+                _slots = _ring.size() ? _ring.data() : _inline;
+            } else {
+                _slots = _ring.data();
+            }
+            _slot_count = _ring.size() ? _ring.size() : size_t(MinSlots);
+            for (size_t i = 0; i < _slot_count; ++i) {
+                _slots[i].seq.store(i, std::memory_order_relaxed);
+            }
+        }
+
         Slot& _slot(size_t pos) noexcept {
-            return _ring[pos & (_ring.size() - 1)];
+            return _slots[pos & (_slot_count - 1)];
         }
 
         const Slot& _slot(size_t pos) const noexcept {
-            return _ring[pos & (_ring.size() - 1)];
+            return _slots[pos & (_slot_count - 1)];
         }
 
         // Nothing in the ring and nothing on its way into it
@@ -1005,12 +1060,14 @@ namespace sgcl::async {
             return (_ring_empty() && !_receivers.empty()) || (_capacity && _can_push(_capacity)) || _closed.load(std::memory_order_acquire);
         }
 
-        static constexpr size_t MinSlots = 8;   // the ring of a rendezvous, or of a small capacity
         static constexpr unsigned RingBackoffMax = 32;   // the cap of the backoff at the ring's head and tail: a long pause here leaves a slot others wait for (measured: 8, 32 and 128 alike at sixteen threads, config::backoff_max an order worse on a loaded machine)
 
         // The head and the tail a cache line apart (config::cache_line_size):
         // the receivers' line and the senders' line
-        dynamic_array<Slot> _ring;
+        dynamic_array<Slot> _ring;             // a ring of its own (empty when it lies in the state)
+        [[no_unique_address]] InlineSlots _inline;   // the ring of MinSlots small slots
+        Slot* _slots = nullptr;                // the ring, here or there
+        size_t _slot_count = 0;                // a power of two
         atomic<size_t> _head = {0};
         unsigned char _pad[config::cache_line_size - sizeof(atomic<size_t>)] = {};
         atomic<size_t> _tail = {0};
@@ -1018,6 +1075,11 @@ namespace sgcl::async {
         Waiters _senders;
         atomic<bool> _closed = {false};
         const size_type _capacity;
+        // the lists' first nodes when the state is linked (unused
+        // otherwise): last, past every word the senders and the
+        // receivers contend for, so that they move none of them on its
+        // cache line (written once each, by the lists' first push)
+        typename concurrent::queue<WaiterPtr>::first_node _first[2];
     };
 
     // A channel of signals: send() carries nothing, receive() is whether
@@ -1032,6 +1094,14 @@ namespace sgcl::async {
 
         explicit ChannelState(size_type capacity = 0)
         : _ch(capacity) {
+        }
+
+        ChannelState(ChannelLinked, size_type capacity)
+        : _ch(ChannelLinked{}, capacity) {
+        }
+
+        void link() noexcept {
+            _ch.link();
         }
 
         // An operation: co_await or wait() gives whether the signal went
@@ -1100,6 +1170,25 @@ namespace sgcl::async {
             _ch.close();
         }
 
+        // The close of a wait that ended because its source is ready (the
+        // reactor's readable, writable, exited), apart from one ended with
+        // nothing (a cancel, the descriptor closed): the bit is written
+        // here, before the close, and the close's exchange (seq_cst: a
+        // release) publishes it. An event is set by its close alone
+        // either way, and a wait woken by it finds it set
+        void close_ready() {
+            _ready = true;
+            _ch.close();
+        }
+
+        // Whether the close was close_ready(): false while the channel is
+        // open. The bit is read only after the close is seen (closed():
+        // an acquire load), which pairs with the release of close_ready's
+        // close: the bit written before it is visible here
+        bool closed_ready() const noexcept {
+            return _ch.closed() && _ready;
+        }
+
         bool closed() const noexcept {
             return _ch.closed();
         }
@@ -1118,12 +1207,25 @@ namespace sgcl::async {
 
     private:
         ChannelState<Signal> _ch;
+        bool _ready = false;   // written once before the close, read after it (close_ready, closed_ready)
     };
     }
 
     namespace detail {
         struct ChannelAccess;
         struct ChannelMade {};   // the tag of a handle's constructor from a state
+
+        // A channel's state on the managed heap with its lists' first
+        // nodes in it: one managed object for a ring in the state (a
+        // capacity up to 8 of small elements), two for a ring of its own.
+        // The lists are linked here, right after make_tracked let the state
+        // go and before it is given to anyone
+        template<class T>
+        tracked_ptr<ChannelState<T>> make_linked_state(size_t capacity = 0) {
+            tracked_ptr<ChannelState<T>> s = make_tracked<ChannelState<T>>(ChannelLinked{}, capacity);
+            s->link();
+            return s;
+        }
     }
 
     // The handle of a channel: one word, a tracked_ptr to the channel's
@@ -1151,12 +1253,12 @@ namespace sgcl::async {
 
         // A rendezvous
         channel()
-        : _s(make_tracked<State>()) {
+        : _s(detail::make_linked_state<T>()) {
         }
 
         // A channel of capacity n; 0 is a rendezvous
         explicit channel(size_type capacity)
-        : _s(make_tracked<State>(capacity)) {
+        : _s(detail::make_linked_state<T>(capacity)) {
         }
 
         // A copy is the same channel: the copies share the state
@@ -1283,11 +1385,11 @@ namespace sgcl::async {
         using receive_op = typename State::receive_op;
 
         channel()
-        : _s(make_tracked<State>()) {
+        : _s(detail::make_linked_state<void>()) {
         }
 
         explicit channel(size_type capacity)
-        : _s(make_tracked<State>(capacity)) {
+        : _s(detail::make_linked_state<void>(capacity)) {
         }
 
         channel(const channel&) noexcept = default;

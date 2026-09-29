@@ -1,11 +1,12 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
 #include "../error.h"
+#include "../../core/detail/bytes.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -545,7 +546,9 @@ namespace sgcl::compress::detail {
                 // the byte at the position, moved to the front
                 uint32_t k = symbol - 1;
                 uint8_t b = _mtf[k];
-                std::memmove(_mtf + 1, _mtf, k);
+                // the two runs overlap: move_bytes reads every block
+                // before it writes one (memmove past 32 bytes)
+                sgcl::detail::move_bytes(_mtf + 1, _mtf, k);
                 _mtf[0] = b;
                 ++_counts[b];
                 tt[size++] = b;

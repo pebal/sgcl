@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -52,7 +52,8 @@ namespace sgcl::async {
     // nothing to arm or cancel. A task that lost the race is not stopped
     // by the timeout on its own (a task cannot be stopped from outside:
     // it stops itself when it sees its token): it runs on to its end,
-    // its result lands where nobody reads it any more, and the objects
+    // its result lands where nobody reads it any more (an exception too:
+    // it is dropped with the race, never on_unhandled's), and the objects
     // and the frames are the collector's. To have the loser stop, give it a token whose source
     // the timeout may stop: `with_timeout(t, d, source)` requests the
     // stop of the source when d passes first, so a task made with
@@ -189,6 +190,14 @@ namespace sgcl::async {
                 static_cast<TimeoutRace*>(r)->_finish(DeadlineWon, false);
             }
 
+            // The deadline won: what the task ends with, a value or an
+            // exception, is nobody's (as a when_any loser's), never
+            // on_unhandled's when the race is collected. Only the task
+            // object reads the flag, in its destructor, after the task's end
+            void lost() noexcept {
+                t._frame.promise().error_taken = true;
+            }
+
             // The first of the two: the timer cancelled when the task won,
             // the frame handed to the scheduler (next on this worker after
             // the task's end, in the queue from the timer's thread)
@@ -247,14 +256,19 @@ namespace sgcl::async {
         };
 
         // The result of a race won by the task, as the expected it gives:
-        // the value (nothing for a task of nothing), or what the task threw
+        // the value (nothing for a task of nothing), or what the task threw.
+        // The value is put in place: a task's result that is an expected
+        // itself (a task of expected<size_t, io::error>) is the value of
+        // the outer one, which no conversion from it would make
+        // (expected's converting constructors take no expected as a value,
+        // core/expected.h)
         template<class E, class T>
         expected<T, E> race_won(task<T>& t) {
             if constexpr (std::is_void_v<T>) {
                 t.result();
                 return expected<void, E>();
             } else {
-                return std::move(t.result());
+                return expected<T, E>(std::in_place, std::move(t.result()));
             }
         }
 
@@ -264,7 +278,7 @@ namespace sgcl::async {
                 slot.take();
                 return expected<void, E>();
             } else {
-                return slot.take();
+                return expected<T, E>(std::in_place, slot.take());
             }
         }
     }
@@ -277,6 +291,7 @@ namespace sgcl::async {
     task<expected<T, timed_out>> with_deadline(task<T> t, time_point when) {
         tracked_ptr<detail::TimeoutRace<T>> race = make_tracked<detail::TimeoutRace<T>>(std::move(t));
         if (!co_await typename detail::TimeoutRace<T>::awaiter{race, when}) {
+            race->lost();
             co_return unexpected(timed_out());
         }
         co_return detail::race_won<timed_out>(race->t);
@@ -289,6 +304,7 @@ namespace sgcl::async {
         tracked_ptr<detail::TimeoutRace<T>> race = make_tracked<detail::TimeoutRace<T>>(std::move(t));
         if (!co_await typename detail::TimeoutRace<T>::awaiter{race, when}) {
             loser.request_stop();
+            race->lost();
             co_return unexpected(timed_out());
         }
         co_return detail::race_won<timed_out>(race->t);
@@ -317,7 +333,7 @@ namespace sgcl::async {
                 co_await t;
                 co_return expected<void, stopped>();
             } else {
-                co_return co_await t;
+                co_return expected<T, stopped>(std::in_place, std::move(co_await t));   // in place: a result that is an expected itself (race_won)
             }
         }
         tracked_ptr<detail::TimeoutSlot<T>> slot = make_tracked<detail::TimeoutSlot<T>>();

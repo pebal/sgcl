@@ -48,8 +48,8 @@ friend bool operator==(const error&, const error&) noexcept;
 ## Example
 
 ```cpp
-#include "sgcl/crypto/error.h"
-#include "sgcl/io/print.h"
+#include "sgcl/crypto/crypto.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -65,3 +65,7 @@ Output:
 message authentication failed
 offset 17: malformed data
 ```
+
+## See also
+
+[The module](README.md); [`x509`](x509.md) (`reason()`); [`random`](random.md).

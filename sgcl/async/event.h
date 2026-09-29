@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -30,13 +30,15 @@ namespace sgcl::async {
     // in a global or a std container, a rooted<async::event>. What the
     // reactor and the timers give (readable, writable, exited, after, at)
     // is an event too, set when the moment comes or when the wait is ended
-    // with nothing: a wait woken by one looks at its source again.
+    // with nothing: a wait woken by one looks at its source again. An event
+    // happens once, and it is set by the close of its channel alone: after
+    // wait(), co_await or a select's on_set, is_set() is true.
     class event {
         using State = detail::ChannelState<void>;
 
     public:
         event()
-        : _s(make_tracked<State>()) {
+        : _s(detail::make_linked_state<void>()) {
         }
 
         event(const event&) noexcept = default;
@@ -138,6 +140,13 @@ namespace sgcl::async {
 
             static const tracked_ptr<ChannelState<void>>& state(const event& e) noexcept {
                 return e._s;
+            }
+
+            // A reactor's event set because its source was ready, not
+            // ended with nothing (ChannelState<void>::closed_ready: the bit
+            // read after the close is seen)
+            static bool ready(const event& e) noexcept {
+                return e._s->closed_ready();
             }
         };
     }

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -150,19 +150,28 @@ namespace sgcl::txt {
         // three characters, and every byte has a spelling.
         inline string encode(const string& text, percent_set keep = unreserved) {
             auto v = text.view();
-            std::string out;
-            out.reserve(v.size());
+            // A pass that counts the escapes, then the text written once
+            // into a string of the size they make: the same object when
+            // nothing is escaped
+            size_t escaped = 0;
             for (char c : v) {
-                if (keep.holds(c)) {
-                    out.push_back(c);
-                    continue;
-                }
-                static constexpr char Digits[] = "0123456789ABCDEF";
-                out.push_back('%');
-                out.push_back(Digits[uint8_t(c) >> 4]);
-                out.push_back(Digits[uint8_t(c) & 15]);
+                escaped += !keep.holds(c);
             }
-            return string(out.data(), out.size());
+            if (escaped == 0) {
+                return text;
+            }
+            return sgcl::detail::StringAccess::filled<string>(v.size() + 2 * escaped, [&](char* out) {
+                static constexpr char Digits[] = "0123456789ABCDEF";
+                for (char c : v) {
+                    if (keep.holds(c)) {
+                        *out++ = c;
+                        continue;
+                    }
+                    *out++ = '%';
+                    *out++ = Digits[uint8_t(c) >> 4];
+                    *out++ = Digits[uint8_t(c) & 15];
+                }
+            });
         }
 
         // And back. Nothing comes back when a '%' is not followed by two
@@ -177,8 +186,6 @@ namespace sgcl::txt {
         // text with txt::decode.
         inline optional<string> decode(const string& text) {
             auto v = text.view();
-            std::string out;
-            out.reserve(v.size());
             auto nibble = [](char c) {
                 if (c >= '0' && c <= '9') {
                     return c - '0';
@@ -191,23 +198,33 @@ namespace sgcl::txt {
                 }
                 return -1;
             };
+            // A pass that checks the escapes and counts them, then the
+            // bytes written once into a string of the size that leaves:
+            // the same object when there is none
+            size_t escapes = 0;
             for (size_t i = 0; i < v.size(); ++i) {
                 if (v[i] != '%') {
-                    out.push_back(v[i]);
                     continue;
                 }
-                if (i + 2 >= v.size()) {
+                if (i + 2 >= v.size() || nibble(v[i + 1]) < 0 || nibble(v[i + 2]) < 0) {
                     return nullopt;
                 }
-                int hi = nibble(v[i + 1]);
-                int lo = nibble(v[i + 2]);
-                if (hi < 0 || lo < 0) {
-                    return nullopt;
-                }
-                out.push_back(char(hi * 16 + lo));
+                ++escapes;
                 i += 2;
             }
-            return string(out.data(), out.size());
+            if (escapes == 0) {
+                return text;
+            }
+            return sgcl::detail::StringAccess::filled<string>(v.size() - 2 * escapes, [&](char* out) {
+                for (size_t i = 0; i < v.size(); ++i) {
+                    if (v[i] != '%') {
+                        *out++ = v[i];
+                        continue;
+                    }
+                    *out++ = char(nibble(v[i + 1]) * 16 + nibble(v[i + 2]));
+                    i += 2;
+                }
+            });
         }
     }
 }

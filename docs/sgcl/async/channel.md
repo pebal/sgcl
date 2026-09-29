@@ -96,7 +96,9 @@ A channel that carries nothing but the fact of a send: a signal of readiness, a 
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/async/async.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -144,9 +146,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 159600
 ```
 

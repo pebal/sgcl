@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -13,9 +13,17 @@
 #include "tests/types.h"
 #include "sgcl/crypto/crypto.h"
 
+// OpenSSL, the oracle, where the build has it (SGCL_TEST_OPENSSL); a build
+// for a processor it has no library for (x86-64 under Rosetta) runs the
+// vectors alone, the oracle's comparisons left out
+#if SGCL_TEST_OPENSSL
 #include <openssl/core_names.h>
 #include <openssl/evp.h>
 #include <openssl/params.h>
+#else
+struct evp_cipher_st;
+using EVP_CIPHER = evp_cipher_st;
+#endif
 
 #include <cstdint>
 #include <cstring>
@@ -50,6 +58,10 @@ namespace cipher_test {
 
     inline std::string to_hex(const sgcl::vector<std::byte>& v) {
         return to_hex(v.data(), v.size());
+    }
+
+    inline std::string to_hex(const sgcl::crypto::secret_bytes& s) {
+        return to_hex(s.as_slice().data(), s.size());
     }
 
     template<size_t N>
@@ -115,7 +127,7 @@ namespace cipher_test {
     }
 
     // --- OpenSSL ---
-
+#if SGCL_TEST_OPENSSL
     inline const EVP_CIPHER* gcm_cipher(size_t key_size) {
         return key_size == 16 ? EVP_aes_128_gcm() : key_size == 24 ? EVP_aes_192_gcm() : EVP_aes_256_gcm();
     }
@@ -205,13 +217,30 @@ namespace cipher_test {
         EVP_MAC_free(mac);
         return tag;
     }
+#else
+    // no oracle: the tests that take one pass nullptr's, and nothing is called
+    inline const EVP_CIPHER* no_oracle() {
+        return nullptr;
+    }
 
-    // Which path this build tests
+    inline bool ossl_open(const EVP_CIPHER*, const bytes&, const bytes&, const bytes&, const bytes&, bytes&) {
+        return false;
+    }
+#endif
+
+    // Which path this build and this processor take
     inline const char* path_name() {
-#if SGCL_CRYPTO_ARM64_AES
-        return "arm64 (AESE/AESMC, PMULL, NEON)";
-#elif SGCL_CRYPTO_NEON
-        return "NEON ChaCha20, portable AES and GHASH";
+#if defined(SGCL_CRYPTO_ARM64)
+        if (sgcl::detail::cpu::crypto()) {
+            return "arm64 (AESE/AESMC, PMULL, NEON)";
+        }
+        return "NEON ChaCha20, portable AES and GHASH (no crypto extension)";
+#elif defined(SGCL_CRYPTO_X86)
+        namespace cpu = sgcl::detail::cpu;
+        if (cpu::aes()) {
+            return cpu::wide() ? "x86-64 (AES-NI, PCLMULQDQ, AVX2 and SSE2 ChaCha20)" : "x86-64 (AES-NI, PCLMULQDQ, SSE2 ChaCha20)";
+        }
+        return cpu::wide() ? "x86-64 (portable AES and GHASH, AVX2 and SSE2 ChaCha20)" : "x86-64 (portable AES and GHASH, SSE2 ChaCha20)";
 #else
         return "portable (bitsliced AES, GHASH on integer products, C++ ChaCha20/Poly1305)";
 #endif

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -15,10 +15,12 @@
 #include "../crypto/p384.h"
 #include "../crypto/rsa.h"
 #include "../crypto/x509.h"
+#include "../crypto/detail/key_pem.h"
 #include "../encoding/pem.h"
 
 #include <memory>
 #include <stdexcept>
+#include <string_view>
 
 // TLS 1.3 (RFC 8446) over the module's connections: a client that
 // connects and completes the handshake before it gives the connection
@@ -72,12 +74,12 @@ namespace sgcl::net::tls {
             static tracked_ptr<const void> word(const identity& id) noexcept;
         };
 
-        // The key of a PEM block: PKCS #8 ("PRIVATE KEY") of each kind,
-        // SEC 1 ("EC PRIVATE KEY"), PKCS #1 ("RSA PRIVATE KEY")
-        inline bool read_key(IdentityKey& k, const encoding::pem& block) {
-            auto der = block.bytes().as_slice();
-            const auto& type = block.type();
-            if (type == "PRIVATE KEY") {
+        // The key of a private key's DER under its PEM label: PKCS #8
+        // ("PRIVATE KEY") of each kind, SEC 1 ("EC PRIVATE KEY"), PKCS #1
+        // ("RSA PRIVATE KEY"); the DER is the caller's secret_bytes, read
+        // in place
+        inline bool read_key(IdentityKey& k, std::string_view label, const slice<const byte>& der) {
+            if (label == "PRIVATE KEY") {
                 if (auto e = crypto::ed25519::private_key::from_pkcs8_der(der)) {
                     k.ed25519.emplace(std::move(*e));
                     return true;
@@ -96,7 +98,7 @@ namespace sgcl::net::tls {
                 }
                 return false;
             }
-            if (type == "EC PRIVATE KEY") {
+            if (label == "EC PRIVATE KEY") {
                 if (auto p = crypto::p256::private_key::from_sec1_der(der)) {
                     k.p256.emplace(std::move(*p));
                     return true;
@@ -107,7 +109,7 @@ namespace sgcl::net::tls {
                 }
                 return false;
             }
-            if (type == "RSA PRIVATE KEY") {
+            if (label == "RSA PRIVATE KEY") {
                 if (auto r = crypto::rsa::private_key::from_pkcs1_der(der)) {
                     k.rsa.emplace(std::move(*r));
                     return true;
@@ -151,8 +153,14 @@ namespace sgcl::net::tls {
     public:
         // The chain (the leaf first) and the key, each in PEM; the key must
         // be the leaf's. errc::malformed (crypto) for anything else, as an
-        // io::error of op "identity"
-        static expected<identity, io::error> from_pem(const string& certificate_chain_pem, const string& key_pem) {
+        // io::error of op "identity" (errc::unsupported for an encrypted
+        // key). The key's PEM is bytes, read where they lie: a secret_bytes
+        // (crypto::read_secret of a key file), a buffer of the caller's; its
+        // DER goes straight into a secret_bytes, never into managed memory
+        // (a string converts too, but its bytes are managed: the caller's
+        // choice). The key's first block is taken (PRIVATE KEY, EC PRIVATE
+        // KEY, RSA PRIVATE KEY; others passed over).
+        static expected<identity, io::error> from_pem(const string& certificate_chain_pem, const slice<const byte>& key_pem) {
             auto s = make_tracked<detail::IdentityState>();
             s->key = std::make_unique<detail::IdentityKey>();
             auto blocks = encoding::pem::parse_all(certificate_chain_pem);
@@ -172,18 +180,11 @@ namespace sgcl::net::tls {
             if (s->certificates.empty()) {
                 return unexpected(_error("no certificate in the chain"));
             }
-            auto keys = encoding::pem::parse_all(key_pem);
-            if (!keys) {
-                return unexpected(_error("the key is not PEM"));
+            auto block = crypto::detail::read_key_pem(key_pem);
+            if (!block) {
+                return unexpected(io::error(block.error().code(), "identity", block.error().message()));
             }
-            bool found = false;
-            for (auto& b : *keys) {
-                if (detail::read_key(*s->key, b)) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
+            if (!detail::read_key(*s->key, block->label, block->der)) {
                 return unexpected(_error("no private key of a kind TLS 1.3 signs with (Ed25519, P-256, P-384, RSA)"));
             }
             if (!detail::key_matches(*s->key, s->certificates[0])) {
@@ -193,7 +194,7 @@ namespace sgcl::net::tls {
         }
 
         // The same, a broken one thrown (std::invalid_argument)
-        explicit identity(const string& certificate_chain_pem, const string& key_pem) {
+        identity(const string& certificate_chain_pem, const slice<const byte>& key_pem) {
             auto r = from_pem(certificate_chain_pem, key_pem);
             if (!r) {
                 throw std::invalid_argument(std::string(r.error().message().view()));

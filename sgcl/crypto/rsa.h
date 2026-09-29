@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -8,12 +8,14 @@
 #include "detail/bytes.h"
 #include "detail/der.h"
 #include "detail/keys.h"
+#include "detail/key_pem.h"
 #include "detail/rsa_keygen.h"
 #include "detail/rsa_math.h"
 #include "detail/rsa_padding.h"
 #include "error.h"
 #include "hash_id.h"
 #include "random.h"
+#include "secret.h"
 #include "secure_zero.h"
 #include "../core/aliases.h"
 #include "../core/expected.h"
@@ -660,8 +662,9 @@ namespace sgcl::crypto::detail {
         // encoding that is not one, another label — is the one
         // errc::authentication "decryption error", in the same time: which
         // check failed is what an attacker who can ask for decryptions
-        // needs (Manger, CRYPTO 2001). The message is a vector<byte> in
-        // managed memory; secure_zero it when it holds a key
+        // needs (Manger, CRYPTO 2001). The message is the user's data, a
+        // vector<byte> (decrypt_oaep_to, into the caller's buffer, for a key
+        // unwrapped)
         [[nodiscard]] expected<vector<byte>, error> decrypt_oaep(hash_id id, const slice<const byte>& ciphertext) const {
             return _decrypt(id, id, ciphertext, slice<const byte>());
         }
@@ -696,17 +699,18 @@ namespace sgcl::crypto::detail {
         }
 
         // The RSAPrivateKey of PKCS #1, as Go's x509.MarshalPKCS1PrivateKey
-        // and OpenSSL write it; the bytes hold the secret
-        vector<byte> to_pkcs1_der() const {
+        // and OpenSSL write it; the bytes hold the secret: a secret_bytes,
+        // never managed memory
+        secret_bytes to_pkcs1_der() const {
             _check();
             auto w = std::make_unique<DerWriter<Rsa::der_capacity>>();
             _write_pkcs1(*w);
-            return Rsa::take(*w);
+            return detail::take_secret(*w);
         }
 
         // PKCS #8 PrivateKeyInfo, as Go's x509.MarshalPKCS8PrivateKey and
-        // OpenSSL write it; the bytes hold the secret
-        vector<byte> to_pkcs8_der() const {
+        // OpenSSL write it; the bytes hold the secret: a secret_bytes
+        secret_bytes to_pkcs8_der() const {
             _check();
             auto w = std::make_unique<DerWriter<Rsa::der_capacity>>();
             _write_pkcs1(*w);
@@ -715,8 +719,35 @@ namespace sgcl::crypto::detail {
             static constexpr unsigned char version[] = {der::integer, 0x01, 0x00};
             w->put(version, sizeof version);
             w->wrap(der::sequence, 0);
-            return Rsa::take(*w);
+            return detail::take_secret(*w);
         }
+
+        // The key from PEM text (a file's bytes, read_secret's or the
+        // program's): the first private key block, "PRIVATE KEY" or "RSA PRIVATE KEY",
+        // its base64 decoded straight into a secret_bytes (encoding::pem
+        // would put the DER in managed memory). Text around the block is
+        // passed over; an encrypted key is errc::unsupported
+        static expected<RsaPrivateKey, error> from_pem(const slice<const byte>& text) {
+            auto p = detail::read_key_pem(text);
+            if (!p) {
+                return unexpected<error>(p.error());
+            }
+            if (p->label == "PRIVATE KEY") {
+                return from_pkcs8_der(p->der);
+            }
+            if (p->label == "RSA PRIVATE KEY") {
+                return from_pkcs1_der(p->der);
+            }
+            return unexpected<error>(error(errc::malformed, string("PEM: a block of another key's type")));
+        }
+
+        // The key as PEM, "PRIVATE KEY" over its PKCS #8, as Go's
+        // pem.Encode of x509.MarshalPKCS8PrivateKey and OpenSSL's genpkey
+        // write it: a secret_bytes, never managed memory
+        secret_bytes to_pem() const {
+            return detail::write_key_pem("PRIVATE KEY", to_pkcs8_der());
+        }
+
 
     private:
         friend struct RsaAccess;
@@ -1046,7 +1077,11 @@ namespace sgcl::crypto::detail {
                 return unexpected<error>(offset.error());
             }
             const byte* p = reinterpret_cast<const byte*>(w.data() + 2 * _pub._n.size());
-            return vector<byte>(p + *offset, p + size());
+            vector<byte> out(size() - *offset);
+            if (out.size()) {
+                std::memcpy(out.data(), p + *offset, out.size());
+            }
+            return out;
         }
 
         expected<size_t, error> _decrypt_to(const slice<byte>& out, hash_id id, hash_id mgf, const slice<const byte>& ciphertext, const slice<const byte>& label) const {

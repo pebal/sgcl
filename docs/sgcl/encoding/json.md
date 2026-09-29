@@ -1,7 +1,7 @@
 # sgcl::encoding::json
 
 ```cpp
-#include "sgcl/encoding/json.h"   // or "sgcl/encoding/encoding.h"
+#include "sgcl/encoding/json.h"   // or "sgcl/encoding/encoding.h", "sgcl/sgcl.h"
 
 namespace sgcl::encoding {
     class json;            // one JSON value: null, a boolean, a number, a string, an array or an object
@@ -13,6 +13,8 @@ namespace sgcl::encoding {
 ```
 
 One JSON value ([RFC 8259](https://www.rfc-editor.org/rfc/rfc8259)): null, a boolean, a number, a string, an array or an object. It is **immutable**, as a [`string`](../core/string.md) is: a copy is a copy of the handle, a value is shared between threads with no lock, and a change — `set`, `erase`, `push_back`, `set_path` — returns a new value and leaves the old one as it was. It is read with methods, `doc["user"]["name"].as_string()`, and a lookup that finds nothing gives null, so a chain of lookups never fails half-way. What Go's `any` from `json.Unmarshal` is, and nlohmann's `json` without the writes through `operator[]`.
+
+A value from a file and to a file is one call: `json::load<T>(path)` and `json::load(path)` (the tree), `json::save(path, value)` and a tree's `j.save(path)`; below, [files](#files).
 
 ## Rules
 
@@ -48,8 +50,8 @@ public:
         bool sort_keys = true;                // the keys of a hash map of a typed value
     };
     class builder;
-    class reader;                             // json_reader.md
-    class writer;                             // json_writer.md
+    class reader;                             // json-reader.md
+    class writer;                             // json-writer.md
     class token;
     static const style compact;
     static const style pretty;                // an indent of 2
@@ -140,10 +142,56 @@ public:
 
 `parse<T>`, `stringify`, `from` and `as<T>` read and write a type of the program by its fields — [`field_list`](fields.md) says how: `json::parse<user>(text)` is `expected<user, error>`, and an error carries the path of the value that failed (`3:14 /manager/age: expected an integer, found a string`). `stringify` fails where a value has no text: NaN, an enum's value past its names, nesting past 512 (a cycle of pointers). `parse` of a stream reads it on the thread that calls it, `co_await json::async_parse(in)` in a task; the whole stream is one value. Mixing `push_back` and `set` in one builder is `logic_error`.
 
+## files
+
+```cpp
+static expected<json, error> load(const string& path);                        // + async_load(string)
+template<class T> static expected<T, error> load(const string& path);         // + async_load<T>(string)
+template<class T> static expected<void, error> save(const string& path, const T& value);   // + async_save(string, T)
+expected<void, error> save(const string& path) const;                         // + async_save(string)
+```
+
+`load` is `parse` of the file, read as it comes; `save` is `stringify` (a tree's `to_string`) into the file, made or written over, with a new line after the text. A file that cannot be opened or written is `errc::io`, with the [io error](../io/error.md) inside (`io_error()`); a text that does not parse is `parse`'s error. The `async_` forms run on the [blocking pool](../async/blocking.md). For another style or other options, `stringify(value, json::pretty)` with [`io::write_file`](../io/file.md), and `parse(reader, options)`. Tested in `tests/encoding/files.cpp`.
+
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
+
+using namespace sgcl;
+
+struct server {
+    string host = "localhost";
+    int64_t port = 8080;
+    bool tls = false;
+
+    void describe(encoding::field_list& f) {
+        f.add("host", host);
+        f.add("port", port);
+        f.add("tls", tls);
+    }
+};
+
+int main() {
+    encoding::json::save("server.json", server{"example.com", 443, true});
+    server s = encoding::json::load<server>("server.json");
+    println("{}:{} tls {}", s.host, s.port, s.tls);
+    print("{}", io::read_text("server.json").value_or(string("?")));
+}
+```
+
+Output:
+
+```text
+example.com:443 tls true
+{"host":"example.com","port":443,"tls":true}
+```
+
+```cpp
+#include "sgcl/core/core.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -216,8 +264,8 @@ null
 | v2 `AllowDuplicateNames`, `AllowInvalidUTF8` | `options::allow_duplicate_keys`, `allow_invalid_utf8` | the defaults are v2's |
 | `SetEscapeHTML` | `style::escape_html` | off by default, as in v2 |
 | x/exp `jsonpointer` | `at_path`, `set_path` | RFC 6901 |
-| `json.Valid` | `json::reader(text).skip()` and no `more()` | [`json::reader`](json_reader.md) |
+| `json.Valid` | `json::reader(text).skip()` and no `more()` | [`json::reader`](json-reader.md) |
 
 ## See also
 
-[`field_list`](fields.md), the types of the program; [`json::reader`](json_reader.md), [`json::writer`](json_writer.md); [`error`](error.md); [`string`](../core/string.md).
+[`field_list`](fields.md), the types of the program; [`json::reader`](json-reader.md), [`json::writer`](json-writer.md); [`error`](error.md); [`string`](../core/string.md).

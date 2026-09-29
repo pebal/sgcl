@@ -426,7 +426,8 @@ owned.pop_front();                                 // the int is destroyed here,
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -472,9 +473,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 values and a registry in lists
 5 odd numbers, 499 items left in the registry, item 500 moved out; 1010 live objects
 ```

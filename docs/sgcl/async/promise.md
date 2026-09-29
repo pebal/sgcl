@@ -64,7 +64,8 @@ void setter_and_getter() {
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/async/async.h"
+#include "sgcl/io/io.h"
 #include <cstring>
 #include <thread>
 
@@ -110,9 +111,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 read 5 bytes: hello
 ```
 

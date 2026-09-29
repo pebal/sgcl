@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -22,6 +22,9 @@
 // and ten diagonal rounds, in pairs), and added to itself; the sixteen words,
 // little-endian, are 64 bytes of keystream. Nothing depends on the key but
 // values: the cipher is constant-time by construction on any machine.
+//
+// On x86-64 the same shape: four blocks in SSE2 registers, eight in AVX2
+// ones where the processor has them (cpu::wide()).
 //
 // On arm64 four blocks go at once in NEON registers, "vertically": register
 // i holds word i of the four blocks, the counters in register 12 differing
@@ -243,6 +246,131 @@ namespace sgcl::crypto::detail {
     }
 #endif
 
+#if defined(SGCL_CRYPTO_X86)
+    // x86-64: four blocks in SSE2 registers, vertically as on NEON (SSE2 is
+    // in the minimum: no gate), and eight in AVX2 registers where cpu::wide()
+    // says so, word i of blocks 0..3 in the low lane and of 4..7 in the
+    // high one. SSE2 rotates by shifts, AVX2 by 16 and 8 with VPSHUFB.
+    template<int N>
+    inline __m128i rotl_x(__m128i v) noexcept {
+        return _mm_or_si128(_mm_slli_epi32(v, N), _mm_srli_epi32(v, 32 - N));
+    }
+
+    inline void chacha_quarter_x(__m128i& a, __m128i& b, __m128i& c, __m128i& d) noexcept {
+        a = _mm_add_epi32(a, b); d = _mm_xor_si128(d, a); d = rotl_x<16>(d);
+        c = _mm_add_epi32(c, d); b = _mm_xor_si128(b, c); b = rotl_x<12>(b);
+        a = _mm_add_epi32(a, b); d = _mm_xor_si128(d, a); d = rotl_x<8>(d);
+        c = _mm_add_epi32(c, d); b = _mm_xor_si128(b, c); b = rotl_x<7>(b);
+    }
+
+    // Four blocks from counter XORed into in (256 bytes)
+    inline void chacha_xor_four_x86(const ChachaState& s, uint32_t counter, const unsigned char* in, unsigned char* out) noexcept {
+        uint32_t init[16];
+        chacha_initial(s, counter, init);
+        const __m128i counters = _mm_add_epi32(_mm_set1_epi32(int(counter)), _mm_setr_epi32(0, 1, 2, 3));
+        __m128i x[16];
+        for (int i = 0; i < 16; ++i) {
+            x[i] = _mm_set1_epi32(int(init[i]));
+        }
+        x[12] = counters;
+        for (int i = 0; i < 10; ++i) {
+            chacha_quarter_x(x[0], x[4], x[8], x[12]);
+            chacha_quarter_x(x[1], x[5], x[9], x[13]);
+            chacha_quarter_x(x[2], x[6], x[10], x[14]);
+            chacha_quarter_x(x[3], x[7], x[11], x[15]);
+            chacha_quarter_x(x[0], x[5], x[10], x[15]);
+            chacha_quarter_x(x[1], x[6], x[11], x[12]);
+            chacha_quarter_x(x[2], x[7], x[8], x[13]);
+            chacha_quarter_x(x[3], x[4], x[9], x[14]);
+        }
+        for (int i = 0; i < 16; ++i) {
+            x[i] = _mm_add_epi32(x[i], i == 12 ? counters : _mm_set1_epi32(int(init[i])));
+        }
+        // words 4q..4q+3 of the four blocks transposed: block j's 16 bytes at 64j + 16q
+        for (int q = 0; q < 4; ++q) {
+            const __m128i t0 = _mm_unpacklo_epi32(x[4 * q], x[4 * q + 1]), t1 = _mm_unpackhi_epi32(x[4 * q], x[4 * q + 1]);
+            const __m128i t2 = _mm_unpacklo_epi32(x[4 * q + 2], x[4 * q + 3]), t3 = _mm_unpackhi_epi32(x[4 * q + 2], x[4 * q + 3]);
+            const __m128i r[4] = {_mm_unpacklo_epi64(t0, t2), _mm_unpackhi_epi64(t0, t2), _mm_unpacklo_epi64(t1, t3), _mm_unpackhi_epi64(t1, t3)};
+            for (int j = 0; j < 4; ++j) {
+                const size_t at = 64 * size_t(j) + 16 * size_t(q);
+                const __m128i v = _mm_loadu_si128(reinterpret_cast<const __m128i*>(in + at));
+                _mm_storeu_si128(reinterpret_cast<__m128i*>(out + at), _mm_xor_si128(v, r[j]));
+            }
+        }
+        for (auto& v : x) {
+            v = _mm_setzero_si128();
+        }
+        secure_zero(init, sizeof init);
+    }
+
+    template<int N>
+    SGCL_INLINE_X86_WIDE
+    inline __m256i rotl_y(__m256i v) noexcept {
+        if constexpr (N == 16) {
+            return _mm256_shuffle_epi8(v, _mm256_setr_epi8(2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13,
+                                                            2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13));
+        } else if constexpr (N == 8) {
+            return _mm256_shuffle_epi8(v, _mm256_setr_epi8(3, 0, 1, 2, 7, 4, 5, 6, 11, 8, 9, 10, 15, 12, 13, 14,
+                                                            3, 0, 1, 2, 7, 4, 5, 6, 11, 8, 9, 10, 15, 12, 13, 14));
+        } else {
+            return _mm256_or_si256(_mm256_slli_epi32(v, N), _mm256_srli_epi32(v, 32 - N));
+        }
+    }
+
+    SGCL_INLINE_X86_WIDE
+    inline void chacha_quarter_y(__m256i& a, __m256i& b, __m256i& c, __m256i& d) noexcept {
+        a = _mm256_add_epi32(a, b); d = _mm256_xor_si256(d, a); d = rotl_y<16>(d);
+        c = _mm256_add_epi32(c, d); b = _mm256_xor_si256(b, c); b = rotl_y<12>(b);
+        a = _mm256_add_epi32(a, b); d = _mm256_xor_si256(d, a); d = rotl_y<8>(d);
+        c = _mm256_add_epi32(c, d); b = _mm256_xor_si256(b, c); b = rotl_y<7>(b);
+    }
+
+    // Eight blocks from counter XORed into in (512 bytes)
+    SGCL_TARGET_X86_WIDE
+    inline void chacha_xor_eight_x86(const ChachaState& s, uint32_t counter, const unsigned char* in, unsigned char* out) noexcept {
+        uint32_t init[16];
+        chacha_initial(s, counter, init);
+        const __m256i counters = _mm256_add_epi32(_mm256_set1_epi32(int(counter)), _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7));
+        __m256i x[16];
+        for (int i = 0; i < 16; ++i) {
+            x[i] = _mm256_set1_epi32(int(init[i]));
+        }
+        x[12] = counters;
+        for (int i = 0; i < 10; ++i) {
+            chacha_quarter_y(x[0], x[4], x[8], x[12]);
+            chacha_quarter_y(x[1], x[5], x[9], x[13]);
+            chacha_quarter_y(x[2], x[6], x[10], x[14]);
+            chacha_quarter_y(x[3], x[7], x[11], x[15]);
+            chacha_quarter_y(x[0], x[5], x[10], x[15]);
+            chacha_quarter_y(x[1], x[6], x[11], x[12]);
+            chacha_quarter_y(x[2], x[7], x[8], x[13]);
+            chacha_quarter_y(x[3], x[4], x[9], x[14]);
+        }
+        for (int i = 0; i < 16; ++i) {
+            x[i] = _mm256_add_epi32(x[i], i == 12 ? counters : _mm256_set1_epi32(int(init[i])));
+        }
+        // within each 128-bit lane as in the four-block path: the low lane
+        // holds blocks 0..3, the high lane blocks 4..7
+        for (int q = 0; q < 4; ++q) {
+            const __m256i t0 = _mm256_unpacklo_epi32(x[4 * q], x[4 * q + 1]), t1 = _mm256_unpackhi_epi32(x[4 * q], x[4 * q + 1]);
+            const __m256i t2 = _mm256_unpacklo_epi32(x[4 * q + 2], x[4 * q + 3]), t3 = _mm256_unpackhi_epi32(x[4 * q + 2], x[4 * q + 3]);
+            const __m256i r[4] = {_mm256_unpacklo_epi64(t0, t2), _mm256_unpackhi_epi64(t0, t2), _mm256_unpacklo_epi64(t1, t3), _mm256_unpackhi_epi64(t1, t3)};
+            for (int j = 0; j < 4; ++j) {
+                for (int half = 0; half < 2; ++half) {
+                    const size_t at = 64 * size_t(j + 4 * half) + 16 * size_t(q);
+                    const __m128i k = half ? _mm256_extracti128_si256(r[j], 1) : _mm256_castsi256_si128(r[j]);
+                    const __m128i v = _mm_loadu_si128(reinterpret_cast<const __m128i*>(in + at));
+                    _mm_storeu_si128(reinterpret_cast<__m128i*>(out + at), _mm_xor_si128(v, k));
+                }
+            }
+        }
+        for (auto& v : x) {
+            v = _mm256_setzero_si256();
+        }
+        secure_zero(init, sizeof init);
+    }
+#endif
+
     // n bytes (any number) of keystream from the start of block `counter`
     // XORed into in, to out (which may be in). The counter wraps modulo
     // 2^32 inside; the caller keeps it from doing so. With NEON: nine
@@ -275,6 +403,32 @@ namespace sgcl::crypto::detail {
             } else {
                 chacha_xor_groups<1>(s, counter, buffer, buffer);
             }
+            std::memcpy(out, buffer, n);
+            secure_zero(buffer, sizeof buffer);
+            return;
+        }
+#elif defined(SGCL_CRYPTO_X86)
+        if (n >= 512 && sgcl::detail::cpu::wide()) {
+            do {
+                chacha_xor_eight_x86(s, counter, in, out);
+                counter += 8;
+                in += 512;
+                out += 512;
+                n -= 512;
+            } while (n >= 512);
+        }
+        while (n >= 256) {
+            chacha_xor_four_x86(s, counter, in, out);
+            counter += 4;
+            in += 256;
+            out += 256;
+            n -= 256;
+        }
+        if (n > 128) {
+            // as on NEON: the bytes past n XORed too, zeros, thrown away
+            unsigned char buffer[256] = {};
+            std::memcpy(buffer, in, n);
+            chacha_xor_four_x86(s, counter, buffer, buffer);
             std::memcpy(out, buffer, n);
             secure_zero(buffer, sizeof buffer);
             return;
@@ -317,6 +471,12 @@ namespace sgcl::crypto::detail {
                 chacha_xor_groups<1>(s, 0, ks, ks);
             }
             return made;
+        }
+#elif defined(SGCL_CRYPTO_X86)
+        if (n > 64) {
+            std::memset(ks, 0, 256);
+            chacha_xor_four_x86(s, 0, ks, ks);
+            return 256;
         }
 #endif
         chacha_block(s, 0, ks);

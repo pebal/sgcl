@@ -48,7 +48,8 @@ The free function `swap`.
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 #include <stdexcept>
 
 using namespace sgcl;
@@ -88,9 +89,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 not a digit at 2 in "12x4"
 1234
 ```

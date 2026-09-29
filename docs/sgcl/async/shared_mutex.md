@@ -43,7 +43,9 @@ auto write = [](async::shared_mutex& table) -> async::task<> {
 A table read by four tasks and grown by one, the readers' results handed to the main thread through a queue under a [mutex](mutex.md) with a [condition_variable](condition_variable.md).
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/async/async.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 #include <mutex>
 
 using namespace sgcl;
@@ -112,9 +114,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 100 squares, the last 10000
 4 readers, 400 consistent looks at the table
 ```

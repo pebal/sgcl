@@ -1,7 +1,7 @@
 # sgcl::concurrent::sorted_map
 
 ```cpp
-#include "sgcl/concurrent/sorted_map.h"   // or "sgcl/sgcl.h"
+#include "sgcl/concurrent/sorted_map.h"   // or "sgcl/concurrent/concurrent.h"
 
 namespace sgcl {
     template<class Key, class T, class Compare = std::less<Key>>
@@ -178,7 +178,9 @@ key_compare key_comp() const;
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/concurrent/concurrent.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -190,28 +192,28 @@ struct Entry {
 };
 
 int main() {
-    concurrent::sorted_map<int, tracked_ptr<Entry>> registry;   // could as well be a global
+    concurrent::sorted_map<int, tracked_ptr<Entry>> registry;  // could as well be a global
     atomic<long> found = 0;
     vector<thread> threads;
     for (int w : range(4)) {
         threads.emplace_back([&, w] {
             for (int i : range(250)) {
-                int id = i * 4 + w;                              // 1000 keys between the four writers
+                int id = i * 4 + w;  // 1000 keys between the four writers
                 registry.try_emplace(id, make_tracked<Entry>(id));
             }
             for (int id = w; id < 1000; id += 8) {
-                registry.erase(id);                              // half of this writer's keys taken out again
+                registry.erase(id);  // half of this writer's keys taken out again
             }
         });
         threads.emplace_back([&] {
             for (int i : range(10000)) {
                 if (auto it = registry.find(i % 1000); it != registry.end()) {
-                    ++it->second->hits;                          // the entry lives while `it` does, erased or not
+                    ++it->second->hits;  // the entry lives while `it` does, erased or not
                     ++found;
                 }
             }
             long walked = 0;
-            for (auto& [id, entry] : registry) {                 // weakly consistent: sorted, live at the time
+            for (auto& [id, entry] : registry) {  // weakly consistent: sorted, live at the time
                 walked += entry->id == id;
             }
             found += walked > 0;
@@ -225,10 +227,10 @@ int main() {
 }
 ```
 
-The output of one run (the hits depend on how the threads interleave):
+Sample output:
 
-```
-500 entries, 16483 lookups hit
+```text
+500 entries, 18438 lookups hit
 ```
 
 ## See also

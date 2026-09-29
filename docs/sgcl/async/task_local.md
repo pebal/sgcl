@@ -56,7 +56,8 @@ async::task<> validate(tracked_ptr<Request> r) {
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/async/async.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -102,9 +103,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 [request 1, ann] handling
 [request 1, ann] storing
   value 10

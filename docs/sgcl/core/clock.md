@@ -36,38 +36,32 @@ The production path pays one relaxed load of the manual clock's flag per read an
 static time_point now() noexcept;
 ```
 
-The library's time: the steady clock's, or the manual clock's while one is installed.
-
-```cpp
-time_point start = sgcl::clock::now();
-// ... work
-duration took = sgcl::clock::now() - start;   // a std::chrono duration, converted
-```
+The library's time: the steady clock's, or the manual clock's while one is installed. The difference of two points is a `std::chrono` duration, which a `duration` takes as it is.
 
 ## Example
 
 ```cpp
-#include "sgcl/core/clock.h"
+#include "sgcl/core/core.h"
+
 #include <iostream>
 
 using namespace sgcl;
 
-using namespace std::chrono_literals;
-
 int main() {
-    time_point deadline = sgcl::clock::now() + 50ms;
+    time_point deadline = sgcl::clock::now() + std::chrono::milliseconds(50);
     int laps = 0;
     while (sgcl::clock::now() < deadline) {
         ++laps;
     }
     duration late = sgcl::clock::now() - deadline;
-    std::cout << (laps > 0 ? "some" : "no") << " laps, " << (late < 1s ? "on" : "past") << " time\n";
+    std::cout << (laps > 0 ? "some" : "no") << " laps, "
+              << (late < std::chrono::seconds(1) ? "on" : "past") << " time\n";
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 some laps, on time
 ```
 

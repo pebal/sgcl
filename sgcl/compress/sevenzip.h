@@ -1,19 +1,24 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
-#include "detail/path.h"
+#include "../io/detail/path.h"
 #include "detail/block.h"
+#include "detail/files.h"
 #include "detail/sevenzip_folder.h"
 #include "detail/sevenzip_writer.h"
 #include "../async/blocking.h"
 #include "../async/generator.h"
 #include "../core/generator.h"
 #include "../io/file.h"
+#include "../io/fs.h"
+#include "../io/functions.h"
 #include "../time/datetime.h"
+
+#include <memory>
 
 namespace sgcl::compress::sevenzip {
     using error = compress::error;
@@ -43,7 +48,7 @@ namespace sgcl::compress::sevenzip {
         // empty, not absolute, no NUL, no '\' (7z's names use '/'), no ".."
         // that climbs above the start
         bool is_local() const noexcept {
-            return compress::detail::is_local_path(name.view());
+            return sgcl::io::detail::is_local_path(name.view());
         }
     };
 }
@@ -67,7 +72,14 @@ namespace sgcl::compress::sevenzip {
         bool solid = true;           // entries one after another in a folder
         uint64_t solid_block = 0;    // the data a folder takes before a new one starts; 0: 7-Zip's for the settings
         bool auto_filters = true;    // a branch converter or Delta by what the entry's first bytes are (not with Copy)
-        optional<string> password;   // 7zAES: to read encrypted entries and headers; to write, every folder encrypted
+        // 7zAES, UTF-8: to read encrypted entries and headers; to write,
+        // every folder encrypted. The caller's bytes (a crypto::secret_bytes,
+        // a buffer, a literal), pointed to and never copied into managed
+        // memory: read when the archive is opened or the writer made, and
+        // turned then into the key derivation's UTF-16LE in plain memory,
+        // zeroed when the archive or the writer goes. They live until that
+        // call, not after it
+        optional<slice<const byte>> password;
         bool encrypt_header = true;  // with a password, the header too (the names hidden), as 7-Zip's -mhe=on
         limits limit;                // reading: max_size, max_memory, max_entries
     };
@@ -486,8 +498,10 @@ namespace sgcl::compress::sevenzip::detail {
                 co_return n;
             }
             tracked_ptr<EntryReader> self(this);
-            co_return co_await async::spawn_blocking([self, out]() {
-                return self->read(out);
+            // on the pool: into out when it holds its owner, else through a
+            // managed block (never plain memory without its owner there)
+            co_return co_await io::detail::read_via_pool(out, [self](const slice<byte>& b) {
+                return self->read(b);
             });
         }
 
@@ -609,8 +623,10 @@ namespace sgcl::compress::sevenzip::detail {
                 co_return n;
             }
             tracked_ptr<WalkReader> self(this);
-            co_return co_await async::spawn_blocking([self, out]() {
-                return self->read(out);
+            // on the pool: into out when it holds its owner, else through a
+            // managed block (never plain memory without its owner there)
+            co_return co_await io::detail::read_via_pool(out, [self](const slice<byte>& b) {
+                return self->read(b);
             });
         }
 
@@ -653,17 +669,7 @@ namespace sgcl::compress::sevenzip {
         // With a password (encrypted entries and headers, 7zAES) and the
         // limits; the rest of the options is the writer's
         static expected<archive, error> open(const string& path, const options& o) {
-            auto f = io::open(path);
-            if (!f) {
-                return unexpected<error>(error(f.error(), 0));
-            }
-            auto a = open(*f, o);
-            if (a) {
-                a->_impl->source.owned = true;
-            } else {
-                (void)f->close();
-            }
-            return a;
+            return _open_path(path, o.limit, _keys(o));
         }
 
         static async::task<expected<archive, error>> async_open(string path) {
@@ -674,18 +680,10 @@ namespace sgcl::compress::sevenzip {
             return async_open(std::move(path), _with(l));
         }
 
+        // (the password's keys made at the call, the task holding them:
+        // the options' password read before the task runs)
         static async::task<expected<archive, error>> async_open(string path, options o) {
-            auto f = co_await io::async_open(path);
-            if (!f) {
-                co_return unexpected<error>(error(f.error(), 0));
-            }
-            auto a = co_await async_open(*f, std::move(o));
-            if (a) {
-                a->_impl->source.owned = true;
-            } else {
-                (void)f->close();
-            }
-            co_return a;
+            return _async_open_path(std::move(path), o.limit, _keys(o));
         }
 
         static expected<archive, error> open(const io::file& file) {
@@ -697,14 +695,7 @@ namespace sgcl::compress::sevenzip {
         }
 
         static expected<archive, error> open(const io::file& file, const options& o) {
-            auto st = file.stat();
-            if (!st) {
-                return unexpected<error>(error(st.error(), 0));
-            }
-            detail::Source s;
-            s.file = file;
-            s.size = st->size;
-            return _open(s, o);
+            return _open_file(file, o.limit, _keys(o));
         }
 
         static async::task<expected<archive, error>> async_open(io::file file) {
@@ -719,6 +710,52 @@ namespace sgcl::compress::sevenzip {
         }
 
         static async::task<expected<archive, error>> async_open(io::file file, options opt) {
+            return _async_open_file(std::move(file), opt.limit, _keys(opt));
+        }
+
+    private:
+        using Keys = std::unique_ptr<detail::sevenzip_aes::Keys>;
+
+        static expected<archive, error> _open_path(const string& path, const limits& l, Keys keys) {
+            auto f = io::open(path);
+            if (!f) {
+                return unexpected<error>(error(f.error(), 0));
+            }
+            auto a = _open_file(*f, l, std::move(keys));
+            if (a) {
+                a->_impl->source.owned = true;
+            } else {
+                (void)f->close();
+            }
+            return a;
+        }
+
+        static async::task<expected<archive, error>> _async_open_path(string path, limits l, Keys keys) {
+            auto f = co_await io::async_open(path);
+            if (!f) {
+                co_return unexpected<error>(error(f.error(), 0));
+            }
+            auto a = co_await _async_open_file(*f, l, std::move(keys));
+            if (a) {
+                a->_impl->source.owned = true;
+            } else {
+                (void)f->close();
+            }
+            co_return a;
+        }
+
+        static expected<archive, error> _open_file(const io::file& file, const limits& l, Keys keys) {
+            auto st = file.stat();
+            if (!st) {
+                return unexpected<error>(error(st.error(), 0));
+            }
+            detail::Source s;
+            s.file = file;
+            s.size = st->size;
+            return _open(s, l, std::move(keys));
+        }
+
+        static async::task<expected<archive, error>> _async_open_file(io::file file, limits l, Keys keys) {
             auto st = file.stat();
             if (!st) {
                 co_return unexpected<error>(error(st.error(), 0));
@@ -726,8 +763,7 @@ namespace sgcl::compress::sevenzip {
             detail::Source s;
             s.file = file;
             s.size = st->size;
-            auto keys = _keys(opt);
-            detail::Opener o(s.size, opt.limit, keys.get());
+            detail::Opener o(s.size, l, keys.get());
             vector<byte> head(detail::fmt::SignatureSize);
             auto got = co_await s.async_read_at(head.as_slice(), 0);
             if (!got) {
@@ -762,9 +798,13 @@ namespace sgcl::compress::sevenzip {
                     if (!pg) {
                         co_return unexpected<error>(error(pg.error(), first));
                     }
+                    // what was read, not what was asked for: a file that
+                    // shrank since its size was taken gives fewer bytes,
+                    // and the decoder sees the stream end there, as the
+                    // synchronous open's reads from the file do
                     detail::Source m;
-                    m.memory = packed.as_slice();
-                    m.size = packed.size();
+                    m.memory = packed.as_slice().first(size_t(*pg));
+                    m.size = *pg;
                     if (!o.decode(m, plain, first)) {
                         co_return unexpected<error>(*o.failure());
                     }
@@ -773,6 +813,7 @@ namespace sgcl::compress::sevenzip {
             co_return _finish(s, o, std::move(keys));
         }
 
+    public:
         // An archive in memory; a buffer of unmanaged memory is the
         // caller's to keep while the archive is used
         static expected<archive, error> from(const slice<const byte>& data) {
@@ -963,12 +1004,15 @@ namespace sgcl::compress::sevenzip {
             if (!o.password) {
                 return nullptr;
             }
-            return std::make_unique<detail::sevenzip_aes::Keys>(o.password->view());
+            return std::make_unique<detail::sevenzip_aes::Keys>(std::string_view(reinterpret_cast<const char*>(o.password->data()), o.password->size()));
         }
 
         static expected<archive, error> _open(const detail::Source& s, const options& opt) {
-            auto keys = _keys(opt);
-            detail::Opener o(s.size, opt.limit, keys.get());
+            return _open(s, opt.limit, _keys(opt));
+        }
+
+        static expected<archive, error> _open(const detail::Source& s, const limits& l, std::unique_ptr<detail::sevenzip_aes::Keys> keys) {
+            detail::Opener o(s.size, l, keys.get());
             uint8_t head[detail::fmt::SignatureSize];
             auto got = s.read_at(head, sizeof(head), 0);
             if (!got) {
@@ -1012,6 +1056,151 @@ namespace sgcl::compress::sevenzip {
 
         tracked_ptr<detail::Archive> _impl;
     };
+
+    namespace detail {
+        // A compress error back from the io::error a walk's reader failed
+        // with (to_io_error keeps its code in compress's category)
+        inline error from_reader(const io::error& e, uint64_t at) {
+            if (&e.code().category() == &compress_category()) {
+                const auto code = static_cast<errc>(e.code().value());
+                return code == errc::wrong_password ? error(errc::wrong_password, at, string("7z: wrong password"))
+                       : code == errc::password_required ? error(errc::password_required, at, string("7z: password required"))
+                                                         : error(code, at);
+            }
+            return error(e, at);
+        }
+
+        // Every entry of the archive under the directory, in the archive's
+        // order (one decoder a folder): directories made, files written
+        // with their mode and time, symbolic links made last (no file is
+        // written through a link the archive made); anti-items passed over.
+        // Every name is checked before anything is written: one that would
+        // leave the directory (an absolute path, a ".." climbing out, a
+        // '\\') is errc::insecure_path and nothing is written; a link whose
+        // target leaves the directory is errc::insecure_path when it is
+        // reached.
+        inline expected<void, error> extract_into(const archive& a, const string& directory, uint64_t max_size = limits{}.max_size) {
+            uint64_t total = 0;
+            for (const auto& e : a.entries()) {
+                if (!e.is_anti && !e.is_local()) {
+                    return unexpected<error>(error(errc::insecure_path, 0, string("7z: an entry's name leaves the directory: ") + e.name));
+                }
+                total += e.size;
+                if (max_size && total > max_size) {
+                    return unexpected<error>(error(errc::too_large, 0, string("7z: the files are larger than max_size")));
+                }
+            }
+            std::string root(directory.view());
+            if (!root.empty() && root.back() != '/') {
+                root += '/';
+            }
+            if (auto made = io::mkdir_all(string(root)); !made) {
+                return unexpected<error>(error(made.error(), 0));
+            }
+            struct Link {
+                std::string path;
+                std::string target;
+            };
+            std::vector<Link> links;
+            for (auto [e, r] : a.walk()) {
+                if (e.is_anti) {
+                    continue;
+                }
+                const std::string path = root + std::string(e.name.view());
+                const uint32_t posix = (e.attributes & 0x8000) ? (e.attributes >> 16) & 0777 : 0;
+                if (e.is_directory) {
+                    if (auto made = io::mkdir_all(string(path), io::permissions(posix ? posix | 0700 : 0755)); !made) {
+                        return unexpected<error>(error(made.error(), 0));
+                    }
+                    continue;
+                }
+                const auto slash = path.rfind('/');
+                if (auto made = io::mkdir_all(string(path.substr(0, slash))); !made) {
+                    return unexpected<error>(error(made.error(), 0));
+                }
+                if (e.is_symlink()) {
+                    std::string target;
+                    byte buf[4096];
+                    for (;;) {
+                        auto n = r.read(buf);
+                        if (!n) {
+                            return unexpected<error>(from_reader(n.error(), e.offset));
+                        }
+                        if (*n == 0) {
+                            break;
+                        }
+                        target.append(reinterpret_cast<const char*>(buf), *n);
+                        if (target.size() > 4096) {
+                            return unexpected<error>(error(errc::too_large, e.offset, string("7z: a link's target of more than 4096 bytes")));
+                        }
+                    }
+                    if (!sgcl::io::detail::link_stays_inside(e.name.view(), target)) {
+                        return unexpected<error>(error(errc::insecure_path, 0, string("7z: a link's target leaves the directory: ") + e.name));
+                    }
+                    links.push_back(Link{path, target});
+                    continue;
+                }
+                auto f = io::create(string(path), io::permissions(posix ? posix : 0644));
+                if (!f) {
+                    return unexpected<error>(error(f.error(), 0));
+                }
+                auto copied = io::copy(*f, r);
+                if (!copied) {
+                    (void)f->close();
+                    return unexpected<error>(&copied.error().code().category() == &compress_category() ? from_reader(copied.error(), e.offset)
+                                                                                                       : error(copied.error(), e.offset));
+                }
+                if (auto closed = f->close(); !closed) {
+                    return unexpected<error>(error(closed.error(), 0));
+                }
+                if (e.modified) {
+                    (void)io::set_modified(string(path), io::file_time(e.modified->to_sys()));
+                }
+            }
+            for (const auto& l : links) {
+                if (auto made = io::symlink(string(l.target), string(l.path)); !made) {
+                    return unexpected<error>(error(made.error(), 0));
+                }
+            }
+            return {};
+        }
+    }
+
+    // Every entry of the archive under the directory (made when it is not
+    // there): directories, files with their mode and modification time,
+    // symbolic links; a file there already is written over. A name that
+    // would leave the directory is errc::insecure_path, and then nothing
+    // is written; a link whose target leaves it is too. The options give
+    // the password (options::password) and the limits: past
+    // limit.max_size of the files together (1 GiB by default: an archive
+    // comes from outside; 0: none) nothing is written, errc::too_large.
+    //
+    //     compress::sevenzip::extract("backup.7z", "restored", {.password = secret});
+    inline expected<void, error> extract(const string& archive_path, const string& directory, const options& o = {}) {
+        auto a = archive::open(archive_path, o);
+        if (!a) {
+            return unexpected<error>(a.error());
+        }
+        return detail::extract_into(*a, directory, o.limit.max_size);
+    }
+
+    namespace detail {
+        inline async::task<expected<void, error>> async_extract(async::task<expected<archive, error>> opening, string directory, uint64_t max_size) {
+            auto a = co_await std::move(opening);
+            if (!a) {
+                co_return unexpected<error>(a.error());
+            }
+            archive opened = *a;
+            co_return co_await async::spawn_blocking([opened, directory, max_size] { return extract_into(opened, directory, max_size); });
+        }
+    }
+
+    // The same in a task, the files written on the blocking pool; the
+    // password's keys made at the call, so the task needs nothing of the
+    // caller's bytes
+    inline async::task<expected<void, error>> async_extract(string archive_path, string directory, options o = {}) {
+        return detail::async_extract(archive::async_open(std::move(archive_path), o), std::move(directory), o.limit.max_size);
+    }
 }
 
 namespace sgcl::compress::sevenzip::detail {
@@ -1056,6 +1245,30 @@ namespace sgcl::compress::sevenzip::detail {
         }
     };
 
+    // A writer's key and salt, made from the password once (2^19 rounds of
+    // SHA-256) in plain memory: by the writer when it is made, or at the
+    // call of async_create, on the caller's thread, so that the password's
+    // bytes never go to the blocking pool (DESIGN 300)
+    struct WriteKey {
+        crypto::secret<32> key;
+        uint8_t salt[16] = {};
+    };
+
+    inline std::shared_ptr<WriteKey> make_write_key(const slice<const byte>& password) {
+        sevenzip_aes::Props p;
+        p.k = sevenzip_aes::WriteRounds;
+        p.salt_size = 16;
+        sevenzip_aes::random_bytes(p.salt, 16);
+        sevenzip_aes::Password pw(std::string_view(reinterpret_cast<const char*>(password.data()), password.size()));
+        auto k = std::make_shared<WriteKey>(WriteKey{sevenzip_aes::derive(pw, p), {}});
+        for (int i = 0; i < 16; ++i) {
+            k->salt[i] = p.salt[i];
+        }
+        return k;
+    }
+
+    struct WriterAccess;
+
     // The state of a writer: its sink, its encoder (plain memory), the
     // records of what was written (std strings in plain memory), the entry
     // and the folder being written, the first error
@@ -1064,8 +1277,8 @@ namespace sgcl::compress::sevenzip::detail {
         static constexpr size_t FlushAt = size_t(256) << 10;
         static constexpr size_t Head = 4096;   // the first bytes an entry's filter is judged by
 
-        WriterState(Sink sink, const options& o)
-        : _sink(std::move(sink)), _o(o) {
+        WriterState(Sink sink, const options& o, std::shared_ptr<WriteKey> key = nullptr)
+        : _sink(std::move(sink)), _o(o), _key(std::move(key)) {
         }
 
         optional<error> error_;
@@ -1097,16 +1310,13 @@ namespace sgcl::compress::sevenzip::detail {
             }
             _encoder = std::make_unique<writing::FolderEncoder>(writing::Method(_o.method), level);
             _block = _o.solid_block ? _o.solid_block : _encoder->solid_block();
-            if (_o.password) {
-                // the key made once (2^19 rounds of SHA-256), in plain memory;
-                // the password's copy in the options dropped
-                sevenzip_aes::Props p;
-                p.k = sevenzip_aes::WriteRounds;
-                p.salt_size = 16;
-                sevenzip_aes::random_bytes(p.salt, 16);
-                sevenzip_aes::Password pw(_o.password->view());
-                _encoder->encrypt(sevenzip_aes::derive(pw, p), p.salt);
-                _o.password.reset();
+            if (!_key && _o.password) {
+                _key = make_write_key(*_o.password);
+            }
+            _o.password.reset();   // the caller's bytes not pointed to past this
+            if (_key) {
+                _encoder->encrypt(std::move(_key->key), _key->salt);
+                _key.reset();
             }
             _out.assign(fmt::SignatureSize, 0);   // the signature header, written again at the end
         }
@@ -1244,7 +1454,7 @@ namespace sgcl::compress::sevenzip::detail {
                     _managed = make_tracked<ByteBlock<32768>>();
                 }
                 size_t k = std::min<size_t>(_out.size() - at, 32768);
-                std::memcpy(_managed->data(), _out.data() + at, k);
+                sgcl::detail::copy_bytes(_managed->data(), _out.data() + at, k);
                 auto r = co_await _sink.async_write(slice<const byte>(tracked_ptr<const void>(_managed), _managed->data(), k));
                 if (!r) {
                     _written += at;
@@ -1368,6 +1578,7 @@ namespace sgcl::compress::sevenzip::detail {
 
         Sink _sink;
         options _o;
+        std::shared_ptr<WriteKey> _key;   // a key made before the writer (async_create), plain memory
         std::unique_ptr<writing::FolderEncoder> _encoder;
         uint64_t _block = 0;
         std::vector<uint8_t> _out;
@@ -1594,11 +1805,104 @@ namespace sgcl::compress::sevenzip {
         }
 
     private:
-        void _init(detail::Sink s, const options& o) {
-            _state = make_tracked<detail::WriterState>(std::move(s), o);
+        friend struct detail::WriterAccess;
+
+        writer() = default;
+
+        void _init(detail::Sink s, const options& o, std::shared_ptr<detail::WriteKey> key = nullptr) {
+            _state = make_tracked<detail::WriterState>(std::move(s), o, std::move(key));
             _state->start();
         }
 
         tracked_ptr<detail::WriterState> _state;
     };
+}
+
+namespace sgcl::compress::sevenzip::detail {
+    // A writer at a path with a key made before it (async_create)
+    struct WriterAccess {
+        static writer make(const string& path, const options& o, std::shared_ptr<WriteKey> key) {
+            if (!key) {
+                return writer(path, o);
+            }
+            writer w;
+            Sink s;
+            auto f = io::create(path);
+            if (f) {
+                s.file = *f;
+                s.owned = true;
+            }
+            w._init(std::move(s), o, std::move(key));
+            if (!f) {
+                w._state->fail(error(f.error(), 0));
+            }
+            return w;
+        }
+    };
+}
+
+namespace sgcl::compress::detail {
+    inline expected<void, error> sevenzip_create(const string& directory, const string& archive_path, const sevenzip::options& o,
+                                                 std::shared_ptr<sevenzip::detail::WriteKey> key = nullptr) {
+        auto tree = list_tree(directory);
+        if (!tree) {
+            return unexpected(tree.error());
+        }
+        sevenzip::writer w = sevenzip::detail::WriterAccess::make(archive_path, o, std::move(key));
+        for (const auto& t : *tree) {
+            sevenzip::entry_info info;
+            info.modified = datetime_of(t.modified);
+            info.mode = io::permissions(unsigned(t.mode) & 07777);
+            if (t.type == io::file_type::directory) {
+                w.add_directory(string(t.name), info);
+                continue;
+            }
+            info.symlink = t.type == io::file_type::symlink;
+            io::writer out = w.create(string(t.name), info);
+            if (info.symlink) {
+                (void)out.write(slice<const byte>(reinterpret_cast<const byte*>(t.target.data()), t.target.size()));
+                continue;
+            }
+            auto in = io::open(string(t.path));
+            if (!in) {
+                (void)w.close();
+                (void)io::remove(archive_path);
+                return unexpected(error(in.error(), 0));
+            }
+            (void)io::copy(out, *in);   // a failure is the writer's first error, which close gives
+            (void)in->close();
+        }
+        auto r = w.close();
+        if (!r) {
+            (void)io::remove(archive_path);
+        }
+        return r;
+    }
+}
+
+namespace sgcl::compress::sevenzip {
+    namespace detail {
+        inline async::task<expected<void, error>> sevenzip_create_task(string directory, string archive_path, options o, std::shared_ptr<WriteKey> key) {
+            co_return co_await async::spawn_blocking([directory, archive_path, o, key] { return compress::detail::sevenzip_create(directory, archive_path, o, key); });
+        }
+    }
+
+    // The directory packed into a 7z file: sevenzip::create("photos",
+    // "photos.7z"), with the writer's options (LZMA2, level 6 and solid by
+    // default, as 7-Zip's; a password encrypts it, the header too). The
+    // entries named from the directory, in lexical order, with their mode
+    // and time; symbolic links as links; a socket, a device or a fifo left
+    // out. A failure removes the file.
+    inline expected<void, error> create(const string& directory, const string& archive_path, const options& o = {}) {
+        return compress::detail::sevenzip_create(directory, archive_path, o);
+    }
+
+    // The same in a task, on the blocking pool. A password's key is made
+    // at the call, on this thread (about 12 ms), as async_extract makes
+    // its keys: the caller's bytes never go to the pool (DESIGN 300)
+    inline async::task<expected<void, error>> async_create(string directory, string archive_path, options o = {}) {
+        std::shared_ptr<detail::WriteKey> key = o.password ? detail::make_write_key(*o.password) : nullptr;
+        o.password.reset();
+        return detail::sevenzip_create_task(std::move(directory), std::move(archive_path), std::move(o), std::move(key));
+    }
 }

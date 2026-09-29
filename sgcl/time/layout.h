@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -575,10 +575,12 @@ namespace sgcl::time {
             if (first.size() <= sizeof room) {
                 return string(room, first.size());
             }
-            std::string big(first.size(), '\0');
-            txt::format_sink second(big.data(), big.size());
-            write(second);
-            return string(big);
+            const size_t n = first.size();
+            return sgcl::detail::StringAccess::bounded<string>(n, [&](char* chars) {   // the second pass in place
+                txt::format_sink second(chars, n);
+                write(second);
+                return std::min(second.size(), n);
+            });
         }
     }
 

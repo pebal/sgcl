@@ -1,14 +1,8 @@
-# txt::properties
+# sgcl::txt::properties
 
 ```cpp
-#include "sgcl/txt/properties.h"
-```
+#include "sgcl/txt/properties.h"   // or "sgcl/txt/txt.h"
 
-What a code point is, what it is worth, what it is written in, and how much room it takes. The tables are generated from Unicode 16.0.0 by `tools/unicode_tables.py`; ASCII is answered without them.
-
-## The names
-
-```cpp
 category category_of(char32_t c) noexcept;   // the general category; category::unassigned when it has none
 script script_of(char32_t c) noexcept;       // the script; script::unknown
 
@@ -28,10 +22,13 @@ bool is_lower(char32_t c) noexcept;          // has an upper case form other tha
 int numeric_value_of(char32_t c) noexcept;      // the value of a decimal digit, -1 when it is not one
 
 size_t columns(char32_t c) noexcept;         // the cells it takes on a terminal: 0, 1 or 2
-size_t columns(const string& text) noexcept; // the sum over the text; also slice<const char> and a C string
+size_t columns(const string& text) noexcept; // the sum over the text; also slice<const char> and a C string:
+                                             // a char array to its first NUL or its end, a char pointer to its NUL
 
 inline constexpr const char* version;        // the Unicode version of the tables, unicode::version
 ```
+
+What a code point is, what it is worth, what it is written in, and how much room it takes. The tables are generated from Unicode 16.0.0 by `tools/unicode_tables.py`; ASCII is answered without them.
 
 Every name is a `static constexpr` object, not a function ([the shape core's `unicode` uses](../core/utf8.md)): it takes a `char32_t` and refuses everything else — a `char` is a byte of UTF-8, an `int` is a multi-character literal — and it is passable where a predicate is asked for, so `s.runes().count_of(txt::is_alpha)` works. `columns` is the one with more than a code point in its interface: a [`string`](../core/string.md), a [`slice<const char>`](../core/slice.md) or a C string as well, and a `std::string_view` refused rather than left ambiguous, the module's texts being the library's, which hold what they point at.
 
@@ -62,50 +59,6 @@ Every name is a `static constexpr` object, not a function ([the shape core's `un
 
 `columns` is East_Asian_Width: W and F take two cells, a combining or formatting code point none, and the rest one; class A (ambiguous — the Greek and Cyrillic letters the East Asian fonts draw wide) is one, as it is outside a CJK locale. This is the width of a monospaced cell, for a terminal and for aligning columns, and it is what `wrap()` and `truncate()` of the segmentation count. It is not the width of a glyph: a proportional font is measured by the one that draws it.
 
-## Example
-
-```cpp
-#include "sgcl/sgcl.h"
-
-using namespace sgcl;
-
-// A table whose first column is text in any script, aligned by what it
-// takes on the terminal rather than by how many bytes or code points it is
-int main() {
-    vector<string> words = {"żółw", "漢字", "Ελλάδα", "𝟛 emoji 😀", "naïve"};
-    size_t width = 0;
-    for (auto& w : words) {
-        width = std::max(width, txt::columns(w));
-    }
-    for (auto& w : words) {
-        string pad(width - txt::columns(w), ' ');
-        print("{}{} | {} bytes, {} code points, {} letters", w, pad, w.size(), w.rune_count(), w.runes().count_of(txt::is_alpha));
-        if (w.runes().exists(txt::is_emoji)) {
-            print(", an emoji");
-        }
-        println();
-    }
-    string digits = "٣ ١ ٤";
-    int sum = 0;
-    for (char32_t c : digits.runes()) {
-        sum += std::max(0, txt::numeric_value_of(c));
-    }
-    println("{} sums to {}, written in {}", digits, sum, (digits.runes().exists([](char32_t c) { return txt::script_of(c) == txt::script::arabic; }) ? "Arabic" : "?"));
-    return 0;
-}
-```
-
-The output, its first column as wide on the screen as it is here:
-
-```
-żółw       | 7 bytes, 4 code points, 4 letters
-漢字       | 6 bytes, 2 code points, 2 letters
-Ελλάδα     | 12 bytes, 6 code points, 6 letters
-𝟛 emoji 😀 | 15 bytes, 9 code points, 5 letters, an emoji
-naïve      | 6 bytes, 5 code points, 5 letters
-٣ ١ ٤ sums to 8, written in Arabic
-```
-
 ## The tables
 
 | table | ranges | size |
@@ -121,3 +74,76 @@ naïve      | 6 bytes, 5 code points, 5 letters
 Each table is split at the end of the Basic Multilingual Plane. Seven ranges in ten lie below U+10000, and there a bound needs sixteen bits rather than thirty-two, which halves the entry; what is left goes into a second table with wide fields, and a range that straddles the boundary is cut in two, so neither search ever looks at the other. It costs one perfectly predictable branch and pays a third less memory to read: measured over a paragraph, five to ten per cent faster than one wide table, and a third smaller.
 
 The generator checks every table against `unicodedata` code point by code point, and asserts that the UCD files it reads declare the same Unicode version as the Python that runs it.
+
+## Examples
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+// A table whose first column is text in any script, aligned by what it
+// takes on the terminal rather than by how many bytes or code points it is
+int main() {
+    vector<string> words = {"żółw", "漢字", "Ελλάδα", "𝟛 emoji 😀", "naïve"};
+    size_t width = 0;
+    for (auto& w : words) {
+        width = std::max(width, txt::columns(w));
+    }
+    for (auto& w : words) {
+        string pad(width - txt::columns(w), ' ');
+        print("{}{} | {} bytes, {} code points, {} letters", w, pad, w.size(), w.rune_count(),
+              w.runes().count_of(txt::is_alpha));
+        if (w.runes().exists(txt::is_emoji)) {
+            print(", an emoji");
+        }
+        println();
+    }
+    return 0;
+}
+```
+
+Output:
+
+```text
+żółw       | 7 bytes, 4 code points, 4 letters
+漢字       | 6 bytes, 2 code points, 2 letters
+Ελλάδα     | 12 bytes, 6 code points, 6 letters
+𝟛 emoji 😀 | 15 bytes, 9 code points, 5 letters, an emoji
+naïve      | 6 bytes, 5 code points, 5 letters
+```
+
+The first column is as wide on the screen as it is here.
+
+The value of a digit and the script it is written in:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    string digits = "٣ ١ ٤";
+    int sum = 0;
+    for (char32_t c : digits.runes()) {
+        sum += std::max(0, txt::numeric_value_of(c));
+    }
+    println("{} sums to {}, written in {}", digits, sum,
+            (digits.runes().exists([](char32_t c) {
+                return txt::script_of(c) == txt::script::arabic;
+            }) ? "Arabic" : "?"));
+    return 0;
+}
+```
+
+Output:
+
+```text
+٣ ١ ٤ sums to 8, written in Arabic
+```
+
+## See also
+
+[The module](README.md); [`utf8`](../core/utf8.md), core's `unicode` and `runes`; [`segment`](segment.md), `wrap` and `truncate`, which count `columns`; [`identifier`](identifier.md), the scripts of a name; [`format`](format.md), whose `{:?}` asks the categories.

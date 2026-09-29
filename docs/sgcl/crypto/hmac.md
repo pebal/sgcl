@@ -16,7 +16,7 @@ HMAC, Go's `crypto/hmac`: a tag over a message under a secret key, which only a 
 
 ## Rules
 
-- **A key of any length**, bytes or text. One longer than the digest's block is hashed first, a shorter one padded with zeros, as the standard has it; an empty key is allowed and is no secret. RFC 2104 asks for at least the digest's size of random bytes ([`random::bytes(32)`](random.md)).
+- **A key of any length**, bytes or text. One longer than the digest's block is hashed first, a shorter one padded with zeros, as the standard has it; an empty key is allowed and is no secret. RFC 2104 asks for at least the digest's size of random bytes ([`random::secret(32)`](random.md)).
 - **Check a tag with `verify`**, never with `==`: it compares in constant time ([`constant_time::equal`](constant_time.md)), so the time a check takes does not tell an attacker how many leading bytes of a forgery were right. A tag of another length is false. `verify` is `[[nodiscard]]`: a check whose result is dropped was never made.
 - **A secret, so no copy.** The object holds the digest's state after the key XOR ipad and after the key XOR opad (the key's equivalent) and the running inner state; it is move-only, `clone()` makes a second one under the same key at the same point of its message (a hasher's branch, asked for by name), a move leaves the object moved from zeroed, and the destructor zeroes all three states with stores the compiler cannot drop ([`secure_zero`](secure_zero.md)). Keep a key object on the stack or in a `unique_ptr`: in a managed object it stays in memory until the cycle that finds it dead. The tag returned by value (`array<byte, N>`) is a copy on the caller's stack and is not zeroed.
 - **Otherwise a hasher** of the [hash module](../hash/README.md): `update` takes bytes and text, `value()` is the tag and the hmac goes on, `reset()` drops the message and keeps the key, `copy_from(reader)` reads a stream into it; `hash::req::hasher<hmac<sha256>>` holds.
@@ -48,9 +48,9 @@ expected<size_t, io::error> copy_from(const io::reader& r);  async::task<expecte
 ## Example
 
 ```cpp
-#include "sgcl/crypto/hmac.h"
-#include "sgcl/encoding/hex.h"
-#include "sgcl/io/print.h"
+#include "sgcl/crypto/crypto.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 

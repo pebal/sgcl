@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -261,8 +261,10 @@ TEST(CryptoVectors_Tests, Poly1305Rfc8439) {
         p.update(u8(msg), msg.size());
         p.finish(u8(tag));
         EXPECT_EQ(to_hex(tag), v.tag);
+#if SGCL_TEST_OPENSSL
         // and against OpenSSL
         EXPECT_EQ(to_hex(ossl_poly1305(key, msg)), v.tag);
+#endif
     }
 }
 
@@ -301,7 +303,7 @@ TEST(CryptoVectors_Tests, ChachaPolyAeadDecryptionRfc8439A5) {
     crypto::chacha20_poly1305 a(key);
     auto opened = a.open(nonce, ct, aad);
     ASSERT_TRUE(opened.has_value());
-    std::string s(reinterpret_cast<const char*>(opened->data()), opened->size());
+    std::string s(reinterpret_cast<const char*>(opened->as_slice().data()), opened->size());
     EXPECT_EQ(s.substr(0, 31), "Internet-Drafts are draft docum");
     EXPECT_EQ(opened->size(), 265u);
 }

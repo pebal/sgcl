@@ -60,32 +60,38 @@ class hex::dumper final {   // a handle; and everything of io::mixin::writer
 ## Example
 
 ```cpp
-#include "sgcl/encoding/hex.h"
-#include "sgcl/io/os.h"
-#include "sgcl/io/print.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
 int main() {
     vector<byte> digest = {byte(0xDE), byte(0xAD), byte(0xBE), byte(0xEF)};
-    println(encoding::hex::encode(digest));                    // deadbeef
-    println(encoding::hex::encode_upper(digest));              // DEADBEEF
-    auto back = encoding::hex::decode("DeadBeef");                                     // either case
-    println("{} bytes", back->size());   // 4 bytes
-    println(encoding::hex::decode("abc").error().message());                   // offset 3: the input ends inside a byte
-    println(encoding::hex::decode("0x12").error().message());                  // offset 1: invalid character 'x'
+    println(encoding::hex::encode(digest));
+    println(encoding::hex::encode_upper(digest));
+    auto back = encoding::hex::decode("DeadBeef");  // either case
+    println("{} bytes", back->size());
+    println(encoding::hex::decode("abc").error().message());
+    println(encoding::hex::decode("0x12").error().message());
 
     print(encoding::hex::dump("Hello, World!\n"));
-    // 00000000  48 65 6c 6c 6f 2c 20 57  6f 72 6c 64 21 0a        |Hello, World!.|
 
     // what goes over a wire, dumped as it goes
     encoding::hex::dumper wire = encoding::hex::dumper_to(io::stdout);
     wire.write("a line of twenty bytes");
-    wire.close();// the short line at the end
+    wire.close();  // the short line at the end
 }
 ```
 
-```
+Output:
+
+```text
+deadbeef
+DEADBEEF
+4 bytes
+offset 3: the input ends inside a byte
+offset 1: invalid character 'x'
+00000000  48 65 6c 6c 6f 2c 20 57  6f 72 6c 64 21 0a        |Hello, World!.|
 00000000  61 20 6c 69 6e 65 20 6f  66 20 74 77 65 6e 74 79  |a line of twenty|
 00000010  20 62 79 74 65 73                                 | bytes|
 ```

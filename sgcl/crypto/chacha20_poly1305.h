@@ -1,11 +1,12 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
 #include "../core/expected.h"
+#include "../core/detail/bytes.h"
 #include "../core/slice.h"
 #include "../core/string.h"
 #include "../core/vector.h"
@@ -47,7 +48,7 @@ namespace sgcl::crypto {
             p.blocks(d, whole, uint64_t(1) << 40);
             if (n > whole * 16) {
                 unsigned char last[16] = {};
-                std::memcpy(last, d + whole * 16, n - whole * 16);
+                sgcl::detail::copy_bytes(last, d + whole * 16, n - whole * 16);
                 p.blocks(last, 1, uint64_t(1) << 40);
                 secure_zero(last, sizeof last);
             }

@@ -21,10 +21,10 @@ RSA (RFC 8017, PKCS #1 v2.2), Go's `crypto/rsa`: the signatures of most certific
 - **OAEP, and only OAEP.** `encrypt_oaep` and `decrypt_oaep` are RSAES-OAEP (§7.1): the label's hash and MGF1 by the `hash_id` given, or MGF1 over another hash with the four-argument forms (Java's `OAEPWithSHA-256AndMGF1Padding` is SHA-256 with MGF1 over SHA-1), a label or none. A message is at most `max_oaep_message_size(id)` bytes (the modulus's bytes less twice the digest's less 2: 190 for a 2048-bit key and SHA-256); a longer one is `std::invalid_argument`. **PKCS #1 v1.5 encryption is not here, and will not be**: its decryption is Bleichenbacher's padding oracle (1998), found again in TLS stacks every few years (ROBOT, 2017). A program that must read such messages needs another library.
 - **The plaintext into the program's buffer.** `decrypt_oaep` returns a managed `vector<byte>`, which nobody zeroes; for a key unwrapped or a password, `decrypt_oaep_to(out, …)` writes into the program's own buffer, which it clears with [`secure_zero`](secure_zero.md), as an AEAD's `open_to`. `out` holds at least `max_oaep_message_size(id)` bytes, else `std::length_error`, decided from the key and the hash before anything is decrypted; it returns the message's length, and a failure leaves `out` as it was.
 - **One error for every failed decryption.** A ciphertext of another length (exactly the modulus's bytes, as RFC 8017 §7.1.2 has it, where Go and OpenSSL take a shorter one), not below n, an encoding that is not OAEP's, another label, another hash — every failure is the same `crypto::error`: `errc::authentication`, "sgcl::crypto::rsa: decryption error", offset 0, and it takes the same time: every check is done on every byte and folded into one mask before the one branch. An attacker who can tell a bad leading byte from a bad label hash decrypts any message (Manger, 2001). Do not add to what a failure tells: answer every failure alike.
-- **The private key is a secret**: d, p, q, dP, dQ and qInv live in one block of words the key allocates, zeroed with stores the compiler cannot drop when the key goes; so is every word of scratch an operation uses. The key is move-only (`clone()` makes a second one by name), a move leaves the source empty, and a call on an empty key is `std::logic_error`. Keep it on the stack or in a `unique_ptr`. `to_pkcs1_der()` and `to_pkcs8_der()` give the secret in a `vector<byte>`, which is managed and is not zeroed — write it where it belongs and drop it; so is the message `decrypt_oaep` gives ([`secure_zero`](secure_zero.md) it when it is a key). A public key is a plain value: copied and compared.
+- **The private key is a secret**: d, p, q, dP, dQ and qInv live in one block of words the key allocates, zeroed with stores the compiler cannot drop when the key goes; so is every word of scratch an operation uses. The key is move-only (`clone()` makes a second one by name), a move leaves the source empty, and a call on an empty key is `std::logic_error`. Keep it on the stack or in a `unique_ptr`. `to_pkcs1_der()`, `to_pkcs8_der()` and `to_pem()` give the secret in a [`secret_bytes`](secret.md#secret_bytes), and so does `decrypt_oaep` the message: never in managed memory, zeroed when they go. A public key is a plain value: copied and compared.
 - **Constant time** where a secret is: the private operation is Montgomery arithmetic of a width fixed by the modulus (never by a value), exponentiation four bits at a time with each window's power read by scanning the whole table through masks, CRT over p and q. It runs on a **blinded** input (c·rᵉ with a fresh random r, unblinded by r⁻¹ after), and its result is **checked with the public exponent** before it leaves: a fault in one half of CRT would otherwise give the factors of n to whoever sees the signature (Boneh, DeMillo and Lipton, 1997). A failed check is `std::runtime_error` from signing ("a fault in the computation") and the one decryption error from `decrypt_oaep`. The inverse of the blinding factor is computed in variable time, on its product with a second random number. The tests measure the claim with dudect (the exponentiation by a secret exponent, a whole signature, OAEP's decoding and the whole decryption, each against a control that leaks on purpose).
 - **Keys made here**: `generate(bits)` makes two primes of half the bits each (fresh random candidates with their top two bits set, trial division by the primes below 2048, sixteen rounds of Miller–Rabin), e = 65537, |p − q| above 2^(bits/2 − 100) as FIPS 186-5 asks, and d = e⁻¹ mod λ(n) = lcm(p − 1, q − 1), the smallest d, as FIPS 186-5 (B.3.1) and SP 800-56B ask, so that the keys pass a FIPS validator (OpenSSL's FIPS provider, an HSM) as well as any other; the gcd of p − 1 and q − 1 and the quotient that gives λ are computed in constant time. Fewer than 2048 bits, or more than 16384, is `std::invalid_argument`. It takes tens of milliseconds for 2048 bits and grows quickly with the size (a candidate's test costs the cube of its length, and the primes are sparser), and varies from key to key as the primes are found.
-- **Keys read**: `from_pkcs1_der` (`RSA PRIVATE KEY` in PEM), `from_pkcs8_der` (`PRIVATE KEY`), `public_key::from_pkix_der` (`PUBLIC KEY`), `from_pkcs1_der` (`RSA PUBLIC KEY`) and `from_modulus(n, e)` (a JWK's `n` and `e`) return `expected`: `errc::malformed` with the byte's offset for DER that is not strict DER; `errc::unsupported` for a modulus of fewer than 1024 bits or more than 16384, an exponent above 2³¹ − 1, a multi-prime key, an RSASSA-PSS key (`id-RSASSA-PSS`: read the key as `rsaEncryption`), another algorithm; `errc::invalid_key` for an even modulus, an exponent even or below 3, and a private key whose numbers do not agree — n = p·q, qInv·q = 1 mod p, dP = d mod (p − 1) and e·dP = 1 mod (p − 1), the same for q, all checked when the key is read (in constant time, since they are secrets). PEM is [`encoding::pem`](../encoding/pem.md)'s.
+- **Keys read**: `from_pkcs1_der` (`RSA PRIVATE KEY` in PEM), `from_pkcs8_der` (`PRIVATE KEY`), `public_key::from_pkix_der` (`PUBLIC KEY`), `from_pkcs1_der` (`RSA PUBLIC KEY`) and `from_modulus(n, e)` (a JWK's `n` and `e`) return `expected`: `errc::malformed` with the byte's offset for DER that is not strict DER; `errc::unsupported` for a modulus of fewer than 1024 bits or more than 16384, an exponent above 2³¹ − 1, a multi-prime key, an RSASSA-PSS key (`id-RSASSA-PSS`: read the key as `rsaEncryption`), another algorithm; `errc::invalid_key` for an even modulus, an exponent even or below 3, and a private key whose numbers do not agree — n = p·q, qInv·q = 1 mod p, dP = d mod (p − 1) and e·dP = 1 mod (p − 1), the same for q, all checked when the key is read (in constant time, since they are secrets). A private key's PEM is read by `from_pem` (`PRIVATE KEY` or `RSA PRIVATE KEY`, straight into a `secret_bytes`; for a key file `from_pem(crypto::read_secret(path))`) and written by `to_pem` (`PRIVATE KEY`, as OpenSSL writes it); a public key's PEM is [`encoding::pem`](../encoding/pem.md)'s.
 - **Formats written**: PKCS #1, PKCS #8 and SPKI as Go's `x509.MarshalPKCS1PrivateKey`, `MarshalPKCS8PrivateKey` and `MarshalPKIXPublicKey` write them, and as OpenSSL does, byte for byte.
 
 ## Members
@@ -62,6 +62,7 @@ public:
     static private_key generate(size_t bits);        // 2048 to 16384; e = 65537
     static expected<private_key, error> from_pkcs1_der(const slice<const byte>& der);  // RSAPrivateKey
     static expected<private_key, error> from_pkcs8_der(const slice<const byte>& der);  // PrivateKeyInfo
+    static expected<private_key, error> from_pem(const slice<const byte>& text);       // "PRIVATE KEY" or "RSA PRIVATE KEY"
 
     private_key(private_key&&) noexcept;             // the source left empty
     private_key& operator=(private_key&&) noexcept;
@@ -75,13 +76,14 @@ public:
     vector<byte> sign_digest(hash_id id, const slice<const byte>& digest) const;       // PKCS #1 v1.5
     vector<byte> sign_digest_pss(hash_id id, const slice<const byte>& digest) const;   // PSS, salt of the digest's length
 
-    expected<vector<byte>, error> decrypt_oaep(hash_id id, const slice<const byte>& ciphertext) const;
+    expected<vector<byte>, error> decrypt_oaep(hash_id id, const slice<const byte>& ciphertext) const;   // the message: the user's data
     expected<vector<byte>, error> decrypt_oaep(hash_id id, const slice<const byte>& ciphertext, const slice<const byte>& label) const;
     expected<vector<byte>, error> decrypt_oaep(hash_id id, hash_id mgf1, const slice<const byte>& ciphertext, const slice<const byte>& label) const;
     expected<size_t, error> decrypt_oaep_to(const slice<byte>& out, hash_id id, const slice<const byte>& ciphertext) const;   // and with the label, and mgf1
 
-    vector<byte> to_pkcs1_der() const;
-    vector<byte> to_pkcs8_der() const;
+    secret_bytes to_pkcs1_der() const;
+    secret_bytes to_pkcs8_der() const;
+    secret_bytes to_pem() const;                                                        // "PRIVATE KEY"
 };
 ```
 
@@ -89,7 +91,7 @@ public:
 
 ```cpp
 #include "sgcl/crypto/crypto.h"
-#include "sgcl/io/print.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -108,16 +110,18 @@ int main() {
     auto sig = key->sign_digest_pss(crypto::hash_id::sha256, digest);
 
     auto pub = crypto::rsa::public_key::from_pkix_der(published);
-    println(pub && pub->verify_digest_pss(crypto::hash_id::sha256, digest, sig) ? "valid" : "forged");
+    println(pub && pub->verify_digest_pss(crypto::hash_id::sha256, digest, sig)
+                ? "valid" : "forged");
     sig[10] ^= byte(1);
-    println(pub && pub->verify_digest_pss(crypto::hash_id::sha256, digest, sig) ? "valid" : "forged");
+    println(pub && pub->verify_digest_pss(crypto::hash_id::sha256, digest, sig)
+                ? "valid" : "forged");
 
     // OAEP: a key for a symmetric cipher sent to the key's owner
-    auto session = crypto::random::bytes(32);
+    auto session = crypto::random::secret(32);
     auto sealed = pub->encrypt_oaep(crypto::hash_id::sha256, session, "session key");
+    // a vector<byte>; a key to keep goes to decrypt_oaep_to
     auto opened = key->decrypt_oaep(crypto::hash_id::sha256, sealed, "session key");
-    println(opened && *opened == session ? "the key arrived" : "lost");
-    crypto::secure_zero(*opened);
+    println(opened && crypto::constant_time::equal(opened, session) ? "the key arrived" : "lost");
 
     // another label, or a ciphertext changed: the one error
     auto wrong = key->decrypt_oaep(crypto::hash_id::sha256, sealed, "another label");

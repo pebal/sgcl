@@ -5,7 +5,8 @@
 
 namespace sgcl::crypto::random {
     void fill(const slice<byte>& out) noexcept;   // out filled with random bytes
-    vector<byte> bytes(size_t n);                 // n random bytes
+    vector<byte> bytes(size_t n);                 // n random bytes: a salt, a nonce, an id
+    secret_bytes secret(size_t n);                // n random bytes that are a secret: a key, a seed
 }
 ```
 
@@ -23,15 +24,40 @@ Random bytes for keys, nonces, salts, session identifiers and tokens, Go's `cryp
 - **There is no error to handle.** A system that cannot give random bytes cannot make a key safely, and a program that went on with zeros or with a weaker source would be worse off than one that stops. So a failure writes a line to stderr and calls `std::terminate`, as Go's `crypto/rand` has panicked since Go 1.24. On a working system it does not happen.
 - **Not async-signal-safe**, as neither Go's nor OpenSSL's generator is. A signal handler that asks for random bytes while its thread is inside `fill` would take them from the same place.
 - **For keys, not for simulations.** It is fast, but a simulation or a game wants a generator it can seed and replay, which [`math::random`](../math/random.md) is.
-- **`fill` writes into any buffer** (a stack array, a key's own storage, a slice of a vector) with no allocation. `bytes` returns a new `vector<byte>`, a managed buffer. For a key that must not linger, `fill` into memory that [`secure_zero`](secure_zero.md) clears afterwards.
+- **`fill` writes into any buffer** (a stack array, a key's own storage, a slice of a vector) with no allocation. `bytes` returns a new `vector<byte>`, a managed buffer: for what is not a secret (a salt, a nonce, a token that is public anyway). A key comes from `secret`, a [`secret_bytes`](secret.md#secret_bytes): up to 64 bytes in the object itself, never in managed memory, zeroed when it goes.
+
+## Members
+
+### fill
+
+```cpp
+void fill(const slice<byte>& out) noexcept;
+```
+
+Fills `out` with random bytes, with no allocation: a stack array, a key's own storage, a slice of a vector.
+
+### bytes
+
+```cpp
+vector<byte> bytes(size_t n);
+```
+
+`n` random bytes in a new `vector<byte>`, a managed buffer: for what is not a secret (a salt, a nonce, an id, a token that is public anyway).
+
+### secret
+
+```cpp
+secret_bytes secret(size_t n);
+```
+
+`n` random bytes that are a secret (a key, a seed) in a [`secret_bytes`](secret.md#secret_bytes): up to 64 bytes in the object itself, never in managed memory, zeroed when it goes.
 
 ## Example
 
 ```cpp
-#include "sgcl/crypto/random.h"
-#include "sgcl/crypto/secure_zero.h"
-#include "sgcl/encoding/hex.h"
-#include "sgcl/io/print.h"
+#include "sgcl/crypto/crypto.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
 
 #include <array>
 
@@ -39,13 +65,19 @@ using namespace sgcl;
 
 int main() {
     auto token = crypto::random::bytes(16);
-    println(encoding::hex::encode(token));             // 32 hex digits, different every run
+    println(encoding::hex::encode(token));
 
-    std::array<byte, 32> key;                                 // on the stack
+    std::array<byte, 32> key;  // on the stack
     crypto::random::fill(key);
     // ... use the key ...
     crypto::secure_zero(key);
 }
+```
+
+Sample output:
+
+```text
+3cc54073e13fa0fdeba73a064ca0243b
 ```
 
 ## See also

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -8,6 +8,8 @@
 #include "../headers.h"
 #include "../../url.h"
 #include "../../../core/aliases.h"
+#include "../../../core/detail/bytes.h"
+#include "../../../core/detail/small_vector.h"
 #include "../../../core/string.h"
 #include "../../../core/vector.h"
 
@@ -40,6 +42,7 @@ namespace sgcl::net::http::detail {
         };
         Kind kind = literal;
         std::string text;   // the literal, or the name ("" for a trailing '/')
+        uint32_t name = 0;  // a wildcard's: its name in RouteTable's names, made once
     };
 
     struct RoutePattern {
@@ -265,7 +268,9 @@ namespace sgcl::net::http::detail {
     // segment without '%' is a view of the path itself, one with '%' is
     // unescaped into a buffer of the object (512 bytes; past them into one
     // managed block the size of the path); 32 segments are held in place,
-    // more in a managed array. The path outlives the object (a view of the
+    // more in one block of plain memory (core/detail/small_vector.h: the
+    // views keep nothing alive, the destructor frees it). The path
+    // outlives the object (a view of the
     // request's head); the object is not copied or moved (its views may be
     // of its own buffer). with_empty_end() is the same path with one empty
     // segment more (the path with a '/' added), a view of this one.
@@ -279,10 +284,7 @@ namespace sgcl::net::http::detail {
             if (!path.empty() && path.front() == '/') {
                 n = size_t(std::count(path.begin() + 1, path.end(), '/')) + 1;
             }
-            if (n + 1 > Inline) {
-                _big.resize(n + 1);   // one more for with_empty_end
-                _views = _big.data();
-            }
+            _views.resize(n + 1);   // one more for with_empty_end; no growth after it, so the views keep their place
             if (path.empty() || path.front() != '/') {
                 _views[_n++] = _segment(path, path.size());
                 return;
@@ -324,12 +326,12 @@ namespace sgcl::net::http::detail {
         };
 
         List list() const noexcept {
-            return List{_views, _n};
+            return List{_views.data(), _n};
         }
 
         List with_empty_end() noexcept {
-            _views[_n] = std::string_view();   // room kept for it (Inline + 1, n + 1)
-            return List{_views, _n + 1};
+            _views[_n] = std::string_view();   // room kept for it (n + 1)
+            return List{_views.data(), _n + 1};
         }
 
     private:
@@ -369,18 +371,21 @@ namespace sgcl::net::http::detail {
             return std::string_view(out, k);
         }
 
-        std::string_view _inline[Inline + 1];
-        std::string_view* _views = _inline;
+        sgcl::detail::SmallVector<std::string_view, Inline + 1> _views;   // n + 1 of them, the last for with_empty_end
         size_t _n = 0;
         char _buffer[Buffer];
         size_t _used = 0;
-        vector<std::string_view> _big;   // managed: more than Inline segments
         vector<char> _spill;             // managed: unescaped bytes past the buffer
         size_t _spilled = 0;
     };
 
     // Whether the path matches the pattern's, and the values of its wildcards
-    inline bool match_path(const RoutePattern& p, const PathSegments::List& segs, vector<pair<string, string>>* values) {
+    inline bool match_path(const RoutePattern& p, const PathSegments::List& segs, vector<pair<string, string>>* values, const vector<string>* names = nullptr) {
+        // a wildcard's name: the table's string, a word copied (one made
+        // per value per request before)
+        auto name_of = [&](const RouteSegment& s) {
+            return names ? (*names)[s.name] : string(std::string_view(s.text));
+        };
         for (size_t i = 0; i < p.segments.size(); ++i) {
             auto& s = p.segments[i];
             if (s.kind == RouteSegment::multi) {
@@ -406,12 +411,10 @@ namespace sgcl::net::http::detail {
                         if (k > i) {
                             out[at++] = '/';
                         }
-                        if (!segs[k].empty()) {
-                            std::memcpy(out + at, segs[k].data(), segs[k].size());
-                        }
+                        sgcl::detail::copy_bytes(out + at, segs[k].data(), segs[k].size());
                         at += segs[k].size();
                     }
-                    values->push_back(pair<string, string>(string(std::string_view(s.text)), string(std::string_view(out, at))));
+                    values->push_back(pair<string, string>(name_of(s), string(std::string_view(out, at))));
                 }
                 return true;
             }
@@ -429,7 +432,7 @@ namespace sgcl::net::http::detail {
                         return false;
                     }
                     if (values) {
-                        values->push_back(pair<string, string>(string(std::string_view(s.text)), string(segs[i])));
+                        values->push_back(pair<string, string>(name_of(s), string(segs[i])));
                     }
                     break;
                 case RouteSegment::end:
@@ -462,6 +465,12 @@ namespace sgcl::net::http::detail {
                 auto r = compare_routes(p, q);
                 if (r == Relation::equivalent || r == Relation::overlaps) {
                     throw invalid_argument("http::server: the pattern \"" + p.text + "\" conflicts with \"" + q.text + "\"");
+                }
+            }
+            for (auto& s : p.segments) {
+                if ((s.kind == RouteSegment::wild || s.kind == RouteSegment::multi) && !s.text.empty()) {
+                    s.name = uint32_t(_names.size());
+                    _names.push_back(string(std::string_view(s.text)));
                 }
             }
             _patterns.push_back(std::move(p));
@@ -542,7 +551,7 @@ namespace sgcl::net::http::detail {
             if (best) {
                 f.kind = Found::route;
                 f.index = *best;
-                match_path(_patterns[*best], segs, &f.values);
+                match_path(_patterns[*best], segs, &f.values, &_names);
                 return f;
             }
             std::vector<std::string> methods;
@@ -631,5 +640,6 @@ namespace sgcl::net::http::detail {
         }
 
         std::vector<RoutePattern> _patterns;
+        vector<string> _names;   // the wildcards' names as strings, made once when a route is added (managed: the table lives in the server's state)
     };
 }

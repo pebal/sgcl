@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -195,6 +195,27 @@ namespace sgcl::encoding {
 
         template<class T>
         static expected<string, error> stringify(const string& name, const T& value, const style& s = compact);
+
+        // --- files: one line each (DESIGN 285) ---
+
+        // The root element of a file, read as it comes: xml::load("feed.xml"),
+        // xml::load<feed>("feed.xml"); a file that does not open is errc::io
+        static expected<xml, error> load(const string& path);
+        template<class T>
+        static expected<T, error> load(const string& path);
+        static async::task<expected<xml, error>> async_load(string path);
+        template<class T>
+        static async::task<expected<T, error>> async_load(string path);
+
+        // The element `name` of a value into a file, made or written over,
+        // a new line after it: xml::save("feed.xml", "feed", f); the
+        // element's own save(path)
+        template<class T>
+        static expected<void, error> save(const string& path, const string& name, const T& value);
+        template<class T>
+        static async::task<expected<void, error>> async_save(string path, string name, T value);
+        expected<void, error> save(const string& path) const;
+        async::task<expected<void, error>> async_save(string path) const;
 
         // --- what it is ---
 
@@ -979,7 +1000,11 @@ namespace sgcl::encoding {
                 _any = true;
             }
 
-            void start(std::string_view name) {
+            // `held`: the name's characters outlive the element's end (a
+            // node of a tree node() walks, whose names the tree holds), so
+            // the level keeps a view of them; otherwise (a writer's name,
+            // which may be a temporary) a copy in _names
+            void start(std::string_view name, bool held = false) {
                 if (failure) {
                     return;
                 }
@@ -990,13 +1015,19 @@ namespace sgcl::encoding {
                 _break(_open.size());
                 out += '<';
                 out += name;
-                _open.push_back(Level{std::string(name)});
+                if (held) {
+                    _open.push_back(Level{name.data(), 0, name.size()});
+                } else {
+                    _open.push_back(Level{nullptr, _names.size(), name.size()});
+                    _names += name;
+                }
                 _tag_open = true;
-                _tag_attributes.clear();
+                _attribute_count = 0;
+                _attribute_chars.clear();
                 _any = true;
             }
 
-            void attribute(std::string_view name, std::string_view value) {
+            void attribute(std::string_view name, std::string_view value, bool held = false) {
                 if (failure) {
                     return;
                 }
@@ -1010,14 +1041,21 @@ namespace sgcl::encoding {
                 // hundred thousand attributes read from somewhere is not
                 // 10^10 comparisons when it is written back
                 bool twice = false;
-                if (_tag_attributes.size() < 16) {
-                    for (auto& a : _tag_attributes) {
-                        twice = twice || a == name;
+                if (_attribute_count < AttributesInline) {
+                    for (size_t i = 0; i < _attribute_count; ++i) {
+                        twice = twice || _attribute(i) == name;
                     }
-                    _tag_attributes.emplace_back(name);
-                    if (_tag_attributes.size() == 16) {
+                    if (held) {
+                        _attributes[_attribute_count++] = Span{name.data(), 0, name.size()};
+                    } else {
+                        _attributes[_attribute_count++] = Span{nullptr, _attribute_chars.size(), name.size()};
+                        _attribute_chars += name;
+                    }
+                    if (_attribute_count == AttributesInline) {
                         _tag_set.clear();
-                        _tag_set.insert(_tag_attributes.begin(), _tag_attributes.end());
+                        for (size_t i = 0; i < _attribute_count; ++i) {
+                            _tag_set.emplace(_attribute(i));
+                        }
                     }
                 } else {
                     twice = !_tag_set.emplace(name).second;
@@ -1121,8 +1159,11 @@ namespace sgcl::encoding {
                         _break(_open.size() - 1);
                     }
                     out += "</";
-                    out += top.name;
+                    out += _name(top);
                     out += '>';
+                }
+                if (!_open.back().held) {
+                    _names.resize(_open.back().name_at);
                 }
                 _open.pop_back();
                 _content();
@@ -1135,11 +1176,36 @@ namespace sgcl::encoding {
             }
 
         private:
+            // An open element: its name where _names holds it (the names of
+            // the open elements one after another, a buffer that grows and
+            // shrinks with the nesting, and not a string each: an element
+            // is no allocation), and what is inside it so far
             struct Level {
-                std::string name;
+                const char* held;       // the name where its tree holds it, or null: in _names at name_at
+                size_t name_at;
+                size_t name_size;
                 bool content = false;   // an element or a comment inside
                 bool mixed = false;     // text inside: written as it is, no lines added
             };
+
+            // An attribute name of the open tag: held by its tree, or in
+            // _attribute_chars
+            struct Span {
+                const char* held;
+                size_t at;
+                size_t size;
+            };
+
+            static constexpr size_t AttributesInline = 16;
+
+            std::string_view _name(const Level& l) const noexcept {
+                return l.held ? std::string_view(l.held, l.name_size) : std::string_view(_names.data() + l.name_at, l.name_size);
+            }
+
+            std::string_view _attribute(size_t i) const noexcept {
+                auto& a = _attributes[i];
+                return a.held ? std::string_view(a.held, a.size) : std::string_view(_attribute_chars.data() + a.at, a.size);
+            }
 
             void _fail(errc code, const std::string& what) {
                 if (!failure) {
@@ -1259,8 +1325,72 @@ namespace sgcl::encoding {
             bool _tag_open = false;
             bool _any = false;
             std::vector<Level> _open;
-            std::vector<std::string> _tag_attributes;
-            std::unordered_set<std::string> _tag_set;
+            std::string _names;
+            std::string _attribute_chars;               // the names of the open tag's first attributes
+            Span _attributes[AttributesInline];
+            size_t _attribute_count = 0;
+            std::unordered_set<std::string> _tag_set;   // past AttributesInline: a tag of many attributes
+            friend class XmlLent;
+        };
+
+        // The text and the buffers of a one-shot writing (xml::to_string),
+        // lent by the thread for the call and given back emptied (as
+        // JsonLent for JSON): the calls after the first allocate nothing but
+        // the string they return. A few of each kept, none past KeepBytes.
+        class XmlLent {
+        public:
+            explicit XmlLent(XmlOut& out) noexcept
+            : _out(out) {
+                auto& pool = _pool();
+                if (pool.count) {
+                    auto& kept = pool.slots[--pool.count];
+                    _out.out.swap(kept.out);
+                    _out._names.swap(kept.names);
+                    _out._attribute_chars.swap(kept.attributes);
+                    _out._open.swap(kept.open);
+                }
+            }
+
+            XmlLent(const XmlLent&) = delete;
+            XmlLent& operator=(const XmlLent&) = delete;
+
+            ~XmlLent() {
+                auto& pool = _pool();
+                if (pool.count < KeepSlots && _out.out.capacity() <= KeepBytes && _out._names.capacity() <= KeepBytes) {
+                    auto& kept = pool.slots[pool.count++];
+                    _out.out.clear();
+                    _out._names.clear();
+                    _out._attribute_chars.clear();
+                    _out._open.clear();
+                    kept.out.swap(_out.out);
+                    kept.names.swap(_out._names);
+                    kept.attributes.swap(_out._attribute_chars);
+                    kept.open.swap(_out._open);
+                }
+            }
+
+        private:
+            static constexpr size_t KeepBytes = size_t(64) << 10;
+            static constexpr size_t KeepSlots = 4;
+
+            struct Kept {
+                std::string out;
+                std::string names;
+                std::string attributes;
+                std::vector<XmlOut::Level> open;
+            };
+
+            struct Pool {
+                Kept slots[KeepSlots];
+                size_t count = 0;
+            };
+
+            static Pool& _pool() noexcept {
+                thread_local Pool pool;
+                return pool;
+            }
+
+            XmlOut& _out;
         };
 
         // A node and everything inside it, walked with a stack of its own
@@ -1271,7 +1401,37 @@ namespace sgcl::encoding {
                 const XmlElementNode* element;
                 size_t next;
             };
-            std::vector<Item> stack;
+            // the open elements: 32 levels on this frame, a deeper tree's
+            // in a vector (a document of a few levels allocates nothing)
+            struct Items {
+                Item inline_items[32];
+                size_t count = 0;
+                std::vector<Item> deeper;
+
+                bool empty() const noexcept {
+                    return count == 0;
+                }
+
+                Item& back() noexcept {
+                    return count <= 32 ? inline_items[count - 1] : deeper[count - 33];
+                }
+
+                void push_back(const Item& i) {
+                    if (count < 32) {
+                        inline_items[count] = i;
+                    } else {
+                        deeper.push_back(i);
+                    }
+                    ++count;
+                }
+
+                void pop_back() noexcept {
+                    if (count > 32) {
+                        deeper.pop_back();
+                    }
+                    --count;
+                }
+            } stack;
             auto visit = [&](const xml& n) {
                 switch (n.type()) {
                     case xml::kind::none:
@@ -1289,9 +1449,9 @@ namespace sgcl::encoding {
                     }
                     case xml::kind::element: {
                         auto e = static_cast<const XmlElementNode*>(n._node.get());
-                        start(e->name.view());
+                        start(e->name.view(), true);   // the tree holds its names through the walk
                         for (auto& a : e->attributes) {
-                            attribute(a.name.view(), a.value.view());
+                            attribute(a.name.view(), a.value.view(), true);
                         }
                         stack.push_back(Item{e, 0});
                         return;
@@ -1441,7 +1601,10 @@ namespace sgcl::encoding {
             if (auto r = _before_flush()) {
                 co_return std::move(*r);
             }
-            auto w = co_await _out.async_write(_pending());
+            // a copy the write's slice holds: the stream may write on the
+            // pool, past the frame of a task let go of (io::detail::AsyncStage)
+            auto w = co_await _out.async_write(_stage.stage(_pending()));
+            _stage.done();
             _core.out.clear();
             if (!w) {
                 _failed = w.error();
@@ -1452,6 +1615,7 @@ namespace sgcl::encoding {
 
     private:
         io::writer _out;
+        io::detail::AsyncStage _stage;   // the text a task's write is given
         detail::XmlOut _core;
         optional<io::error> _failed;
     };
@@ -1814,6 +1978,7 @@ namespace sgcl::encoding {
 
     inline string xml::to_string(const style& s) const {
         detail::XmlOut o(s.indent);
+        detail::XmlLent lent(o);   // the thread's buffers: nothing allocated but the string
         if (s.declaration) {
             o.declaration();
         }
@@ -1994,3 +2159,54 @@ namespace sgcl::encoding {
 }
 
 #include "detail/xml_fields.h"
+
+// The files of xml: io's open and write_file under parse and stringify
+#include "detail/files.h"
+
+namespace sgcl::encoding {
+    namespace detail {
+        inline async::task<expected<void, xml::error>> xml_save_task(string path, xml value) {
+            co_return co_await async::spawn_blocking([path, value] { return value.save(path); });
+        }
+    }
+
+    inline expected<xml, xml::error> xml::load(const string& path) {
+        return detail::with_file(path, [](const io::reader& in) { return xml::parse(in); });
+    }
+
+    template<class T>
+    expected<T, xml::error> xml::load(const string& path) {
+        return detail::with_file(path, [](const io::reader& in) { return xml::parse<T>(in); });
+    }
+
+    inline async::task<expected<xml, xml::error>> xml::async_load(string path) {
+        co_return co_await async::spawn_blocking([path] { return xml::load(path); });
+    }
+
+    template<class T>
+    async::task<expected<T, xml::error>> xml::async_load(string path) {
+        co_return co_await async::spawn_blocking([path] { return xml::load<T>(path); });
+    }
+
+    template<class T>
+    expected<void, xml::error> xml::save(const string& path, const string& name, const T& value) {
+        auto text = stringify(name, value);
+        if (!text) {
+            return unexpected(text.error());
+        }
+        return detail::save_text(path, *text);
+    }
+
+    template<class T>
+    async::task<expected<void, xml::error>> xml::async_save(string path, string name, T value) {
+        co_return co_await async::spawn_blocking([path, name, value] { return xml::save(path, name, value); });
+    }
+
+    inline expected<void, xml::error> xml::save(const string& path) const {
+        return detail::save_text(path, to_string());
+    }
+
+    inline async::task<expected<void, xml::error>> xml::async_save(string path) const {
+        return detail::xml_save_task(std::move(path), *this);
+    }
+}

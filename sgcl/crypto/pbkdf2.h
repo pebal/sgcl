@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -7,6 +7,7 @@
 
 #include "detail/bytes.h"
 #include "hmac.h"
+#include "secret.h"
 #include "secure_zero.h"
 #include "../core/aliases.h"
 #include "../core/slice.h"
@@ -40,15 +41,15 @@ namespace sgcl::crypto {
         // `iterations` rounds. iterations of 0 is std::invalid_argument
         // (RFC 8018 asks for at least 1, and 600 000 of SHA-256 is what
         // OWASP names in 2023); so is n past (2^32 - 1) blocks
-        static vector<byte> derive(const slice<const byte>& password, const slice<const byte>& salt, uint32_t iterations, size_t n) {
+        static secret_bytes derive(const slice<const byte>& password, const slice<const byte>& salt, uint32_t iterations, size_t n) {
             _check(iterations, n);
-            vector<byte> out(n);
-            _derive(out.data(), n, password, salt, iterations);
+            secret_bytes out(n);
+            _derive(out.as_slice().data(), n, password, salt, iterations);
             return out;
         }
 
         // derive() into the caller's buffer: out.size() bytes, no
-        // allocation, for a key that must not stay in a managed buffer
+        // allocation
         static void derive_to(const slice<byte>& out, const slice<const byte>& password, const slice<const byte>& salt, uint32_t iterations) {
             _check(iterations, out.size());
             _derive(out.data(), out.size(), password, salt, iterations);

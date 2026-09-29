@@ -24,7 +24,7 @@ A **dictionary** is data both sides agree on in advance, which the first matches
 
 ## Rules
 
-- The output is valid DEFLATE that any decoder reads, but not byte for byte what zlib or Go make for the same input: the format leaves the encoder its choices. Its size is within 0.2% of zlib's at every level.
+- The output is valid DEFLATE that any decoder reads (our decoder, zlib's and Go's read every level's), but not byte for byte what zlib or Go make for the same input: the format leaves the encoder its choices. At levels 7 to 9 its size is within 1% of zlib's at the same level; levels 1 to 6 are the table encoder, Go's kind, a few per cent larger (the default, 6, some 3% on text) ([level](README.md#level)).
 - `flate::reader` and `decompress` stop at the end of the DEFLATE data and give nothing after it; the reader reads its input a block at a time, so it may take bytes past that end from its source. A format with more after it (a zip entry, a gzip trailer) gives the reader only its part ([io::limit_reader](../io/stream.md)), or uses [gzip](gzip.md) and [zlib](zlib.md), which handle their trailers themselves.
 - A decoded stream is checked as it is read: a code that is not one, a distance past the start or a stored block whose length does not match its complement is `errc::corrupt` at the read that reaches it, and the bytes before it were handed out.
 

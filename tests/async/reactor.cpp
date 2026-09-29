@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -30,13 +30,14 @@ namespace {
         }
     };
 
-    // How a wait of the reactor ended: set by the readiness (the signal
-    // the reactor sends before the set, true) or ended with nothing (a
-    // cancel, a stop: the set alone, false). The event says only that it
-    // is set; the channel under it keeps the difference, which these
-    // tests check. Blocks until the event is set.
+    // How a wait of the reactor ended: set by the readiness (the ready
+    // bit the reactor writes before the close, true) or ended with
+    // nothing (a cancel, a stop: the close alone, false). The event says
+    // only that it is set; the channel under it keeps the difference,
+    // which these tests check. Blocks until the event is set.
     bool signalled(const sgcl::async::event& e) {
-        return sgcl::async::detail::EventAccess::state(e)->receive().wait();
+        e.wait();
+        return sgcl::async::detail::EventAccess::ready(e);
     }
 }
 
@@ -111,7 +112,8 @@ TEST(Reactor_Test, TwoWaitsOnOneDescriptorAreBothSignalled) {
     Pipe p;
     auto waiter = [](int fd) -> sgcl::async::task<bool> {
         sgcl::async::event ready = sgcl::async::readable(fd);
-        bool by_readiness = co_await sgcl::async::detail::EventAccess::state(ready)->receive();   // the signal taken: set by the readiness, not ended with nothing
+        co_await ready;
+        bool by_readiness = sgcl::async::detail::EventAccess::ready(ready);   // set by the readiness, not ended with nothing
         co_return by_readiness && ready.is_set();
     };
     auto a = sgcl::async::spawn(waiter(p.fd[0]));
@@ -229,13 +231,15 @@ TEST(Reactor_Test, AQueueThatCannotBeMadeIsMadeByTheNextWait) {
         ::close(fd);
     }
     ::setrlimit(RLIMIT_NOFILE, &old);
-    EXPECT_FALSE(first->receive().wait());                            // ended with nothing: no queue to wait on
+    (void)first->receive().wait();
+    EXPECT_FALSE(first->closed_ready());                              // ended with nothing: no queue to wait on
     sgcl::tracked_ptr second = sgcl::make_tracked<sgcl::async::detail::ChannelState<void>>(1);
     reactor.watch(p.fd[0], false, second, second.get());
     std::this_thread::sleep_for(30ms);
     EXPECT_FALSE(second->closed());                            // waiting: nothing to read yet
     [[maybe_unused]] auto n = ::write(p.fd[1], "x", 1);
-    EXPECT_TRUE(second->receive().wait());
+    (void)second->receive().wait();
+    EXPECT_TRUE(second->closed_ready());
     reactor.stop();
     sgcl::async::scheduler::stop();
 }

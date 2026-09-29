@@ -1,7 +1,28 @@
-# txt::idna
+# sgcl::txt::idna
 
 ```cpp
-#include "sgcl/txt/idna.h"
+#include "sgcl/txt/idna.h"   // or "sgcl/txt/txt.h"
+
+namespace punycode {
+    optional<string> encode(const string& label);   // no "xn--" prefix either way
+    optional<string> decode(const string& label);
+}
+
+namespace idna {
+    enum class error : uint8_t { none, disallowed, not_normalized, hyphen, label_prefix,
+                                 label_separator, leading_combining, joiner, bidi, std3,
+                                 punycode, empty_label, label_too_long, name_too_long };
+    const char* message_of(error) noexcept;
+
+    struct failure;     // which rule a name broke, and in which label
+    struct options;     // what is checked, and the two profiles
+    struct outcome;     // the text even when it is wrong, and what was wrong with it
+
+    expected<string, failure> to_ascii(const string& name, options = {});
+    expected<string, failure> to_unicode(const string& name, options = {});
+    outcome ascii_form(const string& name, options = {});     // the text even when it is wrong
+    outcome unicode_form(const string& name, options = {});
+}
 ```
 
 The name of a host, written in somebody's own script and written the way the DNS carries it.
@@ -21,78 +42,13 @@ The other half of the text of a URL — the bytes of a path, escaped as `%XX` �
 
 Everywhere else in `txt`, a text that is wrong is repaired: an invalid byte is `U+FFFD`, a code point no encoding can carry is `'?'`. Here an operation can really fail, and a failure has to be visible. A name may hold a character no domain name may hold, a label may be longer than the 63 bytes the DNS carries, a label that says `xn--` may be nonsense. A name that is wrong must not be looked up, so the answer is an [`expected`](../core/expected.md) and a caller cannot walk past it.
 
-## Names
-
-```cpp
-namespace punycode {
-    optional<string> encode(const string& label);   // no "xn--" prefix either way
-    optional<string> decode(const string& label);
-}
-
-namespace idna {
-    enum class error : uint8_t { none, disallowed, not_normalized, hyphen, label_prefix,
-                                 label_separator, leading_combining, joiner, bidi, std3,
-                                 punycode, empty_label, label_too_long, name_too_long };
-    const char* message_of(error) noexcept;
-
-    struct failure {
-        static constexpr size_t whole_name = size_t(-1);
-        error rule;         // which criterion it broke
-        size_t label;       // which label, counting from zero
-        size_t at, size;    // that label's bytes in the text that was given
-        string message() const;   // the rule, in words: message_of(rule)
-    };
-
-    struct options {
-        bool transitional = false;              // deprecated by UTS #46
-        bool use_std3_ascii_rules = false;
-        bool check_hyphens = true;
-        bool check_bidi = true;
-        bool check_joiners = true;
-        bool verify_dns_length = true;          // to_ascii only
-        bool ignore_invalid_punycode = false;
-        static constexpr options standard() noexcept;
-        static constexpr options whatwg() noexcept;
-    };
-
-    struct outcome { string text; failure reason; explicit operator bool() const; };
-
-    expected<string, failure> to_ascii(const string& name, options = {});
-    expected<string, failure> to_unicode(const string& name, options = {});
-    outcome ascii_form(const string& name, options = {});     // the text even when it is wrong
-    outcome unicode_form(const string& name, options = {});
-}
-```
-
-```cpp
-using namespace sgcl;
-
-auto host = txt::idna::to_ascii("bücher.example.de");
-if (host) {
-    connect(host);                                    // "xn--bcher-kva.example.de"
-} else {
-    auto why = host.error();
-    log(why.message(), why.label);
-}
-
-// and back, for showing somebody
-txt::idna::to_unicode("xn--bcher-kva.example.de");   // "bücher.example.de"
-```
-
 `to_ascii` and `to_unicode` are the two a program calls. `ascii_form` and `unicode_form` answer the same question and hand back the text as well as what was wrong with it: UTS #46 converts as far as it can even when it fails, and that text is worth having — a browser shows the user the name it would not look up, with the bad label marked.
 
 ## A failure names the label, not the name
 
 A name is refused for something **one of its labels** did, and a caller who has to show the name needs to know which: a browser underlines the label, it does not grey out the address bar. So `failure` carries the label — which one it is, counting from zero — and the bytes it took up **in the text that was handed in**, which are not the bytes of the converted text and are what a caller can point at.
 
-```cpp
-auto why = txt::idna::ascii_form(name).reason;
-if (why.rule != txt::idna::error::none && why.label != txt::idna::failure::whole_name) {
-    underline(name.view().substr(why.at, why.size));
-}
-```
-
-The range is of the label **as it arrived**, so it covers what was mapped away and what was ignored: in `a.-b­.com` the label at fault is the five bytes of `-b` and the soft hyphen, even though the soft hyphen leaves no trace in the answer; and in `a。-b.com` the second label begins after the three bytes of the ideographic full stop, not after the one byte of the stop it becomes. `name_too_long` is the one failure that is no label's fault, and it says so with `label == failure::whole_name`.
+The range is of the label **as it arrived**, so it covers what was mapped away and what was ignored: in `a.-b­.com` the label at fault is the four bytes of `-b` and the soft hyphen, even though the soft hyphen leaves no trace in the answer; and in `a。-b.com` the second label begins after the three bytes of the ideographic full stop, not after the one byte of the stop it becomes. `name_too_long` is the one failure that is no label's fault, and it says so with `label == failure::whole_name`.
 
 Finding those bytes costs a second pass over the name, and it is made only once the name has already failed. Writing the positions down on the way through every name cost 150 ns on every name that was fine, which is the wrong trade for an answer wanted once in some thousands; done this way it costs about 5 ns on the fast path and nothing measurable on the slow one.
 
@@ -150,3 +106,105 @@ It is not slower for it. A name typed in capitals got **faster** — `WWW0.EXAMP
 ## The oracle
 
 `IdnaTestV2.txt` of the UCD, in full: 6387 of its 6389 cases — the two left out carry an unpaired surrogate, which no UTF-8 string can hold — and every column of every one of them, the exact text as well as whether there was an error, for `toUnicode` and for `toASCII` with and without transitional processing. All the sample strings of RFC 3492 section 7.1 hold the punycode, both ways. `python-idna` was asked as a second opinion and agreed everywhere it answered at all; it refuses most of the file, being IDNA2008 proper rather than UTS #46.
+
+## Members
+
+### idna::failure
+
+```cpp
+struct failure {
+    static constexpr size_t whole_name = size_t(-1);
+    error rule;         // which criterion it broke
+    size_t label;       // which label, counting from zero
+    size_t at, size;    // that label's bytes in the text that was given
+    string message() const;   // the rule, in words: message_of(rule)
+};
+```
+
+`rule` is the criterion the name broke, `label` the label counting from zero — `whole_name` for `name_too_long`, which is no label's fault — and `at` and `size` that label's bytes in the text that was handed in.
+
+### idna::options
+
+```cpp
+struct options {
+    bool transitional = false;              // deprecated by UTS #46
+    bool use_std3_ascii_rules = false;
+    bool check_hyphens = true;
+    bool check_bidi = true;
+    bool check_joiners = true;
+    bool verify_dns_length = true;          // to_ascii only
+    bool ignore_invalid_punycode = false;
+    static constexpr options standard() noexcept;
+    static constexpr options whatwg() noexcept;
+};
+```
+
+`transitional` and `use_std3_ascii_rules` are above, and so are the two profiles. `check_hyphens`, `check_bidi` and `check_joiners` turn off the checks of those names, and `verify_dns_length` the lengths and the empty labels. `ignore_invalid_punycode` leaves a label that says `xn--` and is not punycode as it stands rather than refusing it — off by default, and only there for a parser that must not lose a name it cannot read.
+
+### idna::outcome
+
+```cpp
+struct outcome { string text; failure reason; explicit operator bool() const; };
+```
+
+The text UTS #46 converted as far as it could, and `reason`, what was wrong with it; true when nothing was.
+
+## Examples
+
+A name for the DNS, and back for showing somebody:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    auto host = txt::idna::to_ascii("bücher.example.de");
+    if (host) {
+        println("{}", *host);
+    } else {
+        auto why = host.error();
+        println("{} (label {})", why.message(), why.label);
+    }
+    // and back, for showing somebody
+    println("{}", *txt::idna::to_unicode("xn--bcher-kva.example.de"));
+    return 0;
+}
+```
+
+Output:
+
+```text
+xn--bcher-kva.example.de
+bücher.example.de
+```
+
+A failure names the label and its bytes in the text that was given, the soft hyphen that leaves no trace in the answer among them:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    string name = "a.-b\u00ad.com";
+    auto why = txt::idna::ascii_form(name).reason;
+    if (why.rule != txt::idna::error::none && why.label != txt::idna::failure::whole_name) {
+        println("{}: label {}, bytes {} to {}", why.message(), why.label, why.at,
+                why.at + why.size);
+    }
+    return 0;
+}
+```
+
+Output:
+
+```text
+a hyphen in the third and fourth place, or at an end: label 1, bytes 2 to 6
+```
+
+## See also
+
+[The module](README.md); [`percent`](percent.md), the other half of the text of a URL; [`identifier`](identifier.md), `nfkc_casefold`, which the mapping is worked out from; [`bidi`](bidi.md), the classes the rule of RFC 5893 reads; [`net`](../net/README.md), which is given the ASCII.

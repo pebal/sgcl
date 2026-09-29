@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -405,7 +405,8 @@ namespace {
             ASSERT_TRUE(c.write(slice<const byte>(reinterpret_cast<const byte*>(bytes.data()), bytes.size())));
         }
 
-        void request(uint32_t id, const std::string& method, const std::string& path, bool end_stream, const std::string& length = "") {
+        void request(uint32_t id, const std::string& method, const std::string& path, bool end_stream, const std::string& length = "",
+                     bool expect_continue = false) {
             std::string b;
             enc.encode(b, ":method", method);
             enc.encode(b, ":scheme", "http");
@@ -413,6 +414,9 @@ namespace {
             enc.encode(b, ":path", path);
             if (!length.empty()) {
                 enc.encode(b, "content-length", length);
+            }
+            if (expect_continue) {
+                enc.encode(b, "expect", "100-continue");
             }
             std::string out;
             h2::FrameWriter(out).headers(id, reinterpret_cast<const uint8_t*>(b.data()), b.size(), end_stream, true);
@@ -433,6 +437,7 @@ namespace {
             uint32_t stream;
             uint32_t code;
             std::string payload;
+            uint32_t increment = 0;   // WINDOW_UPDATE's
         };
 
         optional<Got> next(std::function<bool(const Got&)> want, std::chrono::milliseconds within) {
@@ -444,7 +449,7 @@ namespace {
                         break;
                     }
                     Got g{f->frame.type(), f->frame.header.stream, f->frame.error_code,
-                          std::string(reinterpret_cast<const char*>(f->frame.payload.data()), f->frame.payload.size())};
+                          std::string(reinterpret_cast<const char*>(f->frame.payload.data()), f->frame.payload.size()), f->frame.increment};
                     in.erase(0, f->size);
                     if (want(g)) {
                         return g;
@@ -474,6 +479,10 @@ namespace {
         s.route("POST /nobody", [](net::http::request, net::http::response_writer w) -> async::task<> {
             co_await async::after(1500ms);
             w.write("late\n");
+        });
+        // answers before its body, reading none
+        s.route("POST /early", [](net::http::request, net::http::response_writer w) {
+            w.write("early\n");
         });
         // the body read whole (read_everything, its content-length known)
         s.route("POST /whole", [](net::http::request r, net::http::response_writer w) -> async::task<> {
@@ -624,5 +633,230 @@ TEST(H2Server_Tests, ShutdownClosesAnIdleH2Connection) {
         EXPECT_LT(std::chrono::steady_clock::now() - began, 2s);
         s.close();
         (void)serving.wait();
+    }
+}
+
+// The connection's window given back for bodies taken (consumed, and for a
+// stream that has ended consumed_ended, gathered without the connection's
+// lock): 600 requests of 1000 bytes one after another, each read whole by
+// its handler; past half the connection's window (1 MB announced) one
+// WINDOW_UPDATE on stream 0 with what was taken by then, 524 288 bytes and
+// at most one body more; nothing on the streams (each had ended)
+TEST(H2Server_Tests, ConnectionWindowGivenBack) {
+    Running r(timed(), false);
+    RawClient c(r.port);
+    std::vector<uint32_t> updates;
+    size_t stream_updates = 0;
+    for (uint32_t i = 0; i < 600; ++i) {
+        const uint32_t id = 1 + 2 * i;
+        c.request(id, "POST", "/whole", false, "1000");
+        c.data(id, 1000, true);
+        auto body = c.next([&](auto& g) {
+            if (g.type == h2::FrameType::window_update) {
+                if (g.stream == 0) {
+                    updates.push_back(g.increment);
+                } else {
+                    ++stream_updates;
+                }
+            }
+            return g.type == h2::FrameType::data && g.stream == id;
+        }, 3000ms);
+        ASSERT_TRUE(body.has_value()) << i;
+        ASSERT_EQ(body->payload, "got 1000\n");
+    }
+    ASSERT_EQ(updates.size(), 2u);   // the preface's, then one past half the window
+    EXPECT_EQ(updates[0], (1u << 20) - 65535u);
+    EXPECT_GE(updates[1], 524288u);
+    EXPECT_LT(updates[1], 524288u + 1000u);
+    EXPECT_EQ(stream_updates, 0u);
+}
+
+// The order of the frames when handlers write their responses themselves
+// and the pump writes the rest: 200 requests at once on one connection,
+// their responses read back in the order they came, every field block
+// decoded by one HPACK decoder (a block out of the encoder's order would
+// fail it), every stream's HEADERS before its DATA, each stream ended once
+TEST(H2Server_Tests, FramesInOrderAcrossStreams) {
+    Running r(timed(), false);
+    RawClient c(r.port);
+    constexpr uint32_t N = 200;
+    for (uint32_t i = 0; i < N; ++i) {
+        const uint32_t id = 1 + 2 * i;
+        if (i % 2) {
+            c.request(id, "GET", "/hello", true);
+        } else {
+            c.request(id, "POST", "/whole", false, "3000");
+            c.data(id, 3000, true);
+        }
+    }
+    h2::Decoder decoder;
+    std::vector<int> headed(2 * N + 2, 0), ended(2 * N + 2, 0);
+    uint32_t done = 0;
+    bool broken = false;
+    std::string blocks;
+    while (done < N && !broken) {
+        auto f = c.next([](auto& g) { return g.type == h2::FrameType::headers || g.type == h2::FrameType::data || g.type == h2::FrameType::continuation; }, 5000ms);
+        if (!f) {
+            break;
+        }
+        ASSERT_LT(f->stream, 2 * N + 2);
+        if (f->type == h2::FrameType::headers) {
+            auto block = decoder.decode(slice<const byte>(reinterpret_cast<const byte*>(f->payload.data()), f->payload.size()), 1 << 20);
+            ASSERT_TRUE(block.has_value()) << "stream " << f->stream;
+            EXPECT_EQ(std::string(block->fields.get(":status").view()), "200");
+            ++headed[f->stream];
+        } else if (f->type == h2::FrameType::data) {
+            if (!headed[f->stream]) {
+                broken = true;   // DATA before its HEADERS
+            }
+            if (f->payload.size() == 0 || f->payload.back() == '\n') {
+                ++ended[f->stream];
+                ++done;
+            }
+        }
+    }
+    EXPECT_FALSE(broken);
+    EXPECT_EQ(done, N);
+    for (uint32_t i = 0; i < N; ++i) {
+        EXPECT_EQ(headed[1 + 2 * i], 1) << i;
+        EXPECT_EQ(ended[1 + 2 * i], 1) << i;
+    }
+}
+
+// When a handler starts (SmallBody): a request with a small declared body
+// has its handler started with the body's first bytes, not its HEADERS; one
+// with END_STREAM on its HEADERS, or asking Expect: 100-continue, or with a
+// body past 16 KB, at once with its HEADERS
+TEST(H2Server_Tests, HandlerStartsWithTheBodyOfASmallRequest) {
+    Running r(timed(), false);
+    RawClient c(r.port);
+    auto response = [&](uint32_t id, std::chrono::milliseconds within) {
+        return c.next([id](auto& g) { return g.type == h2::FrameType::data && g.stream == id; }, within);
+    };
+    // END_STREAM on the HEADERS: at once
+    c.request(1, "POST", "/early", true, "0");
+    auto r1 = response(1, 3000ms);
+    ASSERT_TRUE(r1.has_value());
+    EXPECT_EQ(r1->payload, "early\n");
+    // a small body, none of it yet: the handler waits for it
+    c.request(3, "POST", "/early", false, "10");
+    EXPECT_FALSE(response(3, 300ms).has_value());
+    c.data(3, 10, true);
+    auto r3 = response(3, 3000ms);
+    ASSERT_TRUE(r3.has_value());
+    EXPECT_EQ(r3->payload, "early\n");
+    // Expect: 100-continue: at once with the HEADERS, before any body
+    c.request(5, "POST", "/early", false, "10", true);
+    auto r5 = response(5, 3000ms);
+    ASSERT_TRUE(r5.has_value());
+    EXPECT_EQ(r5->payload, "early\n");
+    // a body past 16 KB: at once with the HEADERS
+    c.request(7, "POST", "/early", false, "20000");
+    auto r7 = response(7, 3000ms);
+    ASSERT_TRUE(r7.has_value());
+    // no content-length: at once
+    c.request(9, "POST", "/early", false);
+    auto r9 = response(9, 3000ms);
+    ASSERT_TRUE(r9.has_value());
+    // a deferred request reset by the client before its body: its place
+    // comes back (the next request is served)
+    c.request(11, "POST", "/early", false, "10");
+    std::string rst;
+    h2::FrameWriter(rst).rst_stream(11, h2::ErrorCode::cancel);
+    c.send(rst);
+    c.request(13, "GET", "/hello", true);
+    auto r13 = response(13, 3000ms);
+    ASSERT_TRUE(r13.has_value());
+    EXPECT_EQ(r13->payload, "hello over HTTP/2.0\n");
+}
+
+// Deferred handlers do not keep places: max_concurrent_streams requests
+// with small bodies, reset one by one before their bodies, then as many
+// served; the server's handlers never wait on the ones that never started
+TEST(H2Server_Tests, DeferredHandlersGiveTheirPlacesBack) {
+    auto s = timed();
+    s.max_concurrent_streams = 4;
+    Running r(s, false);
+    RawClient c(r.port);
+    std::string out;
+    for (uint32_t i = 0; i < 20; ++i) {
+        const uint32_t id = 1 + 2 * i;
+        c.request(id, "POST", "/early", false, "10");
+        out.clear();
+        h2::FrameWriter(out).rst_stream(id, h2::ErrorCode::cancel);
+        c.send(out);
+    }
+    for (uint32_t i = 20; i < 28; ++i) {
+        const uint32_t id = 1 + 2 * i;
+        c.request(id, "POST", "/early", false, "10");
+        c.data(id, 10, true);
+        auto got = c.next([id](auto& g) { return g.type == h2::FrameType::data && g.stream == id; }, 3000ms);
+        ASSERT_TRUE(got.has_value()) << i;
+    }
+}
+
+// A response's body blocks go out in place (the connection's write takes
+// them where they lie, no copy into its output) and back to the worker's
+// pool only once that write is done: many streams at once on one
+// connection, each body its own bytes, across blocks and frames, the pool
+// taking and giving all the time; every body whole and its own, over h2c
+// and TLS
+TEST(H2Server_Tests, BodiesSentInPlaceStayTheirOwn) {
+    auto body_of = [](size_t seed, size_t n) {
+        std::string s(n, '\0');
+        for (size_t i = 0; i < n; ++i) {
+            s[i] = char((seed * 131 + i * (seed % 7 + 1)) % 251);
+        }
+        return s;
+    };
+    auto server = [body_of] {   // one a run: a server closed is not served again
+        net::http::server s;
+        s.h2c = true;
+        s.route("GET /pattern", [body_of](net::http::request r, net::http::response_writer w) {
+            const size_t seed = size_t(std::atol(std::string(r.query("seed").view()).c_str()));
+            const size_t n = 5000 + seed * 977 % 60000;
+            std::string b = body_of(seed, n);
+            const size_t third = n / 3;
+            w.write(sgcl::string(b.substr(0, third)));
+            w.write(sgcl::string(b.substr(third, third)));
+            w.write(sgcl::string(b.substr(2 * third)));
+        });
+        return s;
+    };
+    for (bool secure : {false, true}) {
+        SCOPED_TRACE(secure ? "tls" : "h2c");
+        Running r(server(), secure);
+        net::http::client c;
+        c.timeout = 20s;
+        if (secure) {
+            c.tls.roots = crypto::x509::certificate_pool::from_pem(sgcl::string(slurp(testdata("ca.pem"))));
+            c.tls.server_name = sgcl::string("localhost");
+        } else {
+            c.h2c = true;
+        }
+        const std::string base = (secure ? "https://127.0.0.1:" : "http://127.0.0.1:") + std::to_string(r.port) + "/pattern?seed=";
+        for (size_t round = 0; round < 4; ++round) {
+            std::vector<async::task<expected<net::http::response, io::error>>> tasks;
+            for (size_t k = 0; k < 64; ++k) {
+                tasks.push_back(c.async_get(sgcl::string(base + std::to_string(round * 64 + k))));
+                tasks.back().spawn();
+            }
+            vector<expected<net::http::response, io::error>> results;
+            for (auto& t : tasks) {
+                results.push_back(t.wait());   // every one waited before any check returns
+            }
+            for (size_t k = 0; k < results.size(); ++k) {
+                auto& res = results[k];
+                ASSERT_TRUE(res) << std::string(res.error().message().view());
+                EXPECT_EQ(res->proto(), "HTTP/2.0");
+                const size_t seed = round * 64 + k;
+                auto text = res->text();
+                ASSERT_TRUE(text);
+                const std::string want = body_of(seed, 5000 + seed * 977 % 60000);
+                const std::string got(text->view());
+                ASSERT_EQ(got.size(), want.size()) << seed;
+                EXPECT_TRUE(got == want) << "stream of seed " << seed << ": another body's bytes";
+            }
+        }
     }
 }

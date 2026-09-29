@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -290,7 +290,7 @@ namespace sgcl::async {
         tracked_ptr<detail::ChannelState<void>> _round_or_new() {
             tracked_ptr<detail::ChannelState<void>> round = _round.load(std::memory_order_acquire);
             while (!round) {
-                if (_round.compare_exchange_strong(round, tracked_ptr<detail::ChannelState<void>>(make_tracked<detail::ChannelState<void>>()), std::memory_order_acq_rel, std::memory_order_acquire)) {
+                if (_round.compare_exchange_strong(round, detail::make_linked_state<void>(), std::memory_order_acq_rel, std::memory_order_acquire)) {
                     round = _round.load(std::memory_order_acquire);
                 }
             }

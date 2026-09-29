@@ -1,13 +1,17 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
 #include "error.h"
+#include "bzip2.h"
+#include "gzip.h"
+#include "xz.h"
 #include "detail/block.h"
-#include "detail/path.h"
+#include "detail/files.h"
+#include "../io/detail/path.h"
 #include "../async/scheduler.h"
 #include "../core/aliases.h"
 #include "../core/expected.h"
@@ -334,7 +338,7 @@ namespace sgcl::compress::detail {
     // not local (Go's filepath.IsLocal, the same as cleaning the path
     // lexically and looking for a leading "..")
     inline bool tar_is_local(std::string_view p) noexcept {
-        return is_local_path(p);
+        return sgcl::io::detail::is_local_path(p);
     }
 
     inline bool tar_is_ascii(std::string_view s) noexcept {
@@ -1421,4 +1425,277 @@ namespace sgcl::compress::tar {
         optional<io::error> _stream_error;    // the same, as write and close give it
         bool _closed = false;
     };
+}
+
+namespace sgcl::compress::detail {
+    // What a tar file is wrapped in, by its first bytes: gzip (1f 8b),
+    // xz (fd 37 7a 58 5a 00), bzip2 ("BZh"), or nothing
+    enum class TarWrap : uint8_t {
+        none,
+        gzip,
+        xz,
+        bzip2
+    };
+
+    inline expected<TarWrap, error> tar_wrap_of(const string& path) {
+        auto f = io::open(path);
+        if (!f) {
+            return unexpected(error(f.error(), 0));
+        }
+        unsigned char head[6] = {};
+        size_t got = 0;
+        while (got < sizeof head) {
+            auto n = f->read(slice<byte>(reinterpret_cast<byte*>(head + got), sizeof head - got));
+            if (!n) {
+                (void)f->close();
+                return unexpected(error(n.error(), 0));
+            }
+            if (*n == 0) {
+                break;
+            }
+            got += *n;
+        }
+        (void)f->close();
+        if (got >= 2 && head[0] == 0x1f && head[1] == 0x8b) {
+            return TarWrap::gzip;
+        }
+        if (got >= 6 && head[0] == 0xfd && head[1] == '7' && head[2] == 'z' && head[3] == 'X' && head[4] == 'Z' && head[5] == 0) {
+            return TarWrap::xz;
+        }
+        if (got >= 3 && head[0] == 'B' && head[1] == 'Z' && head[2] == 'h') {
+            return TarWrap::bzip2;
+        }
+        return TarWrap::none;
+    }
+
+    // The archive's bytes as a stream, unwrapped
+    inline io::reader tar_input(const io::file& f, TarWrap w) {
+        switch (w) {
+            case TarWrap::gzip: return io::reader(gzip::reader(f));
+            case TarWrap::xz: return io::reader(xz::reader(f));
+            case TarWrap::bzip2: return io::reader(bzip2::reader(f));
+            default: return io::reader(f);
+        }
+    }
+
+    // What a tar file is to be wrapped in, by its name: .tar.gz and .tgz
+    // gzip, .tar.xz and .txz xz; .tar.bz2 and .tbz2 have no writer here
+    inline TarWrap tar_wrap_by_name(std::string_view name) {
+        auto ends = [&](std::string_view s) { return name.size() >= s.size() && name.substr(name.size() - s.size()) == s; };
+        if (ends(".tar.gz") || ends(".tgz")) {
+            return TarWrap::gzip;
+        }
+        if (ends(".tar.xz") || ends(".txz")) {
+            return TarWrap::xz;
+        }
+        if (ends(".tar.bz2") || ends(".tbz2") || ends(".tbz")) {
+            return TarWrap::bzip2;
+        }
+        return TarWrap::none;
+    }
+
+    // One pass over the archive: every entry given to f with the reader
+    // standing at its data; the reader's error, or f's, ends it
+    template<class F>
+    expected<void, error> tar_each(const string& path, TarWrap w, F f) {
+        auto file = io::open(path);
+        if (!file) {
+            return unexpected(error(file.error(), 0));
+        }
+        tar::reader r(tar_input(*file, w));
+        for (;;) {
+            auto e = r.next();
+            if (!e) {
+                (void)file->close();
+                return unexpected(e.error());
+            }
+            if (!*e) {
+                break;
+            }
+            if (auto done = f(**e, r); !done) {
+                (void)file->close();
+                return done;
+            }
+        }
+        (void)file->close();
+        return {};
+    }
+
+    inline expected<void, error> tar_extract(const string& archive_path, const string& directory, uint64_t max_size) {
+        auto w = tar_wrap_of(archive_path);
+        if (!w) {
+            return unexpected(w.error());
+        }
+        // every name checked, and the sizes summed, before anything is written
+        uint64_t total = 0;
+        auto checked = tar_each(archive_path, *w, [&](const tar::entry& e, tar::reader&) -> expected<void, error> {
+            if (!e.is_local()) {
+                return unexpected(error(errc::insecure_path, 0, string("tar: an entry's name or link leaves the directory: ") + e.name));
+            }
+            total += e.size;
+            if (max_size && total > max_size) {
+                return unexpected(error(errc::too_large, 0, string("tar: the files are larger than max_size")));
+            }
+            return {};
+        });
+        if (!checked) {
+            return checked;
+        }
+        TreeWriter out;
+        if (auto started = out.start(directory); !started) {
+            return started;
+        }
+        auto written = tar_each(archive_path, *w, [&](const tar::entry& e, tar::reader& r) -> expected<void, error> {
+            std::string_view name = e.name.view();
+            switch (e.type) {
+                case tar::kind::directory:
+                    return out.directory(name, e.mode);
+                case tar::kind::file:
+                    return out.file(name, e.mode, optional<time::datetime>(e.modified), r, 0);
+                case tar::kind::symlink:
+                    out.symlink(name, e.link_name.view());
+                    return {};
+                case tar::kind::hardlink:
+                    out.hardlink(name, e.link_name.view());
+                    return {};
+                default:
+                    return {};   // a device or a fifo: made by root only, left out as Go's tools leave them
+            }
+        });
+        if (!written) {
+            return written;
+        }
+        return out.finish();
+    }
+
+    inline expected<void, error> tar_create(const string& directory, const string& archive_path, compress::level level) {
+        const TarWrap w = tar_wrap_by_name(archive_path.view());
+        if (w == TarWrap::bzip2) {
+            return unexpected(error(errc::unsupported, 0, string("tar: bzip2 is read, not written: ") + archive_path));
+        }
+        auto tree = list_tree(directory);
+        if (!tree) {
+            return unexpected(tree.error());
+        }
+        auto file = io::create(archive_path);
+        if (!file) {
+            return unexpected(error(file.error(), 0));
+        }
+        auto write_all = [&](const io::writer& sink) -> expected<void, error> {
+            tar::writer tw(sink);
+            for (const auto& t : *tree) {
+                tar::entry e;
+                e.mode = io::permissions(unsigned(t.mode) & 07777);
+                e.modified = datetime_of(t.modified);
+                if (t.type == io::file_type::directory) {
+                    e.name = string(t.name + "/");
+                    e.type = tar::kind::directory;
+                } else if (t.type == io::file_type::symlink) {
+                    e.name = string(t.name);
+                    e.type = tar::kind::symlink;
+                    e.link_name = string(t.target);
+                } else {
+                    e.name = string(t.name);
+                    e.size = t.size;
+                }
+                if (auto h = tw.write_header(e); !h) {
+                    return h;
+                }
+                if (t.type == io::file_type::regular) {
+                    auto in = io::open(string(t.path));
+                    if (!in) {
+                        return unexpected(error(in.error(), 0));
+                    }
+                    auto copied = io::copy(tw, *in);
+                    (void)in->close();
+                    if (!copied) {
+                        return unexpected(archive_error(copied.error()));
+                    }
+                    if (uint64_t(*copied) != t.size) {   // the file changed while it was read
+                        return unexpected(error(errc::invalid_argument, 0, string("tar: a file changed size while it was archived: ") + string(t.name)));
+                    }
+                }
+            }
+            if (auto c = tw.close(); !c) {
+                return unexpected(archive_error(c.error()));
+            }
+            return {};
+        };
+        expected<void, error> r;
+        if (w == TarWrap::gzip) {
+            gzip::writer z(*file, gzip::options{level, {}});
+            r = write_all(io::writer(z));
+            if (auto c = z.close(); r && !c) {
+                r = unexpected(archive_error(c.error()));
+            }
+        } else if (w == TarWrap::xz) {
+            xz::writer z(*file, xz::options{level});
+            r = write_all(io::writer(z));
+            if (auto c = z.close(); r && !c) {
+                r = unexpected(archive_error(c.error()));
+            }
+        } else {
+            r = write_all(io::writer(*file));
+        }
+        if (auto c = file->close(); r && !c) {
+            r = unexpected(error(c.error(), 0));
+        }
+        if (!r) {
+            (void)io::remove(archive_path);   // no half archive left behind
+        }
+        return r;
+    }
+}
+
+namespace sgcl::compress::tar {
+    // What extract and create take besides the paths
+    struct options {
+        compress::level level;                    // create: the level of gzip or xz around the archive, 6 by default
+        uint64_t max_size = limits{}.max_size;    // extract: the files' bytes together past which nothing is written (errc::too_large); 1 GiB, 0: none
+    };
+
+    namespace detail {
+        inline async::task<expected<void, error>> tar_extract_task(string archive_path, string directory, uint64_t max) {
+            co_return co_await async::spawn_blocking([archive_path, directory, max] { return compress::detail::tar_extract(archive_path, directory, max); });
+        }
+
+        inline async::task<expected<void, error>> tar_create_task(string directory, string archive_path, compress::level l) {
+            co_return co_await async::spawn_blocking([directory, archive_path, l] { return compress::detail::tar_create(directory, archive_path, l); });
+        }
+    }
+
+    // The archive unpacked under the directory: tar::extract("site.tar.gz",
+    // "site"). gzip, xz and bzip2 around the archive are read by its first
+    // bytes, whatever its name. Every name is checked before anything is
+    // written: one that would leave the directory, or a link whose target
+    // would, is errc::insecure_path and nothing is written; so is a total
+    // past options::max_size (errc::too_large; 1 GiB by default, as
+    // decompress has it: an archive comes from outside, tar -x has no
+    // bound, this one has). Directories, files with their mode and time,
+    // symbolic and hard links (made last); a device or a fifo is left out.
+    // A file there already is written over.
+    inline expected<void, error> extract(const string& archive_path, const string& directory, const options& o = {}) {
+        return compress::detail::tar_extract(archive_path, directory, o.max_size);
+    }
+
+    // The same in a task, on the blocking pool
+    inline async::task<expected<void, error>> async_extract(string archive_path, string directory, options o = {}) {
+        return detail::tar_extract_task(std::move(archive_path), std::move(directory), o.max_size);
+    }
+
+    // The directory packed into the archive: tar::create("site",
+    // "site.tar.gz"). The name says what wraps the archive: .tar.gz and
+    // .tgz gzip, .tar.xz and .txz xz (at options::level), anything else
+    // none (.tar.bz2 is errc::unsupported: bzip2 is read, not written).
+    // The entries are named from the directory ("index.html", "css/",
+    // "css/site.css"), as Go's AddFS names them, in lexical order, with
+    // their mode and time; symbolic links as links, not followed; a
+    // socket, a device or a fifo left out. A failure removes the file.
+    inline expected<void, error> create(const string& directory, const string& archive_path, const options& o = {}) {
+        return compress::detail::tar_create(directory, archive_path, o.level);
+    }
+
+    inline async::task<expected<void, error>> async_create(string directory, string archive_path, options o = {}) {
+        return detail::tar_create_task(std::move(directory), std::move(archive_path), o.level);
+    }
 }

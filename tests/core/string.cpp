@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -8,7 +8,9 @@
 #include "tests/types.h"
 
 #include <algorithm>
+#include <list>
 #include <map>
+#include <random>
 #include <ranges>
 #include <cstdlib>
 #include <cstring>
@@ -629,4 +631,243 @@ TEST(String_Tests, AStringOfBytes) {
     static_assert(!std::is_convertible_v<vector<byte>, string>);
     static_assert(!std::is_convertible_v<slice<const byte>, string>);
     EXPECT_EQ(string(std::string("std")), "std");
+}
+
+namespace {
+    // The size of the managed object a string lives in: its size class
+    size_t object_size_of(const string& s) {
+        auto object = reinterpret_cast<const unsigned char*>(s.data()) - sizeof(detail::StringHeader);
+        return detail::Page::metadata_of(object).object_size;
+    }
+}
+
+// A string written in place (detail::StringAccess::filled, bounded): the
+// characters are the fill's, the terminator and the header the maker's,
+// at every size class, the small ones, the large ones and a buffer past
+// a page; a bounded string keeps the size class of its bound with the
+// length its fill wrote (never a part of the object given back), and one
+// that wrote nothing is the empty string
+TEST(String_Tests, AStringWrittenInPlace) {
+    for (size_t n : {size_t(1), size_t(3), size_t(4), size_t(59), size_t(248), size_t(249), size_t(300), size_t(4000), size_t(20000),
+                     size_t(100000)}) {
+        std::string expect(n, ' ');
+        for (size_t i = 0; i < n; ++i) {
+            expect[i] = char('a' + i % 26);
+        }
+        string s = detail::StringAccess::filled<string>(n, [&](char* chars) {
+            for (size_t i = 0; i < n; ++i) {
+                chars[i] = char('a' + i % 26);
+            }
+        });
+        EXPECT_EQ(s.size(), n);
+        EXPECT_EQ(s.view(), expect);
+        EXPECT_EQ(s.c_str()[n], '\0');
+        EXPECT_EQ(object_size_of(s), object_size_of(string(expect))) << n;   // the class the same string made from a view takes
+        EXPECT_EQ(s, string(expect));
+        EXPECT_EQ(std::hash<string>()(s), std::hash<string>()(string(expect)));
+    }
+    // fewer than the bound: the class of the bound, the length written
+    // at least half of the bound: the class of the bound, the length written
+    for (auto [bound, used] : {std::pair<size_t, size_t>{100, 60}, {600, 300}, {5000, 4000}, {70000, 35000}}) {
+        string s = detail::StringAccess::bounded<string>(bound, [&](char* chars) {
+            std::fill_n(chars, used, 'x');
+            return used;
+        });
+        EXPECT_EQ(s.size(), used);
+        EXPECT_EQ(s.view(), std::string(used, 'x'));
+        EXPECT_EQ(s.c_str()[used], '\0');
+        EXPECT_EQ(object_size_of(s), object_size_of(string(std::string(bound, 'y')))) << bound << " " << used;
+        EXPECT_GT(object_size_of(s), object_size_of(string(std::string(used, 'y')))) << bound << " " << used;
+    }
+    // less than half: copied into the exact class, the bound's object given
+    // back whole (the two sides of the line: 299 and 300 of 600)
+    for (auto [bound, used] : {std::pair<size_t, size_t>{100, 40}, {600, 299}, {600, 7}, {70000, 3}, {70000, 34999}}) {
+        string s = detail::StringAccess::bounded<string>(bound, [&](char* chars) {
+            std::fill_n(chars, used, 'x');
+            return used;
+        });
+        EXPECT_EQ(s.size(), used);
+        EXPECT_EQ(s.view(), std::string(used, 'x'));
+        EXPECT_EQ(s.c_str()[used], '\0');
+        EXPECT_EQ(object_size_of(s), object_size_of(string(std::string(used, 'y')))) << bound << " " << used;
+    }
+    // nothing written, and nothing asked for: the empty string
+    string none = detail::StringAccess::bounded<string>(64, [](char*) { return size_t(0); });
+    EXPECT_TRUE(none.empty());
+    string zero = detail::StringAccess::filled<string>(0, [](char*) { ADD_FAILURE() << "a fill of nothing ran"; });
+    EXPECT_TRUE(zero.empty());
+    // a fill that throws lets its object go and the exception through
+    EXPECT_THROW((void)detail::StringAccess::filled<string>(10, [](char*) { throw std::runtime_error("fill"); }), std::runtime_error);
+    // past what a string holds
+    EXPECT_THROW((void)detail::StringAccess::filled<string>(size_t(UINT32_MAX) + 1, [](char*) {}), length_error);
+    // a wide string: the characters are units, not bytes
+    auto w = detail::StringAccess::filled<basic_string<wchar_t>>(3, [](wchar_t* chars) {
+        chars[0] = L'a';
+        chars[1] = L'b';
+        chars[2] = L'c';
+    });
+    EXPECT_EQ(w, basic_string<wchar_t>(L"abc"));
+}
+
+// The builders that write in place: the same text as before, and the same
+// object where nothing changes
+TEST(String_Tests, BuildersWriteInPlace) {
+    string a = "abcdefghijklmnopqrstuvwxyz0123";
+    string b = "0123456789abcdefghijklmnopqrst";
+    EXPECT_EQ(a + b, "abcdefghijklmnopqrstuvwxyz01230123456789abcdefghijklmnopqrst");
+    EXPECT_EQ(a + "!", "abcdefghijklmnopqrstuvwxyz0123!");
+    EXPECT_EQ(string("x") + string(), "x");
+    EXPECT_TRUE((string() + string()).empty());
+    EXPECT_EQ(a.repeat(3).size(), 90u);
+    EXPECT_EQ(string("ab").repeat(3), "ababab");
+    EXPECT_EQ(string(4, 'z'), "zzzz");
+    EXPECT_TRUE(string(0, 'z').empty());
+    std::list<char> letters = {'l', 'i', 's', 't'};
+    EXPECT_EQ(string(letters.begin(), letters.end()), "list");   // a forward range, counted
+    std::istringstream in("stream");
+    EXPECT_EQ(string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()), "stream");   // an input range, gathered
+    string upper = "ALREADY UPPER 123";
+    EXPECT_EQ(upper.to_upper().data(), upper.data());   // nothing changes: the same object
+    EXPECT_EQ(string("Mixed Case 9").to_upper(), "MIXED CASE 9");
+    EXPECT_EQ(string("Mixed Case 9").to_lower(), "mixed case 9");
+    EXPECT_EQ(basic_string<wchar_t>(L"Wide").to_upper(), basic_string<wchar_t>(L"WIDE"));
+}
+
+// join and replace, counted and written once: the same text as the
+// appending they replaced, over many cases against a reference built with
+// std::string (a forward range, an input range, empty parts and
+// separators, a replacement longer, shorter and empty, a count)
+TEST(String_Tests, JoinAndReplaceAgainstAppending) {
+    auto join_ref = [](const std::vector<std::string>& parts, std::string_view sep) {
+        std::string s;
+        for (size_t i = 0; i < parts.size(); ++i) {
+            if (i) {
+                s += sep;
+            }
+            s += parts[i];
+        }
+        return s;
+    };
+    auto replace_ref = [](std::string v, std::string_view from, std::string_view to, size_t count) {
+        if (from.empty()) {
+            return v;
+        }
+        std::string s;
+        size_t pos = 0, n = 0;
+        auto at = v.find(from);
+        while (at != std::string::npos) {
+            s.append(v, pos, at - pos).append(to);
+            pos = at + from.size();
+            at = (count && ++n == count) ? std::string::npos : v.find(from, pos);
+        }
+        s.append(v, pos);
+        return s;
+    };
+    std::mt19937 rng(7);
+    for (int round = 0; round < 3000; ++round) {
+        std::vector<std::string> parts(rng() % 6);
+        for (auto& p : parts) {
+            p = std::string(rng() % 5, char('a' + rng() % 3));
+        }
+        std::string sep = std::string(rng() % 3, ',');
+        sgcl::vector<string> managed;
+        for (auto& p : parts) {
+            managed.push_back(string(p));
+        }
+        EXPECT_EQ(string::join(managed, sep).view(), join_ref(parts, sep));
+        EXPECT_EQ(string::join(parts, sep).view(), join_ref(parts, sep));
+        std::istringstream words("x yy zzz");
+        EXPECT_EQ(string::join(std::ranges::istream_view<std::string>(words), sep).view(), join_ref({"x", "yy", "zzz"}, sep));   // an input range
+        std::string text = join_ref(parts, sep);
+        std::string from = std::string(1 + rng() % 2, char('a' + rng() % 3));
+        std::string to = std::string(rng() % 4, 'X');
+        size_t count = rng() % 3;
+        EXPECT_EQ(string(text).replace(from, to, count).view(), replace_ref(text, from, to, count)) << text << " " << from << " " << to << " " << count;
+    }
+    string same = "nothing to find here";
+    EXPECT_EQ(same.replace("zz", "y").data(), same.data());   // none found: the same object
+    EXPECT_TRUE(string::join(sgcl::vector<string>{}, ", ").empty());
+    EXPECT_EQ(string::join(sgcl::vector<string>{string("one")}, ", "), "one");
+    EXPECT_TRUE(string("aaa").replace("a", "").empty());
+}
+
+namespace {
+    // An array filled to the brim, with no NUL of its own, and characters
+    // right after it: whoever reads past its end reads them too
+    struct Brim {
+        char text[4];
+        char after[4];
+    };
+
+    template<class A>
+    concept MakesString = requires(A a) { string(a); };
+}
+
+// The pair io's write_text and txt have: an array of characters up to its
+// first NUL or its end, never past it; a pointer, char* or const char* and
+// no other, up to its NUL
+static_assert(MakesString<const char*> && MakesString<char*> && MakesString<const char (&)[3]> && MakesString<char (&)[3]>);
+static_assert(!MakesString<std::nullptr_t> && !MakesString<const unsigned char*> && !MakesString<const int*>);
+static_assert(std::is_convertible_v<const char (&)[4], string> && std::is_convertible_v<const char*, string>);
+
+TEST(String_Tests, AnArrayIsReadToItsEndAndNoFurther) {
+    Brim b = {{'a', 'b', 'c', 'd'}, {'x', 'y', 'z', '\0'}};
+    string s = b.text;
+    EXPECT_EQ(s.size(), 4u);                                    // not 7, with "xyz"
+    EXPECT_EQ(s, "abcd");
+    s = "zz";
+    s = b.text;
+    EXPECT_EQ(s.view(), "abcd");
+
+    string l = "abc";                                           // a literal: no zero at the end
+    EXPECT_EQ(l.size(), 3u);
+    EXPECT_EQ(string("abcd") == b.text, true);
+    EXPECT_FALSE(string("abcd") < b.text);
+    EXPECT_EQ(b.text == string("abcd"), true);
+    EXPECT_EQ(string("xabcd").find(b.text), 1u);
+    EXPECT_EQ(string("abcdx").rfind(b.text), 0u);
+    EXPECT_TRUE(string("abcdx").starts_with(b.text));
+    EXPECT_FALSE(string("xabc").ends_with(b.text));
+    EXPECT_FALSE(string("abcxyz").contains(b.text));
+    EXPECT_EQ(string("abcd").compare(b.text), 0);
+    EXPECT_EQ(string("zabcd").compare(1, 4, b.text), 0);
+    EXPECT_EQ(string("dx").find_first_of(b.text), 0u);
+    EXPECT_EQ(string("xd").find_first_not_of(b.text), 0u);
+    EXPECT_TRUE(string("ABCD").equal_fold(b.text));
+    EXPECT_EQ(string("a,b").replace(",", b.text), "aabcdb");
+    EXPECT_EQ(string("a,b").replace(b.text, "-"), "a,b");
+    EXPECT_EQ(string("abcd,abcd").replace(b.text, b.text), "abcd,abcd");
+    EXPECT_EQ(string("abcdxyzabcd").trim(b.text), "xyz");
+    EXPECT_EQ(string("abcd-").trim_prefix(b.text), "-");
+    EXPECT_EQ(l + b.text, "abcabcd");
+    EXPECT_EQ(b.text + l, "abcdabc");
+    EXPECT_EQ(string::concat(l, b.text, '!'), "abcabcd!");
+    EXPECT_EQ(string::join(sgcl::vector<string>{"1", "2"}, b.text), "1abcd2");
+    size_t pieces = 0;
+    for (auto piece : string("1abcd2").split(b.text)) {
+        (void)piece;
+        ++pieces;
+    }
+    EXPECT_EQ(pieces, 2u);
+    EXPECT_EQ(std::hash<string>()(b.text), string("abcd").hash());
+
+    // an array with a NUL inside stops at it, as a literal does
+    char early[8] = {'a', 'b', '\0', 'c', 'd', 'e', 'f', 'g'};
+    EXPECT_EQ(string(early).size(), 2u);
+}
+
+TEST(String_Tests, APointerIsReadToItsNul) {
+    Brim b = {{'a', 'b', 'c', 'd'}, {'x', 'y', 'z', '\0'}};
+    const char* p = b.after;
+    char* q = b.after;
+    EXPECT_EQ(string(p).size(), 3u);
+    EXPECT_EQ(string(q), "xyz");
+    string s;
+    s = p;
+    EXPECT_EQ(s, "xyz");
+    EXPECT_EQ(s == p, true);
+    EXPECT_EQ(string("axyz").find(q), 1u);
+    EXPECT_EQ(string("a") + p, "axyz");
+    EXPECT_EQ(p + string("a"), "xyza");
+    EXPECT_EQ(string("a,b").replace(",", p), "axyzb");
 }

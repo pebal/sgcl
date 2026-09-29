@@ -1,7 +1,7 @@
 # sgcl::concurrent::copy_on_write
 
 ```cpp
-#include "sgcl/concurrent/copy_on_write.h"   // or "sgcl/sgcl.h"
+#include "sgcl/concurrent/copy_on_write.h"   // or "sgcl/concurrent/concurrent.h"
 
 namespace sgcl {
     template<class T>
@@ -93,7 +93,9 @@ Replaces the value with `desired` if the current one is still the one `expected`
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/concurrent/concurrent.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -112,32 +114,35 @@ int main() {
     for (int r : range(8)) {
         readers.emplace_back([&] {
             while (!stop) {
-                auto t = table.load();                    // one load: the table as it was, for as long as t lives
+                auto t = table.load();  // one load: the table as it was, for as long as t lives
                 int hops = 0;
                 for (auto& route : *t) {
                     hops += route.next_hop;
                 }
-                inconsistent += hops != 10 * int(t->size()) * (int(t->size()) + 1) / 2;   // 10 + 20 + ... : whole or nothing
+                // 10 + 20 + ... : whole or nothing
+                inconsistent += hops != 10 * int(t->size()) * (int(t->size()) + 1) / 2;
                 ++lookups;
             }
         });
     }
     for (int i : range(3, 101)) {
-        table.update([i](auto& t) { t.push_back({i, 10 * i}); });   // a copy with one more route, swapped in
+        // a copy with one more route, swapped in
+        table.update([i](auto& t) { t.push_back({i, 10 * i}); });
     }
     stop = true;
     for (auto& r : readers) {
         r.join();
     }
-    println("{} lookups, {} inconsistent, {} routes", lookups.load(), inconsistent.load(), table.load()->size());
+    println("{} lookups, {} inconsistent, {} routes", lookups.load(), inconsistent.load(),
+            table.load()->size());
     return inconsistent == 0 && table.load()->size() == 100 ? 0 : 1;
 }
 ```
 
-The output of one run (the lookups depend on how the threads interleave):
+Sample output:
 
-```
-5081 lookups, 0 inconsistent, 100 routes
+```text
+3179 lookups, 0 inconsistent, 100 routes
 ```
 
 ## See also

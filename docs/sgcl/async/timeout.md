@@ -22,7 +22,7 @@ A race against a duration is one managed object and no frame of its own: the rac
 
 - The task given is consumed: it is started if nobody started it, awaited by the race, and its result comes back through the timeout or not at all.
 - What the task threw comes through the timeout as it is, before any deadline: an exception of the task's is the task's, not a failure of the timeout.
-- The loser runs on unless it was made with the token of the `stop_source` given as the third argument, which the timeout stops when the deadline passes first; the source is left alone when the task finished in time. The source is a child of the caller's token where the caller has one (`async::stop_source src(tok)`), so the caller's stop reaches the task too.
+- The loser's value or exception, when it ends, is dropped with the race: never [on_unhandled](coroutine.md#on_unhandled)'s. The loser runs on unless it was made with the token of the `stop_source` given as the third argument, which the timeout stops when the deadline passes first; the source is left alone when the task finished in time. The source is a child of the caller's token where the caller has one (`async::stop_source src(tok)`), so the caller's stop reaches the task too.
 - `async::with_deadline(t, token)` stops nothing: a task made with the same token stops itself. An empty token (`async::stop_token()`) is no deadline.
 - A timeout of zero, or a point that has passed, is a deadline that has passed: a task done already gives its result, any other is `timed_out`, and runs on. (A deadline of zero is still a timer: a task that finishes in the few microseconds before the timer thread fires it wins the race.)
 - `timed_out` and `stopped` are values, not exceptions; each answers `message()` and compares equal to another of its kind.
@@ -63,7 +63,8 @@ async::task<> caller(async::stop_token tok) {
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/async/async.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -97,9 +98,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 fast found
 slow stopped
 slow timed out

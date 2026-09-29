@@ -155,7 +155,7 @@ expected<string, error> look_path(const string& file);   // the name itself when
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -197,9 +197,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 2 apple
 1 fig
 3 pear

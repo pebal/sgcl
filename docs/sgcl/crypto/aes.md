@@ -14,6 +14,21 @@ AES ([FIPS 197](https://csrc.nist.gov/pubs/fips/197/final)), the block cipher al
 
 > **This is not a way to encrypt data.** A block encrypted on its own is ECB: equal blocks of the message give equal blocks of ciphertext, and the picture shows through. Nothing here authenticates anything either. A program encrypting data takes [`aes_gcm`](aes_gcm.md) (or [`chacha20_poly1305`](chacha20_poly1305.md)); this type is for a mode the module does not have — a key wrap, a CMAC, a protocol's own construction — and for tests.
 
+## Rules
+
+- **The key schedule** — the round keys, and on arm64 the decryption's round keys too — is in the object's own memory (no allocation); the destructor and a move out of it overwrite it with zeros. Move-only, `clone()` for a copy; a call on an object moved from is `std::logic_error`.
+- **Constant time on both paths.** On arm64 a round is AESE/AESMC (AESD/AESIMC to decrypt), the S-box inside the processor. Elsewhere, and under `SGCL_CRYPTO_PORTABLE`, the cipher is bitsliced: the S-box is computed (the inverse in GF(2^8) as x^254, then the affine map) over 64-bit planes, and no table is read at an address that depends on the key or the data — the T-table AES of older libraries leaks both through the cache. The key schedule computes its S-box the same way.
+- The blocks are `array<byte, 16>` by value; a copy on the stack is not zeroed, as in Go.
+
+## SGCL and Go
+
+| Go (`crypto/aes`) | sgcl::crypto | note |
+|---|---|---|
+| `aes.NewCipher(key)` | `aes(key)`, `aes::from_key(key)` | |
+| `block.Encrypt(dst, src)` | `encrypt_block(in)` | a block by value |
+| `block.Decrypt(dst, src)` | `decrypt_block(in)` | |
+| `aes.BlockSize` | `aes::block_size` | |
+
 ## Members
 
 ```cpp
@@ -32,19 +47,13 @@ array<byte, 16> encrypt_block(const array<byte, 16>& in) const;
 array<byte, 16> decrypt_block(const array<byte, 16>& in) const;
 ```
 
-## Rules
-
-- **The key schedule** — the round keys, and on arm64 the decryption's round keys too — is in the object's own memory (no allocation); the destructor and a move out of it overwrite it with zeros. Move-only, `clone()` for a copy; a call on an object moved from is `std::logic_error`.
-- **Constant time on both paths.** On arm64 a round is AESE/AESMC (AESD/AESIMC to decrypt), the S-box inside the processor. Elsewhere, and under `SGCL_CRYPTO_PORTABLE`, the cipher is bitsliced: the S-box is computed (the inverse in GF(2^8) as x^254, then the affine map) over 64-bit planes, and no table is read at an address that depends on the key or the data — the T-table AES of older libraries leaks both through the cache. The key schedule computes its S-box the same way.
-- The blocks are `array<byte, 16>` by value; a copy on the stack is not zeroed, as in Go.
-
 ## Example
 
 ```cpp
-#include "sgcl/core/range.h"
-#include "sgcl/crypto/aes.h"
-#include "sgcl/encoding/hex.h"
-#include "sgcl/io/print.h"
+#include "sgcl/core/core.h"
+#include "sgcl/crypto/crypto.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -68,15 +77,6 @@ Output:
 69c4e0d86a7b0430d8cdb78070b4c55a
 true
 ```
-
-## SGCL and Go
-
-| Go (`crypto/aes`) | sgcl::crypto | note |
-|---|---|---|
-| `aes.NewCipher(key)` | `aes(key)`, `aes::from_key(key)` | |
-| `block.Encrypt(dst, src)` | `encrypt_block(in)` | a block by value |
-| `block.Decrypt(dst, src)` | `decrypt_block(in)` | |
-| `aes.BlockSize` | `aes::block_size` | |
 
 ## See also
 

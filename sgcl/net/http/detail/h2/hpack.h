@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -9,6 +9,7 @@
 #include "hpack_tables.h"
 #include "../../headers.h"
 #include "../../../../core/aliases.h"
+#include "../../../../core/detail/bytes.h"
 #include "../../../../core/expected.h"
 #include "../../../../core/slice.h"
 #include "../../../../core/string.h"
@@ -383,8 +384,8 @@ namespace sgcl::net::http::detail::h2 {
             if (_end + n > size_t(_capacity) * 2 + 1) {
                 _compact();
             }
-            std::memcpy(_bytes.get() + _end, name.data(), name.size());
-            std::memcpy(_bytes.get() + _end + name.size(), value.data(), value.size());
+            sgcl::detail::copy_bytes(_bytes.get() + _end, name.data(), name.size());
+            sgcl::detail::copy_bytes(_bytes.get() + _end + name.size(), value.data(), value.size());
             _entries[_head] = Slot{uint32_t(_end), uint32_t(name.size()), uint32_t(value.size())};
             _head = (_head + 1) % _slots;
             ++_count;

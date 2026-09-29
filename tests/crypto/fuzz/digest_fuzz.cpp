@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -44,6 +44,12 @@ namespace {
     template<class A, class B>
     bool same(const A& a, const B& b, size_t n) {
         return std::memcmp(a.data(), b, n) == 0;
+    }
+
+    // SHAKE's output is a secret_bytes: its bytes through as_slice
+    template<class B>
+    bool same(const crypto::secret_bytes& a, const B& b, size_t n) {
+        return std::memcmp(a.as_slice().data(), b, n) == 0;
     }
 
     // the piece sizes: the input's first four bytes, each 1..64
@@ -142,7 +148,8 @@ namespace {
     void paths(const uint8_t* p, size_t n) {
         namespace d = crypto::detail;
         size_t blocks = n / 168;
-        if (blocks == 0) {
+        namespace cpu = sgcl::detail::cpu;
+        if (blocks == 0 || !cpu::crypto() || !cpu::sha512() || !cpu::sha3()) {
             return;
         }
         uint32_t a1[5] = {1, 2, 3, 4, 5}, b1[5] = {1, 2, 3, 4, 5};

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -152,8 +152,15 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         }
         case 3: {
             // the input as a query alone
-            string q = net::query_params::parse(input).to_string();
+            auto parsed = net::query_params::parse(input);
+            string q = parsed.to_string();
             check(net::query_params::parse(q).to_string() == q);
+            // first(text, name) is parse(text).get(name): for every name the
+            // text holds, and for one it does not
+            for (auto& p : parsed) {
+                check(net::query_params::first(input, p.first) == parsed.get(p.first));
+            }
+            check(net::query_params::first(input, string("\x01no such name")) == parsed.get(string("\x01no such name")));
             break;
         }
     }

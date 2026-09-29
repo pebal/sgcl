@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -156,6 +156,38 @@ namespace sgcl::txt {
             return bytes;
         }
 
+        // A C text as the module's texts read it — a literal, another
+        // array of char, or a pointer to one — which the functions that
+        // take both a string and a slice take too: a literal would
+        // otherwise be ambiguous between the two, and the slice of its
+        // array would count the zero. An array is read up to its first
+        // NUL or its end, whichever comes first (one filled to the brim
+        // has no NUL, and nothing past it is read); a pointer up to its
+        // NUL, a null one as the empty text, and a nullptr does not
+        // compile (the pointer is char* or const char*, nothing else).
+        // The functions that answer with a value read the text where it
+        // lies; the ones whose answer keeps pieces of it (a match, a
+        // range, slices) copy it into a string, which the answer holds.
+        // Each such function has the pair io's write_text has: an
+        // overload for the array and a template of the pointer
+        template<size_t N>
+        slice<const char> c_text(const char (&text)[N]) noexcept {
+            const char* nul = std::char_traits<char>::find(text, N, '\0');
+            return slice<const char>(text, nul ? size_t(nul - text) : N);
+        }
+
+        template<class P>
+        requires std::same_as<P, const char*> || std::same_as<P, char*>
+        slice<const char> c_text(P text) noexcept {
+            return text ? slice<const char>(text, std::char_traits<char>::length(text)) : slice<const char>();
+        }
+
+        template<class T>
+        string c_string(const T& text) {
+            auto t = c_text(text);
+            return string(t.data(), t.size());
+        }
+
         // columns of a text as well as of a code point: the sum over the
         // runes, which a code_point_fn could not carry, since it refuses
         // everything that is not a char32_t
@@ -174,10 +206,20 @@ namespace sgcl::txt {
                 return _sum(text.view());
             }
 
-            // A C string, as core's text interface takes one; a literal
+            // A C text, as core's text interface takes one; a literal
             // comes here rather than through the slice of its array, and
-            // does not count its terminating zero
-            constexpr size_t operator()(const char* text) const noexcept {
+            // does not count its terminating zero. An array up to its
+            // first NUL or its end, a pointer up to its NUL (c_text above,
+            // written again here to stay constexpr)
+            template<size_t N>
+            constexpr size_t operator()(const char (&text)[N]) const noexcept {
+                const char* nul = std::char_traits<char>::find(text, N, '\0');
+                return _sum(std::string_view(text, nul ? size_t(nul - text) : N));
+            }
+
+            template<class P>
+            requires std::same_as<P, const char*> || std::same_as<P, char*>
+            constexpr size_t operator()(P text) const noexcept {
                 return text ? _sum(text) : 0;
             }
 

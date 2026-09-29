@@ -17,6 +17,10 @@ SHA-1, Go's `crypto/sha1`: a digest of 20 bytes that has been broken for collisi
 - **The shape of a hasher** of the [hash module](../hash/README.md), as [`sha256`](sha256.md) has it; a copy is a branch; about 100 bytes, trivially copyable.
 - **HMAC-SHA-1 is not broken** by SHA-1's collisions: an HMAC needs the digest to be a pseudorandom function, which is another property. What cannot be trusted is a digest standing alone for its data where someone could have prepared two.
 
+## Paths
+
+On arm64 the SHA-1 instructions of ARMv8 (`SHA1C`, `SHA1P`, `SHA1M`, `SHA1H`, `SHA1SU0`, `SHA1SU1`), chosen as for [`sha256`](sha256.md) (`FEAT_SHA1`, `HWCAP_SHA1`); plain C++ elsewhere and with `SGCL_CRYPTO_PORTABLE`.
+
 ## Members
 
 ```cpp
@@ -34,17 +38,15 @@ expected<size_t, io::error> copy_from(const io::reader& r);  async::task<expecte
 static expected<array<byte, 20>, io::error> of_file(const string& path);  static async::task<expected<array<byte, 20>, io::error>> async_of_file(const string& path);   // of() of the whole file, through copy_from
 ```
 
-## Paths
-
-On arm64 the SHA-1 instructions of ARMv8 (`SHA1C`, `SHA1P`, `SHA1M`, `SHA1H`, `SHA1SU0`, `SHA1SU1`), chosen as for [`sha256`](sha256.md) (`FEAT_SHA1`, `HWCAP_SHA1`); plain C++ elsewhere and with `SGCL_CRYPTO_PORTABLE`.
-
 ## Example
 
+The program prints what `git hash-object` prints for a file holding `hello`.
+
 ```cpp
-#include "sgcl/crypto/sha1.h"
-#include "sgcl/encoding/hex.h"
-#include "sgcl/io/print.h"
-#include "sgcl/txt/format.h"
+#include "sgcl/crypto/crypto.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
 
 #include <array>
 
@@ -61,7 +63,7 @@ int main() {
 }
 ```
 
-Output (what `git hash-object` prints for a file holding `hello`):
+Output:
 
 ```text
 ce013625030ba8dba906f756967f9e9ca394464a

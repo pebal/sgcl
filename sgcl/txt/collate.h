@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -7,6 +7,7 @@
 
 #include "case.h"
 #include "detail/collate_tables.h"
+#include "../core/detail/small_vector.h"
 
 #include <vector>
 
@@ -300,115 +301,19 @@ namespace sgcl::txt {
             return e.primary || e.secondary || e.tertiary ? QuaternaryHigh : 0;
         }
 
-        // A buffer on the stack, with the standard vector behind it for
-        // what does not fit. Nothing it holds is a pointer — code points
-        // and collation elements keep nothing alive — so the standard
-        // vector is the right one here: the managed heap is for what the
-        // collector has to know about, and a block issued zeroed and
-        // left to the sweep is the wrong shape for a scratch buffer that
-        // dies inside the call.
-        //
-        // The inline part is left uninitialised, so it costs a stack
-        // frame and nothing else, and it is sized so that the text these
-        // are asked about does not reach the vector at all: a comparison
-        // of two sentences in place of a word is a third dearer when it
-        // does.
-        template<class T, size_t N>
-        class small_vector {
-        public:
-            small_vector() = default;
-
-            // The inline part is left uninitialised past _size, so a
-            // copy takes what has been written and not the whole array.
-            // The compiler's own copy took all N of them, which for the
-            // elements of a pattern is two kilobytes of indeterminate
-            // bytes copied to carry a handful — and where such a copy
-            // lands inside a managed object, as it did when a range
-            // kept a prepared searcher, the collector reads those bytes
-            // as words and a stale address among them is a root that
-            // keeps something dead alive.
-            small_vector(const small_vector& other)
-            : _size(other._size)
-            , _spill(other._spill) {
-                _take(other);
-            }
-
-            small_vector(small_vector&& other) noexcept
-            : _size(other._size)
-            , _spill(std::move(other._spill)) {
-                _take(other);
-                other._size = 0;
-            }
-
-            small_vector& operator=(const small_vector& other) {
-                _size = other._size;
-                _spill = other._spill;
-                _take(other);
-                return *this;
-            }
-
-            small_vector& operator=(small_vector&& other) noexcept {
-                _size = other._size;
-                _spill = std::move(other._spill);
-                _take(other);
-                other._size = 0;
-                return *this;
-            }
-
-            size_t size() const noexcept {
-                return _size;
-            }
-
-            void clear() noexcept {
-                _size = 0;
-                _spill.clear();
-            }
-
-            void push_back(const T& x) {
-                if (_size < N) {
-                    _inline[_size] = x;
-                } else {
-                    _spill.push_back(x);
-                }
-                ++_size;
-            }
-
-            T& operator[](size_t i) noexcept {
-                return i < N ? _inline[i] : _spill[i - N];
-            }
-
-            const T& operator[](size_t i) const noexcept {
-                return i < N ? _inline[i] : _spill[i - N];
-            }
-
-            // Only while everything is still on the stack, which is the
-            // case for any text the standard calls stream safe
-            bool drop_front(size_t n) noexcept {
-                if (!_spill.empty()) {
-                    return false;
-                }
-                for (size_t i = n; i < _size; ++i) {
-                    _inline[i - n] = _inline[i];
-                }
-                _size -= n;
-                return true;
-            }
-
-        private:
-            // as much of the inline part as has been written, which for
-            // a pattern of six letters is six elements and not 256
-            void _take(const small_vector& other) noexcept {
-                for (size_t i = 0, n = _size < N ? _size : N; i < n; ++i) {
-                    _inline[i] = other._inline[i];
-                }
-            }
-
-            T _inline[N];          // left uninitialised on purpose: _size says
-                                   // what has been written, and zeroing a
-                                   // buffer this size shows up in a comparison
-            size_t _size = 0;
-            std::vector<T> _spill;
-        };
+        // The scratch buffers of a comparison, a key and a window: the
+        // core's SmallVector (core/detail/small_vector.h; one pointer, so
+        // data() is one load and push_back one compare), sized so that the
+        // text these are asked about stays in the inline part. Nothing they
+        // hold is a pointer: code points and collation elements keep
+        // nothing alive. The copy takes only what was written (the reason:
+        // a range kept a prepared searcher inside a managed object, and the
+        // compiler's own copy carried two kilobytes of indeterminate bytes
+        // the collector read as words). Measured against the split buffer
+        // it replaced (DESIGN 307): a comparison of two words and a key the
+        // same, long texts 7-18 % faster; `backwards` 6 % dearer, from the
+        // inliner's choices around the walk, not the container.
+        using sgcl::detail::SmallVector;
 
         // The code points of a text in NFD, one combining sequence at a
         // time. The algorithm is defined on the decomposed form, but a
@@ -436,8 +341,7 @@ namespace sgcl::txt {
         // somebody asks: a comparison and a key never do, and the array
         // and the work of filling it are not there for them
         struct no_places {
-            constexpr bool drop_front(size_t) const noexcept {
-                return true;
+            constexpr void erase_front(size_t) const noexcept {
             }
         };
 
@@ -515,10 +419,10 @@ namespace sgcl::txt {
             void skip(size_t n) noexcept {
                 _at += n;
                 if (_at >= WindowPoints / 2) {
-                    if (_points.drop_front(_at) && _taken.drop_front(_at)
-                        && _where.drop_front(_at)) {
-                        _at = 0;
-                    }
+                    _points.erase_front(_at);
+                    _taken.erase_front(_at);
+                    _where.erase_front(_at);
+                    _at = 0;
                 }
             }
 
@@ -563,11 +467,11 @@ namespace sgcl::txt {
             size_t _read = 0;                                  // into the bytes
             size_t _at = 0;                                    // into the code points
             bool _more = true;
-            small_vector<char32_t, WindowPoints> _points;
-            small_vector<uint8_t, WindowPoints> _taken;
+            SmallVector<char32_t, WindowPoints> _points;
+            SmallVector<uint8_t, WindowPoints> _taken;
             // the bytes each point came from, where anybody asks
             [[no_unique_address]]
-            std::conditional_t<Track, small_vector<uint32_t, WindowPoints>, no_places> _where;
+            std::conditional_t<Track, SmallVector<uint32_t, WindowPoints>, no_places> _where;
         };
 
         // The most elements one entry of any table can stand for. It is
@@ -1557,7 +1461,7 @@ namespace sgcl::txt {
         // The whole text at once, for a caller that needs every element:
         // the sort key does, a comparison does not
         template<bool Plain>
-        inline void collation_elements(small_vector<Element, TextElements>& out, const string& text,
+        inline void collation_elements(SmallVector<Element, TextElements>& out, const string& text,
                                        const Tailoring* language, const shape& how) {
             element_stream<false, Plain> stream(text.view(), language, how);
             Element e;
@@ -1867,7 +1771,7 @@ namespace sgcl::txt {
         friend class collated_text;
         friend class collated_matches;
 
-        using elements = detail::small_vector<detail::Element, detail::TextElements>;
+        using elements = detail::SmallVector<detail::Element, detail::TextElements>;
         using places = vector<detail::placed>;
 
         bool _at_least(strength level) const noexcept {
@@ -2391,6 +2295,19 @@ namespace sgcl::txt {
         : collated_text(by, string(text.data(), text.size())) {
         }
 
+        // A C text — a literal among them, which a string and a slice
+        // would both take — as detail::c_text reads it
+        template<size_t N>
+        collated_text(const collator& by, const char (&text)[N])
+        : collated_text(by, detail::c_string(text)) {
+        }
+
+        template<class P>
+        requires std::same_as<P, const char*> || std::same_as<P, char*>
+        collated_text(const collator& by, P text)
+        : collated_text(by, detail::c_string(text)) {
+        }
+
         // A pattern weighed the way this text was, which is the only
         // kind this text can be asked about
         searcher_type searcher(const string& pattern) const {
@@ -2747,6 +2664,19 @@ namespace sgcl::txt {
         // bytes: collated_text says why
         collated_matches(const collator& by, const slice<const char>& text, searcher_type pattern)
         : collated_matches(by, string(text.data(), text.size()), std::move(pattern)) {
+        }
+
+        // A C text — a literal among them, which a string and a slice
+        // would both take — as detail::c_text reads it
+        template<size_t N>
+        collated_matches(const collator& by, const char (&text)[N], searcher_type pattern)
+        : collated_matches(by, detail::c_string(text), std::move(pattern)) {
+        }
+
+        template<class P>
+        requires std::same_as<P, const char*> || std::same_as<P, char*>
+        collated_matches(const collator& by, P text, searcher_type pattern)
+        : collated_matches(by, detail::c_string(text), std::move(pattern)) {
         }
 
         iterator begin() const noexcept {

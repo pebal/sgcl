@@ -1,0 +1,12 @@
+# GIF: the signatures, the block introducers and labels, the loop extension
+"GIF87a"
+"GIF89a"
+"\x21\xf9\x04"
+"\x21\xff\x0b"
+"\x21\xfe"
+"\x21\x01"
+"\x2c"
+"\x3b"
+"NETSCAPE2.0"
+"ANIMEXTS1.0"
+"\x03\x01\x00\x00\x00"

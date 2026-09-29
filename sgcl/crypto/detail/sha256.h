@@ -1,12 +1,12 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
 #include "bytes.h"
-#include "cpu.h"
+#include "paths.h"
 #include "md.h"
 
 #include <bit>
@@ -86,7 +86,7 @@ namespace sgcl::crypto::detail {
     // new efgh from the old abcd. The first twelve rounds make the words of
     // round q + 4 in the register they used: SHA256SU0 with the next
     // register, SHA256SU1 with the two after it.
-    SGCL_CRYPTO_TARGET_SHA2
+    SGCL_TARGET_ARM64_CRYPTO
     inline void sha256_compress_arm64(uint32_t* h, const unsigned char* p, size_t blocks) noexcept {
         uint32x4_t abcd = vld1q_u32(h);
         uint32x4_t efgh = vld1q_u32(h + 4);
@@ -97,8 +97,8 @@ namespace sgcl::crypto::detail {
             for (int i = 0; i < 4; ++i) {
                 m[i] = vreinterpretq_u32_u8(vrev32q_u8(vld1q_u8(p + 16 * i)));
             }
-            [&]<size_t... Q>(std::index_sequence<Q...>) SGCL_CRYPTO_INLINE_SHA2 {
-                auto round = [&]<size_t R>(std::integral_constant<size_t, R>) SGCL_CRYPTO_INLINE_SHA2 {
+            [&]<size_t... Q>(std::index_sequence<Q...>) SGCL_INLINE_ARM64_CRYPTO {
+                auto round = [&]<size_t R>(std::integral_constant<size_t, R>) SGCL_INLINE_ARM64_CRYPTO {
                     uint32x4_t t = vaddq_u32(m[R % 4], vld1q_u32(sha256_k + 4 * R));
                     uint32x4_t old = abcd;
                     abcd = vsha256hq_u32(abcd, efgh, t);
@@ -117,6 +117,51 @@ namespace sgcl::crypto::detail {
     }
 #endif
 
+#if defined(SGCL_CRYPTO_X86)
+    // SHA-NI (Intel SDM: SHA256RNDS2, SHA256MSG1, SHA256MSG2): the state as
+    // two vectors, ABEF and CDGH, two rounds an instruction on the round's
+    // W+K in the low half of its operand; the schedule four words a step,
+    // W[t-16] + σ0(W[t-15]) by MSG1, W[t-7] by an ALIGNR of the two groups
+    // before, σ1(W[t-2]) by MSG2. Compiled, and unverified until the x86
+    // machine: the processors Rosetta emulates have no SHA-NI.
+    SGCL_TARGET_X86_SHA
+    inline void sha256_compress_x86(uint32_t* h, const unsigned char* p, size_t blocks) noexcept {
+        const __m128i swap = _mm_set_epi64x(0x0c0d0e0f08090a0bll, 0x0405060700010203ll);   // each word's bytes reversed
+        __m128i t = _mm_loadu_si128(reinterpret_cast<const __m128i*>(h));                   // DCBA
+        __m128i state1 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(h + 4));          // HGFE
+        t = _mm_shuffle_epi32(t, 0xB1);                                                     // CDAB
+        state1 = _mm_shuffle_epi32(state1, 0x1B);                                           // EFGH
+        __m128i state0 = _mm_alignr_epi8(t, state1, 8);                                     // ABEF
+        state1 = _mm_blend_epi16(state1, t, 0xF0);                                          // CDGH
+        for (; blocks > 0; --blocks, p += 64) {
+            const __m128i save0 = state0, save1 = state1;
+            __m128i m[4];
+            for (int g = 0; g < 16; ++g) {
+                __m128i& x = m[g % 4];
+                if (g < 4) {
+                    x = _mm_shuffle_epi8(_mm_loadu_si128(reinterpret_cast<const __m128i*>(p + 16 * g)), swap);
+                } else {
+                    x = _mm_sha256msg1_epu32(x, m[(g + 1) % 4]);
+                    x = _mm_add_epi32(x, _mm_alignr_epi8(m[(g + 3) % 4], m[(g + 2) % 4], 4));
+                    x = _mm_sha256msg2_epu32(x, m[(g + 3) % 4]);
+                }
+                __m128i wk = _mm_add_epi32(x, _mm_load_si128(reinterpret_cast<const __m128i*>(sha256_k + 4 * g)));
+                state1 = _mm_sha256rnds2_epu32(state1, state0, wk);
+                wk = _mm_shuffle_epi32(wk, 0x0E);
+                state0 = _mm_sha256rnds2_epu32(state0, state1, wk);
+            }
+            state0 = _mm_add_epi32(state0, save0);
+            state1 = _mm_add_epi32(state1, save1);
+        }
+        t = _mm_shuffle_epi32(state0, 0x1B);                                                // FEBA
+        state1 = _mm_shuffle_epi32(state1, 0xB1);                                           // DCHG
+        state0 = _mm_blend_epi16(t, state1, 0xF0);                                          // DCBA
+        state1 = _mm_alignr_epi8(state1, t, 8);                                             // HGFE
+        _mm_storeu_si128(reinterpret_cast<__m128i*>(h), state0);
+        _mm_storeu_si128(reinterpret_cast<__m128i*>(h + 4), state1);
+    }
+#endif
+
     struct Sha256Traits {
         using word = uint32_t;
         static constexpr size_t words = 8;
@@ -125,8 +170,14 @@ namespace sgcl::crypto::detail {
 
         static void compress(uint32_t* h, const unsigned char* p, size_t blocks) noexcept {
 #if defined(SGCL_CRYPTO_ARM64)
-            if (cpu::sha256()) {
+            if (sgcl::detail::cpu::crypto()) {
                 sha256_compress_arm64(h, p, blocks);
+                return;
+            }
+#endif
+#if defined(SGCL_CRYPTO_X86)
+            if (sgcl::detail::cpu::sha()) {
+                sha256_compress_x86(h, p, blocks);
                 return;
             }
 #endif

@@ -76,7 +76,8 @@ b.reset();                                                        // the Counted
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -99,14 +100,14 @@ int main() {
     b = nullptr;
     collector::force_collect(true);                         // optional, for the demonstration only
     auto& peer = any_cast<tracked_ptr<Node>&>(a->properties["peer"]);
-    println("{} {}", peer->id, any_cast<double>(a->properties["weight"]));   // 2 2.5
+    println("{} {}", peer->id, any_cast<double>(a->properties["weight"]));
     return 0;
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 2 2.5
 ```
 

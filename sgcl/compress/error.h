@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -32,7 +32,8 @@ namespace sgcl::compress {
         dictionary_required, // a zlib stream made with a preset dictionary, read without it (or with another)
         io,                  // the source or the sink failed: io_error() says how
         password_required,   // encrypted data (a 7z entry or header) read without a password
-        wrong_password       // encrypted data that does not decrypt under the password given (or is damaged: the two look alike)
+        wrong_password,      // encrypted data that does not decrypt under the password given (or is damaged: the two look alike)
+        insecure_path        // an entry extracted whose name (or a link's target) would leave the directory: compress's code of io::errc::insecure_path (io::path::is_local's rule)
     };
 
     namespace detail {
@@ -56,6 +57,7 @@ namespace sgcl::compress {
                     case errc::io: return "input/output error";
                     case errc::password_required: return "password required";
                     case errc::wrong_password: return "wrong password";
+                    case errc::insecure_path: return "insecure path";
                 }
                 return "unknown compress error";
             }

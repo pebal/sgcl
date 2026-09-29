@@ -52,7 +52,8 @@ size_t first = async::when_any(fetch(1), fetch(2)).wait();     // 0 or 1: whiche
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/async/async.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -72,16 +73,16 @@ async::task<string> page() {
 }
 
 int main() {
-    println("{}", page().wait());                                            // head!body!foot!
+    println("{}", page().wait());
     size_t winner = async::when_any(fetch("slow", 50), fetch("fast", 5)).wait();
-    println("{}", (winner == 1 ? "the fast one" : "the slow one"));          // the fast one
+    println("{}", (winner == 1 ? "the fast one" : "the slow one"));
     return winner == 1 ? 0 : 1;
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 head!body!foot!
 the fast one
 ```

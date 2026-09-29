@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -7,7 +7,7 @@
 
 #include "detail/bytes.h"
 #include "detail/crc.h"
-#include "detail/crc_arm64.h"
+#include "detail/crc_paths.h"
 #include "mixin/hasher.h"
 
 #include <cstddef>

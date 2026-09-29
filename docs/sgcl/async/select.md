@@ -68,7 +68,9 @@ while (running) {
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/async/async.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -108,14 +110,14 @@ int main() {
         this_thread::yield();                            // the worker drains both
     }
     stop.close();                                             // the worker's loop ends
-    println("cost {}", w.wait());                 // cost 50
+    println("cost {}", w.wait());
     return w.result() == 50 ? 0 : 1;
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 cost 50
 ```
 

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -9,6 +9,7 @@
 #include "detail/der25519.h"
 #include "detail/edwards25519.h"
 #include "detail/field25519.h"
+#include "detail/key_pem.h"
 #include "detail/keys.h"
 #include "constant_time.h"
 #include "error.h"
@@ -272,12 +273,36 @@ namespace sgcl::crypto::x25519 {
         }
 
         // The PKCS #8 PrivateKeyInfo, 48 bytes, version 0 as Go and OpenSSL
-        // write it. It holds the secret: a managed vector, which the caller
-        // should zero (secure_zero) when done with it
-        vector<byte> to_pkcs8_der() const {
+        // write it. It holds the secret: a secret_bytes (48 bytes in the
+        // object itself), never managed memory
+        secret_bytes to_pkcs8_der() const {
             _check();
             return detail::der_pkcs8(detail::oid_x25519, detail::bytes(_secret.data()));
         }
+
+        // The key from PEM text (a file's bytes, read_secret's or the
+        // program's): the first private key block, "PRIVATE KEY",
+        // its base64 decoded straight into a secret_bytes (encoding::pem
+        // would put the DER in managed memory). Text around the block is
+        // passed over; an encrypted key is errc::unsupported
+        static expected<private_key, error> from_pem(const slice<const byte>& text) {
+            auto p = detail::read_key_pem(text);
+            if (!p) {
+                return unexpected<error>(p.error());
+            }
+            if (p->label == "PRIVATE KEY") {
+                return from_pkcs8_der(p->der);
+            }
+            return unexpected<error>(error(errc::malformed, string("PEM: a block of another key's type")));
+        }
+
+        // The key as PEM, "PRIVATE KEY" over its PKCS #8, as Go's
+        // pem.Encode of x509.MarshalPKCS8PrivateKey and OpenSSL's genpkey
+        // write it: a secret_bytes, never managed memory
+        secret_bytes to_pem() const {
+            return detail::write_key_pem("PRIVATE KEY", to_pkcs8_der());
+        }
+
 
         // The same key, compared in constant time
         friend bool operator==(const private_key& a, const private_key& b) noexcept {

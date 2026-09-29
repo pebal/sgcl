@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -10,6 +10,7 @@
 #include "tracked_ptr.h"
 
 #include <array>
+#include <atomic>
 #include <cassert>
 #include <compare>
 #include <cstddef>
@@ -19,6 +20,7 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <typeinfo>
 #include <utility>
 #include <vector>
 
@@ -79,6 +81,50 @@ namespace sgcl {
         template<class T>
         concept TextArgument = (std::is_array_v<T> && std::is_same_v<std::remove_cv_t<std::remove_extent_t<T>>, char>)
                             || std::is_same_v<std::remove_cv_t<T>, std::string_view>;
+
+        // The tag of a slice whose owner keeps its elements alive from
+        // outside itself: memory the managed object is responsible for
+        // but that does not lie in it, a mapped region (io::mapping,
+        // io::shared_memory: the object unmaps when it dies). The slice
+        // holds the owner as any other. The debug check that the elements
+        // lie in the owner is not made; the owner's type is noted instead,
+        // so that a slice made again of the same owner and a piece of its
+        // range (`slice(s.owner(), s.data(), n)`, the const conversion)
+        // passes that check too
+        struct OutsideOwner {
+            explicit OutsideOwner() = default;
+        };
+
+        // Debug: the types noted by OutsideOwner, a handful in a program
+        inline std::atomic<const std::type_info*> outside_owner_types[8] = {};
+
+        inline bool note_outside_owner(const std::type_info& t) noexcept {
+            for (auto& slot : outside_owner_types) {
+                const std::type_info* seen = slot.load(std::memory_order_acquire);
+                while (!seen) {
+                    if (slot.compare_exchange_weak(seen, &t, std::memory_order_acq_rel, std::memory_order_acquire)) {
+                        return true;
+                    }
+                }
+                if (*seen == t) {
+                    return true;
+                }
+            }
+            return true;   // the table full: the later checks of that type's slices are not made
+        }
+
+        inline bool is_outside_owner(const std::type_info& t) noexcept {
+            for (auto& slot : outside_owner_types) {
+                const std::type_info* seen = slot.load(std::memory_order_acquire);
+                if (!seen) {
+                    return false;
+                }
+                if (*seen == t) {
+                    return true;
+                }
+            }
+            return true;
+        }
     }
 
     // A slice: the elements [begin, end) of some contiguous storage, and
@@ -168,6 +214,14 @@ namespace sgcl {
 
         slice(const tracked_ptr<const void>& owner, T* first, size_type n) noexcept
         : slice(owner, first, first + n) {
+        }
+
+        // The elements [first, last) of memory outside the managed object
+        // `owner`, which keeps that memory alive for as long as it lives
+        // (detail::OutsideOwner: a mapped region); the slice holds it
+        slice(const tracked_ptr<const void>& owner, T* first, T* last, detail::OutsideOwner) noexcept
+        : slice(owner, first, last, Unchecked{}) {
+            assert((!owner || detail::note_outside_owner(detail::Page::metadata_of(owner.get()).type_info)) && "the owner's type noted");
         }
 
         // From the std containers and views: no owner
@@ -521,7 +575,10 @@ namespace sgcl {
             auto end = page->is_array ? reinterpret_cast<const char*>(page->data) + page->data_size() : base + page->object_size;   // a buffer or a large object: the rest of its pages
             auto first = reinterpret_cast<const char*>(_begin);
             auto last = reinterpret_cast<const char*>(_end);
-            return first >= base && last <= end && first <= last;
+            if (first >= base && last <= end && first <= last) {
+                return true;
+            }
+            return first <= last && detail::is_outside_owner(page->metadata->type_info);   // memory the owner keeps from outside (detail::OutsideOwner)
         }
 
         tracked_ptr<const void> _object;

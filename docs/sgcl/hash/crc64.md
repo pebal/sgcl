@@ -11,12 +11,28 @@ namespace sgcl::hash {
 
 The two 64-bit CRCs, with the members of [`crc32`](crc32.md) and a `uint64_t` where that has a `uint32_t`: `resume(v)`, going on from a saved CRC, `value()`, `digest()` (eight bytes, the most significant first), `reset()`, `of`, `combine` and `copy_from`.
 
-```cpp
-using namespace sgcl;
+## Members
 
-hash::crc64::of("123456789");        // 0x995DC9BBDF1939FA, the catalogue's check
-hash::crc64_iso::of("123456789");    // 0xB90956C775A41001
+```cpp
+static constexpr size_t digest_size = 8;
+static constexpr size_t block_size = 1;
+
+crc64() noexcept;                              // the initial state: the CRC of nothing is 0
+static crc64 resume(uint64_t value) noexcept;  // going on from the CRC of what came before
+
+void update(const slice<const byte>& data) noexcept;    // and the text forms of the mixin
+uint64_t value() const noexcept;               // the CRC; update may go on
+array<byte, 8> digest() const noexcept;   // the CRC, the most significant byte first
+void reset() noexcept;
+
+static uint64_t of(/* bytes or text */) noexcept;
+static constexpr uint64_t combine(uint64_t first, uint64_t second, uint64_t second_length) noexcept;
+
+expected<size_t, io::error> copy_from(const io::reader& r);  async::task<expected<size_t, io::error>> async_copy_from(const io::reader& r);
+static expected<uint64_t, io::error> of_file(const string& path);  static async::task<expected<uint64_t, io::error>> async_of_file(const string& path);   // of() of the whole file, through copy_from
 ```
+
+`crc64_iso` has the same members.
 
 ## The names
 
@@ -29,13 +45,13 @@ There is no CRC-64 instruction. On arm64 an input of 128 bytes or more is folded
 ## Example
 
 ```cpp
-#include "sgcl/hash/crc64.h"
-#include "sgcl/io/print.h"
+#include "sgcl/hash/hash.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
 int main() {
-    println("{:016x}", hash::crc64::of("123456789"));             // CRC-64/XZ's check
+    println("{:016x}", hash::crc64::of("123456789"));  // CRC-64/XZ's check
     println("{:016x}", hash::crc64_iso::of("123456789"));
     hash::crc64 h;
     h.update("1234");

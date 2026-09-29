@@ -24,6 +24,10 @@ SHA-3, Go's `crypto/sha3`: four digests and two extendable-output functions (XOF
 - **Security of a SHAKE** is the smaller of its strength (128 or 256 bits) and half the output's bits for collisions: read at least 32 bytes of SHAKE128, 64 of SHAKE256, where collisions matter.
 - **Size**: each holds the 200 bytes of the state and a position, a plain value that a copy branches (a SHAKE's copy reads on alike).
 
+## Paths
+
+On arm64 the permutation runs on the SHA-3 instructions of ARMv8.2: `EOR3` for θ's column sums, `RAX1` for its D, `XAR` for θ's XOR and ρ's rotation in one, `BCAX` for χ, each of the 25 lanes in a register of its own and the state kept in registers across the blocks of an update. The processor is asked for `FEAT_SHA3` (`HWCAP_SHA3`), apart from SHA-512's feature. Elsewhere, and with `SGCL_CRYPTO_PORTABLE`, the permutation is plain C++; the tests run every vector on both paths and hold the two against each other.
+
 ## Members
 
 ```cpp
@@ -43,22 +47,18 @@ static expected<array<byte, 32>, io::error> of_file(const string& path);  static
 static constexpr size_t block_size = 168;         // 136 for shake256
 shake128() noexcept;
 void update(const slice<const byte>& data);        // bytes or text; after a read: std::invalid_argument
-vector<byte> read(size_t n);                      // the next n bytes
+secret_bytes read(size_t n);                      // the next n bytes, taken as a secret (secret.md)
 void read_to(const slice<byte>& out) noexcept;    // the next out.size() bytes, no allocation
 void reset() noexcept;
-static vector<byte> of(const slice<const byte>& data, size_t n);
+static secret_bytes of(const slice<const byte>& data, size_t n);
 ```
-
-## Paths
-
-On arm64 the permutation runs on the SHA-3 instructions of ARMv8.2: `EOR3` for θ's column sums, `RAX1` for its D, `XAR` for θ's XOR and ρ's rotation in one, `BCAX` for χ, each of the 25 lanes in a register of its own and the state kept in registers across the blocks of an update. The processor is asked for `FEAT_SHA3` (`HWCAP_SHA3`), apart from SHA-512's feature. Elsewhere, and with `SGCL_CRYPTO_PORTABLE`, the permutation is plain C++; the tests run every vector on both paths and hold the two against each other.
 
 ## Example
 
 ```cpp
-#include "sgcl/crypto/sha3.h"
-#include "sgcl/encoding/hex.h"
-#include "sgcl/io/print.h"
+#include "sgcl/crypto/crypto.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -22,7 +22,7 @@
 //     and fields, the body exactly the rest (or refused for a Host of the
 //     program's the server will not take, or CONNECT's origin form);
 //   - a response a handler builds (a Location through redirect, a
-//     Set-Cookie through set_cookie, fields of its own) is refused by the
+//     Set-Cookie through add_cookie, fields of its own) is refused by the
 //     writer exactly when a name is no token or a value holds a control,
 //     and otherwise read back by the client's parser field for field.
 // Built with libFuzzer (tests/fuzz/run.sh tests/net/http/fuzz/http_fields_fuzz.cpp)
@@ -57,7 +57,7 @@ namespace {
         check(a.same_site == b.same_site);
     }
 
-    void set_cookie(const std::vector<std::string_view>& parts) {
+    void written_cookie(const std::vector<std::string_view>& parts) {
         auto c = cookie::parse(string(parts[0]));
         if (!c) {
             return;
@@ -122,7 +122,7 @@ namespace {
 
     // The server's side: a response as a handler builds it through the
     // writer, the fields the library adds among them (Location through
-    // redirect, Set-Cookie through set_cookie) beside the handler's own.
+    // redirect, Set-Cookie through add_cookie) beside the handler's own.
     // What must hold: the writer refuses the head (fields_writable, the
     // first error) exactly when a name is not a token or a value holds a
     // byte a field may not — a cookie's text is made safe by to_string,
@@ -146,7 +146,7 @@ namespace {
         net::http::cookie c(string(part(1)), string(part(2)));
         c.path = string(part(3));
         try {
-            writer.set_cookie(c);
+            writer.add_cookie(c);
             check(is_token(part(1)));
         } catch (const std::invalid_argument&) {
             check(!is_token(part(1)));   // a name that is no token: the program's broken contract
@@ -160,7 +160,8 @@ namespace {
             check(w->failed.has_value() && w->failed->code() == std::errc::invalid_argument);
             return;
         }
-        std::string head = w->head(uint64_t(0));
+        std::string head;
+        w->head_to(head, uint64_t(0));
         size_t end = find_head_end(head.data(), head.size());
         check(end == head.size());
         string text(head);
@@ -282,7 +283,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     }
     parts.push_back(rest.substr(at));
     switch (mode % 3) {
-        case 0: set_cookie(parts); break;
+        case 0: written_cookie(parts); break;
         case 1: request_cookie_of(parts); break;
         case 2:
             if ((mode >> 5) & 1) {

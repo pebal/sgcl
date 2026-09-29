@@ -7,7 +7,7 @@ namespace sgcl::compress {
     enum class errc : uint8_t {
         corrupt = 1, checksum, unexpected_end, unsupported, too_large,
         invalid_header, invalid_argument, dictionary_required, io,
-        password_required, wrong_password
+        password_required, wrong_password, insecure_path
     };
     class error;
     const std::error_category& compress_category() noexcept;
@@ -29,6 +29,7 @@ The error of every format of the module, one type under each format's name (`fla
 | `io` | the source or the sink failed: `io_error()` says how |
 | `password_required` | a 7z entry or header encrypted (7zAES), read without a password |
 | `wrong_password` | 7z data encrypted under another password — or damaged, which decrypts alike |
+| `insecure_path` | an entry extracted ([`sevenzip::extract`](sevenzip.md#extract)) whose name, or a link's target, would leave the directory, as Go's `ErrInsecurePath`: compress's code of `io::errc::insecure_path`, by the rule of [`io::path::is_local`](../io/path.md) |
 
 ## Members
 

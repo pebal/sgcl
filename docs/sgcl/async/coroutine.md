@@ -78,7 +78,7 @@ template<class T> async::task<T> async::spawn(async::task<T> t);   // the free f
 template<class F> auto async::spawn(async::operation<F> op);    // an operation run as a task of its own: spawn(ch.receive())
 ```
 
-Puts the task on the scheduler's queue and returns at once; a worker runs it. Once, before the task runs. The free function returns the task, for `auto t = sgcl::async::spawn(f());`. Both are `[[nodiscard]]`: a task object dropped destroys the coroutine, so a task nobody waits for is started with `sgcl::async::go(f())` instead. Given an [operation](README.md#waiting-operations), `spawn` runs it concurrently as a task of its own, whose result is what `co_await` of the operation gives, also `[[nodiscard]]`.
+Puts the task on the scheduler's queue and returns at once; a worker runs it. Once, before the task runs. The free function returns the task, for `auto t = sgcl::async::spawn(f());`. Both are `[[nodiscard]]`: a task whose handle nobody keeps is started with `sgcl::async::go(f())`, which says so, rather than dropped (a started task dropped runs on to its end all the same: [a task let go of](#a-task-let-go-of)). Given an [operation](README.md#waiting-operations), `spawn` runs it concurrently as a task of its own, whose result is what `co_await` of the operation gives, also `[[nodiscard]]`.
 
 ```cpp
 auto t = async::spawn(count_to(3));        // running on a worker, or about to
@@ -171,7 +171,7 @@ int n = t.result();                       // 3, again
 void detach() noexcept;
 ```
 
-Lets go of the task: it runs on, or stays wherever it waits, and destroys its frame when it is done (the locals and parameters with it: a task it awaited, a `root_ptr` it held, released), the memory the collector's from then on; a task detached after it is done is destroyed at once. The task object is empty after. For a task whose result nobody needs; `sgcl::async::go(f())` is a spawn and a detach in one. A task detached before anyone started it never runs: its frame is left to the collector as it is, its locals never destroyed.
+Lets go of the task: it runs on, or stays wherever it waits, and destroys its frame when it is done (the locals and parameters with it: a task it awaited, a `root_ptr` it held, released), the memory the collector's from then on; a task detached after it is done is destroyed at once. The task object is empty after. For a task whose result nobody needs; `sgcl::async::go(f())` is a spawn and a detach in one. A task detached before anyone started it never runs: its frame is left to the collector as it is, its locals never destroyed. What a detached task throws goes to [on_unhandled](#on_unhandled)'s handler.
 
 ```cpp
 auto t = async::spawn(log_forever(queue));
@@ -196,12 +196,71 @@ async::go(log_forever(queue));
 void destroy() noexcept;
 ```
 
-Destroys the coroutine, running the destructors of its locals and promise, and leaves the task empty; the frame's memory goes to the collector. For a task that never ran or is done, never for one that is queued or waiting (detach it instead). The task's destructor does the same.
+Destroys the coroutine, running the destructors of its locals and promise, and leaves the task empty; the frame's memory goes to the collector. For a task that never ran or is done, never for one that is queued or waiting (detach it instead). The task's destructor does the same for a task that never started, and lets go of one that did ([a task let go of](#a-task-let-go-of)).
 
 ```cpp
 async::task<int> t = count_to(3);
 t.resume();
 t.destroy();                              // the frame's locals are gone; t is empty and done()
+```
+
+#### A task let go of
+
+A task object dropped, or assigned over, lets go of its task (DESIGN 302). A task that never started is destroyed with its frame, as `destroy()` does. A started one, queued, running or waiting, is detached (`detach()`): it runs on to its end wherever it waits. Letting go is not cancelling; a task is cancelled only through its `stop_token`, which it looks at itself. What follows from that:
+
+- A task that nothing will wake again lives until what it waits for is closed or let go of itself, and is collected with it: a task left waiting on a channel that nobody sends to or closes, or on an event that is never set, holds its frame for as long as the channel or the event lives, and goes with them.
+- The task's side effects happen after it was let go of: what it sends, writes or changes after its wait, it still does. A dropped task that is to stop early is given a `stop_token` and stops on it.
+- What a task let go of throws, nobody reads: it goes to [on_unhandled](#on_unhandled)'s handler, which by default prints it and ends the program, as after `go()`.
+- The frame's resources (the locals and parameters, a `root_ptr` it holds, a connection or a file in it) live until the task's end, not until the object's.
+- A task object dropped while its task waits no longer destroys the coroutine where it waits; the wait's end used to resume a destroyed coroutine (DESIGN 300).
+
+```cpp
+async::task<> print_first(async::channel<int> ch) {
+    auto v = co_await ch.receive();
+    println("got {}", v ? *v : -1);
+}
+
+async::channel<int> ch(0);
+{
+    auto t = async::spawn(print_first(ch));   // waits in receive()
+}                                             // dropped: it runs on
+(void)ch.send(7).wait();                      // "got 7": the task let go of took the element and ended
+
+// A task that is to end early looks at a stop_token: dropping it does not stop it
+async::task<> print_first_or_stop(async::channel<int> ch, async::stop_token stop) {
+    int got = -1;
+    co_await async::select(ch.on_receive([&](optional<int> v) { got = v ? *v : -1; }), stop.on_stop([] {}));
+    if (!stop.stop_requested()) {
+        println("got {}", got);
+    }
+}
+
+async::stop_source src;
+{
+    auto t = async::spawn(print_first_or_stop(ch, src.token()));
+}
+src.request_stop();                           // the task ends now, having printed nothing
+```
+
+#### on_unhandled
+
+```cpp
+void (*async::on_unhandled(void (*handler)(std::exception_ptr)) noexcept)(std::exception_ptr);
+```
+
+Sets what becomes of an exception that a task let go of threw and nobody reads — a task started by `go()`, detached, or dropped after its start — and returns the handler it replaces; `nullptr` puts the default back. The handler is called once per such exception, on the thread where it is found: the worker that ends the task, the thread that detaches or drops a task already done, or the collector's for a task held by an object it collects; it must not throw. The default is Go's panic in a goroutine: one line on stderr with the exception's type, its `what()` and where the task ended (a worker's index, the blocking pool, or the thread's number), then `std::terminate` (`sgcl::async: unhandled exception in a detached task on worker 3: std::system_error: connection reset`). Where the task was started is not kept by its frame, so the line cannot say it. An exception that `result()`, `wait()` or `co_await` gave to someone is theirs, never the handler's; one of a task that lost a race (`when_any`, `with_timeout`, `with_deadline`) is dropped with the loser, as its value is.
+
+```cpp
+// A server logs what a handler let go of threw, and goes on
+async::on_unhandled([](std::exception_ptr e) {
+    try {
+        std::rethrow_exception(e);
+    } catch (const std::exception& x) {
+        eprintln("a task let go of threw: {}", x.what());
+    } catch (...) {
+        eprintln("a task let go of threw");
+    }
+});
 ```
 
 ### async::generator
@@ -238,7 +297,9 @@ async::task<int> consume(async::channel<int> in) {
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/async/async.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 #include <coroutine>
 
@@ -284,13 +345,13 @@ int main() {
         t.resume();
         collector::force_collect();                 // optional: the chain survives every cycle
     }
-    println("{}", t.result());                    // 10
+    println("{}", t.result());
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 10
 ```
 

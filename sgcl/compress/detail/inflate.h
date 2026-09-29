@@ -1,11 +1,12 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
 #include "../error.h"
+#include "../../core/detail/bytes.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -676,17 +677,22 @@ namespace sgcl::compress::detail {
                                 src += 8;
                             } while (dst < end);
                         } else if (distance == 1) {
-                            std::memset(dst, *src, length);
+                            sgcl::detail::fill_bytes(dst, *src, length);
                         } else {
-                            // a period shorter than a word: one period byte by
-                            // byte, then that period copied on
-                            for (uint32_t i = 0; i < distance; ++i) {
+                            // a period shorter than a word (2 to 7): the first
+                            // step bytes byte by byte, step the smallest
+                            // multiple of the period of 8 bytes or more, then
+                            // eight at a time from step bytes back, which is
+                            // the same pattern and never the bytes being
+                            // written (the overrun is under the room checked)
+                            const uint32_t step = (8 + distance - 1) / distance * distance;
+                            for (uint32_t i = 0; i < step; ++i) {
                                 dst[i] = src[i];
                             }
-                            uint8_t* w = dst + distance;
+                            uint8_t* w = dst + step;
                             while (w < end) {
-                                std::memcpy(w, w - distance, distance);
-                                w += distance;
+                                std::memcpy(w, w - step, 8);
+                                w += 8;
                             }
                         }
                     }
@@ -752,7 +758,7 @@ namespace sgcl::compress::detail {
                         // a match of up to 64 KB: in pieces no longer than its distance
                         for (size_t i = 0; i < n;) {
                             size_t k = std::min<size_t>(n - i, s.copy_distance);
-                            std::memcpy(out + p + i, src + i, k);
+                            sgcl::detail::copy_bytes(out + p + i, src + i, k);
                             i += k;
                         }
                     } else {

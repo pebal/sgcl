@@ -1,7 +1,7 @@
 # sgcl::net::http::response
 
 ```cpp
-#include "sgcl/net/http/response.h"   // or "sgcl/net/http/http.h"
+#include "sgcl/net/http/response.h"   // or "sgcl/net/http/http.h", "sgcl/sgcl.h"
 
 namespace sgcl::net::http {
     class response;   // what a client receives; a handle of one word
@@ -12,7 +12,7 @@ A response as [`client`](client.md) returns it: the status and the head read, th
 
 ## Rules
 
-- **The body** is read once, with `text()`, `bytes()` or the stream `body()`, and its end gives the connection back to the client's pool, with no close. In a task, `co_await res.async_text()`; `text()` blocks the thread.
+- **The body** is read once, with `text()`, `bytes()`, `json()`, `save(path)` or the stream `body()`, and its end gives the connection back to the client's pool, with no close. In a task, `co_await res.async_text()`; `text()` blocks the thread.
 - **`close()`** gives the body up without waiting: when the rest of it is already in the connection's buffer it is dropped and the connection goes back to the pool, otherwise the connection is closed. A response neither read nor closed keeps its connection out of the pool until the collector finds it. The stream `body()` has no close of its own (`has_close()` is `false`, and its `close()` does nothing): the body is given up by the response's `close()`, not by Go's `resp.Body.Close()`.
 - A body cut short is `io::errc::unexpected_eof`, a chunked framing broken `malformed_response`, a total `timeout` of the client passing while it is read `ETIMEDOUT`.
 - `url()` is the URL the response came from, the last of the redirects; `trailers()` holds the trailer fields of a chunked body once it has been read.
@@ -32,61 +32,132 @@ expected<string, io::error> text() const;
 async::task<expected<string, io::error>> async_text() const;
 expected<vector<byte>, io::error> bytes() const;
 async::task<expected<vector<byte>, io::error>> async_bytes() const;
+expected<encoding::json, io::error> json() const;          // the body as JSON
+template<class T> expected<T, io::error> json() const;     // through describe()
+expected<uint64_t, io::error> save(const string& path) const;   // into the file, through path + ".part"
+// + async_json(), async_json<T>(), async_save(path)
 io::reader body() const;
 http::headers trailers() const;
 void close() const;
 ```
 
-## Example
+## Examples
 
 ```cpp
+#include "sgcl/io/io.h"
 #include "sgcl/net/http/http.h"
-#include "sgcl/io/print.h"
 
 using namespace sgcl;
 
 int main() {
-    net::http::server srv;
-    srv.route("GET /report", [](net::http::request, net::http::response_writer w) {
-        w.set_header("Content-Type", "text/plain");
-        w.write("three lines\nof a report\nend\n");
-    });
-    srv.route("GET /old", [](net::http::request, net::http::response_writer w) { w.redirect("/report"); });
-    srv.route("GET /big", [](net::http::request, net::http::response_writer w) { w.write(string(100000, 'x')); });
-    net::listener listener = net::tcp::listen("127.0.0.1:0");
-    auto serving = async::spawn(srv.async_serve(listener));
-    auto base = "http://127.0.0.1:" + to_string(listener.local_endpoint().port());
-
     net::http::client web;
-    net::http::response res = web.get(base + "/old");
-    string body = res.text();
-    println("{} {} {} {}", res.status(), res.ok(), res.url().path(), res.proto());
-    println("{} {}", res.header("content-type"), res.content_length().value_or(0));
-    print(body);
-
-    net::http::response missing = web.get(base + "/nothing");     // a 404 is a response, not an error
-    println("{} {}", missing.status(), missing.ok());
-    missing.close();
-
-    net::http::response big = web.get(base + "/big");
-    println("{}", big.content_length().value_or(0));
-    big.close();                                                  // unread: given up without waiting
-
-    srv.close();
-    serving.wait();
+    net::http::response res = web.get("https://www.apache.org/licenses/LICENSE-2.0.txt");
+    println("{} {}, {} bytes declared", res.status(), res.ok(), res.content_length().value_or(0));
+    string text = res.text();
+    println("{} bytes read", text.size());
 }
 ```
 
 Output:
 
 ```text
-200 true /report HTTP/1.1
-text/plain 28
-three lines
-of a report
-end
+200 true, 11357 bytes declared
+11357 bytes read
+```
+
+### JSON
+
+`json()` gives the body as an [`encoding::json`](../../encoding/json.md) value, `json<T>()` as a struct of the program's, through its `describe`:
+
+```cpp
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
+#include "sgcl/net/http/http.h"
+
+using namespace sgcl;
+
+struct echo {
+    string data;
+
+    void describe(encoding::field_list& f) {
+        f.add("data", data);
+    }
+};
+
+int main() {
+    net::http::client web;
+    net::http::response res = web.post("https://httpbin.org/post", "text/plain", "buy milk");
+    echo reply = res.json<echo>();
+    println("{} {}", res.status(), reply.data);
+}
+```
+
+Output:
+
+```text
+200 buy milk
+```
+
+### Into a file
+
+`save(path)` writes the body through `path + ".part"`, renamed at its end, and gives the number of bytes; unlike `download` it saves any status:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/net/http/http.h"
+
+using namespace sgcl;
+
+int main() {
+    net::http::client web;
+    net::http::response res = web.get("https://www.apache.org/licenses/LICENSE-2.0.txt");
+    uint64_t saved = res.save("LICENSE-2.0.txt");
+    println("{}, {} bytes saved", res.status(), saved);
+}
+```
+
+Output:
+
+```text
+200, 11357 bytes saved
+```
+
+### Statuses and redirects
+
+A 4xx or a 5xx is a response, not an error; `url()` is where the redirects ended; `close()` gives a body up unread:
+
+```cpp
+#include "sgcl/async/async.h"
+#include "sgcl/io/io.h"
+#include "sgcl/net/http/http.h"
+#include "sgcl/net/net.h"
+
+using namespace sgcl;
+
+int main() {
+    net::http::server srv;
+    srv.route("GET /old", [](net::http::request, net::http::response_writer w) { w.redirect("/new"); });
+    srv.route("GET /new", [](net::http::request, net::http::response_writer w) { w.write("moved here\n"); });
+    net::listener listener = net::tcp::listen("127.0.0.1:0");
+    auto serving = async::spawn(srv.async_serve(listener));
+    auto base = "http://127.0.0.1:" + to_string(listener.local_endpoint().port());
+
+    net::http::client web;
+    net::http::response moved = web.get(base + "/old");
+    println("{} {}", moved.status(), moved.url().path());
+    moved.close();
+    net::http::response missing = web.get(base + "/nothing");
+    println("{} {}", missing.status(), missing.ok());
+    missing.close();
+    srv.close();
+}
+```
+
+Output:
+
+```text
+200 /new
 404 false
-100000
 ```
 
 ## See also

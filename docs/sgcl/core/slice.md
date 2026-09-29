@@ -106,7 +106,7 @@ tail.sort();                                           // the mixins: v is 5 3 4
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -139,8 +139,24 @@ int main() {
     for (auto& t : tokens) {                                       // the texts live on: each slice holds its line
         println("{}: {}", t.line, t.text);
     }
-    println("{} tokens, {}", tokens.size(), (tokens[0].text.owned() ? "owned" : "unowned"));   // 10 tokens, owned
+    println("{} tokens, {}", tokens.size(), (tokens[0].text.owned() ? "owned" : "unowned"));
 }
+```
+
+Output:
+
+```text
+1: let
+1: x
+1: =
+1: 1
+2: let
+2: y
+2: =
+2: x
+2: +
+2: 2
+10 tokens, owned
 ```
 
 ## See also

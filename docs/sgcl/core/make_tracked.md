@@ -30,7 +30,7 @@ template<class T, class ...A>
 auto make_tracked(A&&... a);   // -> unique_ptr<T>
 ```
 
-Constructs a `T` from `args...` on the managed heap, as `new (slot) T(std::forward<A>(a)...)`, or `new (slot) T` with no arguments (default-initialization, like `std::make_unique_for_overwrite`: a trivial type is left uninitialized: the slot holds whatever the last object of the type left there, null at the pointer offsets). Aggregates take their arguments in parentheses (C++20). Returns a `unique_ptr<T>` owning the object.
+Constructs a `T` from `args...` on the managed heap, as `new (slot) T(std::forward<A>(a)...)`, or `new (slot) T` with no arguments (default-initialization, like `std::make_unique_for_overwrite`: a trivial type is left uninitialized: the slot holds whatever the last object of the type left there, null at the pointer offsets). For zeros, write the value: `make_tracked<T>(T{})`. Aggregates take their arguments in parentheses (C++20). Returns a `unique_ptr<T>` owning the object.
 
 ```cpp
 struct Point { int x, y; };
@@ -41,13 +41,14 @@ unique_ptr point = make_tracked<Point>(1, 2);       // an aggregate, in parenthe
 tracked_ptr node = make_tracked<Node>(7);           // moved into a tracked_ptr: the collector's from now on
 node->next = make_tracked<Node>(8, node);               // a cycle, built from a unique_ptr temporary
 unique_ptr owned = make_tracked<Node>();      // default-initialized: next is null
-assert(*number == 42 && point->y == 2 && node->next->next == node && !owned->next);
+unique_ptr zeroed = make_tracked<Node>(Node{}); // value-initialized: value is 0 too
+assert(*number == 42 && point->y == 2 && node->next->next == node && !owned->next && zeroed->value == 0);
 ```
 
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/io/io.h"
 #include <cassert>
 
 using namespace sgcl;
@@ -91,9 +92,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 area 3.14159
 big: area 12.56636
 ```

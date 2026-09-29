@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -540,6 +540,76 @@ TEST(H2Connection_Tests, SendWindow_6_9) {
     }
     EXPECT_EQ(sent, 25u);
     EXPECT_EQ(r.last(FrameType::data)->flags, flag::end_stream);
+}
+
+// DATA in place (send_data_in_place, the server's body blocks): the frames'
+// headers in the output, their payloads as pieces taken beside it; the
+// bytes put together are the frames send_data writes, through the windows,
+// the peer's frame size, frames of control between and END_STREAM
+TEST(H2Connection_Tests, DataInPlaceIsDataCopied) {
+    auto taken = [](Machine& m) {
+        std::string bytes;
+        std::vector<Machine::OutPiece> pieces;
+        m.take_output(bytes, pieces);
+        std::string whole;
+        size_t at = 0;
+        for (auto& q : pieces) {
+            EXPECT_GE(q.at, at);
+            whole.append(bytes, at, q.at - at);
+            whole.append(reinterpret_cast<const char*>(q.p), q.n);
+            at = q.at;
+        }
+        whole.append(bytes, at, std::string::npos);
+        return whole;
+    };
+    auto copied = [](Machine& m) {
+        auto o = m.output();
+        std::string whole(reinterpret_cast<const char*>(o.data()), o.size());
+        m.written(o.size());
+        return whole;
+    };
+    const std::string body = bytes(70000);
+    const uint8_t* p = reinterpret_cast<const uint8_t*>(body.data());
+    Rig a;
+    Rig b;
+    for (Rig* r : {&a, &b}) {
+        r->settings({{uint16_t(SettingId::initial_window_size), 30000}});
+        r->request(1, "/", true);
+        r->request(3, "/", true);
+        ASSERT_TRUE(r->feed().has_value());
+    }
+    // the stream's window takes 30000 of the first 50000
+    EXPECT_EQ(a.m.send_data(1, p, 50000, false), 30000u);
+    EXPECT_EQ(b.m.send_data_in_place(1, p, 50000, false), 30000u);
+    const uint8_t opaque[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+    a.m.ping(opaque);
+    b.m.ping(opaque);
+    EXPECT_EQ(a.m.send_data(3, p + 7, 20000, true), 20000u);
+    EXPECT_EQ(b.m.send_data_in_place(3, p + 7, 20000, true), 20000u);
+    const std::string first = copied(a.m);
+    EXPECT_EQ(taken(b.m), first);
+    // the rest when the peer opens the windows
+    for (Rig* r : {&a, &b}) {
+        r->w().window_update(0, 1 << 20);
+        r->w().window_update(1, 1 << 20);
+        ASSERT_TRUE(r->feed().has_value());
+    }
+    EXPECT_EQ(a.m.send_data(1, p + 30000, 40000, true), 40000u);
+    EXPECT_EQ(b.m.send_data_in_place(1, p + 30000, 40000, true), 40000u);
+    EXPECT_EQ(taken(b.m), copied(a.m));
+    // what was taken parses as the frames: the payloads whole, in order
+    const std::string& all = first;
+    size_t payload = 0;
+    for (size_t at = 0; at < all.size();) {
+        auto f = parse_frame(reinterpret_cast<const uint8_t*>(all.data()) + at, all.size() - at, LargestMaxFrameSize);
+        ASSERT_TRUE(f.has_value());
+        ASSERT_GT(f->size, 0u);
+        if (f->frame.type() == FrameType::data) {
+            payload += f->frame.payload.size();
+        }
+        at += f->size;
+    }
+    EXPECT_EQ(payload, 50000u);
 }
 
 TEST(H2Connection_Tests, WindowOverflow_6_9_1) {

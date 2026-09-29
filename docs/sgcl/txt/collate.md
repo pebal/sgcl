@@ -1,69 +1,27 @@
-# txt::collate
+# sgcl::txt::collate
 
 ```cpp
-#include "sgcl/txt/collate.h"
+#include "sgcl/txt/collate.h"   // or "sgcl/txt/txt.h"
+
+enum class strength : uint8_t { primary, secondary, tertiary, quaternary };
+enum class punctuation : uint8_t { counted, shifted };
+enum class case_order : uint8_t { natural, upper_first, lower_first };
+
+struct options;              // the five settings CLDR names, and the strength
+class collator;              // a comparator and a sort key, in the order of a language
+class collated_searcher;     // a pattern weighed once
+class collated_text;         // a text weighed once
+class collated_matches;      // every occurrence, as a range
 ```
 
 Putting text in the order a reader expects, which is not the order the bytes fall in. Sorted by bytes, a Polish list ends `ćma łoś źrebak żaba` — every letter with a mark after every letter without one — and `Zebra` comes before `ada`, because a capital Z is byte 0x5A and a small a is 0x61.
 
 The algorithm of [UTS #10](https://www.unicode.org/reports/tr10/) gives every character weights at three levels — the letter, the accent, the case — and compares them a level at a time, so that a difference of letters settles the question before an accent is looked at, and an accent before a capital.
 
-```
+```text
 resume  <  résumé  <  RESUME        # the same letters: the accent, then the case
 ada     <  Ala     <  zebra         # different letters: the case never enters into it
 ```
-
-## The names
-
-```cpp
-enum class strength : uint8_t { primary, secondary, tertiary, quaternary };
-enum class punctuation : uint8_t { counted, shifted };
-enum class case_order : uint8_t { natural, upper_first, lower_first };
-
-struct options {
-    txt::strength strength = txt::strength::tertiary;
-    optional<txt::punctuation> punctuation;    // CLDR ka / alternate
-    optional<txt::case_order> case_order;      // CLDR kf / caseFirst
-    optional<bool> case_level;                 // CLDR kc / caseLevel
-    optional<bool> backwards;                  // CLDR kb, the accents from the end
-    bool numeric = false;                      // CLDR kn, file9 before file10
-};
-
-class collator {
-    collator() noexcept;                                          // the root order
-    explicit collator(locale where, strength = strength::tertiary);
-    explicit collator(strength);
-    explicit collator(const options&);
-    collator(locale where, const options&);
-
-    int compare(const string& a, const string& b) const;          // <0, 0, >0
-    bool equal(const string& a, const string& b) const;
-    vector<byte> key(const string& text) const;
-    size_t key_to(const slice<byte>& buffer, const string& text) const;   // the bytes it takes (the buffer first, as format_to)
-    bool operator()(const string& a, const string& b) const;      // a comparator
-
-    struct match { size_t at; size_t size; };                     // bytes of the text
-    optional<match> find(const string& text, const string& pattern, size_t from = 0) const;
-    bool contains(const string& text, const string& pattern) const;
-    bool starts_with(const string& text, const string& pattern) const;
-    bool ends_with(const string& text, const string& pattern) const;
-
-    locale where() const noexcept;
-    strength level() const noexcept;
-    bool shifts_punctuation() const noexcept;                     // what it settled on:
-    bool capitals_first() const noexcept;                         // the language's answer
-    bool case_level() const noexcept;                             // where the caller gave
-    bool backwards() const noexcept;                              // none, the caller's
-    bool numeric() const noexcept;                                // where it gave one
-    bool tailored() const noexcept;
-};
-```
-
-A collator is a value, cheap to copy, and it is a comparator: it stands wherever one is asked for, in a `std::sort` or as the comparison of a [`sorted_map`](../core/sorted_map.md).
-
-`key` is the same answer as a sequence of bytes. It compares byte by byte exactly the way the collator compares the texts, so it is worth making once for a text that is sorted or looked up many times, and worth storing in an index beside the text.
-
-The second form writes into a buffer the caller owns and returns how many bytes the key takes — what a sort and an index builder want, where a key lives no longer than the pass that uses it and one allocation a word is the whole cost. When the key needs more than the buffer holds, **nothing is written** and the size still comes back: a truncated key would compare as a different text, which is worse than none. So a caller may ask with an empty buffer first and then size one, or simply try again with a larger one. Sorting a thousand words through the comparator costs about 300 ns a word; through keys written into a buffer on the stack, about 165.
 
 ## How much of a difference counts
 
@@ -74,13 +32,6 @@ Whatever the strength, a text is the same text however it was written: the eleme
 ## The settings
 
 Beside how much of a difference counts, CLDR names five things a collator can be asked for, and `options` carries them under the names CLDR gives them. They are a value handed to the constructor rather than methods that change a collator afterwards: a collator is a comparator, copied into a sort and shared between threads, and a setter would make it a thing that can change under one of them. An aggregate also reads at the call site the way the setting reads in CLDR.
-
-```cpp
-txt::collator files{{.numeric = true}};                        // plik9 before plik10
-txt::collator search{{.strength = txt::strength::primary,      // resume finds résumé,
-                      .punctuation = txt::punctuation::shifted}};   // and re-sume
-txt::collator names{txt::locale("da"), {.case_order = txt::case_order::lower_first}};
-```
 
 | | |
 |---|---|
@@ -98,11 +49,6 @@ Every setting that changes the order changes the sort key with it. That is the f
 
 A collator finds a pattern in a text counting as equal whatever it counts as equal: at primary strength `resume` finds `résumé`, and with the punctuation shifted it finds `re-sume`. That is what a search box wants, and it is [section 8](https://www.unicode.org/reports/tr10/#Searching) of the algorithm.
 
-```cpp
-txt::collator search{{.strength = txt::strength::primary}};
-auto hit = search.find("Le résumé du candidat", "resume");    // at 3, size 8
-```
-
 The position and the size are in the bytes of the text as it was given, not of any decomposed or folded form of it, and the size is the text's own: six letters of a pattern are found in eight bytes of text where an accent takes bytes the pattern never had.
 
 A match begins and ends on a boundary, and the boundary taken here is the **combining sequence**: a letter with the marks that belong to it. That is the definition because it is the one the elements are already made on — the algorithm gathers a letter and its marks before it weighs them — so a match can neither begin in the middle of an `é` written as two code points nor end before the accent that belongs to the letter it ends on. Two smaller things follow from the same rule: a match may not begin or end inside what one letter weighs, so a pattern of `a` does not match the first half of an `æ` that a language weighs as two letters, and it may not cut a contraction, a Czech `ch` being one letter and not an occurrence of `c`.
@@ -111,48 +57,9 @@ An empty pattern is found where it is looked for, as it is in a string's own `fi
 
 ### Asked once, and asked in a loop
 
-Weighing the text is the whole cost of such a search — more so than folding or decomposing one, since every letter goes through the tables, the contractions are matched and the marks are put in canonical order — and that cost is the text's, not the pattern's. So both sides can be prepared, in the shapes [`search`](search.md) has for its two searches:
-
-```cpp
-class collated_searcher {                                 // a pattern weighed once
-    collated_searcher(const collator&, const string& pattern);
-    const string& pattern() const noexcept;
-    size_t size() const noexcept;                         // elements the collator looks at
-    bool empty() const noexcept;
-};
-
-class collated_text {                                     // a text weighed once
-    collated_text(const collator&, const string& text);
-    collated_text(const collator&, const slice<const char>& text);
-    collated_searcher searcher(const string& pattern) const;
-
-    optional<collator::match> find(const collated_searcher&, size_t from = 0) const;
-    optional<collator::match> find(const string& pattern, size_t from = 0) const;
-    bool contains(...) const;
-    bool starts_with(...) const;
-    bool ends_with(...) const;
-    size_t count(...) const;                              // the occurrences that do not overlap
-
-    const slice<const char>& text() const noexcept;
-    size_t size() const noexcept;                         // elements it weighed to
-    size_t at(size_t i) const noexcept;                   // and where each came from
-};
-
-class collated_matches { ... };                           // every occurrence, as a range
-```
+Weighing the text is the whole cost of such a search — more so than folding or decomposing one, since every letter goes through the tables, the contractions are matched and the marks are put in canonical order — and that cost is the text's, not the pattern's. So both sides can be prepared, in the shapes [`search`](search.md) has for its two searches: `collated_searcher`, a pattern weighed once, and `collated_text`, a text weighed once.
 
 `collator::find` weighs both sides on every call, so a loop over the occurrences weighs the text once for each of them and is quadratic. Over 64 KB of text with 1902 occurrences in it, one pass costs **1.19 s** that way and **1.10 ms** through `collated_matches`, of which 0.63 ms is the weighing — a thousandfold, and the same lesson the folded search learned.
-
-```cpp
-for (auto m : txt::collated_matches(search, text, "resume")) {   // slices of the text
-    use(m);                                                      // m.begin(), m.size()
-}
-txt::collated_text weighed{search, text};                        // or keep the text
-auto pattern = weighed.searcher("resume");                       // and the pattern
-size_t n = weighed.count(pattern);
-```
-
-Each element of the range is the slice of the original text the match covers, and the iterator answers `pos()` and `size()` where the position rather than the bytes is wanted. The occurrences do not overlap: the next is looked for past the end of the last. A searcher belongs to the collator it was weighed with, and `collated_text::searcher` is the way to get one that belongs to the same.
 
 The positions of the elements ascend, so finding where a search starts is a bisection and a loop over the occurrences is linear. That is not true of the folded search, where the canonical ordering carries a mark's position with the mark; here an element carries the bytes of the combining sequence it came from, and the ordering moves a mark inside a sequence and never out of one.
 
@@ -226,16 +133,125 @@ A fuzzer asks the collator and ICU 78.3 the same questions about any text (`test
 | A language's contraction across a mark | A language's contraction is matched where its code points stand together, not across a mark of a lower class between them as UCA S2.1 lets it: Swedish `Ô` followed by U+0334 is `ô` to ICU and `O` here. |
 | `[reorder]` | Not honoured (above): a list that mixes scripts in a language that asks for it sorts in the root's order of scripts. |
 
-## Example
+## Members
+
+### options
 
 ```cpp
-#include "sgcl/sgcl.h"
+struct options {
+    txt::strength strength = txt::strength::tertiary;
+    optional<txt::punctuation> punctuation;    // CLDR ka / alternate
+    optional<txt::case_order> case_order;      // CLDR kf / caseFirst
+    optional<bool> case_level;                 // CLDR kc / caseLevel
+    optional<bool> backwards;                  // CLDR kb, the accents from the end
+    bool numeric = false;                      // CLDR kn, file9 before file10
+};
+```
+
+Handed to the constructor. The four settings a language asks for are left unset and take the language's answer, as [the settings](#the-settings) say.
+
+### collator
+
+```cpp
+class collator {
+    collator() noexcept;                                          // the root order
+    explicit collator(locale where, strength = strength::tertiary);
+    explicit collator(strength);
+    explicit collator(const options&);
+    collator(locale where, const options&);
+
+    int compare(const string& a, const string& b) const;          // <0, 0, >0
+    bool equal(const string& a, const string& b) const;
+    vector<byte> key(const string& text) const;
+    size_t key_to(const slice<byte>& buffer, const string& text) const;   // the bytes it takes (the buffer first, as format_to)
+    bool operator()(const string& a, const string& b) const;      // a comparator
+
+    struct match { size_t at; size_t size; };                     // bytes of the text
+    optional<match> find(const string& text, const string& pattern, size_t from = 0) const;
+    bool contains(const string& text, const string& pattern) const;
+    bool starts_with(const string& text, const string& pattern) const;
+    bool ends_with(const string& text, const string& pattern) const;
+
+    locale where() const noexcept;
+    strength level() const noexcept;
+    bool shifts_punctuation() const noexcept;                     // what it settled on:
+    bool capitals_first() const noexcept;                         // the language's answer
+    bool case_level() const noexcept;                             // where the caller gave
+    bool backwards() const noexcept;                              // none, the caller's
+    bool numeric() const noexcept;                                // where it gave one
+    bool tailored() const noexcept;
+};
+```
+
+A collator is a value, cheap to copy, and it is a comparator: it stands wherever one is asked for, in a `std::sort` or as the comparison of a [`sorted_map`](../core/sorted_map.md).
+
+`key` is the same answer as a sequence of bytes. It compares byte by byte exactly the way the collator compares the texts, so it is worth making once for a text that is sorted or looked up many times, and worth storing in an index beside the text.
+
+The second form writes into a buffer the caller owns and returns how many bytes the key takes — what a sort and an index builder want, where a key lives no longer than the pass that uses it and one allocation a word is the whole cost. When the key needs more than the buffer holds, **nothing is written** and the size still comes back: a truncated key would compare as a different text, which is worse than none. So a caller may ask with an empty buffer first and then size one, or simply try again with a larger one. Sorting a thousand words through the comparator costs about 300 ns a word; through keys written into a buffer on the stack, about 165.
+
+### collated_searcher
+
+```cpp
+class collated_searcher {                                 // a pattern weighed once
+    collated_searcher(const collator&, const string& pattern);
+    const string& pattern() const noexcept;
+    size_t size() const noexcept;                         // elements the collator looks at
+    bool empty() const noexcept;
+};
+```
+
+A pattern weighed once by a collator and asked of many texts; `collated_text::searcher` gives one that belongs to the text's collator.
+
+### collated_text
+
+```cpp
+class collated_text {                                     // a text weighed once
+    collated_text(const collator&, const string& text);
+    collated_text(const collator&, const slice<const char>& text);
+    template<size_t N>
+    collated_text(const collator&, const char (&text)[N]);  // to its first NUL or its end
+    collated_text(const collator&, const char* text);       // char* too: to its NUL
+    collated_searcher searcher(const string& pattern) const;
+
+    optional<collator::match> find(const collated_searcher&, size_t from = 0) const;
+    optional<collator::match> find(const string& pattern, size_t from = 0) const;
+    bool contains(...) const;
+    bool starts_with(...) const;
+    bool ends_with(...) const;
+    size_t count(...) const;                              // the occurrences that do not overlap
+
+    const slice<const char>& text() const noexcept;
+    size_t size() const noexcept;                         // elements it weighed to
+    size_t at(size_t i) const noexcept;                   // and where each came from
+};
+```
+
+A text weighed once and asked as often as you like.
+
+### collated_matches
+
+```cpp
+class collated_matches {                                  // every occurrence, as a range
+    ...
+    template<size_t N>
+    collated_matches(const collator&, const char (&text)[N], collated_searcher pattern);  // to its first NUL or its end
+    collated_matches(const collator&, const char* text, collated_searcher pattern);       // char* too: to its NUL
+};
+```
+
+Each element of the range is the slice of the original text the match covers, and the iterator answers `pos()` and `size()` where the position rather than the bytes is wanted. The occurrences do not overlap: the next is looked for past the end of the last. A searcher belongs to the collator it was weighed with, and `collated_text::searcher` is the way to get one that belongs to the same.
+
+## Examples
+
+A list of Polish words, put in order three ways: by the bytes, by the root order, and by what a Pole expects:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
 #include <algorithm>
 
 using namespace sgcl;
 
-// A list of Polish words, put in order three ways: by the bytes, by the
-// root order, and by what a Pole expects
 int main() {
     vector<string> words = {"żaba", "zamek", "ćma", "cebula", "łoś", "lis", "źrebak"};
 
@@ -251,29 +267,146 @@ int main() {
     show("bajty  : ", [](const string& a, const string& b) { return a < b; });
     show("root   : ", txt::collator());
     show("polski : ", txt::collator(txt::locale("pl")));
-
-    // At primary strength an accent and a case are not differences, which
-    // is what a search box wants
-    txt::collator search{txt::strength::primary};
-    println("\nresume == résumé == RESUME: {}", (search.equal("resume", "résumé") && search.equal("resume", "RESUME")));
-
-    // A key compares byte by byte the way the collator compares texts, so
-    // an index can hold it instead of calling the collator again
-    txt::collator polish{txt::locale("pl")};
-    println("klucz 'żaba' ma {} bajtów", polish.key("żaba").size());
-    println("czy biblioteka zna porządek języka: {} (pl), {} (tlh)", polish.tailored(), txt::collator(txt::locale("tlh")).tailored());
     return 0;
 }
 ```
 
-```
+Output:
+
+```text
 bajty  : cebula lis zamek ćma łoś źrebak żaba 
 root   : cebula ćma lis łoś żaba zamek źrebak 
 polski : cebula ćma lis łoś zamek źrebak żaba 
-
-resume == résumé == RESUME: 1
-klucz 'żaba' ma 36 bajtów
-czy biblioteka zna porządek języka: 1 (pl), 0 (tlh)
 ```
 
 The root puts `żaba` before `zamek`, because to the root a `ż` is a `z` with a mark on it and `zaba` comes before `zamek`. Polish makes it a letter of its own, after `z`, and the word moves to the end.
+
+At primary strength an accent and a case are not differences, which is what a search box wants:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    txt::collator search{txt::strength::primary};
+    println("resume == résumé == RESUME: {}",
+            (search.equal("resume", "résumé") && search.equal("resume", "RESUME")));
+    return 0;
+}
+```
+
+Output:
+
+```text
+resume == résumé == RESUME: true
+```
+
+A key compares byte by byte the way the collator compares texts, so an index can hold it instead of calling the collator again:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    txt::collator polish{txt::locale("pl")};
+    println("klucz 'żaba' ma {} bajtów", polish.key("żaba").size());
+    println("czy biblioteka zna porządek języka: {} (pl), {} (tlh)", polish.tailored(),
+            txt::collator(txt::locale("tlh")).tailored());
+    return 0;
+}
+```
+
+Output:
+
+```text
+klucz 'żaba' ma 36 bajtów
+czy biblioteka zna porządek języka: true (pl), false (tlh)
+```
+
+The settings, a value handed to the constructor:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    txt::collator files{{.numeric = true}};
+    txt::collator search{{.strength = txt::strength::primary,
+                          .punctuation = txt::punctuation::shifted}};
+    txt::collator names{txt::locale("da"), {.case_order = txt::case_order::lower_first}};
+    println("plik9 before plik10: {}", files("plik9", "plik10"));
+    println("resume == résumé: {}, resume == re-sume: {}", search.equal("resume", "résumé"),
+            search.equal("resume", "re-sume"));
+    println("a before A in Danish, small letters first: {}", names("a", "A"));
+    return 0;
+}
+```
+
+Output:
+
+```text
+plik9 before plik10: true
+resume == résumé: true, resume == re-sume: true
+a before A in Danish, small letters first: true
+```
+
+A pattern found in a text, counting as equal what the collator counts as equal:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    txt::collator search{{.strength = txt::strength::primary}};
+    auto hit = search.find("Le résumé du candidat", "resume");
+    println("at {}, size {}", hit->at, hit->size);
+    return 0;
+}
+```
+
+Output:
+
+```text
+at 3, size 8
+```
+
+Every occurrence, the text weighed once for all of them:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    txt::collator search{{.strength = txt::strength::primary}};
+    string text = "Résumé, resume, RESUME and re-sume";
+    for (auto m : txt::collated_matches(search, text, "resume")) {  // slices of the text
+        print("[{}]", m);
+    }
+    println();
+    txt::collated_text weighed{search, text};  // or keep the text
+    auto pattern = weighed.searcher("resume");  // and the pattern
+    println("{}", weighed.count(pattern));
+    return 0;
+}
+```
+
+Output:
+
+```text
+[Résumé][resume][RESUME]
+3
+```
+
+## See also
+
+[The module](README.md); [`case`](case.md), the `locale` a collator takes; [`search`](search.md), the folded and normalized searches; [`sorted_map`](../core/sorted_map.md), which takes a collator as its comparison; [`normalize`](normalize.md), `compare_normalized`.

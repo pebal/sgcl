@@ -1,11 +1,12 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
 #include "bytes.h"
+#include "../../core/detail/bytes.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -50,7 +51,7 @@ namespace sgcl::crypto::detail {
             length += n;
             if (used != 0) {
                 size_t take = std::min(n, block - used);
-                std::memcpy(buffer + used, p, take);
+                sgcl::detail::copy_bytes(buffer + used, p, take);
                 used += uint32_t(take);
                 p += take;
                 n -= take;
@@ -66,7 +67,7 @@ namespace sgcl::crypto::detail {
                 n %= block;
             }
             if (n != 0) {
-                std::memcpy(buffer, p, n);
+                sgcl::detail::copy_bytes(buffer, p, n);
                 used = uint32_t(n);
             }
         }

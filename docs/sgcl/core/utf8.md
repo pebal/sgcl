@@ -1,7 +1,7 @@
 # sgcl::utf8, sgcl::unicode, sgcl::runes
 
 ```cpp
-#include "sgcl/core/utf8.h"      // utf8; or "sgcl/core/core.h", "sgcl/sgcl.h"
+#include "sgcl/core/utf8.h"      // utf8; or "sgcl/core/core.h"
 #include "sgcl/core/unicode.h"   // unicode
 #include "sgcl/core/slice.h"     // runes
 
@@ -129,7 +129,8 @@ bool equal_fold(view_type s) const noexcept;         // the same letters in eith
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -139,12 +140,12 @@ using namespace sgcl;
 int main() {
     string line = "\u00A0Łódź, Żywiec i Zakopane\u3000— łódka, żagiel, zamek.";
     map<string, int> by_letter;
-    for (string_slice word : line.fields()) {                      // Unicode white space between the words
-        word = word.trim(U",.—");                                   // a set of code points at both ends
+    for (string_slice word : line.fields()) {  // Unicode white space between the words
+        word = word.trim(U",.—");  // a set of code points at both ends
         if (word.empty()) {
             continue;
         }
-        auto [first, width] = word.decode(0);                      // the first code point and its bytes
+        auto [first, width] = word.decode(0);  // the first code point and its bytes
         char lower[utf8::max_width];
         auto n = utf8::encode(unicode::to_lower(first), lower);
         ++by_letter[string(lower, n)];
@@ -152,14 +153,17 @@ int main() {
     for (auto& [letter, count] : by_letter) {
         println("{} {}", letter, count);
     }
-    println("{} code points in {} bytes, {}", line.rune_count(), line.size(), (line.to_lower().equal_fold(line.to_upper()) ? "one text in either case" : "?"));
-    return by_letter.size() == 4 && by_letter["ł"] == 2 && by_letter["ż"] == 2 && by_letter["z"] == 2 && by_letter["i"] == 1 ? 0 : 1;
+    println("{} code points in {} bytes, {}", line.rune_count(), line.size(),
+            line.to_lower().equal_fold(line.to_upper()) ? "one text in either case"
+                                                        : "?");
+    return by_letter.size() == 4 && by_letter["ł"] == 2 && by_letter["ż"] == 2
+        && by_letter["z"] == 2 && by_letter["i"] == 1 ? 0 : 1;
 }
 ```
 
-The output (a hash map: the letters in some order):
+Sample output:
 
-```
+```text
 z 2
 i 1
 ż 2

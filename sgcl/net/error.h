@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -37,7 +37,8 @@ namespace sgcl::net {
         body_too_large,
         too_many_redirects,
         server_closed,
-        invalid_cookie
+        invalid_cookie,
+        http_status
     };
 
     namespace detail {
@@ -61,6 +62,7 @@ namespace sgcl::net {
                     case errc::too_many_redirects: return "stopped after too many redirects";
                     case errc::server_closed: return "server closed";
                     case errc::invalid_cookie: return "invalid cookie";
+                    case errc::http_status: return "the response's status is not 2xx";
                 }
                 return "unknown net error";
             }

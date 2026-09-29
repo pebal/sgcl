@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -296,7 +296,8 @@ TEST(Crypto_Sha, TheTwoPathsAgree) {
     for (int round = 0; round < 200; ++round) {
         size_t blocks = 1 + r.below(9);
         bytes_t data = r.bytes(blocks * 168);
-        if (d::cpu::sha1()) {
+        namespace cpu = sgcl::detail::cpu;
+        if (cpu::crypto()) {
             uint32_t a[5], b[5];
             for (auto& w : a) w = uint32_t(r.g());
             std::memcpy(b, a, sizeof a);
@@ -304,7 +305,7 @@ TEST(Crypto_Sha, TheTwoPathsAgree) {
             d::sha1_compress_arm64(b, data.data(), blocks);
             ASSERT_EQ(std::memcmp(a, b, sizeof a), 0) << "sha1";
         }
-        if (d::cpu::sha256()) {
+        if (cpu::crypto()) {
             uint32_t a[8], b[8];
             for (auto& w : a) w = uint32_t(r.g());
             std::memcpy(b, a, sizeof a);
@@ -312,7 +313,7 @@ TEST(Crypto_Sha, TheTwoPathsAgree) {
             d::sha256_compress_arm64(b, data.data(), blocks);
             ASSERT_EQ(std::memcmp(a, b, sizeof a), 0) << "sha256";
         }
-        if (d::cpu::sha512()) {
+        if (cpu::sha512()) {
             uint64_t a[8], b[8];
             for (auto& w : a) w = r.g();
             std::memcpy(b, a, sizeof a);
@@ -320,7 +321,7 @@ TEST(Crypto_Sha, TheTwoPathsAgree) {
             d::sha512_compress_arm64(b, data.data(), blocks);
             ASSERT_EQ(std::memcmp(a, b, sizeof a), 0) << "sha512";
         }
-        if (d::cpu::sha3()) {
+        if (cpu::sha3()) {
             uint64_t a[25], b[25];
             for (auto& w : a) w = r.g();
             std::memcpy(b, a, sizeof a);
@@ -342,8 +343,8 @@ TEST(Crypto_Sha, TheTwoPathsAgree) {
 // says so, the instructions' run says which features it found
 TEST(Crypto_Sha, ThePathOfThisBuild) {
 #if defined(SGCL_CRYPTO_ARM64)
-    namespace cpu = crypto::detail::cpu;
-    std::printf("[ path     ] arm64: sha1 %d sha256 %d sha512 %d sha3 %d\n", cpu::sha1(), cpu::sha256(), cpu::sha512(), cpu::sha3());
+    namespace cpu = sgcl::detail::cpu;
+    std::printf("[ path     ] arm64: crypto (AES, PMULL, SHA-1, SHA-256, CRC32) %d sha512 %d sha3 %d\n", cpu::crypto(), cpu::sha512(), cpu::sha3());
 #else
     std::printf("[ path     ] portable\n");
 #endif

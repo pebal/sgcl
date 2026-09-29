@@ -214,7 +214,8 @@ Swaps the containers and the comparators; no element is touched. There are no co
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -281,9 +282,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 a graph walked breadth first
 64 vertices visited, heaviest 63 then 62, 62 still queued; 131 live objects
 ```

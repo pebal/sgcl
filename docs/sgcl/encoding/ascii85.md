@@ -46,19 +46,28 @@ public:
 ## Example
 
 ```cpp
-#include "sgcl/encoding/ascii85.h"
-#include "sgcl/io/print.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
 int main() {
-    println(encoding::ascii85::encode("Hello, World!"));                // 87cURD_*#4DfTZ)+T
+    println(encoding::ascii85::encode("Hello, World!"));
     vector<byte> zeros(8);
-    println(encoding::ascii85::encode(zeros));                          // zz
-    auto back = encoding::ascii85::decode("87cURD_*#4\nDfTZ)+T");                                // white space skipped
-    println(string(back));   // Hello, World!
-    println(encoding::ascii85::decode("s8W-\"").error().message());             // offset 4: a group past 32 bits
+    println(encoding::ascii85::encode(zeros));
+    auto back = encoding::ascii85::decode("87cURD_*#4\nDfTZ)+T");  // white space skipped
+    println(string(back));
+    println(encoding::ascii85::decode("s8W-\"").error().message());
 }
+```
+
+Output:
+
+```text
+87cURD_*#4DfTZ)+T
+zz
+Hello, World!
+offset 4: a group past 32 bits
 ```
 
 ## See also

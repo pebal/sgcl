@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -97,6 +97,12 @@ namespace sgcl::compress::detail {
             Password() = default;
 
             explicit Password(std::string_view utf8) {
+                // The room for the whole password at once: a UTF-8 byte is
+                // at most two bytes of UTF-16 (four bytes of UTF-8 are a
+                // surrogate pair, four), so the vector never grows, and no
+                // block holding a part of the password is let go unwiped
+                // (_unit wipes one if it ever had to grow)
+                _bytes.reserve(2 * utf8.size());
                 // UTF-8 to UTF-16LE; bytes that are not UTF-8 go in as they are (as 7-Zip's locale would)
                 for (size_t i = 0; i < utf8.size();) {
                     uint8_t c = uint8_t(utf8[i]);
@@ -147,6 +153,15 @@ namespace sgcl::compress::detail {
 
         private:
             void _unit(uint32_t u) {
+                if (_bytes.size() + 2 > _bytes.capacity()) {
+                    // a growth the reserve above rules out, done by hand
+                    // so that the old block is wiped before it is freed
+                    std::vector<uint8_t> wider;
+                    wider.reserve(2 * _bytes.capacity() + 2);
+                    wider.assign(_bytes.begin(), _bytes.end());
+                    _wipe();
+                    _bytes.swap(wider);
+                }
                 _bytes.push_back(uint8_t(u));
                 _bytes.push_back(uint8_t(u >> 8));
             }

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -839,25 +839,27 @@ namespace sgcl::txt {
             if (!changed) {
                 return text;
             }
-            std::string out(size_t(ptrdiff_t(v.size()) + grew), '\0');
-            char* w = out.data();
-            size_t done = 0;                 // how much of the text is already copied
-            for (size_t i = 0, k = 0; i < v.size(); ++k) {
-                auto [c, n] = utf8::decode(v, i);
-                char32_t m = k < count && (levels[k] & 1) ? mirrored_of_fn(c) : c;
-                if (m != c) {
-                    // the run of bytes before it, as they stand, and
-                    // then the mirror in place of the character itself
-                    sgcl::detail::copy_bytes(w, v.data() + done, i - done);
-                    w += i - done;
-                    w += utf8::encode(m, w);
-                    done = i + n;
+            // written in place into the string's object
+            return sgcl::detail::StringAccess::bounded<string>(size_t(ptrdiff_t(v.size()) + grew), [&](char* chars) {
+                char* w = chars;
+                size_t done = 0;                 // how much of the text is already copied
+                for (size_t i = 0, k = 0; i < v.size(); ++k) {
+                    auto [c, n] = utf8::decode(v, i);
+                    char32_t m = k < count && (levels[k] & 1) ? mirrored_of_fn(c) : c;
+                    if (m != c) {
+                        // the run of bytes before it, as they stand, and
+                        // then the mirror in place of the character itself
+                        sgcl::detail::copy_bytes(w, v.data() + done, i - done);
+                        w += i - done;
+                        w += utf8::encode(m, w);
+                        done = i + n;
+                    }
+                    i += n;
                 }
-                i += n;
-            }
-            sgcl::detail::copy_bytes(w, v.data() + done, v.size() - done);
-            w += v.size() - done;
-            return string(out.data(), size_t(w - out.data()));
+                sgcl::detail::copy_bytes(w, v.data() + done, v.size() - done);
+                w += v.size() - done;
+                return size_t(w - chars);
+            });
         }
     }
 
@@ -926,6 +928,20 @@ namespace sgcl::txt {
 
         explicit bidi_runs(const string& text, direction paragraph = direction::automatic)
         : bidi_runs(text.as_slice(), paragraph) {
+        }
+
+        // A C text — a literal among them, which a string and a slice
+        // would both take — as detail::c_text reads it, copied into a
+        // string the runs hold
+        template<size_t N>
+        explicit bidi_runs(const char (&text)[N], direction paragraph = direction::automatic)
+        : bidi_runs(detail::c_string(text).as_slice(), paragraph) {
+        }
+
+        template<class P>
+        requires std::same_as<P, const char*> || std::same_as<P, char*>
+        explicit bidi_runs(P text, direction paragraph = direction::automatic)
+        : bidi_runs(detail::c_string(text).as_slice(), paragraph) {
         }
 
         explicit bidi_runs(const slice<const char>& text, direction paragraph = direction::automatic)

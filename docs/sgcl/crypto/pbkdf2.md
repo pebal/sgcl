@@ -23,7 +23,7 @@ PBKDF2, Go's `crypto/pbkdf2`: a key from a password, made slow on purpose — `i
 ## Members
 
 ```cpp
-static vector<byte> derive(const slice<const byte>& password, const slice<const byte>& salt, uint32_t iterations, size_t n);
+static secret_bytes derive(const slice<const byte>& password, const slice<const byte>& salt, uint32_t iterations, size_t n);   // a secret_bytes (secret.md)
 static void derive_to(const slice<byte>& out, const slice<const byte>& password, const slice<const byte>& salt, uint32_t iterations);
 ```
 
@@ -32,15 +32,16 @@ The password and the salt take bytes or text, which a `slice<const byte>` takes 
 ## Example
 
 ```cpp
-#include "sgcl/crypto/pbkdf2.h"
-#include "sgcl/encoding/hex.h"
-#include "sgcl/io/print.h"
+#include "sgcl/crypto/crypto.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
 int main() {
     // a vault's key: the salt is stored with the vault, the password is not
-    auto key = crypto::pbkdf2<crypto::sha256>::derive("correct horse battery staple", "salt of this vault", 600000, 32);
+    auto key = crypto::pbkdf2<crypto::sha256>::derive("correct horse battery staple",
+                                                      "salt of this vault", 600000, 32);
     println(encoding::hex::encode(key));
 }
 ```

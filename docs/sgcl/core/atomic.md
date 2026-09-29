@@ -222,7 +222,8 @@ if (!current_host.compare_exchange_strong(seen, "db2.internal")) {
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 #include <cassert>
 
 using namespace sgcl;
@@ -256,16 +257,16 @@ int main() {
     for (auto& r : readers) {
         r.join();
     }
-    println("final version {}", current.load()->version);   // 100
+    println("final version {}", current.load()->version);
 
     collector::force_collect(true);     // optional, for the demonstration only: the collector runs its cycles by itself
     return 0;
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 final version 100
 ```
 

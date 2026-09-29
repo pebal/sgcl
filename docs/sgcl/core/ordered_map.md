@@ -111,7 +111,8 @@ assert(m.value_or("c", 0) == 0 && m.index_of(std::pair<const string, int>{"a", 1
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -154,9 +155,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 a=1 c=3 
 b evicted
 ```

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -390,4 +390,38 @@ TEST(Csv_Tests, GetWithAFallback) {
         got.push_back(std::string(row.get("name", "?").view()) + "/" + std::string(row.get("city", "?").view()) + "/" + std::string(row.get("zip", "-").view()));
     }
     EXPECT_EQ(got, (std::vector<std::string>{"Ala/Krakow/-", "Ola/?/-"}));
+}
+
+// A field holding a run of '\r' before its '\n' (what codecs_fuzz found:
+// 84 of them): written, the field is quoted and its bytes go out as they
+// are; read, the "\r\n" inside the quotes is a line ending and comes back
+// "\n", as Go reads it. So each round of writing and reading takes one
+// '\r' off the run, and the text is stable after as many rounds as the run
+// is long. Not a fault of the writer or of the reader: what Go's pair does
+// (a lone '\r' has no spelling in CSV that survives the "\r\n" rule)
+TEST(Csv_Tests, ARunOfCarriageReturnsShortensByOneEachRound) {
+    const size_t run = 84;
+    std::string field = "x" + std::string(run, '\r') + "\ny";
+    auto write = [](const std::string& f) {
+        sgcl::tracked_ptr out = sgcl::make_tracked<sink>();
+        csv::writer w(out);
+        w.write({string(f)});
+        EXPECT_TRUE(w.flush());
+        return out->text;
+    };
+    auto read = [](const std::string& text) {
+        csv::reader r{string(text)};
+        auto row = r.next();
+        EXPECT_TRUE(row.has_value());
+        EXPECT_EQ(row->size(), 1u);
+        return std::string((*row)[0].view());
+    };
+    std::string text = write(field);
+    EXPECT_EQ(text, "\"" + field + "\"\n");   // quoted, the bytes as they are
+    for (size_t round = 1; round <= run; ++round) {
+        std::string back = read(text);
+        EXPECT_EQ(back, "x" + std::string(run - round, '\r') + "\ny") << round;
+        text = write(back);
+    }
+    EXPECT_EQ(write(read(text)), text);   // no '\r' left before the '\n': stable
 }

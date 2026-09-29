@@ -54,12 +54,11 @@ public:
 };
 ```
 
-## Example
+## Examples
 
 ```cpp
-#include "sgcl/encoding/binary.h"
-#include "sgcl/encoding/hex.h"
-#include "sgcl/io/print.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -68,32 +67,60 @@ int main() {
     array<byte, 8> header = {};
     encoding::big_endian::write_u32(header, 0xCAFEBABE);
     encoding::big_endian::write_u32(header.as_slice(4), 1234);
-    println(encoding::hex::encode(header));                               // cafebabe000004d2
-    println(to_string(encoding::big_endian::read_u32(header.as_slice(4))));             // 1234
+    println(encoding::hex::encode(header));
+    println(to_string(encoding::big_endian::read_u32(header.as_slice(4))));
 
     // numbers of any size, small ones short
     vector<byte> out;
     encoding::varint::append(out, 300);
     encoding::varint::append_signed(out, -3);
     encoding::little_endian::append_u16(out, 0xABCD);
-    println(encoding::hex::encode(out));                                  // ac0205cdab
-    auto [value, size] = encoding::varint::read(out).value();                                     // 300, 2
-    auto [signed_value, more] = encoding::varint::read_signed(out.as_slice(size)).value();             // -3, 1
-    println("{} {} {}", value, signed_value, size + more);   // 300 -3 3
+    println(encoding::hex::encode(out));
+    auto [value, size] = encoding::varint::read(out).value();  // 300, 2
+    auto [signed_value, more] = encoding::varint::read_signed(out.as_slice(size)).value();  // -3, 1
+    println("{} {} {}", value, signed_value, size + more);
 }
+```
+
+Output:
+
+```text
+cafebabe000004d2
+1234
+ac0205cdab
+300 -3 3
 ```
 
 A stream of numbers read to its end:
 
 ```cpp
-io::buffered_reader in(io::open("ids.bin"));
-for (;;) {
-    auto id = encoding::varint::read(in);
-    if (!id || !*id) {
-        break;              // an error (id.error()), or the end
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
+
+using namespace sgcl;
+
+int main() {
+    vector<byte> ids;
+    for (uint64_t id : {7, 300, 70000}) {
+        encoding::varint::append(ids, id);
     }
-    use(**id);
+    io::buffered_reader in(io::buffer{ids});
+    for (;;) {
+        auto id = encoding::varint::read(in);
+        if (!id || !*id) {
+            break;  // an error (id.error()), or the end
+        }
+        println(**id);
+    }
 }
+```
+
+Output:
+
+```text
+7
+300
+70000
 ```
 
 ## See also

@@ -105,7 +105,9 @@ bool full() const noexcept;
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/concurrent/concurrent.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -143,9 +145,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 sum 24997500, 0 out of order, 0 left in a ring of 16
 ```
 

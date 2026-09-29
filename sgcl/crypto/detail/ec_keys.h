@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -7,6 +7,7 @@
 
 #include "bytes.h"
 #include "der.h"
+#include "key_pem.h"
 #include "ec_curve.h"
 #include "keys.h"
 #include "../error.h"
@@ -627,14 +628,14 @@ namespace sgcl::crypto::detail {
             return vector<byte>(p, p + w.size());
         }
 
-        vector<byte> to_sec1_der() const {
+        secret_bytes to_sec1_der() const {
             check();
             DerWriter<256> w;
             write_ec_private_key(w, true);
-            return take(w);
+            return take_secret(w);
         }
 
-        vector<byte> to_pkcs8_der() const {
+        secret_bytes to_pkcs8_der() const {
             check();
             DerWriter<256> w;
             size_t mark = w.size();
@@ -644,7 +645,7 @@ namespace sgcl::crypto::detail {
             static constexpr unsigned char version[] = {der::integer, 0x01, 0x00};
             w.put(version, sizeof version);
             w.wrap(der::sequence, mark);
-            return take(w);
+            return take_secret(w);
         }
     };
 
@@ -936,16 +937,44 @@ namespace sgcl::crypto::detail {
         }
 
         // PKCS#8 PrivateKeyInfo, as Go's x509.MarshalPKCS8PrivateKey
-        // writes it; the bytes hold the secret scalar
-        vector<byte> to_pkcs8_der() const {
+        // writes it; the bytes hold the secret scalar: a secret_bytes,
+        // never managed memory
+        secret_bytes to_pkcs8_der() const {
             return _core.to_pkcs8_der();
         }
 
         // SEC 1 ECPrivateKey with the curve and the public key, as Go's
-        // x509.MarshalECPrivateKey writes it; the bytes hold the secret
-        vector<byte> to_sec1_der() const {
+        // x509.MarshalECPrivateKey writes it; a secret_bytes too
+        secret_bytes to_sec1_der() const {
             return _core.to_sec1_der();
         }
+
+        // The key from PEM text (a file's bytes, read_secret's or the
+        // program's): the first private key block, "PRIVATE KEY" or "EC PRIVATE KEY",
+        // its base64 decoded straight into a secret_bytes (encoding::pem
+        // would put the DER in managed memory). Text around the block is
+        // passed over; an encrypted key is errc::unsupported
+        static expected<EcdsaPrivateKey, error> from_pem(const slice<const byte>& text) {
+            auto p = detail::read_key_pem(text);
+            if (!p) {
+                return unexpected<error>(p.error());
+            }
+            if (p->label == "PRIVATE KEY") {
+                return from_pkcs8_der(p->der);
+            }
+            if (p->label == "EC PRIVATE KEY") {
+                return from_sec1_der(p->der);
+            }
+            return unexpected<error>(error(errc::malformed, string("PEM: a block of another key's type")));
+        }
+
+        // The key as PEM, "PRIVATE KEY" over its PKCS #8, as Go's
+        // pem.Encode of x509.MarshalPKCS8PrivateKey and OpenSSL's genpkey
+        // write it: a secret_bytes, never managed memory
+        secret_bytes to_pem() const {
+            return detail::write_key_pem("PRIVATE KEY", to_pkcs8_der());
+        }
+
 
     private:
         friend class EcdhKey<C>;
@@ -1060,8 +1089,31 @@ namespace sgcl::crypto::detail {
             return s;
         }
 
-        vector<byte> to_pkcs8_der() const {
+        secret_bytes to_pkcs8_der() const {
             return _core.to_pkcs8_der();
+        }
+
+        // The key from PEM text (a file's bytes, read_secret's or the
+        // program's): the first private key block, "PRIVATE KEY",
+        // its base64 decoded straight into a secret_bytes (encoding::pem
+        // would put the DER in managed memory). Text around the block is
+        // passed over; an encrypted key is errc::unsupported
+        static expected<EcdhKey, error> from_pem(const slice<const byte>& text) {
+            auto p = detail::read_key_pem(text);
+            if (!p) {
+                return unexpected<error>(p.error());
+            }
+            if (p->label == "PRIVATE KEY") {
+                return from_pkcs8_der(p->der);
+            }
+            return unexpected<error>(error(errc::malformed, string("PEM: a block of another key's type")));
+        }
+
+        // The key as PEM, "PRIVATE KEY" over its PKCS #8, as Go's
+        // pem.Encode of x509.MarshalPKCS8PrivateKey and OpenSSL's genpkey
+        // write it: a secret_bytes, never managed memory
+        secret_bytes to_pem() const {
+            return detail::write_key_pem("PRIVATE KEY", to_pkcs8_der());
         }
 
     private:

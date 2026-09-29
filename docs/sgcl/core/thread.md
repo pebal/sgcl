@@ -43,7 +43,8 @@ static unsigned hardware_concurrency() noexcept;
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -66,14 +67,14 @@ int main() {
     for (auto& w : workers) {
         w.join();
     }
-    println("{}", sum->total.load());            // 7998000
+    println("{}", sum->total.load());
     return sum->total.load() == 7998000 ? 0 : 1;
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 7998000
 ```
 

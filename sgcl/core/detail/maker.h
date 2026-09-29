@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -18,9 +18,17 @@
 namespace sgcl::detail {
     // The construction of managed objects (make_tracked.h): a slot from
     // the thread's allocator for the type, the object constructed in it,
-    // the slot handed to a UniquePtr. Value-initialized without
-    // arguments (`new T`, not `new T()`: a trivial type stays as the slot
-    // is, which is zero or a destroyed element's null words).
+    // the slot handed to a UniquePtr. Default-initialized without
+    // arguments (`new T`, not `new T()`): a trivial type, and a trivial
+    // member of a class without a constructor of its own, keeps the
+    // bytes the slot holds. Those are zero only on a page fresh from the
+    // heap or given back to it (object_pool_allocator_base.h: _free); a
+    // slot reused in its pool, or a range of pages, holds what its last
+    // user left there, only the words at pointer offsets null (a
+    // destroyed tracked_ptr stores a null, and a buffer of a type that
+    // may hold tracked pointers is zeroed when it is issued). The
+    // containers value-initialize their elements themselves (vector.h,
+    // dynamic_array.h: _make_at).
     class MakerBase {
     protected:
         template<class T, class ...A>
@@ -48,8 +56,10 @@ namespace sgcl::detail {
     template<class T>
     class Maker : MakerBase {
     public:       
-        // In place, in memory the container obtained zeroed (or holding a
-        // destroyed element, whose pointer words are null again).
+        // In place, in memory the container obtained: zeroed for a type
+        // that may hold tracked pointers (or holding a destroyed element,
+        // whose pointer words are null again), as its last user left it
+        // otherwise; without arguments `new T` (MakerBase above).
         template<class ...A>
         static void construct(void* p, A&&... a) {
             _construct<typename TypeInfo<T>::Type>(p, std::forward<A>(a)...);
@@ -88,7 +98,8 @@ namespace sgcl::detail {
         }
 
         // A slot for a T without a construction: raw storage the caller
-        // fills (a trivial type; the slot is zero or holds null words)
+        // fills (a trivial type; the slot holds null words at the pointer
+        // offsets and, elsewhere, zeros or what its last user left)
         template<class ...A>
         static UniquePtr<T> make_tracked_data() {
             return _make_data();
@@ -334,7 +345,9 @@ namespace sgcl::detail {
     // the maps of deque and the buckets of the hash tables): raw storage
     // for `capacity` elements, none constructed, zeroed when the element
     // type may hold tracked pointers (a zeroed tracked_ptr is null, and the
-    // collector traces every slot). The pointer returned addresses the
+    // collector traces every slot), as the slot or the pages were left
+    // otherwise: a container that wants zeros writes them (vector.h,
+    // dynamic_array.h: value-initialization). The pointer returned addresses the
     // first element; the deleter finds the buffer through the page like for
     // any interior pointer.
     template<class T>

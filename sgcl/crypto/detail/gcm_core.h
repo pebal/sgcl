@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -9,6 +9,7 @@
 #include "aes_core.h"
 #include "ghash.h"
 #include "words.h"
+#include "../../core/detail/bytes.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -18,7 +19,7 @@
 // encrypted in counter mode from inc32(J0); the tag E(K, J0) XOR
 // GHASH(A || pad || C || pad || len(A) || len(C)).
 //
-// Seal on arm64 is one pass: eight counter blocks through AES, XORed with
+// Seal on arm64 and on x86-64's AES-NI (the key's path) is one pass: eight counter blocks through AES, XORed with
 // the plaintext, stored, and the eight ciphertext blocks fed to GHASH from
 // the registers, the AES of one group overlapping the GHASH of the last in
 // the core's window. Open is two passes, deliberately: GHASH over the whole
@@ -36,7 +37,7 @@ namespace sgcl::crypto::detail {
         aes_setup(k.aes, key, key_size);
         unsigned char h[16] = {};
         aes_encrypt_block(k.aes, h, h);   // H = E(K, 0^128)
-        ghash_init(k.ghash, h);
+        ghash_init(k.ghash, h, k.aes.path);
         secure_zero(h, sizeof h);
     }
 
@@ -44,13 +45,15 @@ namespace sgcl::crypto::detail {
         return {load_be64(nonce), uint64_t(load_be32(nonce + 8)) << 32 | 1};
     }
 
-#if SGCL_CRYPTO_ARM64_AES
+#if defined(SGCL_CRYPTO_ARM64)
     template<unsigned Rounds>
+    SGCL_TARGET_ARM64_CRYPTO
     inline void gcm_seal_groups_r(const GcmKey& k, Counter& c, GhashState& s, const unsigned char* in, unsigned char* out, size_t groups) noexcept {
         uint8x16_t rk[15];
         for (unsigned r = 0; r <= Rounds; ++r) {
-            rk[r] = k.aes.rk[r];
+            rk[r] = k.aes.arm64.rk[r];
         }
+        uint64x2_t y = field_vector(s.y);
         for (; groups > 0; --groups) {
             uint8x16_t b[8];
             counter_blocks8<true>(c, b);
@@ -59,14 +62,16 @@ namespace sgcl::crypto::detail {
                 b[i] = veorq_u8(vld1q_u8(in + 16 * i), b[i]);
                 vst1q_u8(out + 16 * i, b[i]);
             }
-            ghash_eight(k.ghash, s, b);
+            ghash_eight(k.ghash.arm64, y, b);
             c = counter_add<true>(c, 8);
             in += 128;
             out += 128;
         }
+        s.y = field_of(y);
     }
 
     // Groups of eight blocks encrypted and hashed in one pass
+    SGCL_TARGET_ARM64_CRYPTO
     inline void gcm_seal_groups(const GcmKey& k, Counter& c, GhashState& s, const unsigned char* in, unsigned char* out, size_t groups) noexcept {
         switch (k.aes.rounds) {
             case 10: gcm_seal_groups_r<10>(k, c, s, in, out, groups); break;
@@ -76,13 +81,51 @@ namespace sgcl::crypto::detail {
     }
 #endif
 
+#if defined(SGCL_CRYPTO_X86)
+    template<unsigned Rounds>
+    SGCL_TARGET_X86_AES
+    inline void gcm_seal_groups_x86_r(const GcmKey& k, Counter& c, GhashState& s, const unsigned char* in, unsigned char* out, size_t groups) noexcept {
+        __m128i rk[15];
+        for (unsigned r = 0; r <= Rounds; ++r) {
+            rk[r] = k.aes.x86.rk[r];
+        }
+        __m128i y = field_vector_x86(s.y);
+        for (; groups > 0; --groups) {
+            __m128i b[8];
+            counter_blocks8_x86<true>(c, b);
+            aes_encrypt8_x86<Rounds>(rk, b);
+            for (int i = 0; i < 8; ++i) {
+                b[i] = _mm_xor_si128(load128(in + 16 * i), b[i]);
+                store128(out + 16 * i, b[i]);
+            }
+            ghash_eight_x86(k.ghash.x86, y, b);
+            c = counter_add<true>(c, 8);
+            in += 128;
+            out += 128;
+        }
+        s.y = field_of_x86(y);
+        for (auto& r : rk) {
+            r = _mm_setzero_si128();
+        }
+    }
+
+    SGCL_TARGET_X86_AES
+    inline void gcm_seal_groups_x86(const GcmKey& k, Counter& c, GhashState& s, const unsigned char* in, unsigned char* out, size_t groups) noexcept {
+        switch (k.aes.rounds) {
+            case 10: gcm_seal_groups_x86_r<10>(k, c, s, in, out, groups); break;
+            case 12: gcm_seal_groups_x86_r<12>(k, c, s, in, out, groups); break;
+            default: gcm_seal_groups_x86_r<14>(k, c, s, in, out, groups); break;
+        }
+    }
+#endif
+
     // The last bytes that do not fill a block: one block of keystream,
     // as much of it as there is text
     inline void gcm_ctr_tail(const GcmKey& k, Counter c, const unsigned char* in, unsigned char* out, size_t n) noexcept {
         unsigned char block[16] = {};
-        std::memcpy(block, in, n);
+        sgcl::detail::copy_bytes(block, in, n);
         aes_ctr_blocks<true>(k.aes, c, block, block, 1);
-        std::memcpy(out, block, n);
+        sgcl::detail::copy_bytes(out, block, n);
         secure_zero(block, sizeof block);
     }
 
@@ -99,11 +142,21 @@ namespace sgcl::crypto::detail {
         ghash_padded(k.ghash, s, aad, aad_size);
         size_t blocks = n / 16;
         size_t done = 0;
-#if SGCL_CRYPTO_ARM64_AES
-        size_t groups = blocks / 8;
-        gcm_seal_groups(k, c, s, in, out, groups);
-        done = groups * 128;
-        blocks -= groups * 8;
+#if defined(SGCL_CRYPTO_ARM64)
+        if (k.aes.path == AesPath::arm64) {
+            size_t groups = blocks / 8;
+            gcm_seal_groups(k, c, s, in, out, groups);
+            done = groups * 128;
+            blocks -= groups * 8;
+        }
+#endif
+#if defined(SGCL_CRYPTO_X86)
+        if (k.aes.path == AesPath::x86) {
+            size_t groups = blocks / 8;
+            gcm_seal_groups_x86(k, c, s, in, out, groups);
+            done = groups * 128;
+            blocks -= groups * 8;
+        }
 #endif
         aes_ctr_blocks<true>(k.aes, c, in + done, out + done, blocks);
         ghash_blocks(k.ghash, s, out + done, blocks);

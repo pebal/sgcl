@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -7,6 +7,9 @@
 
 #include "../core/clock.h"
 #include "../core/duration.h"
+
+#include <concepts>
+#include <functional>
 
 namespace sgcl::time {
     // The time elapsed since a start, on the monotonic clock of the
@@ -32,6 +35,17 @@ namespace sgcl::time {
             duration elapsed = now - _start;
             _start = now;
             return elapsed;
+        }
+
+        // How long f takes, on the same clock: `auto d =
+        // time::stopwatch::measure([&] { build_index(); });`. What f returns is
+        // dropped; what it throws goes through, unmeasured
+        template<class F>
+            requires std::invocable<F&>
+        static duration measure(F&& f) {
+            stopwatch sw;
+            (void)std::invoke(f);
+            return sw.elapsed();
         }
 
     private:

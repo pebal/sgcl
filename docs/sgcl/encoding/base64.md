@@ -77,51 +77,76 @@ class base64::decoder final {   // a handle; and everything of io::mixin::reader
 
 `max_decoded_size(n)` of a padded codec counts every group the text starts as whole — `(n + 3) / 4 * 3` — so a buffer that size holds whatever a text of `n` characters decodes to before it is found wrong; without padding it is the bits of `n` characters, `n * 6 / 8`.
 
-## Example
+## The loops
+
+Encoding reads a group of three bytes into a word and writes four characters from a table of 64; decoding reads four characters through a table of 256 into a word and writes three bytes, and leaves the loop only when a group holds a byte outside the alphabet — a line ending, the padding or an error — which the rest of the decoder then takes a character at a time. There is no branch in either loop but that one, and no intrinsic: the loops are scalar, as Go's are, and the compiler is left to them.
+
+## Examples
 
 ```cpp
-#include "sgcl/encoding/base64.h"
-#include "sgcl/io/print.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
 int main() {
     // Basic authentication: the bytes of a text
     string header = "Basic " + encoding::base64::standard.encode("ala:sekret");
-    println(header);                      // Basic YWxhOnNla3JldA==
+    println(header);
 
     // A JWT's segment: the URL alphabet without padding
     auto claims = encoding::base64::raw_url.decode("eyJzdWIiOiI0MiJ9");
     if (claims) {
-        println(string(claims));   // {"sub":"42"}
+        println(string(claims));
     }
 
     // Strict by default: a line ending is not base64
     auto wrapped = encoding::base64::standard.decode("YWxh\nOnNla3JldA==");
-    println(wrapped.error().message());   // offset 4: invalid character 0x0A
+    println(wrapped.error().message());
     // MIME wraps its lines: lenient() skips them
     auto mime = encoding::base64::standard.lenient().decode("YWxh\r\nOnNla3JldA==");
-    println("{} bytes", mime->size());   // 10 bytes
+    println("{} bytes", mime->size());
 
     // A stream: what is written goes out encoded
     io::buffer out;
     encoding::base64::encoder armored = encoding::base64::standard.encoder_to(out);
     armored.write("hello, ");
     armored.write("world");
-    armored.close();// the last group and its padding
-    println(out.text());                  // aGVsbG8sIHdvcmxk
+    armored.close();  // the last group and its padding
+    println(out.text());
 }
+```
+
+Output:
+
+```text
+Basic YWxhOnNla3JldA==
+{"sub":"42"}
+offset 4: invalid character 0x0A
+10 bytes
+aGVsbG8sIHdvcmxk
 ```
 
 An alphabet of one's own — `crypt(3)`'s, which puts `./` first and has no padding:
 
 ```cpp
-static constexpr encoding::base64 crypt("./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789", nullopt);
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
+
+using namespace sgcl;
+
+int main() {
+    static constexpr encoding::base64 crypt(
+        "./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789", nullopt);
+    println(crypt.encode("hello, world"));
+}
 ```
 
-## The loops
+Output:
 
-Encoding reads a group of three bytes into a word and writes four characters from a table of 64; decoding reads four characters through a table of 256 into a word and writes three bytes, and leaves the loop only when a group holds a byte outside the alphabet — a line ending, the padding or an error — which the rest of the decoder then takes a character at a time. There is no branch in either loop but that one, and no intrinsic: the loops are scalar, as Go's are, and the compiler is left to them.
+```text
+YETqZE6qGFbtakvi
+```
 
 ## See also
 

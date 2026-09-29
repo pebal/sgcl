@@ -40,75 +40,6 @@ The `.xz` format of XZ Utils (`.xz`, `.txz`, `.tar.xz`): [LZMA](lzma.md) in its 
 - **Memory.** A block's dictionary is as large as its header asks, or as the block when the header gives the block's size, and is held against [`limits.max_memory`](README.md#limits) before anything is taken — more is `errc::too_large` at the block's offset, in memory and in a stream alike. `decompress` has `max_size` as well; a block's size in its header past it fails before any work.
 - Options out of range (a Delta distance past 256, a check that is not one of the four, a dictionary under 4 KiB or past 1.5 GiB, `level::huffman_only`) are the program's mistake: `compress` throws `std::invalid_argument`, and a writer's first write reports `errc::invalid_argument`.
 
-## writer
-
-```cpp
-explicit writer(const io::writer& out);
-writer(const io::writer& out, const options& o);
-expected<size_t, io::error> write(const slice<const byte>& data);   // and every form of io::mixin::writer, async_ included
-expected<void, io::error> close();                                   // + async_close
-bool is_closed() const noexcept;
-const optional<io::error>& last_error() const noexcept;             // the first error given, kept
-void reset(const io::writer& out);                                   // a new stream, the window and the tables kept
-```
-
-What is written goes through the filters into LZMA2 and out as the parser can see far enough ahead (about 4 KB), so the output comes some way behind the input; xz has no flush, and nothing is decodable before `close()`, which writes the rest, the block's check, the index and the footer, and leaves `out` open. The task's forms work in portions of 64 KB with a yield between them. Every error the writer gives is kept as its first (a failure of `out`, options out of range, a write after close): every write and close after it gives that error at once and writes nothing, so a stream is written freely and checked once, at the close; `last_error()` holds it (`reset` clears it).
-
-## reader
-
-```cpp
-explicit reader(const io::reader& in);
-reader(const io::reader& in, const limits& l);                      // max_memory for the dictionaries
-expected<size_t, io::error> read(const slice<byte>& out);           // and every form of io::mixin::reader, async_ included
-const optional<error>& last_error() const noexcept;
-expected<void, io::error> close();                                  // closes in
-void reset(const io::reader& in);
-```
-
-The reader decodes a block into its dictionary, a window the output goes round, and through the block's filters, and hands the bytes out from there; the block's check is compared after its last byte is handed out, so a damaged block's bytes are handed out before the error. A converter keeps its last few bytes (fewer than an instruction) until more come, whatever the size of the reads, and its state goes on across them. The task's form lets the worker go every 64 KB handed out. A failure is the error of the read that reaches it and of every read after, `last_error()` the whole of it; the reader reads its input 64 KB at a time, so it may take bytes past the end from its source.
-
-## Example
-
-```cpp
-#include "sgcl/compress/xz.h"
-#include "sgcl/io/print.h"
-
-using namespace sgcl;
-
-int main() {
-    string text = "the same words, the same words, the same words again";
-    vector<byte> packed = compress::xz::compress(text, {.check = compress::xz::check::sha256});
-    println("{} bytes into {}", text.size(), packed.size());
-
-    auto back = compress::xz::decompress(packed);              // data from outside: checked
-    if (!back) {
-        println(back.error().message());
-        return 1;
-    }
-    println(back->size());
-
-    // a program's code with the converter of its processor, as a stream
-    io::buffer sink;
-    compress::xz::writer w(sink, {.level = 9, .bcj = compress::xz::filter::arm64});
-    w.write(text);
-    if (auto done = w.close(); !done) {                        // the first error of any write, kept
-        println(done.error().message());
-        return 1;
-    }
-    compress::xz::reader r(sink);
-    string all = r.read_all_text();
-    println(all == text);
-}
-```
-
-Output:
-
-```text
-52 bytes into 116
-52
-true
-```
-
 ## Performance
 
 On an Apple M-series machine (`benchmarks/compress/lzma.cpp`, the median of five processes of two seconds each), MB/s of the uncompressed side, against liblzma 5.8.4 (`lzma_stream_decoder` and `lzma_easy_encoder`, CRC-64); the data in memory both ways, into a buffer made by the call:
@@ -123,6 +54,127 @@ On an Apple M-series machine (`benchmarks/compress/lzma.cpp`, the median of five
 | compress text, level 9 | 5.14 (12.553%) | 5.33 (12.529%) |
 
 The LZMA2 decoder is the one of [`lzma`](lzma.md), level with liblzma's; the difference here is the check: CRC-64 on the processor's carry-less multiply (`hash::crc64`) against liblzma's tables, which shows most over stored chunks. The branch converters run at 2.1–9 GB/s over a 32 MB program (x86 2.1–2.4, ARM64 5.4, ARM-Thumb 4.0, RISC-V 4.4, IA-64 6.5, PowerPC 7.5, SPARC 8.7, ARM 9.1; Delta 2.1 encoding, 1.4 decoding), each a single pass over the bytes.
+
+## Members
+
+### compress, decompress
+
+```cpp
+static vector<byte> compress(const slice<const byte>& data);
+static vector<byte> compress(const slice<const byte>& data, const options& o);
+static vector<byte> compress(const string& text);
+static vector<byte> compress(const string& text, const options& o);
+static expected<vector<byte>, error> decompress(const slice<const byte>& data);
+static expected<vector<byte>, error> decompress(const slice<const byte>& data, const limits& l);
+```
+
+The whole of the data at once: `compress` writes one stream of one block, and `decompress` reads every stream there is, checked against [`limits`](README.md#limits) (`max_memory` for a block's dictionary, `max_size` for the output).
+
+### check, filter, options
+
+```cpp
+enum class check : uint8_t { none = 0, crc32 = 1, crc64 = 4, sha256 = 10 };
+enum class filter : uint8_t { x86, arm, armt, arm64, powerpc, sparc, ia64, riscv };
+struct options {
+    compress::level level;               // 0..9 as xz -0..-9; 6 unless told otherwise
+    bool extreme = false;                // xz -e
+    xz::check check = xz::check::crc64;  // xz's default
+    optional<xz::filter> bcj;            // a branch converter before LZMA2
+    uint16_t delta = 0;                  // Delta's distance, 1..256; 0: none
+    uint32_t dictionary = 0;             // 4 KiB .. 1.5 GiB; 0: the level's
+};
+```
+
+The check of each block, CRC-64 unless told; the level and dictionary of [`lzma`](lzma.md#levels); and the filters before LZMA2: a branch converter for the named processor, Delta over bytes `delta` apart, or both.
+
+### writer
+
+```cpp
+explicit writer(const io::writer& out);
+writer(const io::writer& out, const options& o);
+expected<size_t, io::error> write(const slice<const byte>& data);   // and every form of io::mixin::writer, async_ included
+expected<void, io::error> close();                                   // + async_close
+bool is_closed() const noexcept;
+const optional<io::error>& last_error() const noexcept;             // the first error given, kept
+void reset(const io::writer& out);                                   // a new stream, the window and the tables kept
+```
+
+What is written goes through the filters into LZMA2 and out as the parser can see far enough ahead (about 4 KB), so the output comes some way behind the input; xz has no flush, and nothing is decodable before `close()`, which writes the rest, the block's check, the index and the footer, and leaves `out` open. The task's forms work in portions of 64 KB with a yield between them. Every error the writer gives is kept as its first (a failure of `out`, options out of range, a write after close): every write and close after it gives that error at once and writes nothing, so a stream is written freely and checked once, at the close; `last_error()` holds it (`reset` clears it).
+
+### reader
+
+```cpp
+explicit reader(const io::reader& in);
+reader(const io::reader& in, const limits& l);                      // max_memory for the dictionaries
+expected<size_t, io::error> read(const slice<byte>& out);           // and every form of io::mixin::reader, async_ included
+const optional<error>& last_error() const noexcept;
+expected<void, io::error> close();                                  // closes in
+void reset(const io::reader& in);
+```
+
+The reader decodes a block into its dictionary, a window the output goes round, and through the block's filters, and hands the bytes out from there; the block's check is compared after its last byte is handed out, so a damaged block's bytes are handed out before the error. A converter keeps its last few bytes (fewer than an instruction) until more come, whatever the size of the reads, and its state goes on across them. The task's form lets the worker go every 64 KB handed out. A failure is the error of the read that reaches it and of every read after, `last_error()` the whole of it; the reader reads its input 64 KB at a time, so it may take bytes past the end from its source.
+
+## Examples
+
+### In memory
+
+```cpp
+#include "sgcl/compress/compress.h"
+#include "sgcl/io/io.h"
+
+using namespace sgcl;
+
+int main() {
+    string text = "the same words, the same words, the same words again";
+    vector<byte> packed = compress::xz::compress(text, {.check = compress::xz::check::sha256});
+    println("{} bytes into {}", text.size(), packed.size());
+
+    auto back = compress::xz::decompress(packed);  // data from outside: checked
+    if (!back) {
+        println(back.error().message());
+        return 1;
+    }
+    println(back->size());
+}
+```
+
+Output:
+
+```text
+52 bytes into 116
+52
+```
+
+### A stream with a converter
+
+A program's code with the converter of its processor, through a writer and back through a reader:
+
+```cpp
+#include "sgcl/compress/compress.h"
+#include "sgcl/io/io.h"
+
+using namespace sgcl;
+
+int main() {
+    string text = "the same words, the same words, the same words again";
+    io::buffer sink;
+    compress::xz::writer w(sink, {.level = 9, .bcj = compress::xz::filter::arm64});
+    w.write(text);
+    if (auto done = w.close(); !done) {  // the first error of any write, kept
+        println(done.error().message());
+        return 1;
+    }
+    compress::xz::reader r(sink);
+    string all = r.read_all_text();
+    println(all == text);
+}
+```
+
+Output:
+
+```text
+true
+```
 
 ## See also
 

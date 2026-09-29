@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -1285,4 +1285,67 @@ TEST(SevenZipAes_Tests, NoHashingAndPastTheLimit) {
     EXPECT_EQ(e.error().code(), sgcl::compress::errc::too_large);
     EXPECT_NE(std::string(e.error().message().view()).find("2^25"), std::string::npos) << e.error().message();
     EXPECT_LT(std::chrono::steady_clock::now() - start, std::chrono::milliseconds(500));
+}
+
+// The password's UTF-16 is laid out in one block reserved for the whole
+// of it: the vector never grows, so no block that held a part of the
+// password is freed without being wiped (a 4-byte UTF-8 character is a
+// surrogate pair, four bytes: two per UTF-8 byte at most)
+TEST(SevenZipAes_Tests, APasswordIsLaidOutInOneBlock) {
+    namespace aes7 = sgcl::compress::detail::sevenzip_aes;
+    for (std::string utf8 : {std::string("Secret"), std::string("za\xC5\xBC\xC3\xB3\xC5\x82\xC4\x87 \xF0\x9F\x98\x80"),
+                             std::string(1000, 'x'), std::string("\xE2\x82\xAC\xE2\x82\xAC\xE2\x82\xAC")}) {
+        aes7::Password password(utf8);
+        EXPECT_EQ(password.bytes().capacity(), 2 * utf8.size()) << utf8;
+        EXPECT_LE(password.bytes().size(), password.bytes().capacity());
+    }
+}
+
+// A packed header's streams read short (the file shrank between the
+// size taken and the read): what the asynchronous open decodes is the
+// bytes it got, as the stream they are, and the decoder stops at their
+// end with an error; with all of them it decodes. The Opener's steps as
+// async_open takes them, over memory
+TEST(SevenZip_Tests, APackedHeaderReadShortEndsWithAnError) {
+    sgcl::io::buffer b;
+    {
+        sevenzip::writer w(b);
+        for (int i = 0; i < 40; ++i) {
+            sgcl::io::writer e = w.create(sgcl::string("file-" + std::to_string(i) + ".txt"));
+            ASSERT_TRUE(e.write(compress_test::bytes(std::string(100 + i, char('a' + i % 26)))));
+        }
+        ASSERT_TRUE(w.close());
+    }
+    auto data = b.data();
+    auto bytes = reinterpret_cast<const uint8_t*>(data.data());
+    auto run = [&](size_t keep, bool& decoded) {
+        sevenzip::detail::Opener o(data.size(), sgcl::compress::limits{});
+        ASSERT_TRUE(o.signature(bytes, data.size()));
+        ASSERT_FALSE(o.empty());
+        bool plain = false;
+        ASSERT_TRUE(o.header(bytes + o.header_offset(), size_t(o.header_size()), plain));
+        ASSERT_FALSE(plain) << "the writer packs its header";
+        const auto& p = o.packed();
+        uint64_t first = p.pack_offsets.empty() ? 0 : p.pack_offsets.front();
+        uint64_t total = 0;
+        for (auto v : p.pack_sizes) {
+            total += v;
+        }
+        ASSERT_GT(total, 4u);
+        size_t got = keep == size_t(-1) ? size_t(total) : std::min(keep, size_t(total));
+        sgcl::compress::detail::Source m;
+        m.memory = sgcl::slice<const std::byte>(reinterpret_cast<const std::byte*>(bytes + first), got);
+        m.size = got;
+        decoded = o.decode(m, plain, first) && plain;
+        if (!decoded) {
+            EXPECT_TRUE(o.failure().has_value());
+        }
+    };
+    bool whole = false, half = false, none = false;
+    run(size_t(-1), whole);
+    run(10, half);
+    run(0, none);
+    EXPECT_TRUE(whole);
+    EXPECT_FALSE(half);
+    EXPECT_FALSE(none);
 }

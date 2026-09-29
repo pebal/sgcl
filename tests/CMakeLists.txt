@@ -56,12 +56,51 @@ if(SGCL_HAVE_OPENSSL)   # the crypto tests hold the module against OpenSSL (../C
     foreach(T tests_crypto tests_crypto_portable)
         target_include_directories(${T} PRIVATE ${SGCL_OPENSSL_ROOT}/include)
         target_link_libraries(${T} ${SGCL_LIBCRYPTO})
+        target_compile_definitions(${T} PRIVATE SGCL_TEST_OPENSSL=1)
     endforeach()
+else()
+    # without OpenSSL (a processor it has no library for: x86-64 under
+    # Rosetta on Apple silicon) the ciphers' vectors alone: NIST, RFC and
+    # Wycheproof, the contracts, and the paths against each other
+    set(SGCL_CRYPTO_VECTOR_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/crypto/cipher_vectors.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/crypto/cipher_wycheproof.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/crypto/cipher_contract.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/crypto/cipher_paths.cpp")
+    foreach(T tests_crypto tests_crypto_portable)
+        add_executable(${T} main.cpp types.h ${SGCL_CRYPTO_VECTOR_SOURCES})
+        target_link_libraries(${T} gtest sgcl)
+        target_include_directories(${T} PRIVATE ${CMAKE_SOURCE_DIR})
+        add_test(NAME ${T} COMMAND ${T})
+        add_dependencies(tests ${T})
+    endforeach()
+    target_compile_definitions(tests_crypto_portable PRIVATE SGCL_CRYPTO_PORTABLE)
 endif()
 sgcl_test_module(time)
 sgcl_test_module(encoding)
+sgcl_test_module(slog)
+# the collector's lines through slog (DESIGN 283 Q7): SGCL_LOG_PRINT_LEVEL is
+# the whole program's, so a program of its own at level 3
+add_executable(tests_slog_collector_log main.cpp types.h slog/collector_log/collector_log.cpp)
+target_link_libraries(tests_slog_collector_log gtest sgcl)
+target_include_directories(tests_slog_collector_log PRIVATE ${CMAKE_SOURCE_DIR})
+target_compile_definitions(tests_slog_collector_log PRIVATE SGCL_LOG_PRINT_LEVEL=3)
+add_test(NAME tests_slog_collector_log COMMAND tests_slog_collector_log)
+add_dependencies(tests tests_slog_collector_log)
+# the docs' program, run by tests_slog_collector_log as a child for the lines
+# of its exit (TheExitWritesTheLastLines)
+add_executable(tests_slog_collector_exit_program slog/collector_log/exit_program.cpp)
+target_link_libraries(tests_slog_collector_exit_program sgcl)
+target_include_directories(tests_slog_collector_exit_program PRIVATE ${CMAKE_SOURCE_DIR})
+add_dependencies(tests_slog_collector_log tests_slog_collector_exit_program)
+target_compile_definitions(tests_slog_collector_log PRIVATE SGCL_SLOG_EXIT_PROGRAM="$<TARGET_FILE:tests_slog_collector_exit_program>")
 sgcl_test_module(net)
 sgcl_test_module(net/http)
+sgcl_test_module(codec)
+# codec's kernels have a road of 128-bit vectors (NEON, SSE2) and one in
+# plain C++: the same sources built for the second, every file checked on both
+sgcl_test_program(tests_codec_portable codec)
+target_compile_definitions(tests_codec_portable PRIVATE SGCL_CODEC_PORTABLE)
 
 add_executable(static_init_test core/static_init.cpp core/static_init_factory.cpp core/static_init.h)
 target_link_libraries(static_init_test gtest sgcl)

@@ -70,9 +70,9 @@ struct encapsulation {
 ## Example
 
 ```cpp
-#include "sgcl/crypto/mlkem.h"
-#include "sgcl/encoding/hex.h"
-#include "sgcl/io/print.h"
+#include "sgcl/crypto/crypto.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -84,7 +84,8 @@ int main() {
 
     // the owner publishes its encapsulation key, 1184 bytes
     auto published = owner->encapsulation_key().bytes();
-    println("encapsulation key: {} bytes, {}...", published.size(), encoding::hex::encode(published).substr(0, 16));
+    println("encapsulation key: {} bytes, {}...", published.size(),
+            encoding::hex::encode(published).substr(0, 16));
 
     // anyone reads it and encapsulates: a shared key, and a ciphertext to send
     auto recipient = crypto::mlkem768::encapsulation_key::from_bytes(published);

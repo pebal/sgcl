@@ -14,6 +14,7 @@ An event: set once, waited for by any number, and a wait after the set does not 
 
 - A handle: one word, a tracked word to the state, which copies share (`==` says whether two are the same). Made by the constructor; there is no empty event. It lies on a stack, in a task (a parameter by value), in a managed object; in a global or a std container, as a `rooted<async::event>` ([rooted](../core/rooted.md)), the same object reached with `->`. A root is never part of a cycle: never a `rooted` in a managed object or a task's frame ([The rules](../core/README.md#the-rules), 1).
 - Set once: there is no reset. A wait after the set returns at once.
+- An event happens once, and a wait ends when it has happened: after `wait()`, `co_await` or a select's `on_set` case, `is_set()` is true — for the events of the reactor and the timers too.
 - What the [reactor](reactor.md) and the [timers](timer.md) give (`readable`, `writable`, `exited`, `after`, `at`) is an event: `co_await async::readable(fd)` in a task, `async::after(1s).wait()` on a thread, `.on_set(f)` in a select. It is set when the moment comes or when the wait is ended with nothing (a cancel, a stop): a wait woken by it looks at its source again.
 
 ## Members
@@ -37,7 +38,35 @@ ready.set();
 
 ## Example
 
-The crawler on [wait_group](wait_group.md#example): an event that starts the fetches together.
+A task waits for the event with no thread held; a wait after the set returns at once:
+
+```cpp
+#include "sgcl/async/async.h"
+#include "sgcl/io/io.h"
+
+using namespace sgcl;
+
+async::task<> worker(async::event go) {   // by value: a copy is the same event
+    co_await go;
+    println("started");
+}
+
+int main() {
+    async::event go;
+    auto w = async::spawn(worker(go));
+    println("set: {}", go.is_set());
+    go.set();
+    w.wait();
+    go.wait();   // set already
+}
+```
+
+Output:
+
+```text
+set: false
+started
+```
 
 ## See also
 

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -172,7 +172,21 @@ TEST(NetDial_Tests, EveryAttemptFailsTheFirstErrorReported) {
     d->scripts[ep("2001:db8::1").address()] = Script::unreachable;
     auto r = spawn(race(targets_of({"192.0.2.1", "2001:db8::1"}), d)).wait();
     ASSERT_FALSE(r);
-    EXPECT_EQ(r.error().code(), std::errc::connection_refused);
+    EXPECT_EQ(r.error().code(), std::errc::connection_refused);   // the earliest attempt's, as Go
+    // every attempt in the text, in the order they were made: two failed
+    // addresses told from one
+    const std::string text(r.error().message().view());
+    EXPECT_NE(text.find("every address failed"), std::string::npos) << text;
+    const size_t v4 = text.find("192.0.2.1"), v6 = text.find("2001:db8::1");
+    EXPECT_NE(v4, std::string::npos) << text;
+    EXPECT_NE(v6, std::string::npos) << text;
+    EXPECT_LT(v4, v6) << text;
+    auto only = spawn(race(targets_of({"2001:db8::1"}), d)).wait();   // one address, nothing to race
+    ASSERT_FALSE(only);
+    EXPECT_EQ(only.error().code(), std::errc::host_unreachable);
+    const std::string one(only.error().message().view());
+    EXPECT_NE(one.find("its only address"), std::string::npos) << one;
+    EXPECT_NE(one.find("2001:db8::1"), std::string::npos) << one;
     auto none = spawn(race(vector<net::endpoint>(), d)).wait();
     ASSERT_FALSE(none);
     EXPECT_EQ(none.error().code(), net::errc::no_suitable_address);
@@ -236,9 +250,27 @@ TEST(NetDial_Tests, DeadlineAndStop) {
     sgcl::async::scheduler::stop();
 }
 
+// A name dialed over the loopback. localhost has both families on macOS,
+// ::1 first: the listener is on 127.0.0.1 alone, so ::1 is refused and the
+// race goes on to 127.0.0.1, which answers. A resolver that gives one
+// family (seen on 2026-09-28: ::1 alone, every run refused, the system's
+// state and not the code) has nothing to fall from: the listener is then
+// on the address it gave, the dial by name is checked all the same, and
+// the fall is skipped, the addresses said. Every failure says what the
+// resolver gave
 TEST(NetDial_Tests, OverTheLoopback) {
-    auto l = tcp::listen("127.0.0.1:0");   // IPv4 only: localhost's ::1, first on macOS, is refused, then 127.0.0.1 answers
-    ASSERT_TRUE(l);
+    auto found = dns::lookup("localhost");
+    ASSERT_TRUE(found) << found.error().message();
+    std::string names;
+    bool v4 = false, v6 = false;
+    for (auto& a : *found) {
+        names += (names.empty() ? "" : ", ") + std::string(a.to_string().view());
+        (a.unmap().is_v4() ? v4 : v6) = true;
+    }
+    const bool both = v4 && v6;
+    const ip_address at = v4 ? ip_address::loopback_v4() : found->front();
+    auto l = tcp::listen(at.is_v4() ? sgcl::string("127.0.0.1:0") : sgcl::string("[" + std::string(at.to_string().view()) + "]:0"));
+    ASSERT_TRUE(l) << l.error().message();
     auto port = sgcl::to_string(l->local_endpoint().port());
     auto accepting = spawn([](net::listener l) -> task<size_t> {
         size_t n = 0;
@@ -252,12 +284,12 @@ TEST(NetDial_Tests, OverTheLoopback) {
         co_return n;
     }(*l));
     auto a = tcp::connect(sgcl::string("localhost:") + port);
-    ASSERT_TRUE(a) << a.error().message();
-    EXPECT_EQ(a->remote_endpoint().address(), ip_address::loopback_v4());
+    ASSERT_TRUE(a) << a.error().message() << " (localhost is " << names << ")";
+    EXPECT_EQ(a->remote_endpoint().address(), at) << "localhost is " << names;
     auto b = tcp::connect(sgcl::string("localhost:") + port, 5s);
-    ASSERT_TRUE(b) << b.error().message();
+    ASSERT_TRUE(b) << b.error().message() << " (localhost is " << names << ")";
     auto c = spawn(tcp::async_connect(sgcl::string("localhost:") + port, stop_token())).wait();
-    ASSERT_TRUE(c) << c.error().message();
+    ASSERT_TRUE(c) << c.error().message() << " (localhost is " << names << ")";
     EXPECT_EQ(accepting.wait(), 3u);
     stop_source stopped;
     stopped.request_stop();
@@ -268,6 +300,9 @@ TEST(NetDial_Tests, OverTheLoopback) {
     b->close();
     c->close();
     l->close();
+    if (!both) {
+        GTEST_SKIP() << "localhost is " << names << ": one family, so the fall from ::1 to 127.0.0.1 is not tried (the dial by name was)";
+    }
 }
 
 TEST(NetDns_Tests, Names) {

@@ -61,17 +61,7 @@ A class derives from `mixin::hasher` with itself as the argument, names the mixi
 
 ## The requirement
 
-`req::hasher` is nominal, as the [requirements of containers](../core/mixin/README.md) are: a type is a hasher because it said so by deriving from `mixin::hasher<T>` with itself as `T`, not because it happens to have an `update`. So a class derived from `crc32` is not one: it derives from `mixin::hasher<crc32>`, not from `mixin::hasher<itself>`, and a function asking for `req::hasher` does not take it; it takes the `crc32` it is made of, `static_cast<hash::crc32&>(d)`. A function over any hasher takes it that way:
-
-```cpp
-using namespace sgcl;
-
-bool matches(hash::req::hasher auto h, const slice<const byte>& data, const slice<const byte>& expected) {
-    h.update(data);
-    auto d = h.digest();
-    return expected.size() == d.size() && std::equal(d.begin(), d.end(), expected.begin());
-}
-```
+`req::hasher` is nominal, as the [requirements of containers](../core/mixin/README.md) are: a type is a hasher because it said so by deriving from `mixin::hasher<T>` with itself as `T`, not because it happens to have an `update`. So a class derived from `crc32` is not one: it derives from `mixin::hasher<crc32>`, not from `mixin::hasher<itself>`, and a function asking for `req::hasher` does not take it; it takes the `crc32` it is made of, `static_cast<hash::crc32&>(d)`. A function over any hasher takes it that way, `hash::req::hasher auto h`, as `digest_size_of` in the [Example](#example) does.
 
 ## A hasher with a seed or a key
 
@@ -80,8 +70,8 @@ A class whose hash takes an argument — a seed, a key — gives `of` that argum
 ## Example
 
 ```cpp
-#include "sgcl/hash/crc32.h"
-#include "sgcl/io/print.h"
+#include "sgcl/hash/hash.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 

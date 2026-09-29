@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -12,6 +12,7 @@
 #include "sha512.h"
 #include "../core/aliases.h"
 #include "../core/array.h"
+#include "../core/detail/bytes.h"
 #include "../core/slice.h"
 #include "../hash/mixin/hasher.h"
 
@@ -149,7 +150,7 @@ namespace sgcl::crypto {
                 detail::HashAccess::finish(h, k);
                 detail::secure_zero_object(h);
             } else if (key.size() != 0) {
-                std::memcpy(k, key.data(), key.size());
+                sgcl::detail::copy_bytes(k, key.data(), key.size());
             }
             unsigned char pad[block_size];
             for (size_t i = 0; i < block_size; ++i) {

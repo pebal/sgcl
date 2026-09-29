@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -323,4 +323,22 @@ TEST(Pem_Tests, InvalidBlocks) {
     for (auto& [k, v] : kept) {
         EXPECT_EQ(back->headers().at(k), v) << k.view();
     }
+}
+
+// A header value that ends in a run of '\r' before its line ending (what
+// codecs_fuzz found): read without them, as Go's TrimSpace reads it, so
+// that the block written and read again has the same headers, and the
+// second writing is the first
+TEST(Pem_Tests, AHeaderValueEndingInCarriageReturnsRoundTrips) {
+    std::string text = "-----BEGIN RSA PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED" + std::string(18, '\r') +
+                       "\nDEK-Info: AES-128-CBC,00\r\r\n\nQUJD\n-----END RSA PRIVATE KEY-----\n";
+    auto one = pem::parse(string(text));
+    ASSERT_TRUE(one.has_value()) << one.error().message();
+    EXPECT_EQ(one->headers().at(string("Proc-Type")), "4,ENCRYPTED");
+    EXPECT_EQ(one->headers().at(string("DEK-Info")), "AES-128-CBC,00");
+    string written = one->to_string();
+    auto again = pem::parse(written);
+    ASSERT_TRUE(again.has_value());
+    EXPECT_EQ(again->headers().at(string("Proc-Type")), "4,ENCRYPTED");
+    EXPECT_EQ(again->to_string(), written);
 }

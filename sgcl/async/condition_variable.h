@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -101,7 +101,7 @@ namespace sgcl::async {
 
     private:
         tracked_ptr<detail::ChannelState<void>> _register() {
-            tracked_ptr<detail::ChannelState<void>> w = make_tracked<detail::ChannelState<void>>(1);
+            tracked_ptr<detail::ChannelState<void>> w = detail::make_linked_state<void>(1);
             _waiters.push(w);
             return w;
         }

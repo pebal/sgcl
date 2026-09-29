@@ -162,7 +162,9 @@ A copy of the comparator.
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/concurrent/concurrent.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -216,9 +218,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 4000 jobs: 1336 of priority 0, 1332 of priority 1, 1332 of priority 2; 0 out of order
 ```
 

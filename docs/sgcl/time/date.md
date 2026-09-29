@@ -81,7 +81,8 @@ string to_string(weekday d);                               // a free function: "
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 #include "sgcl/time/time.h"
 
 using namespace sgcl;
@@ -89,16 +90,16 @@ using namespace sgcl;
 int main() {
     time::date d(2026, 9, 24);
     auto [year, week] = d.iso_week();
-    println("{} is day {}, weekday {}, week {} of {}", d.to_string(), d.year_day(), static_cast<int>(d.weekday()), week, year);          // 2026-09-24 is day 267, weekday 4, week 39 of 2026
+    println("{} is day {}, weekday {}, week {} of {}", d.to_string(), d.year_day(), static_cast<int>(d.weekday()), week, year);
 
-    println("{} {}", time::date(2026, 2, 30).to_string(), time::date::is_valid(2026, 2, 30));   // 2026-03-02 (carried) false
+    println("{} {}", time::date(2026, 2, 30).to_string(), time::date::is_valid(2026, 2, 30));   // carried
 
     auto invoice = time::date(2026, 1, 31);
     for (int i : range(1, 4)) {
         print("{} ", invoice.add_months(i).to_string());          // the month's end when it is shorter
     }
     println();
-    println("{} {}", time::date(2024, 2, 29).add_years(1).to_string(), time::date(2024, 12, 30).iso_week().year);            // 2025-02-28 2025
+    println("{} {}", time::date(2024, 2, 29).add_years(1).to_string(), time::date(2024, 12, 30).iso_week().year);
 
     auto christmas = time::date(2026, 12, 25);
     println("{} days to {}", d.days_until(christmas), christmas.to_string());
@@ -119,7 +120,7 @@ Output:
 
 ```text
 2026-09-24 is day 267, weekday 4, week 39 of 2026
-2026-03-02 0
+2026-03-02 false
 2026-02-28 2026-03-31 2026-04-30 
 2025-02-28 2025
 92 days to 2026-12-25

@@ -1,10 +1,11 @@
-# sgcl::io::os — args, getenv, working_dir, stdin
+# sgcl::io::os — args, env, getenv, working_dir, stdin
 
 ```cpp
 #include "sgcl/io/os.h"   // or "sgcl/io/io.h", "sgcl/sgcl.h"
 
 namespace sgcl::io {
     vector<string> args();
+    template<class T> T env(const string& name, const T& fallback);  string env(const string& name, const string& fallback);
     optional<string> getenv(const string& name);  expected<void, error> setenv(const string& name, const string& value);  expected<void, error> unsetenv(const string& name);
     vector<pair<string, string>> environ();  string expand_env(const string& s);
     expected<string, error> working_dir();  expected<void, error> chdir(const string& path);
@@ -21,6 +22,7 @@ The process and its environment, `os`: the command line, the variables, the dire
 ## Rules
 
 - `args()` needs no `main`: the platform keeps the command line (the loader's copy on macOS, `/proc/self/cmdline` on Linux).
+- `env(name, fallback)` is the variable as a value of the fallback's type, and the fallback when the variable is unset or empty. bool and the numbers are read as [`sgcl::parse`](../core/string.md) reads them (`"8080"`, `"true"`, `"0.5"`; the type's range checked), a span of `<chrono>` as the fallback gives a `duration` read in Go's text (`"1m30s"`), any other type by its `T::parse(const string&)`, and a text fallback gives the text. A value that is set and is not one of the type is the program's configuration gone wrong: `std::invalid_argument`, whose message names the variable, the value and the type (`sgcl::io::env: PORT="abc" is not an integer: not a number`).
 - `getenv` distinguishes unset (`nullopt`) from empty; `setenv` and `unsetenv` are the process-wide calls, not thread-safe against a concurrent `getenv` on any platform, as in C.
 - `io::stdin`, `io::stdout`, `io::stderr` are three objects, constant-initialized, each over a `file` of descriptor 0, 1 or 2 made the first time the stream is used and kept for the life of the process (`file()` gives it, for what takes a file); the descriptor is never closed by it; the descriptor's flags are left as they are (a terminal, a redirected file and a pipe from the shell are served by the blocking pool; one made non-blocking by the parent by the reactor). `<cstdio>` defines `stdin`, `stdout` and `stderr` as macros for its `FILE` streams: `os.h` removes them and, where the macro named another variable (macOS), re-binds the C streams under the same names as references in the global scope, so code written for `<stdio.h>` compiles on; a unit with `using namespace sgcl::io` that writes a bare `stderr` for the C stream must qualify one of the two.
 - `exit` flushes the C streams and ends the process without running destructors (`_exit`), as Go's `os.Exit`.
@@ -29,6 +31,9 @@ The process and its environment, `os`: the command line, the variables, the dire
 
 ```cpp
 vector<string> args();                                   // argv[0] first
+template<class T> T env(const string& name, const T& fallback);                    // the fallback when unset or empty; std::invalid_argument when no T
+template<class Rep, class Period> duration env(const string& name, std::chrono::duration<Rep, Period> fallback);   // `5s` as the fallback
+string env(const string& name, const string& fallback);
 optional<string> getenv(const string& name);          // nullopt when unset; "" is a value
 expected<void, error> setenv(const string& name, const string& value);
 expected<void, error> unsetenv(const string& name);
@@ -49,7 +54,7 @@ bool is_terminal(int fd) noexcept;   // isatty
 ```
 
 ```cpp
-auto level = io::getenv("LOG_LEVEL").value_or("info");
+auto level = io::env("LOG_LEVEL", "info");
 auto dir = io::path::join(io::config_dir(), "myapp");
 io::mkdir_all(dir);
 println(io::stdout.is_terminal() ? "\033[1mready\033[0m" : "ready");
@@ -58,7 +63,29 @@ println(io::stdout.is_terminal() ? "\033[1mready\033[0m" : "ready");
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/io/io.h"
+
+using namespace sgcl;
+using namespace std::chrono_literals;
+
+int main() {
+    int port = io::env("APP_PORT", 8080);              // the variable as an int, 8080 when it is unset or empty
+    duration timeout = io::env("APP_TIMEOUT", 5s);     // Go's text: "1.5s", "2m"
+    string host = io::env("APP_HOST", "localhost");
+    println("{}:{}, timeout {}", host, port, timeout);
+}
+```
+
+Output:
+
+```text
+localhost:8080, timeout 5s
+```
+
+With none of the three set; `APP_PORT=9090 APP_TIMEOUT=1m30s` gives `localhost:9090, timeout 1m30s`.
+
+```cpp
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -82,4 +109,4 @@ int main() {
 ## See also
 
 - [file](file.md): what the standard streams are; [fs](fs.md), [path](path.md)
-- `tests/io/os.cpp`: the environment round trip and `expand_env`, `args`/`executable`/`hostname`/the directories, the standard streams beside the C ones.
+- `tests/io/os.cpp`: `env` of every kind of type, the fallback, the exception; the environment round trip and `expand_env`, `args`/`executable`/`hostname`/the directories, the standard streams beside the C ones.

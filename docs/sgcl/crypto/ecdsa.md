@@ -1,4 +1,4 @@
-# ECDSA
+# sgcl::crypto::p256, sgcl::crypto::p384: ECDSA
 
 ```cpp
 #include "sgcl/crypto/ecdsa.h"   // p256.h and p384.h; or "sgcl/crypto/crypto.h"
@@ -26,7 +26,7 @@ ECDSA (FIPS 186-5 §6), Go's `crypto/ecdsa`, over the NIST curves [P-256](p256.m
 
 ```cpp
 #include "sgcl/crypto/crypto.h"
-#include "sgcl/io/print.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -52,7 +52,7 @@ int main() {
 
     // a point off the curve is not a key
     array<byte, 97> point{};
-    point[0] = byte(4);   // 04 || X = 0 || Y = 0
+    point[0] = byte(4);  // 04 || X = 0 || Y = 0
     auto bad = crypto::p384::public_key::from_bytes(point);
     println(bad ? "a key" : bad.error().message());
 }

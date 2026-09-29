@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -17,6 +17,11 @@
 //   shifted   the punctuation shifted aside, over a word with a hyphen
 //   case      the case on a level of its own and the capitals first
 //   backwards the accents read from the end of the word
+//   mid       the root order over two texts of 200 letters that differ
+//             in the last: every element read, all of them in the
+//             buffers' inline part (256)
+//   long      the same over 1000 letters: past the inline part, the
+//             rest of each buffer in the vector behind it
 //
 // search takes the three shapes of the same question over a text of `kb`
 // kilobytes, and prints microseconds for one pass over the whole text
@@ -43,7 +48,25 @@ namespace {
         const char* b;
     };
 
+    // n letters of Latin with marks, the last one b's own in the second
+    std::string long_text(size_t n, bool second) {
+        static const char* letters[] = {"a", "b", "c", "d", "e", "é", "ż", "ó", "ł", "k"};
+        std::string out;
+        for (size_t i = 0; i + 1 < n; ++i) {
+            out += letters[(i * 7 + i / 3) % 10];
+        }
+        out += second ? "z" : "y";
+        return out;
+    }
+
     words words_of(const char* op) {
+        if (!std::strcmp(op, "mid") || !std::strcmp(op, "long")) {
+            static std::string a, b;
+            size_t n = !std::strcmp(op, "mid") ? 200 : 1000;
+            a = long_text(n, false);
+            b = long_text(n, true);
+            return {a.c_str(), b.c_str()};
+        }
         if (!std::strcmp(op, "numeric")) {
             return {"plik9", "plik10"};
         }
@@ -104,7 +127,7 @@ namespace {
         auto w = words_of(op);
         auto c = collator_of(op);
         string a(w.a);
-        byte room[512];
+        static byte room[16384];   // a key of the long text is some 6 KB
         return timed(count, [&] { sink += int(c.key_to(room, a)); });
     }
 
@@ -178,7 +201,7 @@ int main(int argc, char** argv) {
         return 0;
     }
     const char* op = argc > 2 ? argv[2] : "root";
-    if (!bench::has_variant(op, {"root", "polish", "numeric", "shifted", "case", "backwards"})) {
+    if (!bench::has_variant(op, {"root", "polish", "numeric", "shifted", "case", "backwards", "mid", "long"})) {
         std::fprintf(stderr, "collate %s: no op called %s\n", variant, op);
         return 2;
     }

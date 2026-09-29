@@ -101,7 +101,9 @@ The running task goes to the back of the queue and the worker takes the next rea
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/async/async.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -157,9 +159,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 159600
 ```
 

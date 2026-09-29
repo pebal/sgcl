@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -30,6 +30,7 @@
 #include "../../core/tracked_ptr.h"
 #include "../../core/vector.h"
 
+#include <charconv>
 #include <chrono>
 #include <cstdio>
 #include <mutex>
@@ -300,8 +301,12 @@ namespace sgcl::net::http {
             }
         };
 
+        // The pool's key of a connection: scheme://host:port, one string of
+        // its pieces (string::concat), the port's digits written on the stack
         inline string origin_key(const net::url& u) {
-            return string(std::string(u.scheme().view()) + "://" + std::string(net::detail::UrlAccess::host_as_written(u).view()) + ":" + std::to_string(u.effective_port()));
+            char port[8];
+            auto end = std::to_chars(port, port + sizeof port, u.effective_port()).ptr;
+            return string::concat(u.scheme(), "://", net::detail::UrlAccess::host_as_written(u), ':', std::string_view(port, size_t(end - port)));
         }
 
         inline io::error client_error(net::errc e, const Outgoing& o) {
@@ -347,10 +352,37 @@ namespace sgcl::net::http {
             return nullopt;
         }
 
-        // The head of a request, and the body when it is in memory
+        inline async::task<expected<void, io::error>> write_all(net::connection c, std::string bytes) {
+            slice<const byte> data(reinterpret_cast<const byte*>(bytes.data()), bytes.size());
+            auto r = co_await c.async_write(data);
+            if (!r) {
+                co_return io::detail::fail(r);
+            }
+            co_return expected<void, io::error>();
+        }
+
+        // A body in memory shorter than this goes in the head's buffer: a
+        // piece of the write of its own is not worth it
+        inline constexpr size_t BodyInPlaceMin = 1024;
+
+        // The body when it is in memory, as it lies (the slice holds its
+        // string or vector); empty for none and for a stream
+        inline slice<const byte> body_in_memory(const Outgoing& o) {
+            if (o.body_kind == RequestImpl::BodyKind::text) {
+                return as_bytes(o.text.as_slice());
+            }
+            if (o.body_kind == RequestImpl::BodyKind::bytes) {
+                return o.bytes.as_slice();
+            }
+            return slice<const byte>();
+        }
+
+        // The head of a request, and a body in memory shorter than
+        // BodyInPlaceMin; a longer one is written from where it lies
+        // (write_head_and_body)
         inline std::string request_bytes(const Outgoing& o, bool& chunked) {
             std::string s;
-            s.reserve(256 + o.text.size() + o.bytes.size());
+            s.reserve(256);
             s += o.method.view();
             s += ' ';
             s += o.target->request_target().view();
@@ -395,27 +427,46 @@ namespace sgcl::net::http {
                     break;
             }
             s += "\r\n";
-            if (o.body_kind == RequestImpl::BodyKind::text) {
-                s += o.text.view();
-            } else if (o.body_kind == RequestImpl::BodyKind::bytes) {
-                s.append(reinterpret_cast<const char*>(o.bytes.data()), o.bytes.size());
+            if (auto body = body_in_memory(o); !body.empty() && body.size() < BodyInPlaceMin) {
+                s.append(reinterpret_cast<const char*>(body.data()), body.size());
             }
             return s;
         }
 
-        inline async::task<expected<void, io::error>> write_all(net::connection c, std::string bytes) {
-            slice<const byte> data(reinterpret_cast<const byte*>(bytes.data()), bytes.size());
-            auto r = co_await c.async_write(data);
+        // Pieces as one write (net: ConnImpl::start_write_parts): a socket
+        // takes them in one sendmsg, TLS seals its records from where they
+        // lie. The pieces are held by the caller's frame across the wait
+        inline async::task<expected<void, io::error>> write_parts(net::connection c, vector<slice<const byte>> parts) {
+            auto s = net::detail::ConnectionAccess::impl(c).start_write_parts(parts);
+            expected<size_t, io::error> r = std::move(s.done);
+            if (s.rest) {
+                r = co_await std::move(*s.rest);
+            }
             if (!r) {
                 co_return io::detail::fail(r);
             }
             co_return expected<void, io::error>();
         }
 
+        // The head and a body in memory: one write, the body from where it
+        // lies (its string or vector; no copy into the head's buffer). A
+        // short body is already in the head (request_bytes)
+        inline async::task<expected<void, io::error>> write_head_and_body(net::connection c, std::string head, slice<const byte> body) {
+            if (body.size() < BodyInPlaceMin) {
+                co_return co_await write_all(c, std::move(head));
+            }
+            vector<slice<const byte>> parts;
+            parts.push_back(slice<const byte>(reinterpret_cast<const byte*>(head.data()), head.size()));
+            parts.push_back(body);
+            co_return co_await write_parts(c, std::move(parts));
+        }
+
         // A stream body: its length's worth, or chunked to its end
         inline async::task<expected<void, io::error>> write_stream(net::connection c, io::reader stream, optional<uint64_t> length, bool chunked) {
             tracked_ptr block = make_tracked<io::detail::CopyBlock>();   // managed: the stream's read may run on the pool, its slice holds the block
             uint64_t sent = 0;
+            char size_line[24];
+            vector<slice<const byte>> parts;
             for (;;) {
                 size_t room = config::io_copy_buffer_size;
                 if (length) {
@@ -436,21 +487,21 @@ namespace sgcl::net::http {
                     break;
                 }
                 if (chunked) {
-                    char size[24];
-                    int k = std::snprintf(size, sizeof(size), "%zx\r\n", *n);
-                    auto r = co_await write_all(c, std::string(size, size_t(k)));
+                    // the size line, the bytes where they were read and the
+                    // CRLF: one write (the line in this frame, the CRLF static)
+                    int k = std::snprintf(size_line, sizeof(size_line), "%zx\r\n", *n);
+                    parts.clear();
+                    parts.push_back(slice<const byte>(reinterpret_cast<const byte*>(size_line), size_t(k)));
+                    parts.push_back(slice<const byte>(buf.first(*n)));
+                    parts.push_back(slice<const byte>(reinterpret_cast<const byte*>("\r\n"), 2));
+                    auto r = co_await write_parts(c, std::move(parts));
                     if (!r) {
                         co_return io::detail::fail(r);
                     }
-                }
-                auto w = co_await c.async_write(buf.first(*n));
-                if (!w) {
-                    co_return io::detail::fail(w);
-                }
-                if (chunked) {
-                    auto r = co_await write_all(c, "\r\n");
-                    if (!r) {
-                        co_return io::detail::fail(r);
+                } else {
+                    auto w = co_await c.async_write(buf.first(*n));
+                    if (!w) {
+                        co_return io::detail::fail(w);
                     }
                 }
                 sent += *n;
@@ -591,12 +642,11 @@ namespace sgcl::net::http {
             switch (o.body_kind) {
                 case RequestImpl::BodyKind::none:
                     co_return expected<void, io::error>();
-                case RequestImpl::BodyKind::text: {
-                    auto v = o.text.view();
-                    co_return co_await h->send_data(id, slice<const byte>(reinterpret_cast<const byte*>(v.data()), v.size()), true);
-                }
+                case RequestImpl::BodyKind::text:
                 case RequestImpl::BodyKind::bytes:
-                    co_return co_await h->send_data(id, slice<const byte>(o.bytes.data(), o.bytes.size()), true);
+                    // in place: the slice holds the request's string or vector
+                    // until the connection's write of it is done
+                    co_return co_await h->send_data_held(id, body_in_memory(o), true);
                 case RequestImpl::BodyKind::stream:
                     break;
             }
@@ -793,7 +843,7 @@ namespace sgcl::net::http {
             c.set_write_deadline(deadline);
             bool chunked = false;
             auto bytes = request_bytes(o, chunked);
-            auto written = co_await write_all(c, std::move(bytes));
+            auto written = co_await write_head_and_body(c, std::move(bytes), body_in_memory(o));
             if (written && o.body_kind == RequestImpl::BodyKind::stream) {
                 written = co_await write_stream(c, o.stream, o.stream_length, chunked);
             }
@@ -1036,6 +1086,13 @@ namespace sgcl::net::http {
             return async_send(_post(url, content_type, body));
         }
 
+        // The file at url saved to path (curl -fo path url): the body
+        // streamed through path + ".part" renamed at its end, a status other
+        // than 2xx the error net::errc::http_status and no file; the
+        // response, its body read (download.h)
+        expected<response, io::error> download(const string& url, const string& path) const;
+        async::task<expected<response, io::error>> async_download(string url, string path) const;
+
         // The idle connections of the pool closed now
         void close_idle_connections() const {
             _pool->close_all();
@@ -1102,3 +1159,5 @@ namespace sgcl::net::http {
         tracked_ptr<detail::Pool> _pool;
     };
 }
+
+#include "download.h"   // download and the response's json and save: they need JSON and files

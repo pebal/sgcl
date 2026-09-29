@@ -56,7 +56,8 @@ assert(s.index_of(3) == 1 && s.exists([](int x) { return x == 5; }));
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -97,9 +98,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 a c b 
 ```
 

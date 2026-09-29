@@ -57,7 +57,8 @@ static_assert(req::contiguous<decltype(r)> && req::sequence<decltype(r)> && !req
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 #include <algorithm>
 #include <ranges>
 
@@ -68,16 +69,16 @@ int main() {
     for (int i : range(10)) {                 // 0..9
         sum += i;
     }
-    println("{}", sum);                       // 45
+    println("{}", sum);
 
     for (int i : range(2, 5)) {               // 2, 3, 4
         print("{} ", i);
     }
     println();
-    println("{} {}", range(7, 3).empty(), range(3, 8).size());   // true 5
+    println("{} {}", range(7, 3).empty(), range(3, 8).size());
 
     auto squares = range(4) | std::views::transform([](int i) { return i * i; });
-    println("{}", *std::ranges::max_element(squares));   // 9
+    println("{}", *std::ranges::max_element(squares));
 
     sorted_multimap<string, int> scores = {{"ann", 90}, {"ann", 95}, {"bob", 70}};
     range ann = scores.equal_range("ann");   // range<iterator>, deduced from the pair
@@ -86,14 +87,14 @@ int main() {
         best = std::max(best, score);
     }
     range cid = scores.equal_range("cid");
-    println("{} {} {}", ann.size(), best, cid.empty());   // 2 95 true
+    println("{} {} {}", ann.size(), best, cid.empty());
     return 0;
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 45
 2 3 4 
 true 5

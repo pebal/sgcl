@@ -90,7 +90,9 @@ aligned.close();
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/async/async.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -131,14 +133,14 @@ int main() {
     }
     stop.close();
     int result = p.wait();
-    println("{} seen, {} late", result % 1000, result / 1000);   // 5 seen, 1 late
+    println("{} seen, {} late", result % 1000, result / 1000);
     return result == 1005 ? 0 : 1;
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 5 seen, 1 late
 ```
 

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -212,8 +212,10 @@ namespace sgcl::async {
 
         private:
             // The consumer's words above, the producers' below, a cache
-            // line apart (concurrent::queue: padding, not alignas)
-            unsigned char _pad[config::cache_line_size - 2 * sizeof(Frame) - sizeof(uint32_t) - 3 * sizeof(bool)] = {};
+            // line apart (concurrent::queue: padding, not alignas). Never
+            // read: its bytes are the distance against false sharing, and
+            // -Wextra's "private field is not used" is told so
+            [[maybe_unused]] unsigned char _pad[config::cache_line_size - 2 * sizeof(Frame) - sizeof(uint32_t) - 3 * sizeof(bool)] = {};
             std::atomic<FrameWord*> _tail;         // the producers': the last frame, or the stub (raw: whatever it names is held otherwise)
             std::atomic<uint32_t> _parked = {0};   // an executor: its thread asleep in pop(), or about to be
 
@@ -326,6 +328,11 @@ namespace sgcl::async {
         // workers are joined then, so a task that never suspends never
         // lets the program end, as a thread would not; the next enqueue
         // starts it again.
+        // What a worker calls with its index on its way to sleep, when set:
+        // the batches slog's buffered loggers hold for the worker, written
+        // (slog/detail/output.h). One relaxed load in the worker's loop
+        inline std::atomic<void (*)(unsigned)> worker_idle_hook = {nullptr};
+
         class Scheduler {
         public:
             using Frame = tracked_ptr<FrameWord>;
@@ -617,6 +624,7 @@ namespace sgcl::async {
             void _run(unsigned index) {
                 _local = _locals[index].get();
                 _index = index;
+                detail::thread_place = int(index);   // on_unhandled's default names the worker (coroutine.h)
                 Local& local = *_local;
                 local.stack_floor = detail::current_thread().stack_begin() + config::stack_guard_margin;
                 uint32_t tick = 0;
@@ -645,6 +653,9 @@ namespace sgcl::async {
                     }
                     if (_stop.load(std::memory_order_acquire)) {
                         return;
+                    }
+                    if (auto hook = worker_idle_hook.load(std::memory_order_relaxed)) {
+                        hook(index);   // slog's buffered lines of this worker, written before it sleeps
                     }
                     if (_sleep(local)) {
                         // woken with the credit of a looking worker: this
@@ -779,7 +790,19 @@ namespace sgcl::async {
             // workers' rings, from a random one round, for the spin
             // window; this worker counts as looking (spinning) meanwhile,
             // and the one that finds work wakes the next sleeper, so that
-            // someone is still looking while work keeps coming
+            // someone is still looking while work keeps coming.
+            // The last looker to leave empty-handed looks once more, after
+            // a fence, at every ring and the global queue (Go's
+            // findrunnable after it drops nmspinning): a push that saw it
+            // still looking woke nobody (_wake_one_if_none_looking), and
+            // its last round may have passed that ring before the push, so
+            // without the look the frame would wait in a busy worker's
+            // ring with every other worker asleep. Either the push's fence
+            // comes first, and the look sees the frame, or the looker's
+            // does, and the push sees no one looking and wakes a sleeper.
+            // Work seen: this worker looks again as a looker (the count up
+            // again, a new round), so that a frame taken as the last
+            // looker wakes the next sleeper, as any other
             Frame _find_work(Local& mine, bool credited = false) {
                 // The dead part of this worker's stack cleared first: the
                 // frames of the task that just ran are below here, their
@@ -798,6 +821,7 @@ namespace sgcl::async {
                     _spinning.fetch_add(1, std::memory_order_acq_rel);
                 }
                 Frame found;
+            look:
                 const uint64_t until = spin_until();
                 detail::Backoff<32> backoff;
                 do {
@@ -818,23 +842,76 @@ namespace sgcl::async {
                     }
                     backoff();
                 } while (cpu_ticks() < until);
-                if (_spinning.fetch_sub(1, std::memory_order_acq_rel) == 1 && found) {
-                    _wake_one_if_none_looking();
+                const auto looking = _spinning.fetch_sub(1, std::memory_order_acq_rel);
+                if (looking == 1) {
+                    if (found) {
+                        _wake_one_if_none_looking();
+                    } else if (!_stop.load(std::memory_order_acquire)) {
+                        std::atomic_thread_fence(std::memory_order_seq_cst);   // against the push's fence in _wake_one_if_none_looking
+                        if (_work_elsewhere()) {
+                            _spinning.fetch_add(1, std::memory_order_acq_rel);
+                            goto look;
+                        }
+                    }
                 }
                 return found;
+            }
+
+            // Work on the global queue or in another worker's ring: the look
+            // of the last looker as it leaves (_find_work) and of a worker
+            // about to sleep (_sleep), each after a fence that pairs with
+            // the fence of a push (_wake_one_if_none_looking). The rings
+            // of the workers whose bit is among the sleepers are skipped,
+            // since a sleeper's ring is empty:
+            // - only its owner writes to a ring (a push, a batch, the half
+            //   of a victim's ring a thief moves into its own ring), and a
+            //   worker sets its bit (_sleep) only once its ring is empty
+            //   (its pop failed and its look found nothing: a steal fills
+            //   the thief's ring only when it returns a frame);
+            // - the bit comes off before the worker runs again: the waker
+            //   takes it and then stores the park word with release, which
+            //   the worker loads with acquire before it runs; a worker that
+            //   finds work itself takes its bit before it returns.
+            // So a frame the worker pushes after it wakes is ordered after
+            // the bit came off, and its push's fence decides: when that
+            // fence comes first, this look after its own fence sees the bit
+            // gone and the ring's tail with it; when this look's fence
+            // comes first, the push sees this looker leaving (_spinning at
+            // zero) or its bit among the sleepers, and wakes. A bit read
+            // as still set means the worker has not run, so has pushed
+            // nothing yet
+            bool _work_elsewhere() const noexcept {
+                if (!_global->ready.empty()) {
+                    return true;
+                }
+                const uint64_t active = _active >= MaxWorkers ? ~uint64_t(0) : (uint64_t(1) << _active) - 1;
+                uint64_t awake = active & ~_sleepers.load(std::memory_order_acquire) & ~(uint64_t(1) << _index);
+                while (awake) {
+                    const auto v = (unsigned)std::countr_zero(awake);
+                    awake &= awake - 1;
+                    if (_has_work(*_locals[v])) {
+                        return true;
+                    }
+                }
+                return false;
             }
 
             // The sleep: this worker's bit set in the set of sleepers
             // before its last look (against the enqueue that pushes and
             // then looks at the set: one of the two sees the other), then
-            // the wait on its own word. True when woken by a wake (with
-            // the credit), false when it found work itself or the
-            // scheduler stops
+            // the wait on its own word. The look covers every ring, not
+            // only its own: a push into a busy worker's ring that saw
+            // nobody looking (the count already down) and no bit of this
+            // worker yet woke nobody when no other worker slept, and only
+            // this look finds its frame (Go's stopm comes after the P is
+            // given back to the idle list and the queues looked at again).
+            // True when woken by a wake (with the credit), false when it
+            // found work itself or the scheduler stops
             bool _sleep(Local& local) {
                 auto bit = uint64_t(1) << _index;
                 _sleepers.fetch_or(bit, std::memory_order_acq_rel);
                 std::atomic_thread_fence(std::memory_order_seq_cst);
-                if (!_global->ready.empty() || _has_work(local) || _stop.load(std::memory_order_acquire)) {
+                if (_has_work(local) || _work_elsewhere() || _stop.load(std::memory_order_acquire)) {
                     if (_sleepers.fetch_and(~bit, std::memory_order_acq_rel) & bit) {
                         return false;   // the bit was still ours: nobody woke us
                     }

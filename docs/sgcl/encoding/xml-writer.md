@@ -50,13 +50,22 @@ public:
 };
 ```
 
+## SGCL and Go
+
+| Go | SGCL | note |
+|---|---|---|
+| `xml.NewEncoder(w)`, `EncodeToken` | `encoding::xml::writer(out)`, `start`, `attribute`, `text`, `end`… | a mistake kept and given by `flush()` |
+| `Encoder.Indent(prefix, indent)` | `style{indent}` | no prefix; text content left as it is |
+| `Encoder.Flush`, `Close` | `flush()`, `async_flush()` | the stream stays open |
+| `xml.EscapeText` | what `text` and `attribute` do | Go escapes `"` and `'` in text too |
+| `Encoder.Encode(v)`, `EncodeElement(v, start)` of a structure | `value("name", v)`; `node(x)` of a tree | |
+
 ## Example
 
 ```cpp
-#include "sgcl/core/range.h"
-#include "sgcl/encoding/xml.h"
-#include "sgcl/io/os.h"
-#include "sgcl/io/print.h"
+#include "sgcl/core/core.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -93,16 +102,6 @@ Output:
 </svg>
 offset 4: an attribute with no start tag open to hold it
 ```
-
-## SGCL and Go
-
-| Go | SGCL | note |
-|---|---|---|
-| `xml.NewEncoder(w)`, `EncodeToken` | `encoding::xml::writer(out)`, `start`, `attribute`, `text`, `end`… | a mistake kept and given by `flush()` |
-| `Encoder.Indent(prefix, indent)` | `style{indent}` | no prefix; text content left as it is |
-| `Encoder.Flush`, `Close` | `flush()`, `async_flush()` | the stream stays open |
-| `xml.EscapeText` | what `text` and `attribute` do | Go escapes `"` and `'` in text too |
-| `Encoder.Encode(v)`, `EncodeElement(v, start)` of a structure | `value("name", v)`; `node(x)` of a tree | |
 
 ## See also
 

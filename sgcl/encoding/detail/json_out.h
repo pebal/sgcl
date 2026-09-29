@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -129,6 +129,21 @@ namespace sgcl::encoding::detail {
             return *this;
         }
 
+        // A block lent to the text (JsonLent), empty; and the block given
+        // back out of it, with its capacity
+        void lend(std::unique_ptr<char[]> block, size_t capacity) noexcept {
+            _data = std::move(block);
+            _capacity = capacity;
+            _size = 0;
+        }
+
+        std::unique_ptr<char[]> give_back(size_t& capacity) noexcept {
+            capacity = _capacity;
+            _capacity = 0;
+            _size = 0;
+            return std::move(_data);
+        }
+
         JsonText& operator+=(std::string_view s) {
             append(s);
             return *this;
@@ -163,6 +178,8 @@ namespace sgcl::encoding::detail {
     // of its own, indented by its depth, ": " after a key, and an empty
     // array or object as [] and {}.
     class JsonOut {
+        friend class JsonLent;
+
     public:
         JsonOut(uint8_t indent, bool escape_html, bool newline_after_top = false)
         : _indent(indent), _escape_html(escape_html), _newline_after_top(newline_after_top) {
@@ -378,5 +395,67 @@ namespace sgcl::encoding::detail {
         bool _newline_after_top;
         bool _failed = false;
         errc _code = errc::syntax;
+    };
+
+    // The text block and the stack of levels a one-shot writing works in
+    // (json::to_string, stringify): lent by the thread for the call and
+    // given back, emptied, at its end, so that the calls after the first
+    // allocate nothing but the string they return. The text of a call is
+    // copied into that string before the lending ends (the return value is
+    // made before the locals go). A few of each are kept, for a writing
+    // inside a writing; one past what is kept, or a block past KeepBytes,
+    // is let go (a thread that once wrote a text of megabytes does not keep
+    // its room). Plain memory: nothing in a block or a stack is a tracked
+    // word.
+    class JsonLent {
+    public:
+        explicit JsonLent(JsonOut& out) noexcept
+        : _out(out) {
+            auto& pool = _pool();
+            if (pool.count) {
+                auto& kept = pool.slots[--pool.count];
+                _out._text.lend(std::move(kept.block), kept.capacity);
+                _out._stack = std::move(kept.stack);
+                kept.capacity = 0;
+            }
+        }
+
+        JsonLent(const JsonLent&) = delete;
+        JsonLent& operator=(const JsonLent&) = delete;
+
+        ~JsonLent() {
+            auto& pool = _pool();
+            size_t capacity = 0;
+            auto block = _out._text.give_back(capacity);
+            if (block && capacity <= KeepBytes && pool.count < KeepSlots) {
+                auto& kept = pool.slots[pool.count++];
+                kept.block = std::move(block);
+                kept.capacity = capacity;
+                _out._stack.clear();
+                kept.stack = std::move(_out._stack);
+            }
+        }
+
+    private:
+        static constexpr size_t KeepBytes = size_t(64) << 10;
+        static constexpr size_t KeepSlots = 4;
+
+        struct Kept {
+            std::unique_ptr<char[]> block;
+            size_t capacity = 0;
+            std::vector<JsonOut::Level> stack;
+        };
+
+        struct Pool {
+            Kept slots[KeepSlots];
+            size_t count = 0;
+        };
+
+        static Pool& _pool() noexcept {
+            thread_local Pool pool;
+            return pool;
+        }
+
+        JsonOut& _out;
     };
 }

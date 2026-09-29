@@ -70,11 +70,22 @@ public:
 };
 ```
 
+## SGCL and Go
+
+| Go | SGCL | note |
+|---|---|---|
+| `xml.NewDecoder(r)`, `Token()` | `encoding::xml::reader(in)`, `next()` | `nullopt` and `last_error()` in place of `(nil, err)`; `async_next()` in a task |
+| `StartElement`, `EndElement`, `CharData`, `Comment`, `ProcInst`, `Directive` | `token::kind::start_element`, `end_element`, `text`, `comment`, `instruction`, `doctype` | a token keeps its strings; Go's `CharData` is valid until the next call |
+| `Decoder.DecodeElement(&v, &start)` | `peek()` then `read<T>()` (or `read()`, a tree) | |
+| `Decoder.Skip()` | `skip()` | the next node, not the rest of the current element |
+| `Decoder.InputOffset`, `InputPos` | `offset()`; the error's `line()`, `column()` | |
+| `Decoder.RawToken` | — | names are always resolved; the prefix stays in `name()` |
+
 ## Example
 
 ```cpp
-#include "sgcl/encoding/xml.h"
-#include "sgcl/io/print.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -91,7 +102,8 @@ int main() {
     encoding::xml::reader tokens(feed);
     while (auto t = tokens.next()) {
         if (t->type() == encoding::xml::token::kind::start_element) {
-            println("{}<{}> in {}", string(tokens.depth(), ' '), t->local_name(), t->namespace_uri());
+            println("{}<{}> in {}", string(tokens.depth(), ' '), t->local_name(),
+                    t->namespace_uri());
         }
     }
 
@@ -128,17 +140,6 @@ Output:
 2: Second
 2:10 /feed/entry: undefined entity &nbsp; (only the five of XML are known: no DTD is read)
 ```
-
-## SGCL and Go
-
-| Go | SGCL | note |
-|---|---|---|
-| `xml.NewDecoder(r)`, `Token()` | `encoding::xml::reader(in)`, `next()` | `nullopt` and `last_error()` in place of `(nil, err)`; `async_next()` in a task |
-| `StartElement`, `EndElement`, `CharData`, `Comment`, `ProcInst`, `Directive` | `token::kind::start_element`, `end_element`, `text`, `comment`, `instruction`, `doctype` | a token keeps its strings; Go's `CharData` is valid until the next call |
-| `Decoder.DecodeElement(&v, &start)` | `peek()` then `read<T>()` (or `read()`, a tree) | |
-| `Decoder.Skip()` | `skip()` | the next node, not the rest of the current element |
-| `Decoder.InputOffset`, `InputPos` | `offset()`; the error's `line()`, `column()` | |
-| `Decoder.RawToken` | — | names are always resolved; the prefix stays in `name()` |
 
 ## See also
 

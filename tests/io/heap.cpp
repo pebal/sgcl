@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -16,6 +16,7 @@
 // looks at the slice an operation on the pool is given.
 #include "tests/types.h"
 
+#include <array>
 #include <atomic>
 #include <cstring>
 #include <string>
@@ -230,4 +231,29 @@ TEST(IoHeap_Tests, BufferedWriterHandsThePoolAnOwnedBlock) {
     EXPECT_TRUE(spawn(run()).wait());
     EXPECT_EQ(out.written.load(), 23u);
     EXPECT_TRUE(out.owned);
+}
+
+// The pool is never given a slice without an owner into plain memory, even
+// when the caller's slice has none (a buffer or bytes of its own, a byte in
+// a frame): a write's bytes are copied into a managed block first, a read
+// goes through one and is copied into the caller's buffer after, in the
+// task. The pool's job may outlive the frame of a task let go of
+TEST(IoHeap_Tests, APlainSliceReachesThePoolOwned) {
+    PoolReader in{10000};
+    PoolWriter out;
+    auto run = [&]() -> task<bool> {
+        io::reader r(in);
+        io::writer w(out);
+        std::array<std::byte, 4096> plain{};   // in the frame: no owner
+        auto got = co_await r.async_read(slice<byte>(plain.data(), plain.size()));
+        bool ok = got && *got == plain.size() && plain[0] == std::byte('x') && plain[4095] == std::byte('x');
+        auto put = co_await w.async_write(slice<const byte>(plain.data(), plain.size()));
+        ok = ok && put && *put == plain.size();
+        ok = ok && (bool)co_await io::async_write(w, byte('!'));   // the byte in the frame
+        co_return ok;
+    };
+    EXPECT_TRUE(spawn(run()).wait());
+    EXPECT_TRUE(in.owned) << "a read on the pool was given a slice without an owner";
+    EXPECT_TRUE(out.owned) << "a write on the pool was given a slice without an owner";
+    EXPECT_EQ(out.written.load(), 4097u);
 }

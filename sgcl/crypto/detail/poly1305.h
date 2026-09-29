@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -7,6 +7,7 @@
 
 #include "../constant_time.h"
 #include "words.h"
+#include "../../core/detail/bytes.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -186,7 +187,7 @@ namespace sgcl::crypto::detail {
         void update(const unsigned char* p, size_t n) noexcept {
             if (buffered > 0) {
                 size_t take = 16 - buffered < n ? 16 - buffered : n;
-                std::memcpy(buffer + buffered, p, take);
+                sgcl::detail::copy_bytes(buffer + buffered, p, take);
                 buffered += take;
                 p += take;
                 n -= take;
@@ -201,7 +202,7 @@ namespace sgcl::crypto::detail {
             p += whole * 16;
             n -= whole * 16;
             if (n > 0) {
-                std::memcpy(buffer, p, n);
+                sgcl::detail::copy_bytes(buffer, p, n);
                 buffered = n;
             }
         }

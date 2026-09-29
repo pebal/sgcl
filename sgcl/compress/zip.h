@@ -1,12 +1,13 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
 #include "flate.h"
-#include "detail/path.h"
+#include "detail/files.h"
+#include "../io/detail/path.h"
 #include "detail/source.h"
 #include "../core/utf8.h"
 #include "../io/file.h"
@@ -55,7 +56,7 @@ namespace sgcl::compress::zip {
         // between an archive from outside and the file system until an
         // extract comes.
         bool is_local() const noexcept {
-            return compress::detail::is_local_path(name.view());
+            return sgcl::io::detail::is_local_path(name.view());
         }
     };
 }
@@ -1634,4 +1635,164 @@ namespace sgcl::compress::zip {
         tracked_ptr<detail::EntryWriter> _current;
         uint64_t _number = 0;
     };
+}
+
+namespace sgcl::compress::detail {
+    inline expected<void, error> zip_extract(const string& archive_path, const string& directory, uint64_t max_size) {
+        auto a = zip::archive::open(archive_path);
+        if (!a) {
+            return unexpected(a.error());
+        }
+        struct Close {
+            zip::archive& a;
+            ~Close() {
+                (void)a.close();
+            }
+        } close{*a};
+        // every name checked, and the sizes summed, before anything is written
+        uint64_t total = 0;
+        for (const auto& e : a->entries()) {
+            if (!e.is_local()) {
+                return unexpected(error(errc::insecure_path, 0, string("zip: an entry's name leaves the directory: ") + e.name));
+            }
+            total += e.size;
+            if (max_size && total > max_size) {
+                return unexpected(error(errc::too_large, 0, string("zip: the files are larger than max_size")));
+            }
+        }
+        TreeWriter out;
+        if (auto started = out.start(directory); !started) {
+            return started;
+        }
+        for (const auto& e : a->entries()) {
+            std::string_view name = e.name.view();
+            if (e.is_directory()) {
+                if (auto made = out.directory(name, e.mode); !made) {
+                    return made;
+                }
+                continue;
+            }
+            if (e.is_symlink()) {
+                auto target = a->read(e, limits{4096, limits{}.max_memory, limits{}.max_entries});
+                if (!target) {
+                    return unexpected(target.error());
+                }
+                std::string t(reinterpret_cast<const char*>(target->data()), target->size());
+                if (!sgcl::io::detail::link_stays_inside(name, t)) {
+                    return unexpected(error(errc::insecure_path, 0, string("zip: a link's target leaves the directory: ") + e.name));
+                }
+                out.symlink(name, t);
+                continue;
+            }
+            auto r = a->reader(e);
+            if (!r) {
+                return unexpected(r.error());
+            }
+            if (auto made = out.file(name, e.mode, optional<time::datetime>(e.modified), *r, e.offset); !made) {
+                return made;
+            }
+        }
+        return out.finish();
+    }
+
+    inline expected<void, error> zip_create(const string& directory, const string& archive_path, zip::method m) {
+        auto tree = list_tree(directory);
+        if (!tree) {
+            return unexpected(tree.error());
+        }
+        auto file = io::create(archive_path);
+        if (!file) {
+            return unexpected(error(file.error(), 0));
+        }
+        auto write_all = [&]() -> expected<void, error> {
+            zip::writer w(*file);
+            for (const auto& t : *tree) {
+                zip::entry e;
+                e.modified = datetime_of(t.modified);
+                e.mode = io::permissions(unsigned(t.mode) & 07777);
+                e.method = m;
+                if (t.type == io::file_type::directory) {
+                    e.name = string(t.name + "/");
+                    e.method = zip::method::store;
+                } else {
+                    e.name = string(t.name);
+                    e.symlink = t.type == io::file_type::symlink;
+                }
+                auto out = w.create(e);
+                if (!out) {
+                    return unexpected(out.error());
+                }
+                if (t.type == io::file_type::symlink) {
+                    (void)out->write(slice<const byte>(reinterpret_cast<const byte*>(t.target.data()), t.target.size()));
+                } else if (t.type == io::file_type::regular) {
+                    auto in = io::open(string(t.path));
+                    if (!in) {
+                        return unexpected(error(in.error(), 0));
+                    }
+                    auto copied = io::copy(*out, *in);
+                    (void)in->close();
+                    if (!copied) {
+                        return unexpected(archive_error(copied.error()));
+                    }
+                }
+            }
+            return w.close();
+        };
+        auto r = write_all();
+        if (auto c = file->close(); r && !c) {
+            r = unexpected(error(c.error(), 0));
+        }
+        if (!r) {
+            (void)io::remove(archive_path);
+        }
+        return r;
+    }
+}
+
+namespace sgcl::compress::zip {
+    // What extract and create take besides the paths
+    struct options {
+        zip::method method = zip::method::deflate;   // create: how the files are stored, deflate or store
+        uint64_t max_size = limits{}.max_size;       // extract: the files' bytes together past which nothing is written (errc::too_large); 1 GiB, 0: none
+    };
+
+    namespace detail {
+        inline async::task<expected<void, error>> zip_extract_task(string archive_path, string directory, uint64_t max) {
+            co_return co_await async::spawn_blocking([archive_path, directory, max] { return compress::detail::zip_extract(archive_path, directory, max); });
+        }
+
+        inline async::task<expected<void, error>> zip_create_task(string directory, string archive_path, zip::method m) {
+            co_return co_await async::spawn_blocking([directory, archive_path, m] { return compress::detail::zip_create(directory, archive_path, m); });
+        }
+    }
+
+    // The archive unpacked under the directory: zip::extract("site.zip",
+    // "site"). Every name is checked before anything is written
+    // (errc::insecure_path, and nothing written), and so is the total
+    // against options::max_size (errc::too_large; 1 GiB by default, as
+    // decompress has it: an archive comes from outside); directories,
+    // files with their mode and time, symbolic links made last, their
+    // targets kept inside. A file there already is written over.
+    inline expected<void, error> extract(const string& archive_path, const string& directory, const options& o = {}) {
+        return compress::detail::zip_extract(archive_path, directory, o.max_size);
+    }
+
+    // The same in a task, on the blocking pool
+    inline async::task<expected<void, error>> async_extract(string archive_path, string directory, options o = {}) {
+        return detail::zip_extract_task(std::move(archive_path), std::move(directory), o.max_size);
+    }
+
+    // The directory packed into the archive: zip::create("site",
+    // "site.zip"), the files deflated or stored (options::method). The
+    // entries are named from the directory ("index.html", "css/",
+    // "css/site.css"), as Go's AddFS names them, in lexical order, with
+    // their mode and time; symbolic links as links; a socket, a device or
+    // a fifo left out. A failure removes the file.
+    inline expected<void, error> create(const string& directory, const string& archive_path, const options& o = {}) {
+        return compress::detail::zip_create(directory, archive_path, o.method);
+    }
+
+    inline async::task<expected<void, error>> async_create(string directory, string archive_path, options o = {}) {
+        return detail::zip_create_task(std::move(directory), std::move(archive_path), o.method);
+    }
 }

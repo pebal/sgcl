@@ -54,6 +54,48 @@ The same load over TLS 1.3 (`SCHEME=https run.sh`): the module's server behind `
 
 What the numbers say. TLS barely moves either server at this size: a hello-world response is one record each way, and both servers stay within a few per cent of their plain-HTTP throughput above. At four workers the module's server is level with Go (98 to 103 per cent) at 16 to 20 per cent more CPU per request (38 to 40 µs against 32 to 34; over plain HTTP the gap in the table above is 1 to 11 per cent, so most of the difference is in the TLS layer, not yet profiled). At 24 workers it is 9 to 59 per cent ahead, as over plain HTTP. Its resident size is 1.7 to 3.5 times Go's, growing with the connections: each connection keeps about 100 KB of record buffers (the framer's two records, two for sealing, one of plaintext, the assembler's) in an unmanaged block of its own for as long as it lives, where Go's `crypto/tls` sizes its buffers per record.
 
+A large response (2026-09-28): `POST /resp?size=65536`, 1000 bytes in and 64 KB out, at 4 workers and 64 connections. The runs are three passes of 2 seconds, and in each pass the server before, the server after and Go's run in turn. Before and after are measured around the change that sends a response as its blocks: the head, the body and the chunk lines go to one `sendmsg`, and TLS seals the records from the parts where they lie. Before it, the parts were first copied into one buffer. The cells are the means of the three passes: requests per second, the server's CPU per request, its p99 and its peak resident size.
+
+| case | req/s before / after / Go | CPU µs/req before / after / Go | p99 ms before / after / Go | RSS MB before / after / Go |
+|---|---|---|---|---|
+| response 64 KB, https | 40 800 / 60 900 / 37 100 | 91.6 / 64.0 / 86.1 | 2.04 / 2.01 / 2.51 | 31 / 27 / 21 |
+| response 64 KB, http (for comparison) | 67 000 / 67 600 / 54 300 | 53.4 / 51.7 / 54.6 | 2.48 / 2.51 / 2.85 | 27 / 22 / 19 |
+
+Over TLS the change takes the requests per second up by half and the CPU per request down by 30 per cent, and the server now leads Go's by 64 per cent at 26 per cent less CPU. Per response it copies 132 KB instead of 198 KB and makes 2 writes instead of 5, as counted by a probe on the copies and the system calls. Over plain HTTP the socket is the bound, so the change shows only in the CPU (−3 per cent) and the copies (67 KB instead of 132 KB). Responses of 1 KB stay within the noise of the runs.
+
+A file (2026-09-28): `GET /file`, a file of 1 MB, at 4 workers, runs as above. Before, the handler read the file whole with `io::read_file` and wrote its bytes. After, it writes the file (`w.write(io::open(path))`), which goes after the head by `sendfile` over TCP and is read in blocks sealed where they lie over TLS. Go serves the file with `http.ServeFile`, by `sendfile` over TCP.
+
+| case | req/s before / after / Go | CPU µs/req before / after / Go | p99 ms before / after / Go | RSS MB before / after / Go |
+|---|---|---|---|---|
+| file 1 MB, http, c64 | 6 726 / 7 129 / 7 079 | 638.8 / 199.0 / 199.9 | 12.96 / 38.9 / 48.3 | 192 / 22 / 22 |
+| file 1 MB, http, c16 | 6 702 / 6 799 / 6 835 | 640.9 / 267.7 / 277.3 | 3.27 / 2.97 / 2.99 | 93 / 20 / 18 |
+| file 1 MB, https, c64 | 5 663 / 5 418 / 3 472 | 893.9 / 660.5 / 918.2 | 12.79 / 13.98 / 24.89 | 162 / 42 / 27 |
+| file 1 MB, https, c16 | 5 994 / 5 978 / 3 522 | 882.4 / 648.0 / 905.0 | 3.44 / 3.52 / 6.47 | 90 / 29 / 19 |
+
+Over plain HTTP the server now matches Go in requests per second and CPU per request. It uses 58 to 69 per cent less CPU than before and about a ninth of the memory, since the file is no longer held in memory. Per request, the copies in the process fall from 1.05 MB to 0.14 KB: one write for the head and one `sendfile`. The p99 at 64 connections rises from 13 to 39 ms. Go shows the same effect (48 ms): `sendfile` hands the kernel the whole 1 MB at once, and the connections are served less evenly than by writes of 48 KB. At 16 connections p99 is lower than before. Over TLS the CPU per request falls by 26 per cent, and only the sealing copies the file (1.05 MB instead of 2.1). The requests per second at 64 connections are 4 per cent lower than before, still 56 per cent above Go's.
+
+A stream (2026-09-28): `GET /stream`, 64 KB written in 4 pieces with a flush after each, so the response goes chunked, at 4 workers, runs as above. Before, each flush copied the piece into the connection's buffer with its chunk framing. After, a flush writes the chunk's size line, the body's blocks where they lie and the closing CRLF as the pieces of one write (one `sendmsg`; over TLS the records are sealed from the blocks). Go writes the same response with `http.Flusher`.
+
+| case | req/s before / after / Go | CPU µs/req before / after / Go | p99 ms before / after / Go | RSS MB before / after / Go |
+|---|---|---|---|---|
+| stream 64 KB in 4 flushes, https, c64 | 28 071 / 37 203 / 23 609 | 127.6 / 94.0 / 132.8 | 3.77 / 3.72 / 5.01 | 33 / 32 / 21 |
+| stream 64 KB in 4 flushes, https, c16 | 29 966 / 40 316 / 25 336 | 123.6 / 91.8 / 126.2 | 0.755 / 0.611 / 1.042 | 31 / 31 / 19 |
+| stream 64 KB in 4 flushes, http, c64 | 41 044 / 40 935 / 26 174 | 84.2 / 82.6 / 115.8 | 3.01 / 3.15 / 3.44 | 27 / 27 / 18 |
+| stream 64 KB in 4 flushes, http, c16 | 42 470 / 42 866 / 27 596 | 83.3 / 80.8 / 108.8 | 0.575 / 0.594 / 0.937 | 26 / 26 / 18 |
+
+Over TLS the requests per second rise by a third and the CPU per request falls by 26 per cent. Each response takes 5 writes instead of 9, and copies 131 KB instead of 197 KB (the handler's copy into the body and the sealing). The server is now 58 per cent ahead of Go's at 29 per cent less CPU. At 64 connections the second of the three passes was disturbed for all three servers alike; the first and the third show +38 per cent. Over plain HTTP the socket took the same bytes before, so only the CPU moves (−2 to −3 per cent) and the copies halve (66 KB instead of 131 KB). The requests per second and p99 stay within the noise.
+
+A client's upload (2026-09-28): the module's client POSTing a body of 1 MB to the module's server (`bench_http_post`, `net/http_load/postbench.cpp`; the server's `POST /resp?size=16` reads the body and answers 16 bytes), 4 workers on each side, runs as above. Over https the client speaks HTTP/2, which the server offers by ALPN. Before, the client copied the head and the body into one buffer (HTTP/1.1), or the body into the connection's output and again into the writer's copy (HTTP/2). After, the body goes from where it lies: the head and the body as the pieces of one write (HTTP/1.1), the DATA frames' payloads in place among the output's bytes (HTTP/2), sealed there over TLS. Go's side is its `http.Client` in `load` (`-method POST -body 1048576`, `-proto h2` over https). The cells are the client's requests per second and its CPU per request.
+
+| case | req/s before / after / Go | client CPU µs/req before / after / Go |
+|---|---|---|
+| POST 1 MB, https (HTTP/2), c16 | 1 274 / 1 436 / 922 | 1 704.2 / 915.5 / 2 161.0 |
+| POST 1 MB, https (HTTP/2), c64 | 1 207 / 1 354 / 811 | 1 906.1 / 1 283.0 / 2 369.6 |
+| POST 1 MB, http, c16 | 8 389 / 8 675 / 7 733 | 290.1 / 259.8 / 428.1 |
+| POST 1 MB, http, c64 | 7 207 / 7 394 / 6 993 | 308.9 / 268.8 / 351.3 |
+
+Over https the client's CPU per request falls by a third to almost a half, and its requests per second rise by 12 to 13 per cent. Its copies per request fall from 3.1 MB to the sealing alone, and its writes from 66 to 23. Against Go's client it sends 56 to 67 per cent more requests at 46 to 58 per cent less CPU. Over plain HTTP the copy of 1 MB and its allocation per request are gone: the CPU falls by 10 to 13 per cent and the requests per second rise by 3 per cent.
+
 ### HTTP/2 (2026-09-28)
 
 The same machine and load generator, the requests HTTP/2 (`REQUEST="-proto h2 ..." run.sh`): `load` drives Go's `http.Transport` with its HTTP/2 (C goroutines, one request in flight each, as streams of the Transport's connections: one connection up to the server's MAX_CONCURRENT_STREAMS of 250, two at c = 256), its first request made before the clock. h2 over TLS 1.3 by ALPN (the module's `server::serve_tls`, Go's `ListenAndServeTLS`, the certificate of `tests/net/tls_testdata`) and h2c by prior knowledge on the plain port (`server::h2c`, Go's `http.Protocols` with unencrypted HTTP/2); `GET /` (hello, world) and `POST /echo` with 1000 bytes echoed. Each cell one run of 2 seconds, the module's server and Go's in turn; requests per second, their ratio, the server's CPU (user and system) per request and its peak resident size:

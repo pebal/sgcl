@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -158,8 +158,10 @@ namespace sgcl::async {
         }
 
         // A waiter record woken: a coroutine made ready, a channel closed
-        // (signalled first when ready: a select's case sees a readiness
-        // apart from a wait ended with nothing), a thread's word set
+        // (with the ready bit when ready: the library tells a readiness
+        // apart from a wait ended with nothing, and the event is set by the
+        // close alone, so that a wait woken by it finds it set), a
+        // thread's word set
         inline void poll_wake(PollWaiter& w, bool ready, WakeBatch* batch) {
             if (w.frame) {
                 tracked_ptr<FrameWord> f = w.frame;
@@ -167,9 +169,10 @@ namespace sgcl::async {
                 poll_wake(std::move(f), batch);
             } else if (w.ch) {
                 if (ready) {
-                    w.ch->try_send();
+                    w.ch->close_ready();
+                } else {
+                    w.ch->close();
                 }
-                w.ch->close();
             } else {
                 w.signal.store(1, std::memory_order_release);   // the thread's wait reads it with acquire
                 w.signal.notify_one();                          // the record is held by the waker's pointer, alive under the call
@@ -544,8 +547,7 @@ namespace sgcl::async {
                     siginfo_t si;
                     while (::waitid(P_PID, (id_t)pid, &si, WEXITED | WNOWAIT) < 0 && errno == EINTR) {
                     }
-                    ch->try_send();
-                    ch->close();
+                    ch->close_ready();   // the process ended
                 }).detach();
 #else
                 (void)pid; (void)keep; (void)ch;
@@ -1039,14 +1041,14 @@ namespace sgcl::async {
                 PollSlot* s = inc ? slot(fd) : nullptr;
                 if (!s) {
                     if (inc) {
-                        ch->try_send();   // a number past the table: ready at once, the call after says what is
+                        ch->close_ready();   // a number past the table: ready at once, the call after says what is
+                    } else {
+                        ch->close();
                     }
-                    ch->close();
                     return;
                 }
                 if (arm(fd, *s, dir, inc)) {
-                    ch->try_send();   // not watched: ready at once, the call after says what is (the one-shot way's rule)
-                    ch->close();
+                    ch->close_ready();   // not watched: ready at once, the call after says what is (the one-shot way's rule)
                     return;
                 }
                 tracked_ptr<PollWaiter> w = make_tracked<PollWaiter>();
@@ -1057,9 +1059,10 @@ namespace sgcl::async {
                 bool now = ::poll(&p, 1, 0) > 0;
                 if ((now || live() != inc) && s->remove(dir, w.get())) {
                     if (now) {
-                        ch->try_send();
+                        ch->close_ready();
+                    } else {
+                        ch->close();
                     }
-                    ch->close();
                 }
             }
 
@@ -1169,15 +1172,16 @@ namespace sgcl::async {
             int _wake_fd = -1;
 #endif
 #if SGCL_REACTOR_KQUEUE || SGCL_REACTOR_EPOLL
-            // The waits of the one-shot way signalled (ready) or ended with
-            // nothing, and their channels closed; outside _m, since a close
-            // wakes whoever waits on the channel
+            // The waits of the one-shot way ended, ready (the ready bit) or
+            // with nothing, their channels closed; outside _m, since a
+            // close wakes whoever waits on the channel
             static void _end(std::vector<root_ptr<IoWait>>& waits, bool ready) {
                 for (auto& w : waits) {
                     if (ready) {
-                        w->ch->try_send();
+                        w->ch->close_ready();
+                    } else {
+                        w->ch->close();
                     }
-                    w->ch->close();
                 }
                 waits.clear();
             }
@@ -1210,14 +1214,14 @@ namespace sgcl::async {
     // it until fd is ready, and drops a set one at a later wait on the
     // descriptor.
     inline event readable(int fd) {
-        tracked_ptr<detail::ChannelState<void>> ch = make_tracked<detail::ChannelState<void>>(1);
+        tracked_ptr<detail::ChannelState<void>> ch = detail::make_linked_state<void>(1);
         detail::reactor_instance().watch(fd, false, ch, ch.get());
         return detail::EventAccess::make(std::move(ch));
     }
 
     // The same for a write
     inline event writable(int fd) {
-        tracked_ptr<detail::ChannelState<void>> ch = make_tracked<detail::ChannelState<void>>(1);
+        tracked_ptr<detail::ChannelState<void>> ch = detail::make_linked_state<void>(1);
         detail::reactor_instance().watch(fd, true, ch, ch.get());
         return detail::EventAccess::make(std::move(ch));
     }
@@ -1234,7 +1238,7 @@ namespace sgcl::async {
     // process that has ended already, or that does not exist, sets it at
     // once.
     inline event exited(int pid) {
-        tracked_ptr<detail::ChannelState<void>> ch = make_tracked<detail::ChannelState<void>>(1);
+        tracked_ptr<detail::ChannelState<void>> ch = detail::make_linked_state<void>(1);
         detail::reactor_instance().watch_exit(pid, ch, ch.get());
         return detail::EventAccess::make(std::move(ch));
     }

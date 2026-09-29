@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -208,8 +208,18 @@ namespace sgcl::txt {
             return n ? group(*n) : nullopt;
         }
 
-        optional<slice<const char>> group(const char* name) const noexcept {
-            auto n = _index_of(name ? std::string_view(name) : std::string_view());
+        // A C text: an array up to its first NUL or its end, a pointer up
+        // to its NUL (detail::c_text)
+        template<size_t N>
+        optional<slice<const char>> group(const char (&name)[N]) const noexcept {
+            auto n = _index_of(detail::c_text(name).view());
+            return n ? group(*n) : nullopt;
+        }
+
+        template<class P>
+        requires std::same_as<P, const char*> || std::same_as<P, char*>
+        optional<slice<const char>> group(P name) const noexcept {
+            auto n = _index_of(detail::c_text(name).view());
             return n ? group(*n) : nullopt;
         }
 
@@ -397,6 +407,19 @@ namespace sgcl::txt {
         regex_matches() noexcept = default;
         regex_matches(const regex& re, const slice<const char>& text);
 
+        // A C text, copied into a string the range then holds: the
+        // slice of a literal's array would count its terminating zero
+        template<size_t N>
+        regex_matches(const regex& re, const char (&text)[N])
+        : regex_matches(re, detail::c_string(text).as_slice()) {
+        }
+
+        template<class P>
+        requires std::same_as<P, const char*> || std::same_as<P, char*>
+        regex_matches(const regex& re, P text)
+        : regex_matches(re, detail::c_string(text).as_slice()) {
+        }
+
         iterator begin() const {
             return iterator(_state, _text);
         }
@@ -493,6 +516,20 @@ namespace sgcl::txt {
             return _compile(string(pattern.data(), pattern.size()));
         }
 
+        // A C text — a literal among them, which a string and a slice
+        // would both take — as detail::c_text reads it; so every member
+        // below that takes a text
+        template<size_t N>
+        static expected<regex, regex_error> compile(const char (&pattern)[N]) {
+            return _compile(detail::c_string(pattern));
+        }
+
+        template<class P>
+        requires std::same_as<P, const char*> || std::same_as<P, char*>
+        static expected<regex, regex_error> compile(P pattern) {
+            return _compile(detail::c_string(pattern));
+        }
+
         const string& pattern() const noexcept {
             return _state->pattern;
         }
@@ -527,6 +564,17 @@ namespace sgcl::txt {
             return full_match(text.as_slice());
         }
 
+        template<size_t N>
+        bool full_match(const char (&text)[N]) const {
+            return full_match(detail::c_text(text));
+        }
+
+        template<class P>
+        requires std::same_as<P, const char*> || std::same_as<P, char*>
+        bool full_match(P text) const {
+            return full_match(detail::c_text(text));
+        }
+
         // Whether the pattern is anywhere in the text
         bool contains(const slice<const char>& text) const {
             size_t caps[2];
@@ -536,6 +584,17 @@ namespace sgcl::txt {
 
         bool contains(const string& text) const {
             return contains(text.as_slice());
+        }
+
+        template<size_t N>
+        bool contains(const char (&text)[N]) const {
+            return contains(detail::c_text(text));
+        }
+
+        template<class P>
+        requires std::same_as<P, const char*> || std::same_as<P, char*>
+        bool contains(P text) const {
+            return contains(detail::c_text(text));
         }
 
         // The first match at or after `from`, leftmost and then by the
@@ -563,6 +622,18 @@ namespace sgcl::txt {
             return find(text.as_slice(), from);
         }
 
+        // The match holds its text, so a C text is copied into one
+        template<size_t N>
+        optional<match> find(const char (&text)[N], size_t from = 0) const {
+            return find(detail::c_string(text), from);
+        }
+
+        template<class P>
+        requires std::same_as<P, const char*> || std::same_as<P, char*>
+        optional<match> find(P text, size_t from = 0) const {
+            return find(detail::c_string(text), from);
+        }
+
         // Every match, one after another and never overlapping
         regex_matches all(const slice<const char>& text) const {
             return regex_matches(*this, text);
@@ -572,12 +643,34 @@ namespace sgcl::txt {
             return regex_matches(*this, text.as_slice());
         }
 
+        template<size_t N>
+        regex_matches all(const char (&text)[N]) const {
+            return regex_matches(*this, text);
+        }
+
+        template<class P>
+        requires std::same_as<P, const char*> || std::same_as<P, char*>
+        regex_matches all(P text) const {
+            return regex_matches(*this, text);
+        }
+
         size_t count(const slice<const char>& text) const {
             return all(text).count();
         }
 
         size_t count(const string& text) const {
             return count(text.as_slice());
+        }
+
+        template<size_t N>
+        size_t count(const char (&text)[N]) const {
+            return count(detail::c_text(text));
+        }
+
+        template<class P>
+        requires std::same_as<P, const char*> || std::same_as<P, char*>
+        size_t count(P text) const {
+            return count(detail::c_text(text));
         }
 
         // Every match replaced. In the replacement $1 is what group one
@@ -591,6 +684,20 @@ namespace sgcl::txt {
             return _replace(text.as_slice(), with.view(), npos);
         }
 
+        template<size_t N, size_t M>
+        string replace(const char (&text)[N], const char (&with)[M]) const {
+            return _replace(detail::c_text(text), _view(detail::c_text(with)), npos);
+        }
+
+        // Two pointers; a pointer is taken by reference here, so that an
+        // array does not decay into one (it goes to the pair above)
+        template<class P, class Q>
+        requires (std::same_as<P, const char*> || std::same_as<P, char*>)
+              && (std::same_as<Q, const char*> || std::same_as<Q, char*>)
+        string replace(const P& text, const Q& with) const {
+            return _replace(detail::c_text(text), _view(detail::c_text(with)), npos);
+        }
+
         // Only the first match
         string replace_first(const string& text, const string& with) const {
             return _replace(text.as_slice(), with.view(), 1);
@@ -598,6 +705,20 @@ namespace sgcl::txt {
 
         string replace_first(const slice<const char>& text, const slice<const char>& with) const {
             return _replace(text, _view(with), 1);
+        }
+
+        template<size_t N, size_t M>
+        string replace_first(const char (&text)[N], const char (&with)[M]) const {
+            return _replace(detail::c_text(text), _view(detail::c_text(with)), 1);
+        }
+
+        // Two pointers; a pointer is taken by reference here, so that an
+        // array does not decay into one (it goes to the pair above)
+        template<class P, class Q>
+        requires (std::same_as<P, const char*> || std::same_as<P, char*>)
+              && (std::same_as<Q, const char*> || std::same_as<Q, char*>)
+        string replace_first(const P& text, const Q& with) const {
+            return _replace(detail::c_text(text), _view(detail::c_text(with)), 1);
         }
 
         // The pieces of the text between the matches, as slices of it. A
@@ -631,6 +752,18 @@ namespace sgcl::txt {
 
         vector<slice<const char>> split(const string& text, size_t limit = 0) const {
             return split(text.as_slice(), limit);
+        }
+
+        // The pieces hold their text, so a C text is copied into one
+        template<size_t N>
+        vector<slice<const char>> split(const char (&text)[N], size_t limit = 0) const {
+            return split(detail::c_string(text), limit);
+        }
+
+        template<class P>
+        requires std::same_as<P, const char*> || std::same_as<P, char*>
+        vector<slice<const char>> split(P text, size_t limit = 0) const {
+            return split(detail::c_string(text), limit);
         }
 
         // How many instructions the pattern spelled out to, for whoever

@@ -1,9 +1,11 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
+
+#include <charconv>
 
 #include "headers.h"
 #include "../error.h"
@@ -54,20 +56,20 @@ namespace sgcl::net::http {
 
         // The cookie a Set-Cookie literal in the program spells: parse's
         // value or its bad_expected_access<io::error> (DESIGN 234)
-        explicit cookie(const string& set_cookie)
-        : cookie(parse(set_cookie).value()) {
+        explicit cookie(const string& field)
+        : cookie(parse(field).value()) {
         }
 
         // The value of a Set-Cookie field
         string to_string() const;
 
         // A Set-Cookie value; net::errc::invalid_cookie when it holds no cookie
-        static expected<cookie, io::error> parse(const string& set_cookie);
+        static expected<cookie, io::error> parse(const string& field);
     };
 
     namespace detail {
         // cookie::parse without the error, for a reading that may find none
-        optional<cookie> parse_cookie(const string& set_cookie);
+        optional<cookie> parse_cookie(const string& field);
     }
 
     namespace detail {
@@ -222,88 +224,106 @@ namespace sgcl::net::http {
         }
     }
 
+    // The Set-Cookie value, written twice over the same steps: a pass that
+    // counts, then one into the string of that size (a string each for the
+    // name, the value and the whole before, and a copy between them)
     inline string cookie::to_string() const {
         if (!detail::is_token(name.view())) {
             throw invalid_argument("http::cookie: a name must be a token of RFC 6265");
         }
-        std::string s(name.view());
-        s += '=';
-        std::string v;
-        bool quote = false;
-        for (char c : value.view()) {
-            if (detail::cookie_octet(uint8_t(c))) {
-                v += c;
-            } else if (c == ' ' || c == ',') {
-                v += c;
-                quote = true;
-            }
-        }
-        if (quote) {
-            s += '"';
-            s += v;
-            s += '"';
-        } else {
-            s += v;
-        }
-        if (!path.empty()) {
-            s += "; Path=";
-            for (char c : path.view()) {
-                if (uint8_t(c) >= 0x20 && uint8_t(c) < 0x7F && c != ';') {
-                    s += c;
-                }
-            }
-        }
-        if (!domain.empty()) {
-            auto d = domain.view();
-            if (d.front() == '.') {
-                d.remove_prefix(1);
-            }
-            bool ok = !d.empty() && d.front() != '.';   // "..x" is no host name, and a reader would take one dot off again
-            for (char c : d) {
-                ok = ok && ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '_');
-            }
-            if (ok) {
-                s += "; Domain=";
-                s += d;
-            }
-        }
-        if (expires) {
-            s += "; Expires=";
-            s += expires->format(time::http).view();
-        }
+        string when = expires ? expires->format(time::http) : string();
+        char age[24];
+        size_t age_n = 0;
         if (max_age) {
             int64_t secs = max_age->nanoseconds() / 1000000000;
-            s += "; Max-Age=";
-            s += std::to_string(secs > 0 ? secs : 0);
+            age_n = size_t(std::to_chars(age, age + sizeof age, secs > 0 ? secs : int64_t(0)).ptr - age);
         }
-        if (http_only) {
-            s += "; HttpOnly";
-        }
-        if (secure) {
-            s += "; Secure";
-        }
-        if (detail::iequal(same_site.view(), "strict")) {
-            s += "; SameSite=Strict";
-        } else if (detail::iequal(same_site.view(), "lax")) {
-            s += "; SameSite=Lax";
-        } else if (detail::iequal(same_site.view(), "none")) {
-            s += "; SameSite=None";
-        }
-        if (partitioned) {
-            s += "; Partitioned";
-        }
-        return string(std::string_view(s));
+        auto write = [&](auto&& put) {
+            put(name.view());
+            put(std::string_view("="));
+            bool quote = false;
+            for (char c : value.view()) {
+                quote = quote || (!detail::cookie_octet(uint8_t(c)) && (c == ' ' || c == ','));
+            }
+            if (quote) {
+                put(std::string_view("\""));
+            }
+            for (char c : value.view()) {
+                if (detail::cookie_octet(uint8_t(c)) || c == ' ' || c == ',') {
+                    put(std::string_view(&c, 1));
+                }
+            }
+            if (quote) {
+                put(std::string_view("\""));
+            }
+            if (!path.empty()) {
+                put(std::string_view("; Path="));
+                for (char c : path.view()) {
+                    if (uint8_t(c) >= 0x20 && uint8_t(c) < 0x7F && c != ';') {
+                        put(std::string_view(&c, 1));
+                    }
+                }
+            }
+            if (!domain.empty()) {
+                auto d = domain.view();
+                if (d.front() == '.') {
+                    d.remove_prefix(1);
+                }
+                bool ok = !d.empty() && d.front() != '.';   // "..x" is no host name, and a reader would take one dot off again
+                for (char c : d) {
+                    ok = ok && ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '_');
+                }
+                if (ok) {
+                    put(std::string_view("; Domain="));
+                    put(d);
+                }
+            }
+            if (expires) {
+                put(std::string_view("; Expires="));
+                put(when.view());
+            }
+            if (max_age) {
+                put(std::string_view("; Max-Age="));
+                put(std::string_view(age, age_n));
+            }
+            if (http_only) {
+                put(std::string_view("; HttpOnly"));
+            }
+            if (secure) {
+                put(std::string_view("; Secure"));
+            }
+            if (detail::iequal(same_site.view(), "strict")) {
+                put(std::string_view("; SameSite=Strict"));
+            } else if (detail::iequal(same_site.view(), "lax")) {
+                put(std::string_view("; SameSite=Lax"));
+            } else if (detail::iequal(same_site.view(), "none")) {
+                put(std::string_view("; SameSite=None"));
+            }
+            if (partitioned) {
+                put(std::string_view("; Partitioned"));
+            }
+        };
+        size_t n = 0;
+        write([&](std::string_view piece) {
+            n += piece.size();
+        });
+        return sgcl::detail::StringAccess::filled<string>(n, [&](char* at) {
+            write([&](std::string_view piece) {
+                sgcl::detail::copy_bytes(at, piece.data(), piece.size());
+                at += piece.size();
+            });
+        });
     }
 
-    inline expected<cookie, io::error> cookie::parse(const string& set_cookie) {
-        if (auto c = detail::parse_cookie(set_cookie)) {
+    inline expected<cookie, io::error> cookie::parse(const string& field) {
+        if (auto c = detail::parse_cookie(field)) {
             return std::move(*c);
         }
-        return unexpected(net::detail::net_error(net::errc::invalid_cookie, "parse cookie", set_cookie));
+        return unexpected(net::detail::net_error(net::errc::invalid_cookie, "parse cookie", field));
     }
 
-    inline optional<cookie> detail::parse_cookie(const string& set_cookie) {
-        std::string_view v = set_cookie.view();
+    inline optional<cookie> detail::parse_cookie(const string& field) {
+        std::string_view v = field.view();
         auto semi = v.find(';');
         auto pair = detail::trim_ows(v.substr(0, semi));
         auto eq = pair.find('=');

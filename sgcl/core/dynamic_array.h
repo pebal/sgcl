@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -69,6 +69,9 @@ namespace sgcl {
                 if constexpr(detail::TypeInfo<T>::IsTracked) {
                     (void)data;
                     _size = count;   // zeroed: null tracked pointers already
+                } else if constexpr(_zero_is_value()) {
+                    std::memset(static_cast<void*>(data), 0, count * sizeof(T));
+                    _size = count;
                 } else {
                     _guarded([&] {
                         for (size_type i = 0; i < count; ++i) {
@@ -336,9 +339,32 @@ namespace sgcl {
 
         template<class... A>
         void _construct(T* p, A&&... a) {
-            detail::Maker<T>::construct(p, std::forward<A>(a)...);
+            _make_at(p, std::forward<A>(a)...);
             ++_size;
         }
+
+        // An element at p from the arguments; with none, value-initialized
+        // (T(): zero for a trivial type), as std's containers do. Not the
+        // maker's `new T`: a buffer of a type without tracked pointers is
+        // not zeroed when it is issued, and a slot of a pool or a range of
+        // pages holds what its last user left there (maker.h), so a
+        // default-initialized trivial element would be those bytes
+        template<class... A>
+        static void _make_at(T* p, A&&... a) {
+            if constexpr(sizeof...(A) == 0) {
+                ::new (static_cast<void*>(p)) std::remove_cv_t<T>();
+            } else {
+                detail::Maker<T>::construct(p, std::forward<A>(a)...);
+            }
+        }
+
+        // Elements [from, to) value-initialized, the count raised once: a
+        // trivial type that holds no tracked pointer is zeroed in one pass
+        // (T() is zero for it), any other type constructed one by one
+        static constexpr bool _zero_is_value() noexcept {
+            return std::is_trivially_default_constructible_v<T> && !detail::TypeInfo<T>::MayContainTracked && !std::is_member_pointer_v<T>;   // a null member pointer is not zero bytes (-1 on the Itanium ABI); a class holding one is not caught here
+        }
+
 
         // A constructor's loop: an element that throws takes the ones
         // constructed before it with it (the destructor will not run;

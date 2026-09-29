@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -14,7 +14,7 @@
 #include <thread>
 
 #if SGCL_LOG_PRINT_LEVEL >= 3
-#include <iostream>
+#include "diagnostics.h"
 #endif
 
 namespace sgcl::detail {
@@ -91,7 +91,7 @@ namespace sgcl::detail {
         : _page_allocator(new PageAllocator)
         , _data(new Data{_page_allocator}) {
 #if SGCL_LOG_PRINT_LEVEL >= 3
-            std::cout << "[sgcl] start thread id: " << std::this_thread::get_id() << std::endl;
+            diagnostic_line(3, "[sgcl] start thread id: " + diagnostic_thread_id());
 #endif
             if (!os::thread_stack(_data->stack_begin, _data->stack_end)) {
                 std::fprintf(stderr, "[sgcl] cannot determine the stack range of a thread\n");
@@ -121,7 +121,7 @@ namespace sgcl::detail {
             }
             _data->is_deleted.store(true, std::memory_order_release);
 #if SGCL_LOG_PRINT_LEVEL >= 3
-            std::cout << "[sgcl] stop thread id: " << std::this_thread::get_id() << std::endl;
+            diagnostic_line(3, "[sgcl] stop thread id: " + diagnostic_thread_id());
 #endif
         }
 

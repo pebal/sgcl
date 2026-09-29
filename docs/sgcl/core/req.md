@@ -59,7 +59,8 @@ static_assert(req::immutable<immutable::vector<int>> && !req::immutable<slice<co
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 #include <vector>
 
 using namespace sgcl;
@@ -87,9 +88,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 1 2 3 
 7 8 9 
 2 2 2

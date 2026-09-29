@@ -409,7 +409,8 @@ set from_list = {1, 2, 3};                   // set<int>
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -449,9 +450,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 a graph whose edges are sets
 3 names, 8 buckets
 8 live objects

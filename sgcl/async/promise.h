@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -118,7 +118,14 @@ namespace sgcl::async {
             enum State : int { Pending, Claimed };
 
             std::atomic<int> _state = {Pending};
-            ChannelState<void> _done;
+            ChannelState<void> _done{ChannelLinked{}, 0};   // linked by promise() (link())
+
+        public:
+            // the channel's lists linked: once, by the code that made the
+            // state, right after make_tracked (ChannelState::link)
+            void link() noexcept {
+                _done.link();
+            }
         };
     }
 
@@ -308,6 +315,7 @@ namespace sgcl::async {
 
         promise()
         : _s(make_tracked<State>()) {
+            _s->link();   // before the state is given to anyone
         }
 
         promise(const promise&) noexcept = default;
@@ -390,6 +398,7 @@ namespace sgcl::async {
 
         promise()
         : _s(make_tracked<State>()) {
+            _s->link();   // before the state is given to anyone
         }
 
         promise(const promise&) noexcept = default;

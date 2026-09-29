@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -10,6 +10,7 @@
 
 #include <cstddef>
 #include <cstring>
+#include <new>
 
 namespace sgcl::crypto {
     namespace detail {
@@ -42,6 +43,34 @@ namespace sgcl::crypto {
         void secure_zero_object(T& object) noexcept {
             secure_zero(static_cast<void*>(&object), sizeof(T));
         }
+
+        // The memory of a SmallVector that holds a secret
+        // (core/detail/small_vector.h; secret_bytes): plain memory from
+        // ::operator new, never managed; every block zeroed before it goes
+        // back, the one a growth leaves too, and every byte the vector lets
+        // go of without freeing (a truncation, a move's source, the inline
+        // bytes a growth leaves, the destructor's) zeroed by wipe. `probe`,
+        // when a test sets it, is shown every block as it goes, zeroed and
+        // not yet freed.
+        struct WipingPolicy {
+            static inline void (*probe)(const void* block, size_t n) noexcept = nullptr;
+
+            static void* allocate(size_t bytes) {
+                return ::operator new(bytes);
+            }
+
+            static void deallocate(void* p, size_t bytes) noexcept {
+                secure_zero(p, bytes);
+                if (probe) {
+                    probe(p, bytes);
+                }
+                ::operator delete(p, bytes);
+            }
+
+            static void wipe(void* p, size_t bytes) noexcept {
+                secure_zero(p, bytes);
+            }
+        };
     }
 
     // Zeros over the bytes of a buffer that held a secret — a key, a

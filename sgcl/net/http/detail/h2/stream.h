@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -54,12 +54,29 @@ namespace sgcl::net::http::detail::h2 {
         // queued (END_STREAM with it when asked)
         virtual async::task<expected<void, io::error>> send_data(uint32_t id, slice<const byte> data, bool end_stream) = 0;
 
+        // The same for a piece of a body's block (BodyBuffer), which the
+        // connection may send in place, not copied: the block stays
+        // unchanged until retire() has it and the connection gives it back
+        // to the pool. The default copies, as send_data
+        virtual async::task<expected<void, io::error>> send_block(uint32_t id, slice<const byte> data, bool end_stream) {
+            return send_data(id, std::move(data), end_stream);
+        }
+
+        // A body's blocks once all of them are queued (send_now,
+        // send_block): the connection gives them back to the worker's pool
+        // when what it queued of them is written. The default gives them
+        // back at once (it copied them)
+        virtual void retire(BodyBuffer& body) {
+            body.release();
+        }
+
         // HEADERS (when a block is given; END_STREAM on them with
         // headers_end) and as much of `data` as the windows allow, in one
         // step: one hold of the connection's lock and one wake of its
         // writer, so that a response small enough goes out in one write
         // (over TLS one record), not a write for its HEADERS and another
-        // for its DATA (`data` null: none). The result is the bytes of `data` taken (all of
+        // for its DATA (`data` null: none; its blocks may be sent in place,
+        // as by send_block, and go to retire() after). The result is the bytes of `data` taken (all of
         // them: END_STREAM with the last when end_stream; none and
         // end_stream: an empty DATA with END_STREAM); the rest is sent by
         // send_data. The owner without it (the default) sends the HEADERS

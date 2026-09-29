@@ -118,7 +118,9 @@ The entries, the dead ones not yet swept included; `sweep()` drops the dead ones
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/concurrent/concurrent.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -174,9 +176,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 2000 records of alpha.example, 2 strings in the pool
 true false 2 points
 ```

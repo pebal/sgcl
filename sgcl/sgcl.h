@@ -1,11 +1,12 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
 #include "async/async.h"
+#include "codec/codec.h"
 #include "compress/compress.h"
 #include "concurrent/concurrent.h"
 #include "core/core.h"
@@ -18,5 +19,6 @@
 #include "net/net.h"
 #include "net/http/http.h"
 #include "net/tls.h"
+#include "slog/slog.h"
 #include "time/time.h"
 #include "txt/txt.h"

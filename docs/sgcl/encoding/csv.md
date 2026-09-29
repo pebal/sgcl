@@ -94,7 +94,8 @@ public:
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -11,6 +11,7 @@
 #include "../constant_time.h"
 #include "../detail/words.h"
 #include "../error.h"
+#include "../secret.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -57,9 +58,10 @@ namespace sgcl::crypto::mixin {
 
         // The plaintext, or errc::authentication when the tag does not
         // match (the data, the nonce, the additional data or the key is
-        // not the one sealed). The plaintext is in a managed vector: for
-        // data that must not stay in memory, open_to into a buffer the
-        // program clears.
+        // not the one sealed). The plaintext is the user's data, not key
+        // material: a vector<byte>, as seal gives the ciphertext; open_to
+        // writes into the caller's own buffer (for a key unwrapped, which
+        // the caller then clears).
         [[nodiscard]] expected<vector<byte>, error> open(const slice<const byte>& nonce, const slice<const byte>& sealed) const {
             return open(nonce, sealed, slice<const byte>());
         }

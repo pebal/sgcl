@@ -1,10 +1,11 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../secret.h"
 #include "../secure_zero.h"
 
 #include <cassert>
@@ -491,4 +492,16 @@ namespace sgcl::crypto::detail {
         unsigned char _buf[Capacity];
         size_t _pos = Capacity;
     };
+
+    // What a DerWriter wrote, when it holds a secret (a private key): into
+    // a secret_bytes, never managed memory (the writer zeroes its own
+    // buffer when it goes)
+    template<class W>
+    secret_bytes take_secret(const W& w) {
+        secret_bytes out(w.size());
+        if (w.size()) {
+            std::memcpy(out.as_slice().data(), w.data(), w.size());
+        }
+        return out;
+    }
 }

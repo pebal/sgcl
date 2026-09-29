@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -18,12 +18,15 @@
 #include "../../time/datetime.h"
 #include "../../time/layout.h"
 
+#include <array>
+#include <cerrno>
 #include <climits>
 #include <cstdint>
 #include <atomic>
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <unistd.h>
 
 namespace sgcl::net::http {
     namespace detail {
@@ -187,12 +190,107 @@ namespace sgcl::net::http {
             bool until_close = false;         // after a flush to HTTP/1.0: the body ends with the connection
             optional<uint64_t> declared;      // the handler's Content-Length, after a flush
             uint64_t sent = 0;                // body bytes sent after a flush
+            uint64_t flushed = 0;             // body bytes handed to flushes (the access log's count; sent counts the framing too)
             bool touched = false;             // a status set or a byte written
             bool hijacked = false;
             optional<io::error> failed;       // a write that failed
+            io::file file;                    // write(file) with nothing else written: the body, sent after the head by sendfile
+            uint64_t file_at = 0;             // its bytes: from file_at, file_n of them
+            uint64_t file_n = 0;
+            bool has_file = false;
 
             static bool bodiless(int status) noexcept {
                 return (status >= 100 && status < 200) || status == 204 || status == 304;
+            }
+
+            // The bytes of the body the handler gave: what went by flushes,
+            // what is buffered and a file kept for sendfile; none for HEAD
+            // and a status without a body (the access log's `bytes`)
+            uint64_t body_bytes() const noexcept {
+                if (head_request || bodiless(status)) {
+                    return 0;
+                }
+                return flushed + body.size() + (has_file ? file_n : 0);
+            }
+
+            // write(file): the file from its position to its end is the
+            // body, its position moved to the end. Kept as the file, to be
+            // sent by sendfile after the head, when it is all the body will
+            // be (HTTP/1.1, nothing written before it, no flush); else its
+            // bytes read into the body now
+            void write_file(const io::file& f) {
+                touched = true;
+                if (!h2 && !head_sent && !has_file && body.empty()) {
+                    if (auto rest = net::detail::file_rest(f)) {
+                        file = f;
+                        file_at = rest->first;
+                        file_n = rest->second;
+                        has_file = true;
+                        ::lseek(f.fd(), off_t(file_at + file_n), SEEK_SET);
+                        return;
+                    }
+                }
+                take_file();
+                // read straight into the body's blocks: no buffer on the
+                // stack (a deep one leaves words of this request on the
+                // worker's dead stack, which keep it alive)
+                body.append_read([&](std::byte* at, size_t room) -> size_t {
+                    auto got = f.read(slice<byte>(at, room));
+                    if (!got) {
+                        if (!failed) {
+                            failed = got.error();
+                        }
+                        return 0;
+                    }
+                    return *got;
+                });
+            }
+
+            // A file kept by write(file) read into the body: something else
+            // is written after it, or it goes out by a flush
+            void take_file() {
+                if (!has_file) {
+                    return;
+                }
+                has_file = false;
+                uint64_t from = file_at;
+                const uint64_t end = file_at + file_n;
+                const int fd = file.fd();
+                body.append_read([&](std::byte* at, size_t room) -> size_t {
+                    while (from < end) {
+                        ssize_t got = ::pread(fd, at, size_t(std::min<uint64_t>(room, end - from)), off_t(from));
+                        if (got < 0 && errno == EINTR) {
+                            continue;
+                        }
+                        if (got <= 0) {
+                            return 0;   // the file shrank: the body is what there was
+                        }
+                        from += uint64_t(got);
+                        return size_t(got);
+                    }
+                    return 0;
+                });
+                file = io::file();
+            }
+
+            // The head (in the wire's buffer), then the file by sendfile
+            // (over TLS its blocks sealed where they lie); a file that
+            // shrank since is short of the Content-Length sent, and the
+            // connection ends after it
+            static async::task<expected<void, io::error>> _sent_file(tracked_ptr<WriterImpl> self) {
+                auto& c = net::detail::ConnectionAccess::impl(self->wire->connection());
+                const std::string& out = self->wire->out;
+                auto head = co_await c.async_write(slice<const byte>(reinterpret_cast<const byte*>(out.data()), out.size()));
+                if (!head) {
+                    co_return self->sent_result(head);
+                }
+                auto r = co_await c.async_send_file(self->file.fd(), self->file_at, self->file_n);
+                self->file = io::file();
+                if (r && *r != self->file_n) {
+                    self->close_after = true;
+                    co_return self->sent_result(io::detail::fail(io::error(std::make_error_code(std::errc::io_error), "write", "a file shorter than its Content-Length")));
+                }
+                co_return self->sent_result(r);
             }
 
             // The head, with the framing decided, at the end of `h` (the
@@ -262,14 +360,6 @@ namespace sgcl::net::http {
                 return cl;
             }
 
-            async::task<expected<void, io::error>> send() {
-                expected<void, io::error> now;
-                if (auto rest = send_start(now)) {
-                    co_return co_await *rest;
-                }
-                co_return now;
-            }
-
             // The wire's buffer (wire->out) sent, begun without a frame
             // (net: ConnImpl::start_write): the buffer held by the wire
             // while it goes, the result in `now` when the connection took
@@ -294,6 +384,107 @@ namespace sgcl::net::http {
                 return nullopt;
             }
 
+            // The head in the wire's buffer and the body's blocks after it as
+            // one write (net: ConnImpl::start_write_parts): a socket takes
+            // them in one sendmsg, TLS seals its records straight from the
+            // blocks, and the body is not copied into the wire's buffer
+            // first. The blocks go back to the worker's pool when the write
+            // is done: at once when the connection took all of it, else at
+            // the end of the task that writes the rest
+            optional<async::task<expected<void, io::error>>> send_parts(expected<void, io::error>& now) {
+                const std::string& out = wire->out;
+                vector<slice<const byte>> parts;
+                parts.push_back(slice<const byte>(reinterpret_cast<const byte*>(out.data()), out.size()));
+                body.each([&](const slice<const byte>& part) {
+                    parts.push_back(part);
+                });
+                return _write_parts(parts, now);
+            }
+
+            // The body written so far in the framing of a flushed response,
+            // after what the wire's buffer holds (the head, when it goes
+            // now), as the pieces of one write: the buffer with a chunk's
+            // size line, the body's blocks where they lie, and the chunk's
+            // CRLF (with the last chunk when `last`), a static piece. The
+            // bytes held in the body buffer itself (64 at most, no blocks)
+            // are copied into the wire's buffer instead. With the
+            // handler's Content-Length, what goes past it is dropped and
+            // the connection ends after the response, as before
+            optional<async::task<expected<void, io::error>>> send_framed(expected<void, io::error>& now, bool last) {
+                if (failed) {
+                    now = io::detail::fail(*failed);
+                    return nullopt;
+                }
+                std::string& out = wire->out;
+                const bool bodyful = !head_request && !bodiless(status);
+                size_t n = bodyful ? body.size() : 0;
+                std::string_view tail;
+                if (n) {
+                    if (chunked) {
+                        char size[20];
+                        int k = std::snprintf(size, sizeof(size), "%zx\r\n", n);
+                        out.append(size, size_t(k));
+                        sent += size_t(k) + n + 2;
+                        tail = last ? std::string_view("\r\n0\r\n\r\n") : std::string_view("\r\n");
+                    } else if (declared) {
+                        const uint64_t room = *declared > sent ? *declared - sent : 0;
+                        if (n > room) {
+                            n = size_t(room);
+                            close_after = true;   // more than it said: the rest is dropped
+                        }
+                        sent += n;
+                    } else {
+                        sent += n;
+                    }
+                } else if (bodyful && chunked && last) {
+                    tail = "0\r\n\r\n";
+                }
+                if (last && declared && sent != *declared) {
+                    close_after = true;
+                }
+                if (n == 0 || body.chunks().empty()) {
+                    if (n) {
+                        body.copy_to(out, n);
+                    }
+                    out.append(tail);
+                    body.release();
+                    return send_start(now);
+                }
+                vector<slice<const byte>> parts;
+                parts.push_back(slice<const byte>(reinterpret_cast<const byte*>(out.data()), out.size()));
+                size_t left = n;
+                body.chunks().each([&](const slice<const byte>& part) {
+                    if (left == 0) {
+                        return;
+                    }
+                    const size_t k = std::min(left, part.size());
+                    parts.push_back(slice<const byte>(part.owner(), part.data(), k));
+                    left -= k;
+                });
+                if (!tail.empty()) {
+                    parts.push_back(slice<const byte>(reinterpret_cast<const byte*>(tail.data()), tail.size()));
+                }
+                return _write_parts(parts, now);
+            }
+
+            // The pieces as one write begun without a frame; the body's
+            // blocks back to the pool when it is done
+            optional<async::task<expected<void, io::error>>> _write_parts(const vector<slice<const byte>>& parts, expected<void, io::error>& now) {
+                auto s = net::detail::ConnectionAccess::impl(wire->connection()).start_write_parts(parts);
+                if (s.rest) {
+                    return _sent_parts(tracked_ptr<WriterImpl>(this), std::move(*s.rest));
+                }
+                body.release();
+                now = sent_result(s.done);
+                return nullopt;
+            }
+
+            static async::task<expected<void, io::error>> _sent_parts(tracked_ptr<WriterImpl> self, async::task<expected<size_t, io::error>> rest) {
+                auto r = co_await rest;
+                self->body.release();
+                co_return self->sent_result(r);
+            }
+
             expected<void, io::error> sent_result(const expected<size_t, io::error>& r) {
                 if (!r) {
                     failed = r.error();
@@ -308,35 +499,6 @@ namespace sgcl::net::http {
             static async::task<expected<void, io::error>> _sent(tracked_ptr<WriterImpl> self, async::task<expected<size_t, io::error>> rest) {
                 auto r = co_await rest;
                 co_return self->sent_result(r);
-            }
-
-            // The body written so far, in the framing of a flushed response,
-            // at the end of `out`
-            // (HTTP/1.1: the body copied into the wire's buffer after the
-            // head, one send for both, as before the blocks; a gathered
-            // write would need a writev in ConnImpl, and TLS copies into its
-            // records anyway)
-            void framed_to(std::string& out, const BodyBuffer& data) {
-                if (head_request || bodiless(status) || data.empty()) {
-                    return;
-                }
-                const size_t before = out.size();
-                if (chunked) {
-                    char size[20];
-                    int n = std::snprintf(size, sizeof(size), "%zx\r\n", data.size());
-                    out.append(size, size_t(n));
-                    data.copy_to(out);
-                    out += "\r\n";
-                } else if (declared) {
-                    uint64_t room = *declared > sent ? *declared - sent : 0;
-                    data.copy_to(out, size_t(std::min<uint64_t>(room, data.size())));
-                    if (data.size() > room) {
-                        close_after = true;   // more than it said: the rest is dropped
-                    }
-                } else {
-                    data.copy_to(out);
-                }
-                sent += out.size() - before;
             }
 
             // The handler's fields checked before a head of them goes out:
@@ -360,8 +522,11 @@ namespace sgcl::net::http {
                     co_return io::detail::fail(*failed);
                 }
                 if (h2) {
+                    flushed += body.size();
                     co_return co_await _h2_flush();
                 }
+                take_file();   // a flush sends what is written: the file's bytes among them
+                flushed += body.size();
                 std::string& out = wire->out;
                 out.clear();
                 if (!head_sent) {
@@ -372,9 +537,11 @@ namespace sgcl::net::http {
                     head_to(out, nullopt);
                     head_sent = true;
                 }
-                framed_to(out, body);
-                body.release();   // copied into the wire's buffer: the blocks back to the worker's pool
-                co_return co_await send();
+                expected<void, io::error> now;
+                if (auto rest = send_framed(now, false)) {
+                    co_return co_await *rest;
+                }
+                co_return now;
             }
 
             // After the handler: the rest of the response
@@ -399,6 +566,25 @@ namespace sgcl::net::http {
                 }
                 std::string& out = wire->out;
                 out.clear();
+                if (has_file && !head_sent) {
+                    // the body is the file alone: its length from fstat
+                    // (write_file), the head, then sendfile
+                    if (!fields_writable()) {
+                        file = io::file();
+                        has_file = false;
+                        now = io::detail::fail(*failed);
+                        return nullopt;
+                    }
+                    head_to(out, file_n);
+                    head_sent = true;
+                    if (head_request || bodiless(status) || file_n == 0) {
+                        file = io::file();
+                        has_file = false;
+                        return send_start(now);
+                    }
+                    has_file = false;
+                    return _sent_file(tracked_ptr<WriterImpl>(this));
+                }
                 if (!head_sent) {
                     if (!fields_writable()) {
                         now = io::detail::fail(*failed);
@@ -407,16 +593,13 @@ namespace sgcl::net::http {
                     head_to(out, uint64_t(body.size()));
                     head_sent = true;
                     if (!head_request && !bodiless(status)) {
+                        if (!body.chunks().empty() && !failed) {
+                            return send_parts(now);   // the blocks written where they are
+                        }
                         body.copy_to(out);
                     }
                 } else {
-                    framed_to(out, body);
-                    if (chunked && !head_request && !bodiless(status)) {
-                        out += "0\r\n\r\n";
-                    }
-                    if (declared && sent != *declared) {
-                        close_after = true;
-                    }
+                    return send_framed(now, true);   // the rest after a flush: its blocks where they lie
                 }
                 body.release();   // copied into the wire's buffer: the blocks back to the worker's pool
                 return send_start(now);
@@ -435,7 +618,8 @@ namespace sgcl::net::http {
             }
 
             // The body's bytes as DATA, block by block (each slice owned by
-            // its block; the in-place bytes are this frame's copy), END_STREAM
+            // its block and sent in place by the connection, then retired;
+            // the bytes held inside the buffer itself are copied), END_STREAM
             // with the last when asked; the first `skip` bytes already sent
             async::task<expected<void, io::error>> _h2_send(BodyBuffer data, bool end_stream, size_t skip = 0) {
                 size_t left = data.size() - skip;
@@ -461,11 +645,11 @@ namespace sgcl::net::http {
                         n -= cut;
                         if (n) {
                             left -= n;
-                            r = co_await h2->owner->send_data(h2->id, slice<const byte>(tracked_ptr<const void>(c), c->bytes + c->begin + cut, n), end_stream && left == 0);
+                            r = co_await h2->owner->send_block(h2->id, slice<const byte>(tracked_ptr<const void>(c), c->bytes + c->begin + cut, n), end_stream && left == 0);
                         }
                     }
                 }
-                data.release();   // every piece queued (the connection copied it): the blocks back to the worker's pool
+                h2->owner->retire(data);   // every piece queued (in place): the blocks back to the pool once written
                 if (!r) {
                     failed = r.error();
                 }
@@ -499,7 +683,7 @@ namespace sgcl::net::http {
                 }
                 taken = *r;
                 if (!data || taken == body.size()) {
-                    body.release();   // all of it queued (the connection copied it): the blocks back to the worker's pool
+                    h2->owner->retire(body);   // all of it queued (in place): the blocks back to the pool once written
                     taken = SIZE_MAX;
                 }
                 return expected<void, io::error>();
@@ -590,8 +774,9 @@ namespace sgcl::net::http {
             return *this;
         }
 
-        // A Set-Cookie field
-        response_writer& set_cookie(const cookie& c) {
+        // A Set-Cookie field added (one per cookie: several cookies are
+        // several fields)
+        response_writer& add_cookie(const cookie& c) {
             _impl->fields.add("Set-Cookie", c.to_string());
             return *this;
         }
@@ -603,14 +788,29 @@ namespace sgcl::net::http {
         }
 
         response_writer& write(const string& text) {
+            _impl->take_file();
             _impl->body.append(text.view());
             _impl->touched = true;
             return *this;
         }
 
         response_writer& write(const slice<const byte>& data) {
+            _impl->take_file();
             _impl->body.append(data.data(), data.size());
             _impl->touched = true;
+            return *this;
+        }
+
+        // The file from its position to its end, as the body's bytes (the
+        // position moved to the end). When it is all the body (HTTP/1.1,
+        // nothing written before or after it, no flush), it goes after
+        // the head by sendfile, the file's pages to the socket with no
+        // copy through the process (over TLS read in blocks and sealed
+        // where they lie), and its length is the Content-Length; else its
+        // bytes are taken as write(bytes) takes them. Only the body:
+        // Content-Type and the rest are the handler's
+        response_writer& write(const io::file& f) {
+            _impl->write_file(f);
             return *this;
         }
 
@@ -642,6 +842,8 @@ namespace sgcl::net::http {
         void error(int code, const string& message) {
             set_status(code);
             if (!_impl->head_sent) {
+                _impl->file = io::file();
+                _impl->has_file = false;
                 _impl->body.release();
                 _impl->fields.erase("Content-Length");
                 _impl->fields.set("Content-Type", "text/plain; charset=utf-8");

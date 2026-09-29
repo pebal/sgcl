@@ -1,4 +1,4 @@
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -146,7 +146,7 @@ namespace {
 int main() {
     std::mt19937_64 rng(20260925);
     std::puts("//------------------------------------------------------------------------------");
-    std::puts("// SGCL: a C++20 application framework");
+    std::puts("// SGCL: a C++20 application platform");
     std::puts("// Copyright (c) 2022-2026 Sebastian Nibisz");
     std::puts("// SPDX-License-Identifier: Apache-2.0");
     std::puts("//------------------------------------------------------------------------------");

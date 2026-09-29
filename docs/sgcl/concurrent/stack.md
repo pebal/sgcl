@@ -91,7 +91,9 @@ Takes the whole stack off the head with a compare-exchange and destroys every el
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/concurrent/concurrent.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -126,9 +128,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 4000 jobs, stack empty
 ```
 

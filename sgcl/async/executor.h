@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -86,6 +86,9 @@ namespace sgcl::async {
                 return;
             }
             if (_watched != &t || _watcher.done()) {   // a watcher left by a stop is taken up again for the same task: a second awaiter of t would take the first's place and leave it with no frame to resume (coroutine.h: await)
+                if (!_watcher.done()) {
+                    _watcher.detach();   // the watcher of another task, left by a stop: it runs on to that task's end (DESIGN 302), never destroyed while it waits
+                }
                 _watcher = spawn(_watch(t));
                 _watched = &t;
             }

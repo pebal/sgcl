@@ -1,7 +1,7 @@
 # sgcl::concurrent::cache
 
 ```cpp
-#include "sgcl/concurrent/cache.h"   // or "sgcl/sgcl.h"
+#include "sgcl/concurrent/cache.h"   // or "sgcl/concurrent/concurrent.h"
 
 namespace sgcl {
     template<class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>>
@@ -28,6 +28,18 @@ The interface is a cache's: `get` a copy of the value or nothing, `put` insert o
 - The value type is copied in on `put` and out on `get`, so it is copy-constructible; a `put(key, T&&)` moves only into the box of a replacement.
 - An entry evicted or erased is destroyed by the collector with its node, once nothing holds it: not at the erasure, which other threads may be reading it across ([concurrent::sorted_map](sorted_map.md) has the rule). The cursors hold the node each stripe's last walk ended at, so an entry erased under a cursor lives on until that stripe's next eviction; `clear()` lets go of them.
 - Non-copyable, non-movable: a shared structure has one place.
+
+## Cost
+
+A cache of 100,000 entries keyed by `long` with `tracked_ptr` values, random keys, in nanoseconds per operation (an Apple M-series machine, `-O2`, the best of three runs on a machine that was not idle, so an upper bound):
+
+| operation | 1 thread | 4 threads (across the threads) |
+|---|---|---|
+| `get`, a hit | 58 | 17 |
+| `get`, a hit, with a time to live | 87 | |
+| `put` of a new key at capacity (an eviction each) | 740 | 650 |
+
+The map's own `find` over the same entries is 40 ns: a hit is the search, then the entry's box (null) and stamp on the node's line, the tick, and the thread's stripe; four threads hitting cost a quarter of one, nothing shared being written. A `put` at capacity is an insertion (a node made and linked), the walk of eight entries, each a node of the list and mostly a cache miss over 100,000 of them, an erasure (a marker made, the node unlinked by a search), and a cursor made: the map's own insertion and erasure of a key are 200 ns of it, the sample most of the rest (650 ns at a sample of 5, 1000 at 16). Four threads putting at once share the tick and the count, one line, and evict on stretches of their own. With a time to live a hit reads the clock.
 
 ## Members
 
@@ -136,7 +148,9 @@ double hit_rate = double(cache.hits()) / double(cache.hits() + cache.misses());
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/concurrent/concurrent.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -152,9 +166,9 @@ struct Document {
 struct Server {
     concurrent::cache<string, tracked_ptr<Document>> documents{100, std::chrono::minutes(10)};
 };
-static root_ptr<Server> server = make_tracked<Server>();   // a global: a root
+static root_ptr<Server> server = make_tracked<Server>();  // a global: a root
 
-tracked_ptr<Document> load(const string& name) {           // the slow part
+tracked_ptr<Document> load(const string& name) {  // the slow part
     return make_tracked<Document>(name, int(name.size()));
 }
 
@@ -163,8 +177,10 @@ int main() {
     for (int t : range(4)) {
         threads.emplace_back([t] {
             for (int i : range(10000)) {
-                string name = "doc" + to_string((i * 7 + t) % 50);   // fifty documents, read over and over
-                tracked_ptr doc = server->documents.get_or_compute(name, [&] { return load(name); });
+                // fifty documents, read over and over
+                string name = "doc" + to_string((i * 7 + t) % 50);
+                tracked_ptr doc =
+                    server->documents.get_or_compute(name, [&] { return load(name); });
                 if (doc->name != name) {
                     return;
                 }
@@ -174,40 +190,29 @@ int main() {
     for (auto& th : threads) {
         th.join();
     }
-    println("{} documents cached, {} hits, {} misses", server->documents.size(), server->documents.hits(), server->documents.misses());
-    if (auto doc = server->documents.get("doc7")) {   // a literal: no string made for the lookup
+    println("{} documents cached, {} hits, {} misses", server->documents.size(),
+            server->documents.hits(), server->documents.misses());
+    if (auto doc = server->documents.get("doc7")) {  // a literal: no string made for the lookup
         println("{} is {} characters", (*doc)->name, (*doc)->size);
     }
 
-    concurrent::cache<string, string> small(2);               // the two-line LRU cache of ordered_map, shared
+    concurrent::cache<string, string> small(2);  // the two-line LRU cache of ordered_map, shared
     small.put("a", "1");
     small.put("b", "2");
-    small.get("a");                                                // a is newer than b now
-    small.put("c", "3");                                           // full: b, the oldest, goes
+    small.get("a");  // a is newer than b now
+    small.put("c", "3");  // full: b, the oldest, goes
     println("{}", (small.get("b") ? "b kept" : "b evicted"));
     return server->documents.size() == 50 ? 0 : 1;
 }
 ```
 
-The output of one run (fifty documents are loaded once each; the misses are a few more than fifty when two threads miss the same document at once, and each loads it):
+Sample output:
 
-```
-50 documents cached, 39943 hits, 57 misses
+```text
+50 documents cached, 39904 hits, 96 misses
 doc7 is 4 characters
 b evicted
 ```
-
-## Cost
-
-A cache of 100,000 entries keyed by `long` with `tracked_ptr` values, random keys, in nanoseconds per operation (an Apple M-series machine, `-O2`, the best of three runs on a machine that was not idle, so an upper bound):
-
-| operation | 1 thread | 4 threads (across the threads) |
-|---|---|---|
-| `get`, a hit | 58 | 17 |
-| `get`, a hit, with a time to live | 87 | |
-| `put` of a new key at capacity (an eviction each) | 740 | 650 |
-
-The map's own `find` over the same entries is 40 ns: a hit is the search, then the entry's box (null) and stamp on the node's line, the tick, and the thread's stripe; four threads hitting cost a quarter of one, nothing shared being written. A `put` at capacity is an insertion (a node made and linked), the walk of eight entries, each a node of the list and mostly a cache miss over 100,000 of them, an erasure (a marker made, the node unlinked by a search), and a cursor made: the map's own insertion and erasure of a key are 200 ns of it, the sample most of the rest (650 ns at a sample of 5, 1000 at 16). Four threads putting at once share the tick and the count, one line, and evict on stretches of their own. With a time to live a hit reads the clock.
 
 ## See also
 

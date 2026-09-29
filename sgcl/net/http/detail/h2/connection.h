@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -343,6 +344,54 @@ namespace sgcl::net::http::detail::h2 {
         // taken. The result is the bytes taken; fewer than n: the rest
         // waits for on_window
         size_t send_data(uint32_t id, const uint8_t* p, size_t n, bool end_stream) {
+            return _send_data(id, n, end_stream, [&](FrameWriter& w, size_t at, size_t k, bool last) {
+                w.data(id, p + at, k, last);
+            });
+        }
+
+        // The same, the bytes not copied: each frame's header in output()
+        // and its payload a piece of `p` in place, which the owner keeps
+        // unchanged until what take_output gives is written. Only for an
+        // owner that takes its output with take_output (output() is then
+        // not whole)
+        size_t send_data_in_place(uint32_t id, const uint8_t* p, size_t n, bool end_stream) {
+            return _send_data(id, n, end_stream, [&](FrameWriter& w, size_t at, size_t k, bool last) {
+                w.header(uint32_t(k), FrameType::data, last ? flag::end_stream : 0, id);
+                if (k) {
+                    _pieces.push_back(OutPiece{_out.size(), p + at, k});
+                }
+            });
+        }
+
+        // A piece of output in place: after byte `at` of the output's own
+        // bytes come the n bytes at p
+        struct OutPiece {
+            size_t at;
+            const uint8_t* p;
+            size_t n;
+        };
+
+        // Everything to be sent, taken whole: the output's own bytes into
+        // `bytes` (swapped, no copy: the two strings keep their room) and
+        // the pieces in place, in order, into `pieces`. What was taken is
+        // then the owner's to write, as written() of all of it
+        void take_output(std::string& bytes, std::vector<OutPiece>& pieces) {
+            if (_out_at) {
+                _out.erase(0, _out_at);
+                for (auto& q : _pieces) {
+                    q.at -= _out_at;
+                }
+                _out_at = 0;
+            }
+            bytes.clear();
+            bytes.swap(_out);
+            pieces.clear();
+            pieces.swap(_pieces);
+            _control = 0;
+        }
+
+        template<class Put>
+        size_t _send_data(uint32_t id, size_t n, bool end_stream, Put&& put) {
             Stream* s = _streams.find(id);
             if (!s || s->local_closed || _failed) {
                 return 0;
@@ -356,7 +405,7 @@ namespace sgcl::net::http::detail::h2 {
                 }
                 const size_t k = std::min(n - taken, size_t(room));
                 const bool last = end_stream && taken + k == n;
-                w.data(id, p + taken, k, last);
+                put(w, taken, k, last);
                 s->send -= int64_t(k);
                 _conn_send -= int64_t(k);
                 taken += k;
@@ -420,8 +469,10 @@ namespace sgcl::net::http::detail::h2 {
             _final_goaway(code);
         }
 
-        // What is to be sent; written(n) when n bytes of it are gone
+        // What is to be sent; written(n) when n bytes of it are gone (an
+        // owner that sends DATA in place takes it with take_output instead)
         slice<const byte> output() const noexcept {
+            assert(_pieces.empty() && "output() is not whole with DATA in place: take_output");
             return slice<const byte>(reinterpret_cast<const byte*>(_out.data()) + _out_at, _out.size() - _out_at);
         }
 
@@ -495,6 +546,7 @@ namespace sgcl::net::http::detail::h2 {
         size_t _recent_at = 0;
         std::string _out;
         size_t _out_at = 0;
+        std::vector<OutPiece> _pieces;        // DATA payloads in place (send_data_in_place), by position in _out
         std::string _block;                   // a field block across CONTINUATIONs
         Phase _phase;
         bool _failed = false;

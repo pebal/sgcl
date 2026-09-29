@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -1674,6 +1674,18 @@ namespace sgcl::txt {
         }
     }
 
+    // Text written in its field, for the format_value of a type of one's
+    // own: the fill, the alignment (to the left unless the spec says
+    // otherwise) and the width of the spec, the width measured in columns
+    // rather than bytes, and a precision cutting the text to that many
+    // columns on a grapheme cluster — what a string written with the same
+    // spec gets. The text is whatever a std::string_view is made of, as
+    // format_sink::put takes it: a string, a slice, a C string, or the
+    // characters a type wrote into a buffer of its own, {room, n}
+    constexpr void write_padded(format_sink& out, std::string_view text, const format_spec& spec) noexcept {
+        detail::write_text(out, text, spec);
+    }
+
     //--------------------------------------------------------------------
     // What a value may be told to do with itself. A type of the library
     // or of the standard is written by one of these; anything else is
@@ -2700,10 +2712,14 @@ namespace sgcl::txt {
         if (out.size() <= sizeof room) {
             return string(room, out.size());
         }
-        std::string wider(out.size(), '\0');
-        format_sink again(wider.data(), wider.size());
-        detail::write_pattern(again, pattern, args...);
-        return string(wider.data(), again.size());
+        // the second pass straight into the string's object: the size is
+        // the first pass's, and the second writes no more than that
+        const size_t n = out.size();
+        return sgcl::detail::StringAccess::bounded<string>(n, [&](char* chars) {
+            format_sink again(chars, n);
+            detail::write_pattern(again, pattern, args...);
+            return std::min(again.size(), n);
+        });
     }
 
     // The same into a buffer of the caller's, for a text that lives no
@@ -2752,10 +2768,12 @@ namespace sgcl::txt {
         if (out.size() <= sizeof room) {
             return string(room, out.size());
         }
-        std::string wider(out.size(), '\0');
-        format_sink again(wider.data(), wider.size());
-        detail::run_checked(again, pattern.view(), args...);
-        return string(wider.data(), again.size());
+        const size_t n = out.size();
+        return sgcl::detail::StringAccess::bounded<string>(n, [&](char* chars) {
+            format_sink again(chars, n);
+            detail::run_checked(again, pattern.view(), args...);
+            return std::min(again.size(), n);
+        });
     }
 
     template<class... A>

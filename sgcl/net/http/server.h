@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -227,10 +227,12 @@ namespace sgcl::net::http {
                     writer.error(status::internal_server_error);
                 }
             }
+            const uint64_t body_bytes = w->body_bytes();   // before the finish gives the blocks back
             expected<void, io::error> sent;
             if (auto rest = w->finish_start(sent)) {   // a frame only when the connection would wait
                 sent = co_await *rest;
             }
+            log_access(*cfg, *req, *w, body_bytes, path, line.minor == 1 ? std::string_view("HTTP/1.1") : std::string_view("HTTP/1.0"), start);
             if (!sent) {
                 node->stop.request_stop();
                 co_return Next::end;
@@ -267,6 +269,7 @@ namespace sgcl::net::http {
                     break;
                 }
                 if (wire->buffered() == 0) {
+                    wire->trim_out();   // a large response's room not kept while the connection waits
                     node->state.store(ServerConn::idle);
                     if (s->shutting_down.load()) {
                         break;
@@ -468,6 +471,25 @@ namespace sgcl::net::http {
         bool h2c = false;
         uint32_t max_concurrent_streams = 250;                     // HTTP/2: the streams a client may have open, the handlers of a connection (Go: 250)
 
+        // A record of every exchange, when the response is finished, to
+        // the logger: `method`, `path`, `proto`, `status`, `bytes` (of the
+        // body), `duration` (from the request's first byte), `remote`,
+        // `user_agent`, and `request_id` when the request has an
+        // X-Request-ID; at info, at error for a 5xx. Nothing managed per
+        // request. access_log() alone is the default logger buffered (a
+        // batch per worker, DESIGN 283); a logger given is used as it is
+        // (options::buffered in it for the batches). Read when serve() is called,
+        // as the fields are
+        server& access_log(const slog::logger& log) {
+            _access_log.emplace(log);
+            return *this;
+        }
+
+        server& access_log() {
+            _access_log.emplace(slog::detail::buffered_copy(slog::default_logger()));
+            return *this;
+        }
+
     private:
         template<class H>
         static detail::Handler _handler(H h) {
@@ -494,10 +516,12 @@ namespace sgcl::net::http {
             cfg->h2c = h2c;
             cfg->max_concurrent_streams = max_concurrent_streams ? max_concurrent_streams : 1;
             cfg->on_error = on_error;
+            cfg->access_log = _access_log;
             return cfg;
         }
 
         tracked_ptr<detail::ServerImpl> _impl;
+        optional<slog::logger> _access_log;
 
         static async::task<expected<void, io::error>> _co_serve(tracked_ptr<detail::ServerImpl> impl, tracked_ptr<detail::ServerSettings> cfg, net::listener l) {
             if (impl->shutting_down.load()) {

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -160,13 +160,15 @@ namespace sgcl::encoding {
             if (n / 16 >= string::max_size() / (detail::DumpLineChars + 8)) {
                 throw length_error("sgcl::hex::dump: a dump longer than a string can hold");
             }
-            std::string s;
-            s.resize((n + 15) / 16 * (detail::DumpLineChars + 8));
-            char* o = s.data();
-            for (size_t i = 0; i < n; i += 16) {
-                o = detail::dump_line(o, i, p + i, n - i < 16 ? n - i : 16);
-            }
-            return string(s.data(), size_t(o - s.data()));
+            // written in place into a string for the bound (only the last
+            // line is shorter), its length what the lines took
+            return sgcl::detail::StringAccess::bounded<string>((n + 15) / 16 * (detail::DumpLineChars + 8), [&](char* chars) {
+                char* o = chars;
+                for (size_t i = 0; i < n; i += 16) {
+                    o = detail::dump_line(o, i, p + i, n - i < 16 ? n - i : 16);
+                }
+                return size_t(o - chars);
+            });
         }
 
         // The bytes of a text

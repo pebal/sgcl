@@ -137,7 +137,7 @@ io::walk_dir(".", [&](const io::directory_entry& e, const optional<io::error>& e
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 

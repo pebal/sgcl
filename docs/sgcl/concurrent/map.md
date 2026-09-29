@@ -121,7 +121,9 @@ Erases the element under `key` (1 or 0 erased), or the one `pos` addresses if it
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/concurrent/concurrent.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -155,10 +157,10 @@ int main() {
 }
 ```
 
-The output of one run (the buckets depend on how the threads interleave):
+Output:
 
-```
-1000 words, 80000 occurrences, 256 buckets
+```text
+1000 words, 80000 occurrences, 1024 buckets
 ```
 
 ## See also

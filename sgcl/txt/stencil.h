@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -154,8 +154,17 @@ namespace sgcl::txt {
         : _held(std::move(v)) {
         }
 
-        value(const char* v)
-        : _held(string(v)) {
+        // A C text: an array up to its first NUL or its end, a pointer up
+        // to its NUL (detail::c_text)
+        template<size_t N>
+        value(const char (&v)[N])
+        : _held(detail::c_string(v)) {
+        }
+
+        template<class P>
+        requires std::same_as<P, const char*> || std::same_as<P, char*>
+        value(P v)
+        : _held(detail::c_string(v)) {
         }
 
         value(const slice<const char>& v)
@@ -895,10 +904,12 @@ namespace sgcl::txt {
         if (out.size() <= sizeof room) {
             return string(room, out.size());
         }
-        std::string wider(out.size(), '\0');
-        format_sink again(wider.data(), wider.size());
-        write(again, spec);
-        return string(wider.data(), again.size());
+        const size_t n = out.size();
+        return sgcl::detail::StringAccess::bounded<string>(n, [&](char* chars) {   // the second pass in place
+            format_sink again(chars, n);
+            write(again, spec);
+            return std::min(again.size(), n);
+        });
     }
 
     //--------------------------------------------------------------------
@@ -916,34 +927,40 @@ namespace sgcl::txt {
         // angle bracket in it at all and should cost a copy.
         inline string escape_html_text(const string& text) {
             auto v = text.view();
-            size_t marked = 0;
+            // The pass that asks also counts what the entities add (&amp;
+            // four, &lt; and &gt; three, &quot; five, &#39; four), and the
+            // text is written once into a string of that size
+            size_t added = 0;
             for (char c : v) {
-                marked += (c == '&' || c == '<' || c == '>' || c == '"' || c == '\'') ? 1 : 0;
+                added += c == '&' ? 4 : c == '<' || c == '>' ? 3 : c == '"' ? 5 : c == '\'' ? 4 : 0;
             }
-            if (!marked) {
+            if (!added) {
                 return text;
             }
-            std::string room;
-            room.reserve(v.size() + marked * 5);
-            size_t from = 0;
-            for (size_t i = 0; i < v.size(); ++i) {
-                const char* entity = nullptr;
-                switch (v[i]) {
-                    case '&':  entity = "&amp;"; break;
-                    case '<':  entity = "&lt;"; break;
-                    case '>':  entity = "&gt;"; break;
-                    case '"':  entity = "&quot;"; break;
-                    case '\'': entity = "&#39;"; break;
-                    default:   break;
+            return sgcl::detail::StringAccess::filled<string>(v.size() + added, [&](char* out) {
+                size_t from = 0;
+                auto put = [&](const char* p, size_t n) {
+                    sgcl::detail::copy_bytes(out, p, n);
+                    out += n;
+                };
+                for (size_t i = 0; i < v.size(); ++i) {
+                    std::string_view entity;
+                    switch (v[i]) {
+                        case '&':  entity = "&amp;"; break;
+                        case '<':  entity = "&lt;"; break;
+                        case '>':  entity = "&gt;"; break;
+                        case '"':  entity = "&quot;"; break;
+                        case '\'': entity = "&#39;"; break;
+                        default:   break;
+                    }
+                    if (!entity.empty()) {
+                        put(v.data() + from, i - from);
+                        put(entity.data(), entity.size());
+                        from = i + 1;
+                    }
                 }
-                if (entity) {
-                    room.append(v.data() + from, i - from);
-                    room.append(entity);
-                    from = i + 1;
-                }
-            }
-            room.append(v.data() + from, v.size() - from);
-            return string(room.data(), room.size());
+                put(v.data() + from, v.size() - from);
+            });
         }
     }
 

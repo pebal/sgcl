@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -301,12 +301,14 @@ namespace sgcl::txt {
             for (auto c : points) {
                 bytes += utf8::width(c);
             }
-            std::string out(bytes, '\0');
-            char* at = out.data();
-            for (auto c : points) {
-                at += utf8::encode(c, at);
-            }
-            return string(out.data(), size_t(at - out.data()));
+            // straight into the string's object: each byte written once
+            return sgcl::detail::StringAccess::bounded<string>(bytes, [&](char* chars) {
+                char* at = chars;
+                for (auto c : points) {
+                    at += utf8::encode(c, at);
+                }
+                return size_t(at - chars);
+            });
         }
     }
 

@@ -40,7 +40,41 @@ std::lock_guard lock(m);                        // a thread
 
 ## Example
 
-The crawler on [wait_group](wait_group.md#example): a shared count under a mutex, three fetches at once under a semaphore, an event that starts them together.
+Two tasks add to a count under the mutex, one holder at a time; the thread then takes it with the standard's guard:
+
+```cpp
+#include "sgcl/async/async.h"
+#include "sgcl/io/io.h"
+#include <mutex>
+
+using namespace sgcl;
+
+struct Counter {
+    async::mutex lock;
+    int value = 0;   // guarded by lock
+};
+
+async::task<> add(tracked_ptr<Counter> c, int n) {
+    auto guard = co_await c->lock.scoped_lock();   // no thread held while it waits
+    c->value += n;
+}
+
+int main() {
+    tracked_ptr c = make_tracked<Counter>();
+    auto a = async::spawn(add(c, 1));
+    auto b = async::spawn(add(c, 2));
+    a.wait();
+    b.wait();
+    std::lock_guard guard(c->lock);
+    println("{}", c->value);
+}
+```
+
+Output:
+
+```text
+3
+```
 
 ## See also
 

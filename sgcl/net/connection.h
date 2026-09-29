@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -21,6 +21,7 @@
 #include "../core/string.h"
 #include "../core/tracked_ptr.h"
 #include "../io/buffered.h"
+#include "../io/file.h"
 #include "../io/stream.h"
 
 #include <algorithm>
@@ -33,7 +34,15 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/uio.h>
 #include <unistd.h>
+#if defined(__linux__)
+#include <csignal>
+#include <pthread.h>
+#include <sys/sendfile.h>
+#endif
 
 namespace sgcl::net {
     // The connections of the module: a stream of bytes both ways (a TCP or
@@ -290,6 +299,51 @@ namespace sgcl::net {
                 return s;
             }
 
+            // The same over several pieces in order, as one write: a
+            // response's head and the blocks of its body, which a socket
+            // takes in one sendmsg and TLS seals into its records straight
+            // from the blocks, with no copy of the body into one buffer
+            // first. The pieces are held by `parts` (a slice keeps its
+            // block) for as long as the rest of the write needs them
+            started_write start_write_parts(const vector<slice<const byte>>& parts) {
+                started_write s;
+                size_t total = 0;
+                for (auto& p : parts) {
+                    total += p.size();
+                }
+                if (total == 0) {
+                    return s;
+                }
+                if (!_write_lock.try_lock()) {
+                    s.rest.emplace(_write_rest_parts(tracked_ptr<ConnImpl>(this), parts, 0, total, nullopt));
+                    return s;
+                }
+                auto r = try_raw_write_parts(parts.data(), parts.size());
+                if (!r || *r == total) {
+                    _write_lock.unlock();
+                    s.done = std::move(r);
+                    return s;
+                }
+                s.rest.emplace(_write_rest_parts(tracked_ptr<ConnImpl>(this), parts, *r, total, sgcl::async::mutex::guard(_write_lock)));
+                return s;
+            }
+
+            // The n bytes of the file `fd` from `offset` (read by pread: the
+            // file's position is the caller's), as one write under the
+            // write lock: the transport's own way (a socket: sendfile, no
+            // copy through the process), else blocks read and written as
+            // the pieces of one write (TLS seals its records from them).
+            // The bytes sent: fewer than n when the file ended first
+            expected<size_t, io::error> send_file(int fd, uint64_t offset, uint64_t n) {
+                std::lock_guard<sgcl::async::mutex> guard(_write_lock);
+                return raw_send_file(fd, offset, n);
+            }
+
+            async::task<expected<size_t, io::error>> async_send_file(int fd, uint64_t offset, uint64_t n) {
+                auto guard = co_await _write_lock.scoped_lock();
+                co_return co_await awaited_raw_send_file(fd, offset, n);
+            }
+
             // A line without its "\n" (or "\r\n"), copied out of the
             // buffer; nullopt at the end of the stream
             // `c.read_line()` on this thread, `co_await c.async_read_line()` in a task
@@ -324,6 +378,10 @@ namespace sgcl::net {
                 _max_line.store(n, std::memory_order_relaxed);
             }
 
+            size_t max_line() const noexcept {
+                return _max_line.load(std::memory_order_relaxed);
+            }
+
             virtual expected<size_t, io::error> raw_read(const slice<byte>& buffer) = 0;
             virtual async::task<expected<size_t, io::error>> awaited_raw_read(slice<byte> buffer) = 0;
             virtual expected<size_t, io::error> raw_write(const slice<const byte>& data) = 0;
@@ -351,12 +409,62 @@ namespace sgcl::net {
                 return size_t(0);
             }
 
+            // The pieces in order without waiting, as try_raw_write takes
+            // one: the bytes taken of all of them together. The default
+            // takes them one after another and stops at the first not
+            // taken whole
+            virtual expected<size_t, io::error> try_raw_write_parts(const slice<const byte>* parts, size_t n) {
+                size_t done = 0;
+                for (size_t i = 0; i < n; ++i) {
+                    auto r = try_raw_write(parts[i]);
+                    if (!r) {
+                        return r;
+                    }
+                    done += *r;
+                    if (*r < parts[i].size()) {
+                        break;
+                    }
+                }
+                return done;
+            }
+
+            // The rest of the pieces from byte `done` of them all, waiting:
+            // the bytes written from there. The default writes them one
+            // after another
+            virtual async::task<expected<size_t, io::error>> awaited_raw_write_parts(vector<slice<const byte>> parts, size_t done) {
+                size_t written = 0;
+                for (auto& p : parts) {
+                    if (done >= p.size()) {
+                        done -= p.size();
+                        continue;
+                    }
+                    auto r = co_await awaited_raw_write(slice<const byte>(p.data() + done, p.size() - done));
+                    if (!r) {
+                        co_return fail(r);
+                    }
+                    written += *r;
+                    done = 0;
+                }
+                co_return written;
+            }
+
+            // A file's bytes (send_file), the transport's way; the default
+            // reads them into blocks and writes the blocks as pieces
+            virtual expected<size_t, io::error> raw_send_file(int fd, uint64_t offset, uint64_t n) {
+                return _send_file_blocks(fd, offset, n);
+            }
+
+            virtual async::task<expected<size_t, io::error>> awaited_raw_send_file(int fd, uint64_t offset, uint64_t n) {
+                return _co_send_file_blocks(tracked_ptr<ConnImpl>(this), fd, offset, n);
+            }
+
             // Ends the connection both ways; the operations in progress end
             // with io::errc::closed
             virtual expected<void, io::error> close() = 0;
             virtual bool is_closed() const noexcept = 0;
             virtual expected<void, io::error> close_write() = 0;
             virtual void set_deadline(int dir, time_point t) = 0;
+            virtual time_point deadline(int dir) const = 0;   // time_point() for none
 
             virtual endpoint local_endpoint() const {
                 return endpoint();
@@ -381,6 +489,101 @@ namespace sgcl::net {
             // What an error names the connection by: "tcp 1.2.3.4:5->6.7.8.9:80"
             virtual string describe() const = 0;
 
+        protected:
+            // A file sent through blocks (the default of raw_send_file):
+            // rounds of up to FileBlocks blocks of 32 KB read by pread, each
+            // round the pieces of one write; the blocks held by the pieces
+            // (and by the frame) until the write is done
+            static constexpr size_t FileBlocks = 4;
+            using FileBlock = io::detail::CopyBlock;
+
+            // One round read into the blocks: the bytes read (0: the file's end)
+            static expected<size_t, io::error> _read_round(int fd, uint64_t at, uint64_t left, tracked_ptr<FileBlock>* blocks, vector<slice<const byte>>& parts) {
+                parts.clear();
+                size_t round = 0;
+                for (size_t k = 0; k < FileBlocks && left > round; ++k) {
+                    if (!blocks[k]) {
+                        blocks[k] = make_tracked<FileBlock>();
+                    }
+                    const size_t want = size_t(std::min<uint64_t>(blocks[k]->size(), left - round));
+                    ssize_t got;
+                    do {
+                        got = ::pread(fd, blocks[k]->data(), want, off_t(at + round));
+                    } while (got < 0 && errno == EINTR);
+                    if (got < 0) {
+                        return fail(system_error(errno, "read", string("file")));
+                    }
+                    if (got == 0) {
+                        break;
+                    }
+                    parts.push_back(slice<const byte>(blocks[k], blocks[k]->data(), size_t(got)));
+                    round += size_t(got);
+                    if (size_t(got) < want) {
+                        break;   // short: most likely the end; the next round tells
+                    }
+                }
+                return round;
+            }
+
+            expected<size_t, io::error> _send_file_blocks(int fd, uint64_t offset, uint64_t n) {
+                tracked_ptr<FileBlock> blocks[FileBlocks];
+                vector<slice<const byte>> parts;
+                uint64_t sent = 0;
+                while (sent < n) {
+                    auto round = _read_round(fd, offset + sent, n - sent, blocks, parts);
+                    if (!round) {
+                        return fail(round);
+                    }
+                    if (*round == 0) {
+                        break;
+                    }
+                    auto r = try_raw_write_parts(parts.data(), parts.size());
+                    if (!r) {
+                        return fail(r);
+                    }
+                    if (*r < *round) {
+                        // the rest of the same write, from where the try
+                        // stopped: a transport that kept a batch it took in
+                        // part (TLS: records sealed, their tail unsent) goes
+                        // on from it, never sealing those bytes again, which
+                        // a write of the rest as new data would do
+                        auto rest = awaited_raw_write_parts(parts, *r).wait();
+                        if (!rest) {
+                            return fail(rest);
+                        }
+                    }
+                    sent += *round;
+                }
+                return size_t(sent);
+            }
+
+            static async::task<expected<size_t, io::error>> _co_send_file_blocks(tracked_ptr<ConnImpl> self, int fd, uint64_t offset, uint64_t n) {
+                tracked_ptr<FileBlock> blocks[FileBlocks];
+                vector<slice<const byte>> parts;
+                uint64_t sent = 0;
+                while (sent < n) {
+                    auto round = _read_round(fd, offset + sent, n - sent, blocks, parts);
+                    if (!round) {
+                        co_return fail(round);
+                    }
+                    if (*round == 0) {
+                        break;
+                    }
+                    auto r = self->try_raw_write_parts(parts.data(), parts.size());
+                    if (!r) {
+                        co_return fail(r);
+                    }
+                    if (*r < *round) {
+                        auto rest = co_await self->awaited_raw_write_parts(parts, *r);
+                        if (!rest) {
+                            co_return fail(rest);
+                        }
+                    }
+                    sent += *round;
+                }
+                co_return size_t(sent);
+            }
+
         private:
             // The rest of a write begun by start_write, from `done` on;
             // `held`: the write lock taken by start_write, a parameter, so
@@ -395,6 +598,20 @@ namespace sgcl::net {
                 if (!r) {
                     co_return fail(r);
                 }
+                co_return done + *r;
+            }
+
+            static async::task<expected<size_t, io::error>> _write_rest_parts(tracked_ptr<ConnImpl> self, vector<slice<const byte>> parts, size_t done, size_t total,
+                                                                             optional<sgcl::async::mutex::guard> held) {
+                if (!held) {
+                    held.emplace(co_await self->_write_lock.scoped_lock());
+                }
+                auto r = co_await self->awaited_raw_write_parts(std::move(parts), done);
+                held.reset();
+                if (!r) {
+                    co_return fail(r);
+                }
+                (void)total;
                 co_return done + *r;
             }
 
@@ -574,6 +791,124 @@ namespace sgcl::net {
                 return written;
             }
 
+            // The pieces in one sendmsg (up to 64 of them a call), as long
+            // as the socket takes them whole
+            expected<size_t, io::error> try_raw_write_parts(const slice<const byte>* parts, size_t n) override {
+                Operation op(_d);
+                if (!op) {
+                    return fail(closed_error("write", describe()));
+                }
+                size_t total = 0;
+                for (size_t i = 0; i < n; ++i) {
+                    total += parts[i].size();
+                }
+                size_t written = 0;
+                bool deadline = true;
+                while (written < total) {
+                    if (auto e = _check(Descriptor::Write, "write", deadline)) {
+                        return fail(*e);
+                    }
+                    deadline = true;
+                    iovec v[64];
+                    int k = 0;
+                    size_t skip = written;
+                    for (size_t i = 0; i < n && k < 64; ++i) {
+                        size_t size = parts[i].size();
+                        if (skip >= size) {
+                            skip -= size;
+                            continue;
+                        }
+                        v[k].iov_base = const_cast<byte*>(parts[i].data() + skip);
+                        v[k].iov_len = size - skip;
+                        skip = 0;
+                        ++k;
+                    }
+                    msghdr m{};
+                    m.msg_iov = v;
+                    m.msg_iovlen = k;
+                    _d.prepare(Descriptor::Write);
+                    ssize_t sent = ::sendmsg(_d.fd(), &m, SendFlags);
+                    if (sent >= 0) {
+                        written += size_t(sent);
+                        continue;
+                    }
+                    int e = errno;
+                    if (e == EINTR) {
+                        continue;
+                    }
+                    if (e != EAGAIN && e != EWOULDBLOCK) {
+                        return fail(system_error(e, "write", describe()));
+                    }
+                    break;
+                }
+                return written;
+            }
+
+            // A file by sendfile(2): the kernel moves its pages to the
+            // socket, nothing through the process. Waits as a write does
+            // (the reactor, the write deadline); a socket or a file the
+            // call does not take (a Unix socket on some systems) goes the
+            // blocks' way from where sendfile stopped
+            expected<size_t, io::error> raw_send_file(int fd, uint64_t offset, uint64_t n) override {
+                Operation op(_d);
+                if (!op) {
+                    return fail(closed_error("write", describe()));
+                }
+                uint64_t sent = 0;
+                bool look = true;
+                for (;;) {
+                    auto s = _send_file_now(fd, offset, n, sent, look);
+                    if (!s) {
+                        return fail(s);
+                    }
+                    if (*s == FileSend::done) {
+                        return size_t(sent);
+                    }
+                    if (*s == FileSend::unsupported) {
+                        auto r = _send_file_blocks(fd, offset + sent, n - sent);
+                        if (!r) {
+                            return fail(r);
+                        }
+                        return size_t(sent + *r);
+                    }
+                    auto r = _d.wait(Descriptor::Write, look);
+                    if (r != WaitResult::ready) {
+                        return fail(wait_error(r, _d, "write", describe()));
+                    }
+                    look = !look;
+                }
+            }
+
+            async::task<expected<size_t, io::error>> awaited_raw_send_file(int fd, uint64_t offset, uint64_t n) override {
+                Operation op(_d);
+                if (!op) {
+                    co_return fail(closed_error("write", describe()));
+                }
+                uint64_t sent = 0;
+                bool look = true;
+                for (;;) {
+                    auto s = _send_file_now(fd, offset, n, sent, look);
+                    if (!s) {
+                        co_return fail(s);
+                    }
+                    if (*s == FileSend::done) {
+                        co_return size_t(sent);
+                    }
+                    if (*s == FileSend::unsupported) {
+                        auto r = co_await _co_send_file_blocks(tracked_ptr<ConnImpl>(this), fd, offset + sent, n - sent);
+                        if (!r) {
+                            co_return fail(r);
+                        }
+                        co_return size_t(sent + *r);
+                    }
+                    auto r = co_await _d.async_wait(Descriptor::Write, look);
+                    if (r != WaitResult::ready) {
+                        co_return fail(wait_error(r, _d, "write", describe()));
+                    }
+                    look = !look;
+                }
+            }
+
             expected<void, io::error> close() override {
                 int e = _d.close();
                 if (e) {
@@ -599,6 +934,10 @@ namespace sgcl::net {
 
             void set_deadline(int dir, time_point t) override {
                 _d.set_deadline(dir, t);
+            }
+
+            time_point deadline(int dir) const override {
+                return _d.deadline(dir);
             }
 
             endpoint local_endpoint() const override {
@@ -768,6 +1107,84 @@ namespace sgcl::net {
                 }
                 return false;
             }
+
+            enum class FileSend : uint8_t { done, would_wait, unsupported };
+
+            // The part of a file's sending that goes without waiting, from
+            // `sent` on: done (all of it, or the file ended), would_wait, or
+            // unsupported (sendfile does not take this socket or file: the
+            // caller goes on another way from `sent`); or the error. The
+            // descriptor's state looked at before every call, as a send
+            expected<FileSend, io::error> _send_file_now(int fd, uint64_t offset, uint64_t n, uint64_t& sent, bool deadline = true) {
+                while (sent < n) {
+                    if (auto e = _check(Descriptor::Write, "write", deadline)) {
+                        return fail(*e);
+                    }
+                    deadline = true;
+                    _d.prepare(Descriptor::Write);
+                    const uint64_t want = std::min<uint64_t>(n - sent, uint64_t(1) << 30);
+#if defined(__APPLE__)
+                    off_t len = off_t(want);
+                    const int rc = ::sendfile(fd, _d.fd(), off_t(offset + sent), &len, nullptr, 0);
+                    const int e = rc == 0 ? 0 : errno;
+                    sent += uint64_t(len);   // what went, also with EAGAIN and EINTR
+                    if (rc == 0) {
+                        if (len == 0) {
+                            return FileSend::done;   // the file ended before n
+                        }
+                        continue;
+                    }
+#elif defined(__linux__)
+                    off_t at = off_t(offset + sent);
+                    const ssize_t k = _linux_sendfile(fd, at, size_t(want));
+                    const int e = k < 0 ? errno : 0;
+                    if (k > 0) {
+                        sent += uint64_t(k);
+                        continue;
+                    }
+                    if (k == 0) {
+                        return FileSend::done;   // the file ended before n
+                    }
+#else
+                    const int e = ENOSYS;
+#endif
+                    if (e == EINTR) {
+                        continue;
+                    }
+                    if (e == EAGAIN || e == EWOULDBLOCK) {
+                        return FileSend::would_wait;
+                    }
+                    if (e == ENOTSUP || e == EOPNOTSUPP || e == ENOTSOCK || e == EINVAL || e == ENOSYS) {
+                        return FileSend::unsupported;
+                    }
+                    return fail(system_error(e, "write", describe()));
+                }
+                return FileSend::done;
+            }
+
+#if defined(__linux__)
+            // sendfile has no MSG_NOSIGNAL: SIGPIPE held back for the call
+            // on this thread, and one it raised taken off before it is
+            // unblocked (a write to a connection the peer closed is EPIPE,
+            // as a send's)
+            ssize_t _linux_sendfile(int fd, off_t& at, size_t n) noexcept {
+                sigset_t pipe_only;
+                sigset_t old;
+                sigemptyset(&pipe_only);
+                sigaddset(&pipe_only, SIGPIPE);
+                pthread_sigmask(SIG_BLOCK, &pipe_only, &old);
+                const ssize_t k = ::sendfile(_d.fd(), fd, &at, n);
+                const int e = errno;
+                if (k < 0 && e == EPIPE) {
+                    const timespec zero = {0, 0};
+                    while (sigtimedwait(&pipe_only, nullptr, &zero) == SIGPIPE) {
+                    }
+                }
+                pthread_sigmask(SIG_SETMASK, &old, nullptr);
+                errno = e;
+                return k;
+            }
+#endif
 
             // 0 connected, EINPROGRESS still connecting, else the error
             int _connect_state() noexcept {
@@ -992,6 +1409,11 @@ namespace sgcl::net {
                 _wake();
             }
 
+            time_point deadline(int dir) const override {
+                std::lock_guard lock(_m);
+                return _deadline[dir];
+            }
+
             string describe() const override {
                 return string("pipe");
             }
@@ -1058,11 +1480,29 @@ namespace sgcl::net {
 
             tracked_ptr<MemoryPipe> _in;
             tracked_ptr<MemoryPipe> _out;
-            std::mutex _m;                               // the deadlines and the rearm channel
+            mutable std::mutex _m;                       // the deadlines and the rearm channel
             time_point _deadline[2] = {};
             tracked_ptr<async::detail::ChannelState<void>> _rearm;
             std::atomic<bool> _closed = {false};
         };
+
+        // A regular file's position and the bytes from it to its end (what
+        // a connection's read_from and a response's write(file) send);
+        // nullopt for any other file (a pipe, a device) or a position that
+        // cannot be told
+        inline optional<pair<uint64_t, uint64_t>> file_rest(const io::file& f) {
+            const int fd = f.fd();
+            struct stat st;
+            if (fd < 0 || ::fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) {
+                return nullopt;
+            }
+            const off_t at = ::lseek(fd, 0, SEEK_CUR);
+            if (at < 0) {
+                return nullopt;
+            }
+            const uint64_t size = uint64_t(st.st_size);
+            return pair<uint64_t, uint64_t>(uint64_t(at), size > uint64_t(at) ? size - uint64_t(at) : 0);
+        }
 
         class ListenerImpl;
         class UdpImpl;
@@ -1137,6 +1577,10 @@ namespace sgcl::net {
             _get().set_max_line(bytes);
         }
 
+        size_t max_line() const noexcept {
+            return _get().max_line();
+        }
+
         // Everything, or the error
         // `write(...)` on this thread, `co_await async_write(...)` in a task
         expected<size_t, io::error> write(const slice<const byte>& data) const {
@@ -1168,6 +1612,30 @@ namespace sgcl::net {
         template<sgcl::detail::TextArgument T>
         async::task<expected<size_t, io::error>> async_write(const T& text) const {
             return _co_write(string(slice<const byte>(text)));
+        }
+
+        // A file from its position to its end, written to the connection:
+        // what io::copy(connection, file) calls (Go's ReaderFrom). Over TCP
+        // by sendfile, the file's pages going to the socket with no copy
+        // through the process; over TLS read in blocks and sealed where
+        // they lie. The bytes sent; the file's position moved past them;
+        // the write's deadline holds. A file that is not a regular one (a
+        // pipe) is copied as io::copy copies any reader
+        // `read_from(...)` on this thread, `co_await async_read_from(...)` in a task
+        expected<size_t, io::error> read_from(const io::file& f) const {
+            auto span = detail::file_rest(f);
+            if (!span) {
+                return io::detail::copy_loop(*this, f);
+            }
+            auto r = _get().send_file(f.fd(), span->first, span->second);
+            if (r) {
+                ::lseek(f.fd(), off_t(span->first + *r), SEEK_SET);
+            }
+            return r;
+        }
+
+        async::task<expected<size_t, io::error>> async_read_from(io::file f) const {
+            return _co_read_from(*this, std::move(f));
         }
 
         // Everything to the end of this stream, written to other (an echo
@@ -1239,6 +1707,15 @@ namespace sgcl::net {
 
         void set_write_deadline(time_point t) const {
             _get().set_deadline(detail::Descriptor::Write, t);
+        }
+
+        // The deadline of a direction, time_point() when there is none
+        time_point read_deadline() const {
+            return _get().deadline(detail::Descriptor::Read);
+        }
+
+        time_point write_deadline() const {
+            return _get().deadline(detail::Descriptor::Write);
         }
 
         // TCP only (EOPNOTSUPP for anything else): Nagle's algorithm off
@@ -1340,6 +1817,18 @@ namespace sgcl::net {
 
         async::task<expected<size_t, io::error>> _co_write(const string& text) const {
             return _get().async_write(as_bytes(text.as_slice()));
+        }
+
+        static async::task<expected<size_t, io::error>> _co_read_from(connection self, io::file f) {
+            auto span = detail::file_rest(f);
+            if (!span) {
+                co_return co_await io::detail::async_copy_loop<const connection, io::file>(self, f);
+            }
+            auto r = co_await self._get().async_send_file(f.fd(), span->first, span->second);
+            if (r) {
+                ::lseek(f.fd(), off_t(span->first + *r), SEEK_SET);
+            }
+            co_return r;
         }
     };
 
@@ -1785,6 +2274,10 @@ namespace sgcl::net {
                 _d.set_deadline(dir, t);
             }
 
+            time_point deadline(int dir) const noexcept {
+                return _d.deadline(dir);
+            }
+
             endpoint local_endpoint() const noexcept {
                 return _local;
             }
@@ -1921,6 +2414,14 @@ namespace sgcl::net {
 
             void set_write_deadline(time_point t) const {
                 _get().set_deadline(detail::Descriptor::Write, t);
+            }
+
+            time_point read_deadline() const noexcept {
+                return _get().deadline(detail::Descriptor::Read);
+            }
+
+            time_point write_deadline() const noexcept {
+                return _get().deadline(detail::Descriptor::Write);
             }
 
             explicit operator bool() const noexcept {

@@ -99,7 +99,9 @@ async::blocking_pool::statistics from_a_thread() {
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/async/async.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 #include <atomic>
 #include <chrono>
 #include <thread>
@@ -153,9 +155,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 sum 12250, the calls ran together: yes, the heartbeat kept beating: yes, threads of the pool: 50
 ```
 

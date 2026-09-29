@@ -130,12 +130,29 @@ public:
 
 `parse(in)` reads the stream on the thread that calls it; `async_parse(in)` in a task gives the worker back while the stream waits.
 
-## Example
+## SGCL and Go
+
+| Go | SGCL | note |
+|---|---|---|
+| `xml.Unmarshal` into `any`-like structures | `encoding::xml::parse(text)` → a tree | Go has no tree |
+| `xml.Unmarshal(b, &v)`, `xml.Marshal(v)` of a struct | `encoding::xml::parse<T>(text)`, `stringify("name", v)` | `describe(field_list&)` for the tags: `attr` → `attribute()`, `chardata` → `text()`; the root's name is given, not an `XMLName` field |
+| `,innerxml`, `,any`, `,comment` | — | a field of type `xml` is not a kind of `fields.h` yet |
+| `xml.Marshal`, `MarshalIndent` of a structure | `to_string()`, `to_string(xml::pretty)` of a tree | |
+| `xml.Name{Space, Local}` | `namespace_uri()`, `local_name()`; `"{space}local"` where a name is asked for | |
+| `Decoder.Strict = true` (the default) | always strict | Go reads a second root, text around the root, an unbound prefix, two attributes of one name, invalid UTF-8 |
+| `Decoder.Entity` (a map of entities) | — | no entities but the five: no DTD, by design |
+| `Decoder.CharsetReader` | built in | UTF-16 and the 27 single byte encodings of `txt` |
+| `Decoder.AutoClose`, `Strict = false` (HTML-like input) | — | XML only; HTML is another grammar |
+
+## The oracles
+
+The **W3C XML Conformance Test Suite** (xmlconf 2013-09-23, in `~/Programming/oracles/xmlconf`, not in the repository): of its 1965 tests of XML 1.0 fifth edition and Namespaces 1.0, 1536 are read as the suite says; the other 429 are decided otherwise by design, each named with its reason in `tests/encoding/xml_conformance_expected.h` — 317 documents whose error lies in the internal subset of their DTD (skipped, not read), 29 whose error lies in an external DTD or entity (never loaded), 83 valid documents referring to an entity their DTD declares. Of the 309 valid documents with a canonical form, 251 are written in it as the suite writes them; the other 58 want an attribute default or type, or a notation, from their DTD. **Go's `encoding/xml`** gives the same tokens for the 1192 documents of the suite both read and for 32 documents named in `tools/xml_oracle.go`, which lists where the two are compared otherwise (Go keeps line endings in comments, takes a UTF-8 byte order mark for text, keeps white space in attribute values). 200,000 documents made by mutating those are read whole and through a stream in pieces of 3 bytes, and every one read is written and read again as the same tree; where Go also reads one, its tokens are Go's.
+
+## Examples
 
 ```cpp
-#include "sgcl/core/range.h"
-#include "sgcl/encoding/xml.h"
-#include "sgcl/io/print.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -153,42 +170,14 @@ int main() {
     for (auto book : doc->children("book")) {
         string id = book.attribute("id", "?");
         string title = book.child("{http://purl.org/dc/elements/1.1/}title").text();
-        string price = book.child("price").text();   // "" when there is none
+        string price = book.child("price").text();  // "" when there is none
         println("{}: {} [{}]", id, title, price);
     }
 
     // a change is a new tree; the one read stays as it was
-    encoding::xml added = doc->push_back(encoding::xml("book").set("id", "3").push_back(encoding::xml("dc:title", "Diuna")));
+    encoding::xml added = doc->push_back(
+        encoding::xml("book").set("id", "3").push_back(encoding::xml("dc:title", "Diuna")));
     println(added.to_string(encoding::xml::pretty));
-
-    encoding::xml::builder list("list");
-    for (auto i : range(3)) {
-        list.push_back(encoding::xml("item", to_string(i * i)));
-    }
-    println(list.build().to_string());
-
-    auto bad = encoding::xml::parse("<a>\n  <b>&nbsp;</b>\n</a>");
-    println(bad.error().message());
-
-    // a program's own type, described once for every format
-    struct book {
-        string id;
-        string title;
-        vector<string> tags;
-        optional<double> price;
-
-        void describe(encoding::field_list& f) {
-            f.add("id", id).attribute().required();
-            f.add("title", title);
-            f.add("tag", tags);
-            f.add("price", price);
-        }
-    };
-    auto dune = encoding::xml::parse<book>("<book id='7'><tag>sf</tag><title>Dune</title><tag>classic</tag></book>").value();
-    dune.price = 45.5;
-    println(encoding::xml::stringify("book", dune).value());
-    auto wrong = encoding::xml::parse<book>("<book id='8'>\n  <title>X</title>\n  <price>cheap</price>\n</book>");
-    println(wrong.error().message());
 }
 ```
 
@@ -209,29 +198,91 @@ Output:
     <dc:title>Diuna</dc:title>
   </book>
 </catalog>
+```
+
+An element of many children, made a child at a time:
+
+```cpp
+#include "sgcl/core/core.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
+
+using namespace sgcl;
+
+int main() {
+    encoding::xml::builder list("list");
+    for (auto i : range(3)) {
+        list.push_back(encoding::xml("item", to_string(i * i)));
+    }
+    println(list.build().to_string());
+}
+```
+
+Output:
+
+```text
 <list><item>0</item><item>1</item><item>4</item></list>
+```
+
+A document that is not well formed:
+
+```cpp
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
+
+using namespace sgcl;
+
+int main() {
+    auto bad = encoding::xml::parse("<a>\n  <b>&nbsp;</b>\n</a>");
+    println(bad.error().message());
+}
+```
+
+Output:
+
+```text
 2:6 /a/b: undefined entity &nbsp; (only the five of XML are known: no DTD is read)
+```
+
+A program's own type, described once for every format:
+
+```cpp
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
+
+using namespace sgcl;
+
+struct book {
+    string id;
+    string title;
+    vector<string> tags;
+    optional<double> price;
+
+    void describe(encoding::field_list& f) {
+        f.add("id", id).attribute().required();
+        f.add("title", title);
+        f.add("tag", tags);
+        f.add("price", price);
+    }
+};
+
+int main() {
+    auto dune = encoding::xml::parse<book>(
+        "<book id='7'><tag>sf</tag><title>Dune</title><tag>classic</tag></book>").value();
+    dune.price = 45.5;
+    println(encoding::xml::stringify("book", dune).value());
+    auto wrong = encoding::xml::parse<book>(
+        "<book id='8'>\n  <title>X</title>\n  <price>cheap</price>\n</book>");
+    println(wrong.error().message());
+}
+```
+
+Output:
+
+```text
 <book id="7"><title>Dune</title><tag>sf</tag><tag>classic</tag><price>45.5</price></book>
 1:1 /book/price: expected a number, found "cheap"
 ```
-
-## SGCL and Go
-
-| Go | SGCL | note |
-|---|---|---|
-| `xml.Unmarshal` into `any`-like structures | `encoding::xml::parse(text)` → a tree | Go has no tree |
-| `xml.Unmarshal(b, &v)`, `xml.Marshal(v)` of a struct | `encoding::xml::parse<T>(text)`, `stringify("name", v)` | `describe(field_list&)` for the tags: `attr` → `attribute()`, `chardata` → `text()`; the root's name is given, not an `XMLName` field |
-| `,innerxml`, `,any`, `,comment` | — | a field of type `xml` is not a kind of `fields.h` yet |
-| `xml.Marshal`, `MarshalIndent` of a structure | `to_string()`, `to_string(xml::pretty)` of a tree | |
-| `xml.Name{Space, Local}` | `namespace_uri()`, `local_name()`; `"{space}local"` where a name is asked for | |
-| `Decoder.Strict = true` (the default) | always strict | Go reads a second root, text around the root, an unbound prefix, two attributes of one name, invalid UTF-8 |
-| `Decoder.Entity` (a map of entities) | — | no entities but the five: no DTD, by design |
-| `Decoder.CharsetReader` | built in | UTF-16 and the 27 single byte encodings of `txt` |
-| `Decoder.AutoClose`, `Strict = false` (HTML-like input) | — | XML only; HTML is another grammar |
-
-## The oracles
-
-The **W3C XML Conformance Test Suite** (xmlconf 2013-09-23, in `~/Programming/oracles/xmlconf`, not in the repository): of its 1965 tests of XML 1.0 fifth edition and Namespaces 1.0, 1536 are read as the suite says; the other 429 are decided otherwise by design, each named with its reason in `tests/encoding/xml_conformance_expected.h` — 317 documents whose error lies in the internal subset of their DTD (skipped, not read), 29 whose error lies in an external DTD or entity (never loaded), 83 valid documents referring to an entity their DTD declares. Of the 309 valid documents with a canonical form, 251 are written in it as the suite writes them; the other 58 want an attribute default or type, or a notation, from their DTD. **Go's `encoding/xml`** gives the same tokens for the 1192 documents of the suite both read and for 32 documents named in `tools/xml_oracle.go`, which lists where the two are compared otherwise (Go keeps line endings in comments, takes a UTF-8 byte order mark for text, keeps white space in attribute values). 200,000 documents made by mutating those are read whole and through a stream in pieces of 3 bytes, and every one read is written and read again as the same tree; where Go also reads one, its tokens are Go's.
 
 ## See also
 

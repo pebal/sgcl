@@ -1,24 +1,21 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
 #include "crc.h"
+#include "crc_fold.h"
 
 // The arm64 path of the CRCs: folding by carry-less multiplication (PMULL)
 // for everything from 128 bytes up, and the CRC-32 instructions of ARMv8
-// below that. It is compiled where the target has both features, which the
-// default arm64-apple-macos target does, so there is no detection at run
-// time and no flag in the build. SGCL_HASH_PORTABLE takes it out, for the
-// test that the two paths agree and for nothing else. The choice is made
-// per translation unit from the target's flags, so every unit of a program
-// must be built for the same target and with the same setting of the macro:
-// on Linux on arm64, where the default target may lack the two features, one
-// file built with -march=armv8-a+crc+crypto and another without would give
-// the inline functions below two bodies (an ODR violation) — build the whole
-// program with one -march.
+// below that. It is compiled on every little-endian arm64 target, each
+// function marked with the features it needs, and taken where the gate
+// cpu::crypto() of sgcl/core/detail/cpu.h says the processor has them: a
+// constant on macOS, whose default target promises them, one question to
+// the system elsewhere. SGCL_HASH_PORTABLE takes it out, for the test that
+// the two paths agree.
 //
 // Why folding for CRC-32 too, where there is an instruction: crc32x takes
 // eight bytes a cycle at best, one after another, since each step needs the
@@ -43,33 +40,16 @@
 // start register goes into the first bytes: processing a message from
 // register r is processing it from zero with r XORed into its first
 // bytes.
-#if defined(__aarch64__) && defined(__AARCH64EL__) && defined(__ARM_FEATURE_CRC32) && defined(__ARM_FEATURE_AES) && !defined(SGCL_HASH_PORTABLE)
+#include "../../core/detail/cpu.h"
+
+#if defined(SGCL_CPU_ARM64) && !defined(SGCL_HASH_PORTABLE)
 #define SGCL_HASH_ARM64 1
 
 #include <arm_acle.h>
 #include <arm_neon.h>
 
 namespace sgcl::hash::detail {
-    struct FoldKeys {
-        uint64_t lo512, hi512;   // a lane four lanes on, in the loop
-        uint64_t lo384, hi384;   // the lanes onto the last at the end
-        uint64_t lo256, hi256;
-        uint64_t lo128, hi128;
-    };
-
-    template<class T, T Poly>
-    constexpr uint64_t fold_key(unsigned e) noexcept {
-        return uint64_t(crc_xpow<T, Poly>(e)) << (64 - RegisterBits<T>);
-    }
-
-    template<class T, T Poly>
-    inline constexpr FoldKeys fold_keys = {
-        fold_key<T, Poly>(512 + 63), fold_key<T, Poly>(512 - 1),
-        fold_key<T, Poly>(384 + 63), fold_key<T, Poly>(384 - 1),
-        fold_key<T, Poly>(256 + 63), fold_key<T, Poly>(256 - 1),
-        fold_key<T, Poly>(128 + 63), fold_key<T, Poly>(128 - 1),
-    };
-
+    SGCL_TARGET_ARM64_CRYPTO
     inline uint8x16_t fold_lane(uint8x16_t v, uint64_t lo, uint64_t hi) noexcept {
         poly64x2_t w = vreinterpretq_p64_u8(v);
         poly128_t a = vmull_p64(vgetq_lane_p64(w, 0), poly64_t(lo));
@@ -80,6 +60,7 @@ namespace sgcl::hash::detail {
     // The whole 64-byte blocks of p[0, n) (n >= 64) folded into 16 bytes
     // whose CRC from a zero register is the register after them; p and n
     // are moved past the blocks, fewer than 64 bytes left
+    SGCL_TARGET_ARM64_CRYPTO
     inline uint8x16_t crc_fold(uint64_t reg, const unsigned char*& p, size_t& n, const FoldKeys& k) noexcept {
         uint8x16_t x0 = veorq_u8(vld1q_u8(p), vreinterpretq_u8_u64(vcombine_u64(vcreate_u64(reg), vcreate_u64(0))));
         uint8x16_t x1 = vld1q_u8(p + 16);
@@ -103,23 +84,24 @@ namespace sgcl::hash::detail {
 
     template<>
     struct Crc32Instructions<0xEDB88320u> {
-        static uint32_t word(uint32_t r, uint64_t w) noexcept { return __crc32d(r, w); }
-        static uint32_t half(uint32_t r, uint32_t w) noexcept { return __crc32w(r, w); }
-        static uint32_t quarter(uint32_t r, uint16_t w) noexcept { return __crc32h(r, w); }
-        static uint32_t byte(uint32_t r, uint8_t w) noexcept { return __crc32b(r, w); }
+        SGCL_INLINE_ARM64_CRYPTO static uint32_t word(uint32_t r, uint64_t w) noexcept { return __crc32d(r, w); }
+        SGCL_INLINE_ARM64_CRYPTO static uint32_t half(uint32_t r, uint32_t w) noexcept { return __crc32w(r, w); }
+        SGCL_INLINE_ARM64_CRYPTO static uint32_t quarter(uint32_t r, uint16_t w) noexcept { return __crc32h(r, w); }
+        SGCL_INLINE_ARM64_CRYPTO static uint32_t byte(uint32_t r, uint8_t w) noexcept { return __crc32b(r, w); }
     };
 
     template<>
     struct Crc32Instructions<0x82F63B78u> {
-        static uint32_t word(uint32_t r, uint64_t w) noexcept { return __crc32cd(r, w); }
-        static uint32_t half(uint32_t r, uint32_t w) noexcept { return __crc32cw(r, w); }
-        static uint32_t quarter(uint32_t r, uint16_t w) noexcept { return __crc32ch(r, w); }
-        static uint32_t byte(uint32_t r, uint8_t w) noexcept { return __crc32cb(r, w); }
+        SGCL_INLINE_ARM64_CRYPTO static uint32_t word(uint32_t r, uint64_t w) noexcept { return __crc32cd(r, w); }
+        SGCL_INLINE_ARM64_CRYPTO static uint32_t half(uint32_t r, uint32_t w) noexcept { return __crc32cw(r, w); }
+        SGCL_INLINE_ARM64_CRYPTO static uint32_t quarter(uint32_t r, uint16_t w) noexcept { return __crc32ch(r, w); }
+        SGCL_INLINE_ARM64_CRYPTO static uint32_t byte(uint32_t r, uint8_t w) noexcept { return __crc32cb(r, w); }
     };
 
     // Words of eight, then the last seven bytes as four, two and one: no
     // loop over the bytes of the end
     template<uint32_t Poly>
+    SGCL_TARGET_ARM64_CRYPTO
     inline uint32_t crc32_instructions(uint32_t reg, const unsigned char* p, size_t n) noexcept {
         using I = Crc32Instructions<Poly>;
         for (; n >= 8; p += 8, n -= 8) {
@@ -146,6 +128,7 @@ namespace sgcl::hash::detail {
     }
 
     template<uint32_t Poly>
+    SGCL_TARGET_ARM64_CRYPTO
     inline uint32_t crc32_update_arm64(uint32_t reg, const unsigned char* p, size_t n) noexcept {
         if (n >= 128) {
             uint8x16_t v = crc_fold(reg, p, n, fold_keys<uint32_t, Poly>);
@@ -157,6 +140,7 @@ namespace sgcl::hash::detail {
     }
 
     template<uint64_t Poly>
+    SGCL_TARGET_ARM64_CRYPTO
     inline uint64_t crc64_update_arm64(uint64_t reg, const unsigned char* p, size_t n) noexcept {
         if (n >= 128) {
             uint8x16_t v = crc_fold(reg, p, n, fold_keys<uint64_t, Poly>);
@@ -168,19 +152,3 @@ namespace sgcl::hash::detail {
     }
 }
 #endif
-
-namespace sgcl::hash::detail {
-    // The register after p[0, n) by the fastest path the target has
-    template<class T, T Poly>
-    inline T crc_update(T reg, const unsigned char* p, size_t n) noexcept {
-#if defined(SGCL_HASH_ARM64)
-        if constexpr (sizeof(T) == 4) {
-            return crc32_update_arm64<Poly>(reg, p, n);
-        } else {
-            return crc64_update_arm64<Poly>(reg, p, n);
-        }
-#else
-        return crc_update_portable<T, Poly>(reg, p, n);
-#endif
-    }
-}

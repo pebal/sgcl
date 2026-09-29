@@ -79,7 +79,8 @@ assert(m() == 2);
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -116,9 +117,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 log: ok
 clicked ok
 ```

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -24,6 +24,7 @@
 #include "../../../core/string.h"
 #include "../../../core/tracked_ptr.h"
 #include "../../../core/vector.h"
+#include "../../../slog/logger.h"
 
 #include <atomic>
 #include <chrono>
@@ -59,6 +60,7 @@ namespace sgcl::net::http {
             bool h2c = false;
             uint32_t max_concurrent_streams = 250;
             function<void(const string&)> on_error;
+            optional<slog::logger> access_log;   // a record per exchange, when set (server::access_log)
 
             void report(const string& what) const {
                 if (on_error) {
@@ -68,6 +70,36 @@ namespace sgcl::net::http {
                 }
             }
         };
+
+        // The access log's record of one exchange, when the server has one:
+        // at info, or at error for a 5xx; every attribute a view of the
+        // request and of the response's counts, the remote address written
+        // into the line (endpoint::write_text), so that a request adds
+        // nothing to the managed heap (DESIGN 283). A request-id field
+        // (X-Request-ID) is written when the request has one. `bytes` is
+        // the writer's body_bytes() taken before the finish, which gives
+        // the body's blocks back
+        inline void log_access(const ServerSettings& cfg, const RequestImpl& req, const WriterImpl& w, uint64_t bytes, std::string_view path,
+                               std::string_view proto, time_point start) {
+            if (!cfg.access_log) {
+                return;
+            }
+            const slog::logger& log = *cfg.access_log;
+            const slog::level l = w.status >= 500 ? slog::level::error : slog::level::info;
+            if (!log.enabled(l)) {
+                return;
+            }
+            const duration took = sgcl::clock::now() - start;
+            const std::string_view method = req.method.view();
+            const std::string_view agent = HeadersAccess::find(req.fields, "user-agent").value_or(std::string_view());
+            if (auto id = HeadersAccess::find(req.fields, "x-request-id")) {
+                log.log(l, "request", "method", method, "path", path, "proto", proto, "status", w.status, "bytes", bytes, "duration", took,
+                        "remote", req.remote, "user_agent", agent, "request_id", *id);
+            } else {
+                log.log(l, "request", "method", method, "path", path, "proto", proto, "status", w.status, "bytes", bytes, "duration", took,
+                        "remote", req.remote, "user_agent", agent);
+            }
+        }
 
         // One connection of the server, in its list: the state the loop
         // and shutdown() hand it between with a compare-and-swap
@@ -274,9 +306,7 @@ namespace sgcl::net::http {
             auto found = s.routes.find(method, host_text, path);
             switch (found.kind) {
                 case RouteTable::Found::route: {
-                    for (auto& v : found.values) {
-                        req->path_values.push_back(v);   // managed strings, as the router made them
-                    }
+                    req->path_values = std::move(found.values);   // the router's vector itself: managed strings, as it made them
                     auto& h = s.handlers[found.index];
                     if (h.plain) {
                         h.plain(r, writer);

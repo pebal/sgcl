@@ -1,7 +1,7 @@
 # sgcl::io::file
 
 ```cpp
-#include "sgcl/io/file.h"   // or "sgcl/io/io.h", "sgcl/sgcl.h"
+#include "sgcl/io/file.h"   // or "sgcl/io/io.h"
 
 namespace sgcl::io {
     enum class open_flags : unsigned { read = 1, write = 2, create = 4, truncate = 8, append = 16, exclusive = 32, sync = 64 };
@@ -37,6 +37,7 @@ A `file` is a handle of one word, a `tracked_ptr` to the object inside, as a [`s
 - `close()` from any thread or task ends the file: no operation starts after it, a task or a thread waiting in `read` or `write` wakes to `errc::closed`, and the descriptor is given back to the kernel by whoever lets go of it last, `close()` itself or the last operation in progress (a count of the operations and a closing bit in one word, as net's sockets hold theirs), so that no read in progress lands on the number the kernel gives to the next file opened. The descriptor is released by `close()` or, failing that, by the destructor on the collector's thread after the sweep that finds the file dead — later than the last use. A file that is done is closed; `close()` reports what the deferred one could not.
 - `from_fd` leaves the descriptor's flags as they are: one that is non-blocking already is served by the reactor, any other by the pool. `open` makes a FIFO or a device non-blocking; `pipe` makes both ends so.
 - The data of an async write stays alive while the task awaits, as a task's local does; a `tracked_ptr` to a buffer captured in the awaiting frame is enough.
+- An async read or write that runs on the blocking pool (a regular file, `read_at`, `write_at`) and is given a slice without an owner goes through a managed block. The data to write is copied into it before the operation starts; the bytes read are copied back from it when the task resumes. The pool's thread may go on after the frame of a task let go of, and it never touches plain memory that died with that frame. A slice with an owner (a `string`, a `vector`, a `buffer`, any type of the library) is used as it is, with no copy: give one.
 - One task or thread at a time on the position; `read_at`/`write_at` from any number.
 
 ## Members
@@ -151,29 +152,31 @@ io::remove_all(dir);
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/async/async.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
 // Copies a file through the pool without holding a worker, then reads it
 // back through a pipe; the failures returned, not thrown
-async::task<expected<size_t, io::error>> roundtrip(string src, string dst) {   // by value: a task copies its parameters into its frame
+// by value: a task copies its parameters into its frame
+async::task<expected<size_t, io::error>> roundtrip(string src, string dst) {
     auto in = co_await io::async_open(src);
     if (!in) co_return unexpected(in.error());
     auto out = co_await io::async_create(dst);
     if (!out) co_return unexpected(out.error());
-    auto n = co_await in->async_copy_to(*out);             // reads and writes on the blocking pool
+    auto n = co_await in->async_copy_to(*out);  // reads and writes on the blocking pool
     if (!n) co_return n;
-    out->close();                                           // a file's close never waits
+    out->close();  // a file's close never waits
 
-    auto ends = io::pipe();                                 // a pipe: both ends on the reactor
+    auto ends = io::pipe();  // a pipe: both ends on the reactor
     if (!ends) co_return unexpected(ends.error());
     async::go([sending = ends->write, dst]() -> async::task<> {
         auto data = co_await io::async_read_file(dst);
-        if (data) co_await sending.async_write(data->as_slice());
-        sending.close();                                    // the reader sees the end
+        if (data) co_await sending.async_write(data);
+        sending.close();  // the reader sees the end
     });
-    auto back = co_await ends->read.async_read_all();       // suspended until the writer is done
+    auto back = co_await ends->read.async_read_all();  // suspended until the writer is done
     if (!back) co_return unexpected(back.error());
     co_return back->size();
 }
@@ -187,6 +190,12 @@ int main() {
     println("{} bytes", *n);
     io::remove("/tmp/hosts.copy");
 }
+```
+
+Sample output:
+
+```text
+213 bytes
 ```
 
 ## See also

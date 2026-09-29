@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -7,6 +7,9 @@
 
 #include "../../core/array.h"
 #include "../../core/config.h"
+#include "../../core/detail/bytes.h"
+#include "../../core/make_tracked.h"
+#include "../../core/vector.h"
 #include "../../core/slice.h"
 #include "../../core/string.h"
 
@@ -63,5 +66,56 @@ namespace sgcl::io {
         // async_read_all
         using IoBlock = array<byte, config::io_buffer_size>;
         using StackCopyBlock = std::array<byte, config::io_copy_buffer_size>;
+
+        // Plain memory handed to a task's write: a copy in a managed block
+        // that the slice the write is given holds. An async operation is
+        // never given a slice without an owner into plain memory: a write
+        // of a stream with no async_write of its own runs on the blocking
+        // pool, which may outlive the frame of a task let go of, and would
+        // read the memory freed with it (a writer's gathered text, in the
+        // frame). The block is 8 or 32 KB, past that a buffer of the
+        // write's size; kept for the next write once the one before is over
+        // (done()), a new one made while it may still be read.
+        class AsyncStage {
+        public:
+            slice<const byte> stage(const slice<const byte>& data) {
+                const size_t n = data.size();
+                if (_in_flight || _block.size() < n) {
+                    _block = _room(n);
+                }
+                if (n) {
+                    sgcl::detail::copy_bytes(_block.data(), data.data(), n);
+                }
+                _in_flight = true;
+                return slice<const byte>(_block.owner(), _block.data(), n);
+            }
+
+            // The write of the last stage is over: its block may be used again
+            void done() noexcept {
+                _in_flight = false;
+            }
+
+            // A managed block of n bytes at least: 8 KB, 32 KB, or a buffer of n
+            static slice<byte> room(size_t n) {
+                return _room(n);
+            }
+
+        private:
+            static slice<byte> _room(size_t n) {
+                if (n <= config::io_buffer_size) {
+                    tracked_ptr b = make_tracked<IoBlock>();
+                    return slice<byte>(tracked_ptr<const void>(b), b->data(), b->size());
+                }
+                if (n <= config::io_copy_buffer_size) {
+                    tracked_ptr b = make_tracked<CopyBlock>();
+                    return slice<byte>(tracked_ptr<const void>(b), b->data(), b->size());
+                }
+                vector<byte> v(n);
+                return v.as_slice();
+            }
+
+            slice<byte> _block;
+            bool _in_flight = false;
+        };
     }
 }

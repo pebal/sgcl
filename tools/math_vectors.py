@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SGCL: a C++20 application framework
+# SGCL: a C++20 application platform
 # Copyright (c) 2022-2026 Sebastian Nibisz
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -217,7 +217,7 @@ def main():
     out = []
     w = out.append
     w("//------------------------------------------------------------------------------")
-    w("// SGCL: a C++20 application framework")
+    w("// SGCL: a C++20 application platform")
     w("// Copyright (c) 2022-2026 Sebastian Nibisz")
     w("// SPDX-License-Identifier: Apache-2.0")
     w("//------------------------------------------------------------------------------")
@@ -392,7 +392,7 @@ def fast():
     out = []
     w = out.append
     w("//------------------------------------------------------------------------------")
-    w("// SGCL: a C++20 application framework")
+    w("// SGCL: a C++20 application platform")
     w("// Copyright (c) 2022-2026 Sebastian Nibisz")
     w("// SPDX-License-Identifier: Apache-2.0")
     w("//------------------------------------------------------------------------------")
@@ -501,7 +501,7 @@ def number():
     out = []
     w = out.append
     w("//------------------------------------------------------------------------------")
-    w("// SGCL: a C++20 application framework")
+    w("// SGCL: a C++20 application platform")
     w("// Copyright (c) 2022-2026 Sebastian Nibisz")
     w("// SPDX-License-Identifier: Apache-2.0")
     w("//------------------------------------------------------------------------------")
@@ -687,7 +687,7 @@ def rational_vectors():
     out = []
     w = out.append
     w("//------------------------------------------------------------------------------")
-    w("// SGCL: a C++20 application framework")
+    w("// SGCL: a C++20 application platform")
     w("// Copyright (c) 2022-2026 Sebastian Nibisz")
     w("// SPDX-License-Identifier: Apache-2.0")
     w("//------------------------------------------------------------------------------")

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -112,6 +112,7 @@ namespace {
             case compress::errc::io: return "io";
             case compress::errc::password_required: return "password_required";
             case compress::errc::wrong_password: return "wrong_password";
+            case compress::errc::insecure_path: return "insecure_path";
         }
         return "?";
     }

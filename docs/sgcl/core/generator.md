@@ -145,7 +145,8 @@ g.destroy();                                  // the other 99 never happen; g is
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 
 using namespace sgcl;
@@ -181,9 +182,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 10
 ```
 

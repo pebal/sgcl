@@ -1,12 +1,12 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 #pragma once
 
 #include "bytes.h"
-#include "cpu.h"
+#include "paths.h"
 #include "md.h"
 
 #include <bit>
@@ -114,7 +114,7 @@ namespace sgcl::crypto::detail {
     // words for round j + 8 in the register they used: SHA512SU0 with the
     // next register (W[t+1]), SHA512SU1 with the last one (W[t+14..15])
     // and W[t+9..10], which straddles two registers.
-    SGCL_CRYPTO_TARGET_SHA3
+    SGCL_TARGET_ARM64_SHA3
     inline void sha512_compress_arm64(uint64_t* h, const unsigned char* p, size_t blocks) noexcept {
         // which of the five registers is ab, cd, ef, gh and the free one, round by round
         static constexpr int order[5][5] = {{0, 1, 2, 3, 4}, {3, 0, 4, 2, 1}, {2, 3, 1, 4, 0}, {4, 2, 0, 1, 3}, {1, 4, 3, 0, 2}};
@@ -129,8 +129,8 @@ namespace sgcl::crypto::detail {
             for (int i = 0; i < 8; ++i) {
                 m[i] = vreinterpretq_u64_u8(vrev64q_u8(vld1q_u8(p + 16 * i)));
             }
-            [&]<size_t... J>(std::index_sequence<J...>) SGCL_CRYPTO_INLINE_SHA3 {
-                auto round = [&]<size_t R>(std::integral_constant<size_t, R>) SGCL_CRYPTO_INLINE_SHA3 {
+            [&]<size_t... J>(std::index_sequence<J...>) SGCL_INLINE_ARM64_SHA3 {
+                auto round = [&]<size_t R>(std::integral_constant<size_t, R>) SGCL_INLINE_ARM64_SHA3 {
                     constexpr int ab = order[R % 5][0], cd = order[R % 5][1], ef = order[R % 5][2];
                     constexpr int gh = order[R % 5][3], next = order[R % 5][4];
                     uint64x2_t kw = vaddq_u64(m[R % 8], vld1q_u64(sha512_k + 2 * R));
@@ -169,7 +169,7 @@ namespace sgcl::crypto::detail {
 
         static void compress(uint64_t* h, const unsigned char* p, size_t blocks) noexcept {
 #if defined(SGCL_CRYPTO_ARM64)
-            if (cpu::sha512()) {
+            if (sgcl::detail::cpu::sha512()) {
                 sha512_compress_arm64(h, p, blocks);
                 return;
             }

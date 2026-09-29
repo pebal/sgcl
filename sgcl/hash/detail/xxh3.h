@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -12,9 +12,15 @@
 #include <cstdint>
 #include <cstring>
 
+#include "../../core/detail/bytes.h"
+#include "../../core/detail/cpu.h"
+
 #if defined(__aarch64__) && defined(__AARCH64EL__) && defined(__ARM_NEON) && !defined(SGCL_HASH_PORTABLE)
 #define SGCL_HASH_XXH3_NEON 1
 #include <arm_neon.h>
+#elif defined(SGCL_CPU_X86) && !defined(SGCL_HASH_PORTABLE)
+#define SGCL_HASH_XXH3_X86 1
+#include <immintrin.h>
 #endif
 
 // The engine of XXH3 (xxHash 0.8, the format frozen since 2020), 64 and 128
@@ -273,6 +279,86 @@ namespace sgcl::hash::detail {
         return {xxh3_avalanche(low), 0 - xxh3_avalanche(high)};
     }
 
+#if defined(SGCL_HASH_XXH3_X86)
+    // x86-64: the lanes in four SSE2 vectors of two (SSE2 is in the minimum:
+    // no gate), or two AVX2 vectors of four behind cpu::wide(); a stripe is
+    // loads, XORs, PMULUDQ (the low 32 bits of each word by the high ones,
+    // shifted down) and the words swapped within each pair for the
+    // neighbour's sum, as on NEON. A block completed is scrambled by the
+    // plain code on the stored lanes. The index of the next stripe in its block
+    inline void xxh3_scramble_lanes(uint64_t* acc, const unsigned char* s) noexcept {
+        for (size_t i = 0; i < 8; ++i) {
+            uint64_t a = acc[i];
+            a ^= a >> 47;
+            a ^= load_le64(s + 8 * i);
+            acc[i] = a * Xxh32Prime1;
+        }
+    }
+
+    inline size_t xxh3_stripes_sse2(uint64_t* acc, const unsigned char* p, size_t count, size_t first, const unsigned char* secret) noexcept {
+        __m128i a[4];
+        for (size_t j = 0; j < 4; ++j) {
+            a[j] = _mm_loadu_si128(reinterpret_cast<const __m128i*>(acc + 2 * j));
+        }
+        for (size_t k = 0; k < count; ++k) {
+            const unsigned char* d = p + Xxh3StripeSize * k;
+            const unsigned char* sec = secret + 8 * first;
+            for (size_t j = 0; j < 4; ++j) {
+                const __m128i data = _mm_loadu_si128(reinterpret_cast<const __m128i*>(d + 16 * j));
+                const __m128i keyed = _mm_xor_si128(data, _mm_loadu_si128(reinterpret_cast<const __m128i*>(sec + 16 * j)));
+                const __m128i product = _mm_mul_epu32(keyed, _mm_srli_epi64(keyed, 32));
+                a[j] = _mm_add_epi64(_mm_add_epi64(a[j], _mm_shuffle_epi32(data, 0x4E)), product);
+            }
+            if (++first == Xxh3StripesPerBlock) {
+                for (size_t j = 0; j < 4; ++j) {
+                    _mm_storeu_si128(reinterpret_cast<__m128i*>(acc + 2 * j), a[j]);
+                }
+                xxh3_scramble_lanes(acc, secret + Xxh3ScrambleAt);
+                for (size_t j = 0; j < 4; ++j) {
+                    a[j] = _mm_loadu_si128(reinterpret_cast<const __m128i*>(acc + 2 * j));
+                }
+                first = 0;
+            }
+        }
+        for (size_t j = 0; j < 4; ++j) {
+            _mm_storeu_si128(reinterpret_cast<__m128i*>(acc + 2 * j), a[j]);
+        }
+        return first;
+    }
+
+    SGCL_TARGET_X86_WIDE
+    inline size_t xxh3_stripes_avx2(uint64_t* acc, const unsigned char* p, size_t count, size_t first, const unsigned char* secret) noexcept {
+        __m256i a[2];
+        for (size_t j = 0; j < 2; ++j) {
+            a[j] = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(acc + 4 * j));
+        }
+        for (size_t k = 0; k < count; ++k) {
+            const unsigned char* d = p + Xxh3StripeSize * k;
+            const unsigned char* sec = secret + 8 * first;
+            for (size_t j = 0; j < 2; ++j) {
+                const __m256i data = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(d + 32 * j));
+                const __m256i keyed = _mm256_xor_si256(data, _mm256_loadu_si256(reinterpret_cast<const __m256i*>(sec + 32 * j)));
+                const __m256i product = _mm256_mul_epu32(keyed, _mm256_srli_epi64(keyed, 32));
+                a[j] = _mm256_add_epi64(_mm256_add_epi64(a[j], _mm256_shuffle_epi32(data, 0x4E)), product);
+            }
+            if (++first == Xxh3StripesPerBlock) {
+                for (size_t j = 0; j < 2; ++j) {
+                    _mm256_storeu_si256(reinterpret_cast<__m256i*>(acc + 4 * j), a[j]);
+                }
+                xxh3_scramble_lanes(acc, secret + Xxh3ScrambleAt);
+                for (size_t j = 0; j < 2; ++j) {
+                    a[j] = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(acc + 4 * j));
+                }
+                first = 0;
+            }
+        }
+        for (size_t j = 0; j < 2; ++j) {
+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(acc + 4 * j), a[j]);
+        }
+        return first;
+    }
+#endif
+
     // The eight lanes of the long path
     struct Xxh3Lanes {
         uint64_t acc[8] = {Xxh32Prime3, Xxh64Prime1, Xxh64Prime2, Xxh64Prime3, Xxh64Prime4, Xxh32Prime2, Xxh64Prime5, Xxh32Prime1};
@@ -335,6 +421,11 @@ namespace sgcl::hash::detail {
             for (size_t j = 0; j < 4; ++j) {
                 vst1q_u64(acc + 2 * j, a[j]);
             }
+#elif defined(SGCL_HASH_XXH3_X86)
+            if (count >= 4 && sgcl::detail::cpu::wide()) {
+                return xxh3_stripes_avx2(acc, p, count, first, secret);
+            }
+            return xxh3_stripes_sse2(acc, p, count, first, secret);
 #else
             for (size_t k = 0; k < count; ++k) {
                 stripe(p + Xxh3StripeSize * k, secret + 8 * first);
@@ -425,13 +516,13 @@ namespace sgcl::hash::detail {
             _total += n;
             size_t room = Xxh3BufferSize - _buffered;
             if (n <= room) {   // nothing is taken while no byte follows it
-                std::memcpy(_buffer + _buffered, p, n);
+                sgcl::detail::copy_bytes(_buffer + _buffered, p, n);
                 _buffered += n;
                 return;
             }
             const unsigned char* secret = _secret_for_lanes();
             if (_buffered > 0) {   // the buffer filled up and more follows: its four stripes go in
-                std::memcpy(_buffer + _buffered, p, room);
+                sgcl::detail::copy_bytes(_buffer + _buffered, p, room);
                 p += room;
                 n -= room;
                 _stripe = _lanes.stripes(_buffer, 4, _stripe, secret);
@@ -446,7 +537,7 @@ namespace sgcl::hash::detail {
                 // tail reaches back into
                 std::memcpy(_buffer + Xxh3BufferSize - Xxh3StripeSize, p - Xxh3StripeSize, Xxh3StripeSize);
             }
-            std::memcpy(_buffer, p, n);
+            sgcl::detail::copy_bytes(_buffer, p, n);
             _buffered = n;
         }
 
@@ -485,8 +576,8 @@ namespace sgcl::hash::detail {
             } else {
                 unsigned char last[Xxh3StripeSize];
                 const size_t before = Xxh3StripeSize - _buffered;
-                std::memcpy(last, _buffer + Xxh3BufferSize - before, before);
-                std::memcpy(last + before, _buffer, _buffered);
+                sgcl::detail::copy_bytes(last, _buffer + Xxh3BufferSize - before, before);
+                sgcl::detail::copy_bytes(last + before, _buffer, _buffered);
                 lanes.stripe(last, secret + Xxh3LastStripeAt);
             }
             return lanes;

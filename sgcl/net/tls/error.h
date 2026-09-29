@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -51,7 +51,11 @@ namespace sgcl::net::tls {
     // certificate"), one the peer sent (256 + its number: "remote error:
     // tls: bad certificate", as Go words both), and a server's chain that
     // did not verify (512 + its x509::reason: "tls: certificate signed by
-    // unknown authority"; the alert sent for it follows from the reason).
+    // unknown authority"; the alert sent for it follows from the reason),
+    // and an alert the server sent before its hello (1024 + its number:
+    // "tls: the server closed the handshake before its hello (no TLS
+    // 1.3?)", what a server without TLS 1.3 answers a hello of 1.3 alone
+    // with, a close_notify among them).
     // `e.code() == tls::alert::decode_error` asks for an alert of this
     // side; alert_of, is_remote and certificate_reason take any of them
     // apart.
@@ -120,6 +124,9 @@ namespace sgcl::net::tls {
             }
 
             std::string message(int c) const override {
+                if (c >= 1024) {
+                    return "tls: the server closed the handshake before its hello (no TLS 1.3?)";
+                }
                 if (c >= 512) {
                     return std::string("tls: ") + reason_text(c - 512);
                 }
@@ -142,7 +149,7 @@ namespace sgcl::net::tls {
     // The alert of a tls error, this side's or the peer's; nullopt for
     // another error and for a chain that did not verify
     inline optional<alert> alert_of(const io::error& e) noexcept {
-        if (e.code().category() != category() || e.code().value() >= 512) {
+        if (e.code().category() != category() || (e.code().value() >= 512 && e.code().value() < 1024)) {
             return nullopt;
         }
         return alert(uint8_t(e.code().value() & 0xFF));
@@ -150,12 +157,12 @@ namespace sgcl::net::tls {
 
     // Whether the error is an alert the peer sent
     inline bool is_remote(const io::error& e) noexcept {
-        return e.code().category() == category() && e.code().value() >= 256 && e.code().value() < 512;
+        return e.code().category() == category() && e.code().value() >= 256 && (e.code().value() < 512 || e.code().value() >= 1024);
     }
 
     // Why the server's chain did not verify, for an error that says so
     inline optional<crypto::x509::reason> certificate_reason(const io::error& e) noexcept {
-        if (e.code().category() != category() || e.code().value() < 512) {
+        if (e.code().category() != category() || e.code().value() < 512 || e.code().value() >= 1024) {
             return nullopt;
         }
         return crypto::x509::reason(e.code().value() - 512);
@@ -168,6 +175,11 @@ namespace sgcl::net::tls {
 
         inline io::error remote_error(AlertDescription d, const string& op, const string& what) {
             return io::error(error_code(256 + int(d), category()), op, what);
+        }
+
+        // An alert of the server before its hello: a server without TLS 1.3
+        inline io::error before_hello_error(AlertDescription d, const string& op, const string& what) {
+            return io::error(error_code(1024 + int(d), category()), op, what);
         }
 
         inline io::error certificate_error(crypto::x509::reason r, const string& op, const string& what) {

@@ -38,7 +38,41 @@ auto wait_for_flag = [](async::mutex m, async::condition_variable& changed, bool
 
 ## Example
 
-The table on [shared_mutex](shared_mutex.md#example): the readers' results handed to the main thread through a queue under a mutex with a condition variable, the main thread waiting with `std::unique_lock` over the module's mutex and the predicate.
+A task sets a flag under the mutex and notifies; the main thread waits with `std::unique_lock` over the module's mutex and the predicate:
+
+```cpp
+#include "sgcl/async/async.h"
+#include "sgcl/io/io.h"
+#include <mutex>
+
+using namespace sgcl;
+
+struct State {
+    async::mutex lock;
+    async::condition_variable changed;
+    bool ready = false;   // guarded by lock
+};
+
+async::task<> producer(tracked_ptr<State> s) {
+    auto guard = co_await s->lock.scoped_lock();
+    s->ready = true;
+    s->changed.notify_one();
+}
+
+int main() {
+    tracked_ptr s = make_tracked<State>();
+    async::go(producer(s));
+    std::unique_lock lock(s->lock);
+    s->changed.wait(lock, [&] { return s->ready; });   // checked under the mutex before each wait
+    println("ready: {}", s->ready);
+}
+```
+
+Output:
+
+```text
+ready: true
+```
 
 ## See also
 

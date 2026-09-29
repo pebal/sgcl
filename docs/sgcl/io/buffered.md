@@ -1,7 +1,7 @@
 # sgcl::io::buffered_reader, sgcl::io::buffered_writer
 
 ```cpp
-#include "sgcl/io/buffered.h"   // or "sgcl/io/io.h", "sgcl/sgcl.h"
+#include "sgcl/io/buffered.h"   // or "sgcl/io/io.h"
 
 namespace sgcl::io {
     class buffered_reader final : public mixin::reader<buffered_reader>;   // a block in front of a reader: lines, prefixes; a handle of one word
@@ -103,12 +103,12 @@ if (auto closed = out.close(); !closed) eprintln(closed.error().message());   //
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
 int main(int argc, char** argv) {
-    io::reader source = io::stdin;                                  // any stream: the standard input, or the file named
+    io::reader source = io::stdin;  // any stream: the standard input, or the file named
     if (argc > 1) {
         auto opened = io::open(argv[1]);
         if (!opened) {
@@ -120,15 +120,20 @@ int main(int argc, char** argv) {
     io::buffered_reader in(source);
     io::buffered_writer out(io::stdout);
     size_t n = 0;
-    for (auto line : in.lines()) {                    // numbered lines, as cat -n
+    for (auto line : in.lines()) {  // numbered lines, as cat -n
         out.write(to_string(++n));
         out.write("  ");
-        out.write(line);                              // the line from the block: no string made
+        out.write(line);  // the line from the block: no string made
         out.write(byte('\n'));
     }
     out.flush();
     return in.last_error() ? 1 : 0;
 }
+```
+
+Output:
+
+```text
 ```
 
 ## See also

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -59,6 +59,92 @@ namespace sgcl::io {
         const char* v = ::getenv(name.c_str());
         if (!v) {
             return nullopt;
+        }
+        return string(v);
+    }
+
+    namespace detail {
+        // What env's exception calls the type it wanted
+        template<class T>
+        const char* env_type_name() noexcept {
+            if constexpr (std::is_same_v<T, bool>) {
+                return "a bool";
+            } else if constexpr (std::is_integral_v<T> && std::is_signed_v<T>) {
+                return "an integer";
+            } else if constexpr (std::is_integral_v<T>) {
+                return "an unsigned integer";
+            } else if constexpr (std::is_floating_point_v<T>) {
+                return "a number";
+            } else if constexpr (std::is_same_v<T, duration>) {
+                return "a duration";
+            } else {
+                return "a value of its type";
+            }
+        }
+
+        // The text as a T: sgcl::parse for bool and the numbers,
+        // T::parse(const string&) for the rest (duration among them); the
+        // reason it is not one, as the error's message
+        template<class T>
+        expected<T, string> env_value(const string& text) {
+            if constexpr (std::is_arithmetic_v<T>) {
+                auto v = sgcl::parse<T>(text.view());
+                if (!v) {
+                    return unexpected(v.error().message());
+                }
+                return *v;
+            } else {
+                auto v = T::parse(text);
+                if (!v) {
+                    return unexpected(string(v.error().message()));
+                }
+                return T(*v);
+            }
+        }
+    }
+
+    // A variable as a value of the fallback's type, the fallback when the
+    // variable is unset or empty: `int port = io::env("PORT", 8080)`,
+    // `duration t = io::env("TIMEOUT", 5s)`. bool and the numbers are
+    // read as sgcl::parse reads them, any other T by T::parse(const
+    // string&) (duration's is Go's text). A value that is set and is no
+    // T is the program's configuration gone wrong, not data to recover
+    // from: std::invalid_argument, with the name, the value and the type
+    template<class T>
+        requires(!std::is_convertible_v<const T&, string>)
+    T env(const string& name, const T& fallback) {
+        const char* v = ::getenv(name.c_str());
+        if (!v || !*v) {
+            return fallback;
+        }
+        string text(v);
+        auto r = detail::env_value<T>(text);
+        if (!r) {
+            std::string m = "sgcl::io::env: ";
+            m.append(name.data(), name.size());
+            m += "=\"";
+            m.append(text.data(), text.size());
+            m += "\" is not ";
+            m += detail::env_type_name<T>();
+            m += ": ";
+            m.append(r.error().data(), r.error().size());
+            throw std::invalid_argument(m);
+        }
+        return *r;
+    }
+
+    // A span of <chrono> (`5s`, `250ms`) as the fallback: the value a
+    // sgcl::duration, read as duration reads Go's text ("1.5s", "2m")
+    template<class Rep, class Period>
+    duration env(const string& name, std::chrono::duration<Rep, Period> fallback) {
+        return env<duration>(name, duration(fallback));
+    }
+
+    // The text form: the variable, or the fallback when it is unset or empty
+    inline string env(const string& name, const string& fallback) {
+        const char* v = ::getenv(name.c_str());
+        if (!v || !*v) {
+            return fallback;
         }
         return string(v);
     }

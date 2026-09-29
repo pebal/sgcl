@@ -1,7 +1,7 @@
 # sgcl::concurrent::weak_map
 
 ```cpp
-#include "sgcl/concurrent/weak_map.h"   // or "sgcl/sgcl.h"
+#include "sgcl/concurrent/weak_map.h"   // or "sgcl/concurrent/concurrent.h"
 
 namespace sgcl {
     template<class Key, class T>
@@ -123,7 +123,9 @@ The entries, the dead ones not yet swept included; a snapshot under concurrent m
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/concurrent/concurrent.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -150,7 +152,8 @@ int main() {
             workers.emplace_back([&, t] {
                 for (int i : range(1000)) {
                     tracked_ptr<Session> session = (i + t) % 3 ? main_session : guest;
-                    auto [it, fresh] = stats.try_emplace(session, make_tracked<Stats>());   // one Stats per session, whoever gets there first
+                    // one Stats per session, whoever gets there first
+                    auto [it, fresh] = stats.try_emplace(session, make_tracked<Stats>());
                     ++it->value->requests;
                 }
             });
@@ -158,19 +161,21 @@ int main() {
         for (auto& w : workers) {
             w.join();
         }
-        for (auto [session, s] : stats) {   // session: tracked_ptr<Session>, held; s: tracked_ptr<Stats>&
+        // session: tracked_ptr<Session>, held; s: tracked_ptr<Stats>&
+        for (auto [session, s] : stats) {
             println("session {}: {} requests", session->id, s->requests.load());
         }
-    }   // the guest's last strong pointer is gone
-    collector::clear_stack();          // the dead frame zeroed, so that the conservative scan keeps nothing
-    collector::force_collect(true);    // optional, for the demonstration: the cycle clears the guest's entry
+    }  // the guest's last strong pointer is gone
+    collector::clear_stack();  // the dead frame zeroed, so that the conservative scan keeps nothing
+    // optional, for the demonstration: the cycle clears the guest's entry
+    collector::force_collect(true);
     println("{} entries, {} swept, {} left", stats.size(), stats.sweep(), stats.size());
 }
 ```
 
-The output (the two sessions in either order):
+Sample output:
 
-```
+```text
 session 1: 2666 requests
 session 2: 1334 requests
 2 entries, 1 swept, 1 left

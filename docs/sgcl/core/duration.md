@@ -89,7 +89,8 @@ size_t offset() const noexcept;                             // the byte of the t
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 #include <chrono>
 
 using namespace sgcl;
@@ -97,7 +98,7 @@ using namespace std::chrono_literals;
 
 int main() {
     duration d("1h30m");                                            // a literal: constructed
-    println("{} {}", d, d.minutes());                               // 1h30m0s 90
+    println("{} {}", d, d.minutes());
 
     duration lap = 1500ms;                                          // a literal of <chrono>
     println("{} {} {}", lap, lap.seconds(), lap.milliseconds());
@@ -115,7 +116,7 @@ int main() {
     for (int i : range(1, 5)) {
         total += i * 250 * millisecond;
     }
-    println(total);                                                 // 2.5s
+    println(total);
 
     auto deadline = std::chrono::steady_clock::now() + total;      // a point of any clock
     std::chrono::nanoseconds n = total;                             // into the standard's type
@@ -124,9 +125,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 1h30m0s 90
 1.5s 1.5 1500
 1h31m30s 22m30s 3600

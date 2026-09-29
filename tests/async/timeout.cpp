@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -298,5 +298,42 @@ TEST(Timeout_Tests, AWonRaceCancelsItsTimer) {
     }());
     t.wait();
     expect_swept(before);
+    sgcl::async::scheduler::stop();
+}
+
+namespace {
+    // A task whose result is an expected itself (an io operation's)
+    task<expected<int, std::string>> fallible(int n, int ms) {
+        co_await sgcl::async::sleep(std::chrono::milliseconds(ms));
+        if (n < 0) {
+            co_return unexpected(std::string("negative"));
+        }
+        co_return n;
+    }
+}
+
+// A race over a task of an expected: the outer expected's value is the
+// task's expected whole, its value or its error; timed_out or stopped the
+// outer error. It did not compile: the task's expected was taken as a
+// conversion of the outer one, which no constructor makes
+TEST(Timeout_Tests, ARaceOverATaskOfAnExpected) {
+    auto ok = sgcl::async::with_timeout(fallible(5, 2), 200ms).wait();
+    ASSERT_TRUE(ok.has_value());
+    ASSERT_TRUE(ok->has_value());
+    EXPECT_EQ(**ok, 5);
+    auto failed = sgcl::async::with_timeout(fallible(-1, 2), 200ms).wait();
+    ASSERT_TRUE(failed.has_value());     // the race won by the task
+    ASSERT_FALSE(failed->has_value());   // whose own result is its error
+    EXPECT_EQ(failed->error(), "negative");
+    auto late = sgcl::async::with_timeout(fallible(5, 300), 20ms).wait();
+    EXPECT_FALSE(late.has_value());      // timed_out
+    sgcl::async::stop_source src;
+    auto token_ok = sgcl::async::with_deadline(fallible(6, 2), src.token()).wait();
+    ASSERT_TRUE(token_ok.has_value() && token_ok->has_value());
+    EXPECT_EQ(**token_ok, 6);
+    auto no_token = sgcl::async::with_deadline(fallible(7, 2), sgcl::async::stop_token()).wait();
+    ASSERT_TRUE(no_token.has_value() && no_token->has_value());
+    EXPECT_EQ(**no_token, 7);
+    std::this_thread::sleep_for(350ms);  // the loser's end
     sgcl::async::scheduler::stop();
 }

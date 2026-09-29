@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -49,11 +49,17 @@ namespace sgcl::encoding {
             return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\v' || c == '\f';
         }
 
+        // A header's name and value, and a line asked whether it is empty,
+        // without the white space at their ends: all of pem_space, as Go's
+        // bytes.TrimSpace takes it, so a '\r' too. With only space and tab
+        // taken, a value ending in "\r\r" kept one '\r', which the writing
+        // put before its "\n", and the next reading took as the line
+        // ending's: the value lost a '\r' each round (codecs_fuzz)
         inline std::string_view pem_trim(std::string_view s) noexcept {
-            while (!s.empty() && (s.front() == ' ' || s.front() == '\t')) {
+            while (!s.empty() && pem_space(s.front())) {
                 s.remove_prefix(1);
             }
-            while (!s.empty() && (s.back() == ' ' || s.back() == '\t')) {
+            while (!s.empty() && pem_space(s.back())) {
                 s.remove_suffix(1);
             }
             return s;

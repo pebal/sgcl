@@ -31,7 +31,7 @@ Cryptography: what Go has in `crypto/sha1`, `crypto/sha256`, `crypto/sha512`, `c
 | [`ecdsa`](ecdsa.md) | `crypto/ecdsa` | how the curves sign and verify: hedged RFC 6979 nonces, DER and raw signatures |
 | [`rsa`](rsa.md) | `crypto/rsa` | signatures of certificates and JWTs (PKCS #1 v1.5, PSS: RS256, PS256), OAEP key transport; PKCS #1, PKCS #8, SPKI |
 | [`x509`](x509.md) | `crypto/x509` | certificates: `certificate` from DER or PEM, `certificate_pool` (the system's roots), `verify` of a chain with the host name or IP address, the reason when it fails; no CRL or OCSP |
-| [`secret`](secret.md) | — | a secret of fixed size that zeroes itself: a shared secret, a private scalar |
+| [`secret`, `secret_bytes`, `read_secret`](secret.md) | — | secrets that zero themselves and never lie in managed memory: of a fixed size (a shared secret, a private scalar) and of a size known when the program runs (a derived key, a private key's export, a key file) |
 | [`error`](error.md) | — | the one error of the module: `code()`, `offset()`, `message()` |
 
 TLS 1.3 comes next, in `net`.
@@ -40,7 +40,21 @@ TLS 1.3 comes next, in `net`.
 
 - **Errors.** What comes with data and may be wrong is an [`expected<T, crypto::error>`](error.md): a tag that does not match (`errc::authentication`, and nothing more said), a key read from bytes that cannot be one (`invalid_key`), a signature that is not one in form, DER that cannot be read (`malformed`, with the offset), another algorithm's key (`unsupported`). A broken contract of the program — a key of the wrong length written into it, a nonce of the wrong size, an output buffer too small — is an exception, `std::invalid_argument` or `std::length_error`, as everywhere in the library; each type's `from_key` or `from_bytes` is the form for a key that comes with data.
 - **Checked before `[[nodiscard]]` is ignored.** `open`, `open_to`, every `verify` and `constant_time::equal` are `[[nodiscard]]`: a verification whose result is dropped is a hole. `open` checks the tag before a byte is decrypted and zeroes what it would have written when the tag does not match.
-- **Secrets in memory.** A key object holds its bytes in itself (no allocation): the round keys, the seed, the scalar. It is move-only (a copy is `clone()`), and its destructor and a move out of it overwrite those bytes with stores the compiler cannot remove. So a key belongs **on the stack or in a `unique_ptr`**, where it is gone when its scope ends. In a managed object it stays in memory until the collector's cycle finds the object dead, and nothing clears the memory it leaves. The same holds for what the module returns in managed memory: the plaintext of `open` is a `vector<byte>` nobody zeroes, so data that must not stay in memory — a key unwrapped, a password — is opened with `open_to` into the program's own buffer and cleared with [`secure_zero`](secure_zero.md). Shared secrets and private scalars come as [`secret<N>`](secret.md), which clears itself.
+- **A secret is never in managed memory.** Managed memory is not zeroed when an object dies: a block the collector frees keeps its bytes until it is given out again. So nothing the module holds or gives that is a secret goes there. Three forms carry secrets:
+  - **[`secret<N>`](secret.md)**, a length known when the program is compiled: a shared secret, a private scalar, a key.
+  - **[`secret_bytes`](secret.md#secret_bytes)**, a length known only when it runs, in 64 bytes of its own and past them in a block that is zeroed before it is freed (and when it grows): what `hkdf` and `pbkdf2` derive, SHAKE's output, `random::secret(n)`, every private key's `to_pkcs8_der`, `to_sec1_der`, `to_pkcs1_der` and `to_pem`, and a key file read by `read_secret`. It is move-only; `clone()` is the copy by name.
+  - **The `_to` forms**, which write into the program's own buffer: `derive_to`, `open_to`, `read_to`, `decrypt_oaep_to`.
+  - **Not a secret:** a plaintext. What an AEAD's `open` and `open_random` give and what `rsa::decrypt_oaep` decrypts is the user's data, a `vector<byte>`; a key unwrapped goes through `open_to` or `decrypt_oaep_to` into a buffer the program clears (a `secret_bytes`).
+
+  A key object holds its bytes in itself (no allocation): the round keys, the seed, the scalar. It is move-only, and its destructor and a move out of it overwrite those bytes with stores the compiler cannot remove. So a key and a `secret_bytes` belong **on the stack or in a `unique_ptr`**; in a managed object they would stay in memory until the collector's cycle found the object dead.
+
+  Private keys read from PEM go the same way: `from_pem` takes bytes and decodes their base64 straight into a `secret_bytes`. So do [`net::tls::identity`](../net/tls.md) (its key's PEM) and [`compress::sevenzip::options::password`](../compress/sevenzip.md#extract) (a password). A key file:
+
+  ```cpp
+  crypto::ed25519::private_key key = crypto::ed25519::private_key::from_pem(crypto::read_secret("signing.key"));
+  ```
+
+  The tests hold the rule. After a TLS exchange and a 7z archive read with a password, the managed pages are searched: none holds the key, a traffic secret or the password. The exports and imports of every key take no managed page over thousands of calls, and every block a `secret_bytes` frees is zero.
 - **Nonces.** An AEAD's nonce must never repeat under one key: a repeated nonce under AES-GCM gives away the authentication key, and under both AEADs the XOR of the two plaintexts. Where the two sides count their messages, a [`nonce_counter`](nonce_counter.md) makes the nonces and refuses to wrap. Random nonces are safe only with 24 bytes: [`xchacha20_poly1305::seal_random`](chacha20_poly1305.md) draws one and writes it in front. Twelve random bytes (AES-GCM, ChaCha20-Poly1305) are safe for about 2^32 messages under one key, as SP 800-38D says, and not beyond.
 - **Passwords.** [`pbkdf2`](pbkdf2.md) derives a key from a password (a file's encryption key, a protocol that names it). It is not the way to **store** passwords: it costs an attacker's graphics card as little as it costs the server, and a password hash for storage wants one that costs memory, Argon2id or scrypt, which come after version 1.
 - **Constant time.** Nothing that depends on a secret chooses a branch or an address: the AES S-box is the processor's or computed bitsliced, never a table; the curves' ladders and table scans go through masks; the inverses are Fermat's (RSA's one inverse, of its blinding factor, is taken of a product with a second random number); RSA's private operation runs blinded and CRT over words of a width fixed by the key; tags are compared by [`constant_time::equal`](constant_time.md). What is public — a length, a public key, whether a verification passed — may take its own time. The tests measure the claim for the curves and RSA with dudect, on this machine only; the machine code of the rest has been read for branches and loads that depend on data.
@@ -49,7 +63,17 @@ TLS 1.3 comes next, in `net`.
 
 On arm64 the module runs on the processor's own instructions: SHA-1 and SHA-256 (`FEAT_SHA1`, `FEAT_SHA256`), SHA-512 and SHA-3 (`FEAT_SHA512`, `FEAT_SHA3`), AES (`AESE`, `AESMC`) and GHASH (`PMULL`), and NEON for ChaCha20. Everywhere else, and in a build with `SGCL_CRYPTO_PORTABLE` defined, every algorithm has a body in plain C++ that gives the same bytes, in constant time too: AES bitsliced, GHASH on integer products — correct and constant-time, and two orders of magnitude slower than the instructions. The tests run every vector on both roads (`tests_crypto` and `tests_crypto_portable`).
 
-The digests ask the processor at run time which instructions it has (`sysctlbyname` on macOS, `getauxval` on Linux) and compile the fast bodies with a target attribute, so a program built for plain `armv8-a` still uses them. The ciphers choose at compile time, from the target's flags: every Apple core has the crypto extension and Apple's compilers target it by default, but on Linux on arm64 a program built without `-march=armv8-a+crypto` (or a later `-march` that includes it) runs AES-GCM on the portable road, silently. Build such a program with the crypto extension; the ciphers will ask at run time too before the Linux machine is supported. On x86 only the portable road exists for now: no AES-NI, no SHA-NI, no AVX2.
+No build flag is needed for the fast roads. Their bodies are compiled on every target with a target attribute, and the processor is asked once, at the first call, which instructions it has (`sysctlbyname` on macOS, `getauxval` on Linux, `cpuid` on x86-64): so a program built for plain `armv8-a` or plain x86-64 still uses the instructions where the processor has them, and takes the portable road where it has not. Where the target itself promises the instructions, as Apple's does, the question folds away at compile time. A cipher's road is chosen with its key, from the processor alone.
+
+| road | arm64 | x86-64 |
+|---|---|---|
+| AES (GCM, CTR, CBC decryption), GHASH | AESE/AESMC and PMULL, eight blocks at a time | AES-NI and PCLMULQDQ, eight blocks at a time |
+| SHA-1, SHA-256 | the SHA1/SHA256 instructions | SHA-NI |
+| SHA-512, SHA-3 | the SHA512 and SHA3 instructions | portable |
+| ChaCha20 | NEON, four and eight blocks | SSE2, four blocks; AVX2, eight |
+| Poly1305 | 64-bit multiplications | 64-bit multiplications |
+
+On x86-64 the SHA-NI and AVX2 roads are compiled but not yet run on a processor that has them (the machines this is built on emulate x86-64 without them); until they are, they are unverified, and the x86 machine closes them. AES-NI, PCLMULQDQ and the SSE2 ChaCha20 pass every vector of the suite.
 
 ## Pages
 

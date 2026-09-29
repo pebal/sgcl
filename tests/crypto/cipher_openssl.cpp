@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -37,7 +37,7 @@ namespace {
             auto opened = a.open(nonce, theirs, aad);
             ASSERT_TRUE(opened.has_value());
             ASSERT_EQ(opened->size(), pt.size());
-            ASSERT_EQ(std::memcmp(opened->data(), pt.data(), n), 0);
+            ASSERT_EQ(std::memcmp(opened->as_slice().data(), pt.data(), n), 0);
             bytes in_place = theirs;
             auto m = a.open_to(in_place, nonce, in_place, aad);
             ASSERT_TRUE(m.has_value());

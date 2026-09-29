@@ -152,7 +152,9 @@ static_assert(req::ordered<immutable::vector<int>> && !req::sequence<immutable::
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/immutable/immutable.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -183,9 +185,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 p
 pe
 per

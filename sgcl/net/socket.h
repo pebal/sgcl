@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -220,6 +220,44 @@ namespace sgcl::net {
             }
         }
 
+        // One attempt's failure as a part of the race's error: where it went
+        // and why, without the operation ("[::1]:80: Connection refused")
+        inline std::string attempt_failure(const io::error& e) {
+            std::string s(e.path().view());
+            if (!s.empty()) {
+                s += ": ";
+            }
+            s += e.code().message();
+            return s;
+        }
+
+        // The error of a race every attempt of which failed: the earliest
+        // attempt's code (as Go reports it), and every attempt in the
+        // text, in the order they were made, so that a name that gave one
+        // address is told from one whose every address failed:
+        //   dial tcp localhost:80 (every address failed: [::1]:80: Connection refused; 127.0.0.1:80: Connection refused): Connection refused
+        //   dial tcp localhost:80 (its only address: [::1]:80: Connection refused): Connection refused
+        inline io::error every_attempt_failed(const vector<optional<io::error>>& failures, const string& what) {
+            std::string path(what.view());
+            path += failures.size() == 1 ? " (its only address: " : " (every address failed: ";
+            error_code code;
+            bool first = true;
+            for (auto& f : failures) {
+                if (!f) {
+                    continue;
+                }
+                if (first) {
+                    code = f->code();
+                } else {
+                    path += "; ";
+                }
+                path += attempt_failure(*f);
+                first = false;
+            }
+            path += ')';
+            return io::error(code, string("dial tcp"), string(path));
+        }
+
         inline async::task<expected<connection, io::error>> dial_race(vector<endpoint> targets, async::stop_token stop, time_point deadline, std::chrono::nanoseconds delay, DialOne dial, string what) {
             deadline = no_deadline_at_max(deadline);
             size_t n = targets.size();
@@ -230,13 +268,20 @@ namespace sgcl::net {
                 co_return fail(system_error(ECANCELED, "dial tcp", what));
             }
             if (n == 1 && !stop.stop_possible() && deadline == time_point()) {
-                co_return co_await dial(targets[0], stop);   // nothing to race
+                auto only = co_await dial(targets[0], stop);   // nothing to race
+                if (!only) {
+                    vector<optional<io::error>> failures;
+                    failures.push_back(only.error());
+                    co_return fail(every_attempt_failed(failures, what));
+                }
+                co_return only;
             }
             tracked_ptr<Race> race = make_tracked<Race>(n);
             async::stop_source attempts(stop);   // a child of the caller's token: its stop reaches every attempt
             async::stop_token token = attempts.token();
-            size_t started = 0, failed = 0, first_failed = n;
-            optional<io::error> first_error;
+            size_t started = 0, failed = 0;
+            vector<optional<io::error>> failures;   // each attempt's, by its index: the race's error when every one fails
+            failures.resize(n);
             time_point last_start;
             auto start_next = [&] {
                 async::go(race_attempt(race, started, targets[started], token, dial));
@@ -272,13 +317,10 @@ namespace sgcl::net {
                         co_return winner;
                     }
                     ++failed;
-                    if (got->index < first_failed) {
-                        first_failed = got->index;
-                        first_error = got->result.error();
-                    }
+                    failures[got->index] = got->result.error();
                     if (failed == n) {
                         end_race(*race, attempts);
-                        co_return fail(*first_error);
+                        co_return fail(every_attempt_failed(failures, what));
                     }
                     if (started < n) {
                         start_next();   // a failure starts the next at once

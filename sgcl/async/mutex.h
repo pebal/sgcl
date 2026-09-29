@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -40,6 +40,14 @@ namespace sgcl::async {
                 ch.try_send();
             }
 
+            // made linked (ChannelState::link): mutex() links the channel
+            // and puts the one permit in, before the state is given to
+            // anyone (a MutexState that is a field of another object, a
+            // shared_mutex's, is made as above)
+            explicit MutexState(ChannelLinked)
+            : ch(ChannelLinked{}, 1) {
+            }
+
             MutexState(const MutexState&) = delete;
             MutexState& operator=(const MutexState&) = delete;
 
@@ -67,7 +75,9 @@ namespace sgcl::async {
     class mutex {
     public:
         mutex()
-        : _s(make_tracked<detail::MutexState>()) {
+        : _s(make_tracked<detail::MutexState>(detail::ChannelLinked{})) {
+            _s->ch.link();   // before the state is given to anyone
+            _s->ch.try_send();   // unlocked
         }
 
         mutex(const mutex&) noexcept = default;

@@ -378,7 +378,7 @@ assert(seen.contains(item));
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/io/io.h"
 #include <cassert>
 
 using namespace sgcl;
@@ -429,7 +429,7 @@ int main() {
     // An alias into a member keeps the whole object
     tracked_ptr id(&b->id);                        // tracked_ptr<int>
     b = nullptr;
-    println("id {}", *id);                   // 2: the ring is still alive
+    println("id {}", *id);                   // the ring is still alive
 
     id = nullptr;                                        // nothing reaches the ring now
     collector::force_collect(true);                // optional, for the demonstration only: the collector runs its cycles by itself
@@ -437,9 +437,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 area 12.56636
 radius 2
 id 2

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -9,6 +9,7 @@
 // net::http::server with its routes, the messages (request, response,
 // response_writer), headers, status, cookie; the parser under them is
 // detail/parser.h. TLS, https:// and HTTP/2 come with the next stage.
+#include "download.h"
 #include "client.h"
 #include "cookie.h"
 #include "headers.h"
@@ -16,4 +17,5 @@
 #include "response.h"
 #include "response_writer.h"
 #include "server.h"
+#include "serve.h"
 #include "status.h"

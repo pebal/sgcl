@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -53,7 +53,8 @@ namespace sgcl::compress {
             auto enc = std::make_unique<detail::LzmaEncoder>(*s);
             const uint8_t* p = detail::bytes(data);
             enc->attach(p, data.size());
-            std::vector<uint8_t> out;
+            detail::LentOutput lent;   // the thread's room, kept from call to call
+            std::vector<uint8_t>& out = lent.out();
             out.reserve(data.size() / 3 + 64);
             _header(out, s->props, enc->dictionary(), data.size());
             (void)enc->run(true, out);

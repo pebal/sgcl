@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -60,10 +60,7 @@ namespace sgcl::net::http {
                 if (auto made = url_made.load()) {
                     return made.get();
                 }
-                std::string text = "http://";
-                text += host.empty() ? std::string_view("localhost") : host.view();
-                text += target.view();
-                auto parsed = net::url::parse(string(text));
+                auto parsed = net::url::parse(string::concat("http://", host.empty() ? std::string_view("localhost") : host.view(), target));
                 if (!parsed) {
                     return nullptr;   // not reached: the fast path answers only what the parse takes (url.h)
                 }
@@ -180,13 +177,15 @@ namespace sgcl::net::http {
             return string();
         }
 
-        // The first value of the name in the query, "" when there is none
+        // The first value of the name in the query, "" when there is none:
+        // found in the query's text, only that value decoded (the pairs
+        // before it are not made into strings)
         string query(const string& name) const {
             auto u = _impl->url_of();
             if (!u || !u->has_query()) {
                 return string();
             }
-            return u->query_params().get(name);
+            return net::query_params::first(u->query(), name);
         }
 
         // The value of the first cookie of the name in the Cookie fields
@@ -261,11 +260,10 @@ namespace sgcl::net::http {
         }
 
         static async::task<expected<string, io::error>> _co_text(tracked_ptr<detail::RequestImpl> impl) {
-            auto b = co_await _co_bytes(impl);
-            if (!b) {
-                co_return io::detail::fail(b);
+            if (!impl->body) {
+                co_return string();
             }
-            co_return string(std::string_view(reinterpret_cast<const char*>(b->data()), b->size()));
+            co_return co_await impl->body->read_text();   // straight into the string
         }
 
     };

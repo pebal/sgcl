@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -392,7 +392,7 @@ namespace sgcl {
                 size_type constructed = 0;
                 try {
                     for (; constructed < count; ++constructed) {
-                        detail::Maker<T>::construct(data + index + constructed, value);
+                        _make_at(data + index + constructed, value);
                     }
                 } catch (...) {
                     _destroy_range(data + index, constructed);
@@ -403,7 +403,7 @@ namespace sgcl {
                 return begin() + index;
             }
             auto data = _data();
-            _insert_in_place(data, s, index, count, [&](T* p) { detail::Maker<T>::construct(p, value); }, [&](T& e) { e = value; });
+            _insert_in_place(data, s, index, count, [&](T* p) { _make_at(p, value); }, [&](T& e) { e = value; });
             return begin() + index;
         }
 
@@ -423,7 +423,7 @@ namespace sgcl {
                     size_type constructed = 0;
                     try {
                         for (auto it = first; constructed < count; ++constructed, ++it) {
-                            detail::Maker<T>::construct(data + index + constructed, *it);
+                            _make_at(data + index + constructed, *it);
                         }
                     } catch (...) {
                         _destroy_range(data + index, constructed);
@@ -439,7 +439,7 @@ namespace sgcl {
                 // ones over the tail are assigned (_insert_in_place): a
                 // cursor for each
                 auto mid = tail < count ? std::next(first, (difference_type)tail) : first;
-                _insert_in_place(data, s, index, count, [&](T* p) { detail::Maker<T>::construct(p, *mid); ++mid; }, [&](T& e) { e = *first; ++first; });
+                _insert_in_place(data, s, index, count, [&](T* p) { _make_at(p, *mid); ++mid; }, [&](T& e) { e = *first; ++first; });
                 return begin() + index;
             } else {
                 // single pass: collect first, then insert by moving
@@ -468,7 +468,7 @@ namespace sgcl {
                 tracked_ptr<T> lock = _ptr;   // the old buffer held from this frame
                     auto data = _allocate_at_least(s + 1);
                 try {
-                    detail::Maker<T>::construct(data + index, std::forward<A>(a)...);
+                    _make_at(data + index, std::forward<A>(a)...);
                 } catch (...) {
                     _restore(lock);
                     throw;
@@ -479,7 +479,7 @@ namespace sgcl {
             // the arguments may refer to an element that is about to move
             T value(std::forward<A>(a)...);
             auto data = _data();
-            _insert_in_place(data, s, index, 1, [&](T* p) { detail::Maker<T>::construct(p, std::move(value)); }, [&](T& e) { e = std::move(value); });
+            _insert_in_place(data, s, index, 1, [&](T* p) { _make_at(p, std::move(value)); }, [&](T& e) { e = std::move(value); });
             return begin() + index;
         }
 
@@ -521,7 +521,7 @@ namespace sgcl {
                 auto s = _size;
                 if (s < _capacity) {
                     auto p = data + s;
-                    detail::Maker<T>::construct(p, std::forward<A>(a)...);
+                    _make_at(p, std::forward<A>(a)...);
                     _size = s + 1;
                     return _value(p);
                 }
@@ -551,11 +551,16 @@ namespace sgcl {
                     _grow(count);   // geometric, as a push grows: a resize by one at a time reallocates as rarely
                 }
                 auto data = _data();
-                _guarded_above(data, s, [&] {
-                    for (auto i = s; i < count; ++i) {
-                        _construct(data + i);
-                    }
-                });
+                if constexpr(_zero_is_value()) {
+                    std::memset(static_cast<void*>(data + s), 0, (count - s) * sizeof(T));
+                    _size = count;
+                } else {
+                    _guarded_above(data, s, [&] {
+                        for (auto i = s; i < count; ++i) {
+                            _construct(data + i);
+                        }
+                    });
+                }
             }
         }
 
@@ -608,7 +613,7 @@ namespace sgcl {
             tracked_ptr<T> lock = _ptr;
             auto data = _allocate_at_least(s + 1);
             try {
-                detail::Maker<T>::construct(data + s, std::forward<A>(a)...);
+                _make_at(data + s, std::forward<A>(a)...);
             } catch (...) {
                 _restore(lock);
                 throw;
@@ -702,9 +707,32 @@ namespace sgcl {
         // One more element, at p, the count raised after it is constructed
         template<class... A>
         void _construct(T* p, A&&... a) {
-            detail::Maker<T>::construct(p, std::forward<A>(a)...);
+            _make_at(p, std::forward<A>(a)...);
             ++_size;
         }
+
+        // An element at p from the arguments; with none, value-initialized
+        // (T(): zero for a trivial type), as std's containers do. Not the
+        // maker's `new T`: a buffer of a type without tracked pointers is
+        // not zeroed when it is issued, and a slot of a pool or a range of
+        // pages holds what its last user left there (maker.h), so a
+        // default-initialized trivial element would be those bytes
+        template<class... A>
+        static void _make_at(T* p, A&&... a) {
+            if constexpr(sizeof...(A) == 0) {
+                ::new (static_cast<void*>(p)) std::remove_cv_t<T>();
+            } else {
+                detail::Maker<T>::construct(p, std::forward<A>(a)...);
+            }
+        }
+
+        // Elements [from, to) value-initialized, the count raised once: a
+        // trivial type that holds no tracked pointer is zeroed in one pass
+        // (T() is zero for it), any other type constructed one by one
+        static constexpr bool _zero_is_value() noexcept {
+            return std::is_trivially_default_constructible_v<T> && !detail::TypeInfo<T>::MayContainTracked && !std::is_member_pointer_v<T>;   // a null member pointer is not zero bytes (-1 on the Itanium ABI); a class holding one is not caught here
+        }
+
 
         // Destroys the last `n` elements starting at `first` (which must be
         // the tail of the constructed elements), keeping the count exact.
@@ -781,10 +809,10 @@ namespace sgcl {
                 size_type i = 0;
                 try {
                     for (; i < index; ++i) {
-                        detail::Maker<T>::construct(data + i, std::move_if_noexcept(old[i]));
+                        _make_at(data + i, std::move_if_noexcept(old[i]));
                     }
                     for (; i < s; ++i) {
-                        detail::Maker<T>::construct(data + count + i, std::move_if_noexcept(old[i]));
+                        _make_at(data + count + i, std::move_if_noexcept(old[i]));
                     }
                 } catch (...) {
                     // only a copying type can throw here: the old buffer is
@@ -875,6 +903,9 @@ namespace sgcl {
             if constexpr(detail::TypeInfo<T>::IsTracked) {
                 // the buffer is zeroed: null tracked pointers already
                 (void)data;
+                _size = count;
+            } else if constexpr(_zero_is_value()) {
+                std::memset(static_cast<void*>(data), 0, count * sizeof(T));
                 _size = count;
             } else {
                 _guarded([&] {

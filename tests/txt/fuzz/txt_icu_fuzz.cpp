@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -262,6 +262,47 @@ namespace {
         return true;
     }
 
+    // Whether ICU's Word_Break of the code points is the library's: a
+    // character Unicode 17 moved to another class cuts the words, and the
+    // title case with them, differently by design — U+00B8 CEDILLA is
+    // Other in 16 (a break on each side: "G¸G" is two words, "G¸G" in
+    // title case) and ALetter in 17 (one word, "G¸g")
+    bool same_word_break(const std::u16string& s) {
+        using txt::detail::wb;
+        auto icu_of = [](wb x) -> int32_t {
+            switch (x) {
+                case wb::other: return U_WB_OTHER;
+                case wb::cr: return U_WB_CR;
+                case wb::lf: return U_WB_LF;
+                case wb::newline: return U_WB_NEWLINE;
+                case wb::extend: return U_WB_EXTEND;
+                case wb::zwj: return U_WB_ZWJ;
+                case wb::regional_indicator: return U_WB_REGIONAL_INDICATOR;
+                case wb::format: return U_WB_FORMAT;
+                case wb::katakana: return U_WB_KATAKANA;
+                case wb::aletter: return U_WB_ALETTER;
+                case wb::hebrew_letter: return U_WB_HEBREW_LETTER;
+                case wb::mid_letter: return U_WB_MIDLETTER;
+                case wb::mid_num: return U_WB_MIDNUM;
+                case wb::mid_num_let: return U_WB_MIDNUMLET;
+                case wb::single_quote: return U_WB_SINGLE_QUOTE;
+                case wb::double_quote: return U_WB_DOUBLE_QUOTE;
+                case wb::numeric: return U_WB_NUMERIC;
+                case wb::extend_num_let: return U_WB_EXTENDNUMLET;
+                case wb::wseg_space: return U_WB_WSEGSPACE;
+            }
+            return -1;
+        };
+        for (int32_t i = 0; i < int32_t(s.size());) {
+            UChar32 c;
+            U16_NEXT(s.data(), i, int32_t(s.size()), c);
+            if (u_getIntPropertyValue(c, UCHAR_WORD_BREAK) != icu_of(txt::detail::wb_of(char32_t(c)))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     void casing(uint8_t mode, const std::u16string& in16, const std::string& in) {
         if (!same_case_properties(in16)) {
             return;
@@ -282,7 +323,7 @@ namespace {
             return u_strFoldCase(d, cap, in16.data(), int32_t(in16.size()), U_FOLD_CASE_DEFAULT, err);
         });
         same_text(text(txt::fold_case(s)), to8(fold), "fold");
-        if (((mode >> 2) & 1) && !dictionary_words(in16)) {
+        if (((mode >> 2) & 1) && !dictionary_words(in16) && same_word_break(in16)) {
             // the title case, the words ICU's: UAX #29 but for the scripts
             // ICU breaks by a dictionary or keeps in runs (Han, kana,
             // Hangul, and Line_Break=SA: Thai, Lao, Khmer, Myanmar, New Tai

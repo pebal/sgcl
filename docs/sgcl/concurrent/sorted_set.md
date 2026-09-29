@@ -1,7 +1,7 @@
 # sgcl::concurrent::sorted_set
 
 ```cpp
-#include "sgcl/concurrent/sorted_set.h"   // or "sgcl/sgcl.h"
+#include "sgcl/concurrent/sorted_set.h"   // or "sgcl/concurrent/concurrent.h"
 
 namespace sgcl {
     template<class Key, class Compare = std::less<Key>>
@@ -50,7 +50,9 @@ key_compare key_comp() const;
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/concurrent/concurrent.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -66,9 +68,10 @@ int main() {
         });
     }
     long walks = 0, disorder = 0;
-    for (long last = -1; last < 4 * 999; ++walks) {   // walks while the writers are at it, until one sees the last stamp
+    // walks while the writers are at it, until one sees the last stamp
+    for (long last = -1; last < 4 * 999; ++walks) {
         last = -1;
-        for (long s : stamps) {          // sorted at every walk, whatever the writers are doing
+        for (long s : stamps) {  // sorted at every walk, whatever the writers are doing
             disorder += s <= last;
             last = s;
         }
@@ -76,15 +79,16 @@ int main() {
     for (auto& th : threads) {
         th.join();
     }
-    println("{} stamps, {} walks, {} out of order; from 1000: {}", stamps.size(), walks, disorder, *stamps.lower_bound(1000));
+    println("{} stamps, {} walks, {} out of order; from 1000: {}", stamps.size(), walks, disorder,
+            *stamps.lower_bound(1000));
     return stamps.size() == 4000 && disorder == 0 ? 0 : 1;
 }
 ```
 
-The output of one run (the walks depend on how the threads interleave):
+Sample output:
 
-```
-4000 stamps, 43 walks, 0 out of order; from 1000: 1000
+```text
+4000 stamps, 1034 walks, 0 out of order; from 1000: 1000
 ```
 
 ## See also

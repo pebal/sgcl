@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -183,9 +183,14 @@ namespace sgcl::txt {
         // Multilingual Plane, a pair of UTF-16 units for one outside it,
         // and UTF-8 passes through as it is. Written through a pointer
         // rather than appended a character at a time, which costs ten
-        // times as much, and the rest is given back when the text is made.
-        std::string out(bytes.size() * 3, '\0');
-        char* at = out.data();
+        // times as much, straight into the string's object for that bound
+        // (make_bounded: a text that took less than half of it is copied
+        // into an object of its size, the bound's given back)
+        if (bytes.size() > string::max_size() / 3) {
+            throw length_error("sgcl::txt::decode: a text longer than a string can hold");
+        }
+        return sgcl::detail::StringAccess::bounded<string>(bytes.size() * 3, [&](char* const start) {
+        char* at = start;
         auto* p = bytes.data();
         size_t n = bytes.size();
         switch (from) {
@@ -263,7 +268,8 @@ namespace sgcl::txt {
                 break;
             }
         }
-        return string(out.data(), size_t(at - out.data()));
+        return size_t(at - start);
+        });
     }
 
     // The strict form of decode, as a tag: `decode(bytes, from, strict)`
@@ -486,9 +492,14 @@ namespace sgcl::txt {
         return out;
     }
 
+    // Written straight into the string's object for the bound of three
+    // bytes a unit (make_bounded, as decode above)
     inline string from_utf16(const slice<const char16_t>& units) {
-        std::string out(units.size() * 3, '\0');
-        char* at = out.data();
+        if (units.size() > string::max_size() / 3) {
+            throw length_error("sgcl::txt::from_utf16: a text longer than a string can hold");
+        }
+        return sgcl::detail::StringAccess::bounded<string>(units.size() * 3, [&](char* const start) {
+        char* at = start;
         for (size_t i = 0; i < units.size(); ++i) {
             // a unit under 128 is one byte of UTF-8 and nothing else
             if (units[i] < 0x80) {
@@ -505,7 +516,8 @@ namespace sgcl::txt {
             }
             detail::put(at, c);
         }
-        return string(out.data(), size_t(at - out.data()));
+        return size_t(at - start);
+        });
     }
 
     inline vector<char32_t> to_utf32(const string& text) {
@@ -529,12 +541,18 @@ namespace sgcl::txt {
         return out;
     }
 
+    // The widths summed first, then the text written once into a string of
+    // that size (a reserve of one byte a code point grew as soon as one
+    // was not ASCII)
     inline string from_utf32(const slice<const char32_t>& points) {
-        std::string out;
-        out.reserve(points.size());
+        size_t bytes = 0;
         for (auto c : points) {
-            detail::put(out, utf8::valid(c) ? c : utf8::replacement);
+            bytes += utf8::width(utf8::valid(c) ? c : utf8::replacement);
         }
-        return string(out.data(), out.size());
+        return sgcl::detail::StringAccess::filled<string>(bytes, [&](char* at) {
+            for (auto c : points) {
+                detail::put(at, utf8::valid(c) ? c : utf8::replacement);
+            }
+        });
     }
 }

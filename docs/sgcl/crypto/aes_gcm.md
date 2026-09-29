@@ -19,6 +19,29 @@ AES-GCM ([SP 800-38D](https://csrc.nist.gov/pubs/sp/800/38/d/final)), the authen
 - **A counter**, [`nonce_counter`](nonce_counter.md): one per key, `next()` for every message. It cannot collide. This is what TLS does (the record number), and what SP 800-38D §8.2.1 calls the deterministic construction.
 - **Random nonces** are safe for a limited number of messages only: 96 random bits collide with a probability that grows with the square of the count, and NIST allows 2^32 messages per key that way. Where a counter cannot be kept — many writers, no state — [`xchacha20_poly1305`](chacha20_poly1305.md) takes 192 random bits, which do not collide.
 
+## Rules
+
+- **The key** is copied into the object: the AES round keys and the powers H..H^8 of GHASH's key, in the object's own memory (about 500 bytes; no allocation). The object is **move-only**, a copy is `clone()`; its destructor and a move out of it overwrite that memory with zeros the compiler cannot remove. A key object belongs on the stack or in a `unique_ptr`: in a managed object it stays in memory until the collector's cycle finds the object dead, and only then is its destructor run.
+- **Nonces of 12 bytes only.** GCM allows other lengths (hashed to a counter with GHASH), and Go has `NewGCMWithNonceSize` for old protocols; nothing new should use them, and the module does not have them. Tags shorter than 16 bytes are not here either.
+- **Open is two passes**: GHASH over the ciphertext, the tag compared, then the decryption. See [aead.md](aead.md): nothing of a forgery is written.
+- A key read from data (a file, a message) goes through `from_key`, which gives `errc::invalid_key` for a wrong length; the constructor's `std::invalid_argument` is for a length written into the program.
+
+## Paths
+
+On x86-64 with AES-NI and PCLMULQDQ the same shape runs on AESENC and PCLMULQDQ: eight blocks at a time, GHASH on the products of eight blocks summed and reduced once, seal in one pass. On arm64 with the crypto extension (every Apple core, and every arm64 processor that has it, asked at run time) AES runs on AESE/AESMC, eight blocks at a time, and GHASH on PMULL: the products of eight blocks by H^8..H summed and reduced once. Seal is one pass, the eight blocks encrypted and hashed from the registers. Elsewhere, and under `SGCL_CRYPTO_PORTABLE`, AES is **bitsliced** — four blocks as eight 64-bit planes, the S-box computed as the inverse in GF(2^8) and the affine map, no table anywhere — and GHASH multiplies with integer products of operands with holes in them; both in constant time, and two orders of magnitude slower (the S-box computed as x^254 is correct by construction, not the smallest circuit there is). The choice is made when the key is set up, from the processor alone, as in [hash](../hash/README.md); no build flag is needed, and the tests run the whole suite on both paths.
+
+## SGCL and Go
+
+| Go | sgcl::crypto | note |
+|---|---|---|
+| `aes.NewCipher(key)` + `cipher.NewGCM(block)` | `aes_gcm(key)` | one type; `from_key(key)` for a key from data |
+| `aead.Seal(nil, nonce, plaintext, aad)` | `seal(nonce, plaintext, aad)` | |
+| `aead.Seal(dst[:0], nonce, plaintext, aad)` | `seal_to(out, nonce, plaintext, aad)` | in place when `out` starts at the plaintext |
+| `aead.Open(nil, nonce, sealed, aad)` | `open(nonce, sealed, aad)` | `expected`; the tag is checked before anything is written |
+| `aead.NonceSize()`, `aead.Overhead()` | `nonce_size`, `overhead` | |
+| `cipher.NewGCMWithNonceSize`, `NewGCMWithTagSize` | — | 12-byte nonces and 16-byte tags only |
+| `cipher.NewGCMWithRandomNonce` (Go 1.24) | — | a random nonce is [`xchacha20_poly1305::seal_random`](chacha20_poly1305.md)'s job |
+
 ## Members
 
 ```cpp
@@ -39,24 +62,12 @@ size_t key_size() const noexcept;             // 16, 24 or 32; 0 after a move
 // seal, open, seal_to, open_to: mixin::aead (aead.md)
 ```
 
-## Rules
-
-- **The key** is copied into the object: the AES round keys and the powers H..H^8 of GHASH's key, in the object's own memory (about 500 bytes; no allocation). The object is **move-only**, a copy is `clone()`; its destructor and a move out of it overwrite that memory with zeros the compiler cannot remove. A key object belongs on the stack or in a `unique_ptr`: in a managed object it stays in memory until the collector's cycle finds the object dead, and only then is its destructor run.
-- **Nonces of 12 bytes only.** GCM allows other lengths (hashed to a counter with GHASH), and Go has `NewGCMWithNonceSize` for old protocols; nothing new should use them, and the module does not have them. Tags shorter than 16 bytes are not here either.
-- **Open is two passes**: GHASH over the ciphertext, the tag compared, then the decryption. See [aead.md](aead.md): nothing of a forgery is written.
-- A key read from data (a file, a message) goes through `from_key`, which gives `errc::invalid_key` for a wrong length; the constructor's `std::invalid_argument` is for a length written into the program.
-
-## Paths
-
-On arm64 with the crypto extension (every Apple core, and Linux on arm64 built with `-march=armv8-a+crypto` or later) AES runs on AESE/AESMC, eight blocks at a time, and GHASH on PMULL: the products of eight blocks by H^8..H summed and reduced once. Seal is one pass, the eight blocks encrypted and hashed from the registers. Elsewhere, and under `SGCL_CRYPTO_PORTABLE`, AES is **bitsliced** — four blocks as eight 64-bit planes, the S-box computed as the inverse in GF(2^8) and the affine map, no table anywhere — and GHASH multiplies with integer products of operands with holes in them; both in constant time, and two orders of magnitude slower (the S-box computed as x^254 is correct by construction, not the smallest circuit there is). The choice is made at compile time from the target's flags, as in [hash](../hash/README.md); the tests run the whole suite on both paths.
-
 ## Example
 
 ```cpp
-#include "sgcl/crypto/gcm.h"
-#include "sgcl/crypto/nonce_counter.h"
-#include "sgcl/encoding/hex.h"
-#include "sgcl/io/print.h"
+#include "sgcl/crypto/crypto.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -65,10 +76,10 @@ int main() {
     // a generator or from a key agreement, never from its source
     vector<byte> key = encoding::hex::decode("feffe9928665731c6d6a8f9467308308");
     crypto::aes_gcm gcm(key);
-    crypto::nonce_counter nonces;           // one per key, for as long as the key lives
+    crypto::nonce_counter nonces;  // one per key, for as long as the key lives
 
     string text = "attack at dawn";
-    string header = "to: hq";   // sent in the clear, but authenticated
+    string header = "to: hq";  // sent in the clear, but authenticated
 
     auto nonce = nonces.next();
     auto sealed = gcm.seal(nonce, text, header);
@@ -77,7 +88,7 @@ int main() {
     auto opened = gcm.open(nonce, sealed, header);
     println(string(opened));
 
-    sealed[0] ^= byte(1);   // one bit of the ciphertext changed on the way
+    sealed[0] ^= byte(1);  // one bit of the ciphertext changed on the way
     auto forged = gcm.open(nonce, sealed, header);
     println(forged ? "opened" : forged.error().message());
 
@@ -99,18 +110,6 @@ attack at dawn
 message authentication failed
 30 14
 ```
-
-## SGCL and Go
-
-| Go | sgcl::crypto | note |
-|---|---|---|
-| `aes.NewCipher(key)` + `cipher.NewGCM(block)` | `aes_gcm(key)` | one type; `from_key(key)` for a key from data |
-| `aead.Seal(nil, nonce, plaintext, aad)` | `seal(nonce, plaintext, aad)` | |
-| `aead.Seal(dst[:0], nonce, plaintext, aad)` | `seal_to(out, nonce, plaintext, aad)` | in place when `out` starts at the plaintext |
-| `aead.Open(nil, nonce, sealed, aad)` | `open(nonce, sealed, aad)` | `expected`; the tag is checked before anything is written |
-| `aead.NonceSize()`, `aead.Overhead()` | `nonce_size`, `overhead` | |
-| `cipher.NewGCMWithNonceSize`, `NewGCMWithTagSize` | — | 12-byte nonces and 16-byte tags only |
-| `cipher.NewGCMWithRandomNonce` (Go 1.24) | — | a random nonce is [`xchacha20_poly1305::seal_random`](chacha20_poly1305.md)'s job |
 
 ## See also
 

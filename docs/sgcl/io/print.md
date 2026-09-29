@@ -33,7 +33,8 @@ Text written in one call: `println("{} items", n)` is `io::stdout.write(txt::for
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/io/io.h"
+#include "sgcl/time/time.h"
 
 using namespace sgcl;
 

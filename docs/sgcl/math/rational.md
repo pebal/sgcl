@@ -99,7 +99,8 @@ A sum or a product is a few multiplications and one or two gcds of the parts; a 
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 #include "sgcl/math/math.h"
 
 using namespace sgcl;

@@ -404,7 +404,8 @@ multiset from_list = {1, 1, 2};                   // multiset<int>
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -448,9 +449,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 readings, each value as often as it came
 3 read 3 times, 7 read 2 times
 8 live objects

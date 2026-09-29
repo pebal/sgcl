@@ -32,7 +32,7 @@ VERSION = unicodedata.unidata_version
 UCD = f"https://www.unicode.org/Public/{VERSION}/ucd/"
 CACHE = os.path.join(".ucd", VERSION)
 HEADER = """//------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------

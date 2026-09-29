@@ -1,7 +1,7 @@
 # sgcl::config
 
 ```cpp
-#include "sgcl/sgcl.h"        // or "sgcl/core/config.h"
+#include "sgcl/core/config.h"   // or "sgcl/core/core.h"
 
 namespace sgcl::config {
     // constants, all static constexpr
@@ -14,7 +14,7 @@ The library is header-only, so a constant is compiled into every translation uni
 
 ## Setting a macro
 
-On the command line, in CMake, or before the first include of a header of the library:
+On the command line or in CMake:
 
 ```sh
 clang++ -std=c++20 -DSGCL_GENERATIONAL=0 -DSGCL_SWEEP_THREADS_MAX=4 ...
@@ -24,10 +24,7 @@ clang++ -std=c++20 -DSGCL_GENERATIONAL=0 -DSGCL_SWEEP_THREADS_MAX=4 ...
 target_compile_definitions(app PRIVATE SGCL_GENERATIONAL=0 SGCL_MARK_OBJECT_THRESHOLD=262144)
 ```
 
-```cpp
-#define SGCL_HEAP_FREE_CHUNK_RESERVE 8   // in every translation unit: use -D instead
-#include "sgcl/sgcl.h"
-```
+A `#define SGCL_HEAP_FREE_CHUNK_RESERVE 8` before the first include of a header of the library does the same, but it must then stand in every translation unit: `-D` is the way.
 
 ## Members
 
@@ -37,7 +34,7 @@ target_compile_definitions(app PRIVATE SGCL_GENERATIONAL=0 SGCL_MARK_OBJECT_THRE
 #define SGCL_LOG_PRINT_LEVEL 0   // 0..3
 ```
 
-What the library prints to `std::cout`, prefixed `[sgcl]`. `0` (the default) prints nothing. `1` prints the start, stop and termination of the collector thread, and every `force_collect()` and `get_live_objects()` call with the id of the calling thread. `2` adds one line per cycle: the pages allocated and freed since the previous cycle, the live pages, the objects created and removed, the live objects, the kind of the cycle (full or young), whether the helpers are on and how many the cycle used, the cycle's time and the total so far. `3` adds the registration and exit of every mutator thread and the collector's pauses for `get_live_objects()`. A diagnostic, not a log for production.
+What the library prints to `std::cout`, prefixed `[sgcl]`. `0` (the default) prints nothing. `1` prints the start, stop and termination of the collector thread, and every `force_collect()` and `get_live_objects()` call with the id of the calling thread. `2` adds one line per cycle: the pages allocated and freed since the previous cycle, the live pages, the objects created and removed, the live objects, the kind of the cycle (full or young), whether the helpers are on and how many the cycle used, the cycle's time and the total so far. `3` adds the registration and exit of every mutator thread and the collector's pauses for `get_live_objects()`. A diagnostic, not a log for production. [`slog::collector_log`](../slog/README.md#the-collectors-log) makes the same lines records of a logger instead ([collector: its log](collector.md#its-log)).
 
 ```sh
 clang++ -std=c++20 -DSGCL_LOG_PRINT_LEVEL=2 app.cpp    # one line per cycle on stdout
@@ -276,7 +273,8 @@ if constexpr (config::generational) {
 In `sgcl`:
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 #include <algorithm>
 #include <thread>
 
@@ -286,27 +284,48 @@ using namespace sgcl;
 // collector does with it. Build with -DSGCL_GENERATIONAL=0 or
 // -DSGCL_SWEEP_THREADS_MAX=2 to see the values change.
 int main() {
-    println("page {} KB, chunk {} MB, {} free chunks kept committed", config::page_size / 1024, config::chunk_size / 1048576, config::heap_free_chunk_reserve);
-    println("generational: {}, a full cycle after {} young ones or {}% growth", (config::generational ? "yes" : "no"), config::young_cycles_max, config::full_cycle_growth_percent);
-    size_t helpers = config::sweep_threads_max ? config::sweep_threads_max
-                                             : std::min<size_t>(8, std::max<size_t>(1, std::thread::hardware_concurrency() / 2));
-    println("helpers: at most {}, sweeping from {} pages, marking from {} objects, switched on by {} MB of growth", helpers, config::sweep_page_threshold, config::mark_object_threshold, (config::helpers_growth_threshold >> 20));
-    println("stack: {} KB zeroed before a count, {} KB guard", config::stack_clear_size / 1024, config::stack_guard_margin / 1024);
+    println("page {} KB, chunk {} MB, {} free chunks kept committed", config::page_size / 1024,
+            config::chunk_size / 1048576, config::heap_free_chunk_reserve);
+    println("generational: {}, a full cycle after {} young ones or {}% growth",
+            (config::generational ? "yes" : "no"), config::young_cycles_max,
+            config::full_cycle_growth_percent);
+    size_t helpers = config::sweep_threads_max
+        ? config::sweep_threads_max
+        : std::min<size_t>(8, std::max<size_t>(1, std::thread::hardware_concurrency() / 2));
+    println("helpers: at most {}, sweeping from {} pages, marking from {} objects, "
+            "switched on by {} MB of growth", helpers, config::sweep_page_threshold,
+            config::mark_object_threshold, (config::helpers_growth_threshold >> 20));
+    println("stack: {} KB zeroed before a count, {} KB guard", config::stack_clear_size / 1024,
+            config::stack_guard_margin / 1024);
 
     // the ceiling the defaults produced on this machine, and the pressure line under it
     size_t ceiling = collector::get_memory_limit();
-    println("ceiling {} MB ({}% of the limit), pressure above {} MB", (ceiling >> 20), config::heap_limit_percent, (ceiling / 100 * config::heap_pressure_percent >> 20));
+    println("ceiling {} MB ({}% of the limit), pressure above {} MB", (ceiling >> 20),
+            config::heap_limit_percent, (ceiling / 100 * config::heap_pressure_percent >> 20));
 
     // some work, then the counters that the constants above shape
     vector<tracked_ptr<int>> kept;
     for (int i : range(100000)) {
         kept.push_back(make_tracked<int>(i));
     }
-    collector::force_collect(true);   // optional, for the demonstration only: the collector runs its cycles by itself
+    // optional, for the demonstration only: the collector runs its cycles by itself
+    collector::force_collect(true);
     auto s = collector::get_statistics();
-    println("{} cycles, {} full; helpers {}, {} started", s.cycles, s.full_cycles, (s.helpers_enabled ? "on" : "off"), s.helper_threads);
+    println("{} cycles, {} full; helpers {}, {} started", s.cycles, s.full_cycles,
+            (s.helpers_enabled ? "on" : "off"), s.helper_threads);
     return 0;
 }
+```
+
+Sample output:
+
+```text
+page 64 KB, chunk 2 MB, 32 free chunks kept committed
+generational: yes, a full cycle after 8 young ones or 100% growth
+helpers: at most 8, sweeping from 256 pages, marking from 1048576 objects, switched on by 16 MB of growth
+stack: 64 KB zeroed before a count, 32 KB guard
+ceiling 58982 MB (90% of the limit), pressure above 44236 MB
+5 cycles, 2 full; helpers off, 0 started
 ```
 
 ## See also

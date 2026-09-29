@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -32,7 +32,7 @@ namespace sgcl::async {
             // so that on_done serves a group that never counted up (the
             // first add opens a new round, as every later one does)
             WaitGroupState()
-            : _round(make_tracked<detail::ChannelState<void>>()) {
+            : _round(detail::make_linked_state<void>()) {
                 _round.load(std::memory_order_relaxed)->close();
             }
 
@@ -50,7 +50,7 @@ namespace sgcl::async {
                 if (_count.fetch_add(n, std::memory_order_acq_rel) == 0 && n > 0) {
                     tracked_ptr<detail::ChannelState<void>> round = _round.load(std::memory_order_acquire);
                     if (round->closed()) {   // a new round: the channel of the last one stays closed for its waiters
-                        _round.compare_exchange_strong(round, tracked_ptr<detail::ChannelState<void>>(make_tracked<detail::ChannelState<void>>()));
+                        _round.compare_exchange_strong(round, detail::make_linked_state<void>());
                     }
                 }
             }

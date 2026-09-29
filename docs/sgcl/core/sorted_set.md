@@ -377,7 +377,8 @@ From an iterator pair or an initializer list, as for `std::set`; an initializer 
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -406,7 +407,7 @@ int main() {
     names.insert("b");
     print("b's neighbourhood:");
     for (const auto& n : names) {
-        print(" {}", n);                  // a b c
+        print(" {}", n);
     }
     println();
 
@@ -422,9 +423,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 a graph whose edges are sorted sets
 b's neighbourhood: a b c
 7 live objects

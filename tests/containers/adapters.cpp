@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -129,17 +129,25 @@ TEST(Adapters_Test, StackConstructors) {
     std::vector<int> range = {4, 5, 6};
     sgcl::stack<int> from_range(range.begin(), range.end());
     EXPECT_EQ(from_range.top(), 6);
-    sgcl::stack<int> copy(from_range);
-    EXPECT_EQ(copy, from_range);
-    sgcl::stack<int> moved(std::move(copy));
-    EXPECT_EQ(moved, from_range);
-    EXPECT_TRUE(copy.empty());
-    off_frame([&] {   // the buffers dropped by the assignments must not linger in this frame
-        copy = moved;
+    // The copies and the moves in a frame of their own, all of them: the
+    // block the assignments drop was the copy's, and a word of it left in
+    // this frame by the copy or its comparison (a spilled register, found
+    // at the count in Release, 9 for 8) would keep it alive; a dead frame
+    // is zeroed before the count
+    sgcl::stack<int> moved;
+    off_frame([&] {
+        sgcl::stack<int> copy(from_range);
         EXPECT_EQ(copy, from_range);
-        moved = std::move(copy);
-        EXPECT_EQ(moved, from_range);
+        sgcl::stack<int> moved_into(std::move(copy));
+        EXPECT_EQ(moved_into, from_range);
+        EXPECT_TRUE(copy.empty());
+        copy = moved_into;
+        EXPECT_EQ(copy, from_range);
+        moved_into = std::move(copy);
+        EXPECT_EQ(moved_into, from_range);
+        moved = std::move(moved_into);
     });
+    EXPECT_EQ(moved, from_range);
     EXPECT_EQ(collector::get_live_object_count(), 8u);   // four stacks of three, a map and a block each
 }
 

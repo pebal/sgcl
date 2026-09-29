@@ -59,6 +59,8 @@ net::ip_address with_zone(const string& zone) const;   // "" removes it; IPv4 un
 net::ip_address next() const noexcept;           // one above, the zone kept; the empty address past the last
 net::ip_address prev() const noexcept;
 string to_string() const;                   // RFC 5952, dotted decimal, "invalid IP"
+static constexpr size_t MaxText;            // the most bytes of that text
+size_t write_text(char* out) const noexcept;   // the same text into out (MaxText bytes), its length: a line made with no string (slog)
 auto operator<=>(const ip_address&) const noexcept = default;
 ```
 
@@ -84,6 +86,7 @@ net::ip_network masked() const noexcept;                     // "10.1.2.3/8" -> 
 bool contains(const ip_address& a) const noexcept;      // the same kind, no zone, the prefix equal
 bool overlaps(const ip_network& o) const noexcept;
 string to_string() const;
+static constexpr size_t MaxText;  size_t write_text(char* out) const noexcept;   // the same text into out, as ip_address's
 auto operator<=>(const ip_network&) const noexcept = default;
 ```
 
@@ -106,6 +109,7 @@ net::ip_address address() const noexcept;
 uint16_t port() const noexcept;
 bool is_valid() const noexcept;
 string to_string() const;                               // an IPv6 address in brackets, an IPv4 address never
+static constexpr size_t MaxText;  size_t write_text(char* out) const noexcept;   // the same text into out, as ip_address's
 auto operator<=>(const endpoint&) const noexcept = default;
 ```
 

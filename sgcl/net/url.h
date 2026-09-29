@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -8,6 +8,7 @@
 #include "error.h"
 #include "ip.h"
 #include "../core/aliases.h"
+#include "../core/detail/bytes.h"
 #include "../core/string.h"
 #include "../core/vector.h"
 #include "../txt/idna.h"
@@ -43,6 +44,13 @@ namespace sgcl::net {
         // "a=1&b=2&a=3"; a leading '?' is taken off first, as
         // URLSearchParams does
         static query_params parse(const string& text);
+
+        // What parse(text).get(name) gives, found in the text: the pairs
+        // walked as parse walks them, a name compared as it stands when it
+        // has nothing to decode, and only the value found decoded, so that
+        // one value costs one string (a request's query(name) parsed every
+        // pair of the query into two strings a call)
+        static string first(const string& text, const string& name);
 
         // The same for a literal in the program (DESIGN 234): nothing to
         // throw, since parse never fails; parse stays for text from outside
@@ -1792,7 +1800,7 @@ namespace sgcl::net {
             char* const begin = size <= sizeof(local) ? local : (heap.resize(size), heap.data());
             char* at = begin;
             auto put = [&at](std::string_view part) {
-                std::memcpy(at, part.data(), part.size());
+                sgcl::detail::copy_bytes(at, part.data(), part.size());
                 at += part.size();
             };
             auto here = [&] { return uint32_t(at - begin); };
@@ -2080,7 +2088,7 @@ namespace sgcl::net {
         char* at = out;
         auto here = [&] { return uint32_t(at - out); };
         auto put = [&at](std::string_view part) {
-            std::memcpy(at, part.data(), part.size());
+            sgcl::detail::copy_bytes(at, part.data(), part.size());
             at += part.size();
         };
         auto escape = [&at](uint8_t c, const txt::percent_set& keep) {
@@ -2388,6 +2396,51 @@ namespace sgcl::net {
             out._pairs.push_back(pair<string, string>(string(std::string_view(name)), string(std::string_view(value))));
         }
         return out;
+    }
+
+    inline string query_params::first(const string& text, const string& name) {
+        auto v = text.view();
+        if (!v.empty() && v.front() == '?') {
+            v.remove_prefix(1);
+        }
+        auto as_is = [](std::string_view s) {
+            return s.find_first_of("%+") == std::string_view::npos && detail::url_utf8_valid(s);
+        };
+        auto decode = [](std::string_view s, std::string& to) {
+            std::string plus(s);
+            std::replace(plus.begin(), plus.end(), '+', ' ');
+            to.clear();
+            detail::url_utf8(detail::url_unescape(plus), to);
+        };
+        std::string decoded;
+        size_t from = 0;
+        while (from <= v.size()) {
+            auto amp = v.find('&', from);
+            auto piece = v.substr(from, amp == std::string_view::npos ? std::string_view::npos : amp - from);
+            from = amp == std::string_view::npos ? v.size() + 1 : amp + 1;
+            if (piece.empty()) {
+                continue;
+            }
+            auto eq = piece.find('=');
+            auto n = piece.substr(0, eq);
+            auto w = eq == std::string_view::npos ? std::string_view() : piece.substr(eq + 1);
+            bool match;
+            if (as_is(n)) {
+                match = n == name.view();
+            } else {
+                decode(n, decoded);
+                match = std::string_view(decoded) == name.view();
+            }
+            if (!match) {
+                continue;
+            }
+            if (as_is(w)) {
+                return string(w);
+            }
+            decode(w, decoded);
+            return string(std::string_view(decoded));
+        }
+        return string();
     }
 
     inline string query_params::to_string() const {

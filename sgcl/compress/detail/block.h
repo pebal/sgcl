@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -7,6 +7,7 @@
 
 #include "../../core/aliases.h"
 #include "../../core/config.h"
+#include "../../core/detail/bytes.h"
 #include "../../core/make_tracked.h"
 #include "../../core/slice.h"
 #include "../../core/vector.h"
@@ -135,7 +136,7 @@ namespace sgcl::compress::detail {
             auto s = managed_bytes<Block>(n);
             size_t held = managed() ? _managed.size() : _plain.size();
             if (size_t k = std::min({keep, n, held})) {
-                std::memcpy(s.data(), data(), k);
+                sgcl::detail::copy_bytes(s.data(), data(), k);
             }
             _managed = s;
         }
@@ -145,6 +146,78 @@ namespace sgcl::compress::detail {
         slice<byte> _managed;          // the managed bytes, and their owner
         static inline uint8_t _none = 0;
     };
+
+    // The encoder's output where a task's write takes it from: a managed
+    // block the bytes are appended to in place and given to the write as
+    // they are, a slice of the block (no copy into a stage); grown by
+    // doubling (the bytes so far copied then), kept from one write to the
+    // next. The interface is the part of std::vector<uint8_t> the formats
+    // and the encoder use: push_back, insert at the end, size, clear.
+    class ManagedOutput {
+    public:
+        struct End {};
+
+        End end() const noexcept {
+            return {};
+        }
+
+        size_t size() const noexcept {
+            return _n;
+        }
+
+        bool empty() const noexcept {
+            return _n == 0;
+        }
+
+        void clear() noexcept {
+            _n = 0;
+        }
+
+        void push_back(uint8_t b) {
+            _room(_n + 1);
+            _block.data()[_n++] = byte(b);
+        }
+
+        template<class It>
+        void insert(End, It first, It last) {
+            const size_t n = size_t(std::distance(first, last));
+            _room(_n + n);
+            std::copy(first, last, reinterpret_cast<uint8_t*>(_block.data()) + _n);
+            _n += n;
+        }
+
+        void append(const uint8_t* p, size_t n) {
+            _room(_n + n);
+            sgcl::detail::copy_bytes(_block.data() + _n, p, n);
+            _n += n;
+        }
+
+        // The bytes so far, owned by the block
+        slice<const byte> bytes() const noexcept {
+            return slice<const byte>(_block).first(_n);
+        }
+
+    private:
+        void _room(size_t need) {
+            if (need > _block.size()) {
+                const size_t cap = std::max({need, 2 * _block.size(), size_t(32768)});
+                slice<byte> grown = managed_bytes<32768>(cap);
+                sgcl::detail::copy_bytes(grown.data(), _block.data(), _n);
+                _block = grown;
+            }
+        }
+
+        slice<byte> _block;
+        size_t _n = 0;
+    };
+
+    inline void append_bytes(ManagedOutput& out, const uint8_t* p, size_t n) {
+        out.append(p, n);
+    }
+
+    inline void append_byte(ManagedOutput& out, uint8_t b) {
+        out.push_back(b);
+    }
 
     // A writer's bytes for a task's write: copied into a managed block the
     // writer keeps, made by the first such write and reused by the ones
@@ -156,9 +229,7 @@ namespace sgcl::compress::detail {
     public:
         slice<const byte> stage(const uint8_t* p, size_t n) {
             _room(n);
-            if (n) {
-                std::memcpy(_block.data(), p, n);
-            }
+            sgcl::detail::copy_bytes(_block.data(), p, n);
             return _block.first(n);
         }
 
@@ -169,12 +240,8 @@ namespace sgcl::compress::detail {
         // Two pieces one after another, in one write
         slice<const byte> stage(const std::vector<uint8_t>& a, const slice<const byte>& b) {
             _room(a.size() + b.size());
-            if (!a.empty()) {
-                std::memcpy(_block.data(), a.data(), a.size());
-            }
-            if (!b.empty()) {
-                std::memcpy(_block.data() + a.size(), b.data(), b.size());
-            }
+            sgcl::detail::copy_bytes(_block.data(), a.data(), a.size());
+            sgcl::detail::copy_bytes(_block.data() + a.size(), b.data(), b.size());
             return _block.first(a.size() + b.size());
         }
 

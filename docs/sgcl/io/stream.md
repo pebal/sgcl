@@ -46,6 +46,7 @@ Where a stream has to be kept — the source of a `buffered_reader`, the output 
 - A stream of the library is a handle of one word (`io::buffer out;`, `io::file f = io::open(p);`, `io::buffered_reader in(f);`): the handle is copyable, the copies share the object. A handle is a tracked word: on a stack, in a task, in a managed object; in a global or a std container, a [`rooted`](../core/rooted.md) of it (`rooted<io::buffer> log(std::in_place);`, then `log->write(...)`), never in a managed object or a task's frame, since a root is never part of a cycle. The three standard streams (`io::stdin`, `io::stdout`, `io::stderr`, [os](os.md)) are objects of their own. No raw pointer is taken: a reference for an object on a stack or a global, a `tracked_ptr` for one on the managed heap.
 - The destructor runs on the collector's thread after the sweep that finds the stream dead, which may be long after the last use: a stream that holds a descriptor is `close()`d when done, which releases it now and reports the error a deferred close cannot.
 - An async form is a coroutine over the stream: a stream given by reference is held by that reference while the task runs, so the caller keeps it alive until the task is done — which `co_await io::async_copy(w, r)` in one statement does by itself; a temporary (a lambda written in the call) is moved into the task's frame.
+- An async form that runs on the blocking pool (the async half the handle makes of a stream's blocking one, a regular file) and is given a slice without an owner goes through a managed block. What is written is copied into it before the operation starts; what is read is copied back from it when the task resumes. The pool's thread may outlive the frame of a task let go of, and it never touches plain memory that died with it. A slice with an owner (a `string`, a `vector`, a `buffer`, any type of the library) is used as it is, with no copy: give one. The encoders' async flushes give one themselves.
 - Errors are values: `expected<T, error>`, never an exception ([error](error.md)). The end is not an error.
 - One thread or task at a time on one stream; two readers of one `file` use `read_at` with positions of their own.
 
@@ -78,7 +79,7 @@ expected<size_t, error> write(req::writer auto&& w, byte b);
 // async_read_full, async_read_all, async_read_all_text, async_write: the same, a task
 ```
 
-`copy` moves the bytes through one block of `config::io_copy_buffer_size` (32 KB), on the stack of the call; `async_copy`'s is managed, since its reads may run on the blocking pool and the slice a read is given holds the block; or in one call when the source has a way of its own (`write_to`, and `async_write_to` for `async_copy`, as Go's `WriterTo`: a `buffer` hands over what it holds). `read_all` gathers the stream in unmanaged memory, grown by doubling, and makes one `vector<byte>` of exactly its size at the end: one managed allocation, the result. `async_read_all` reads into managed blocks instead (8 KB, then 32 KB each for a longer stream), which a read on the pool holds, and copies them once into its result.
+`copy` moves the bytes through one block of `config::io_copy_buffer_size` (32 KB), on the stack of the call; `async_copy`'s is managed, since its reads may run on the blocking pool and the slice a read is given holds the block; or in one call when the source has a way of its own (`write_to`, and `async_write_to` for `async_copy`, as Go's `WriterTo`: a `buffer` hands over what it holds). The same holds when the destination has a way of its own (`read_from` and `async_read_from`, as Go's `ReaderFrom`). `io::copy(connection, file)` sends a regular file from its position to its end by `sendfile` over TCP, with no copy through the process; over TLS the file is read in blocks and sealed where they lie. The file's position moves past the bytes sent. A pipe goes through the block as any reader does ([connection](../net/connection.md)). `read_all` gathers the stream in unmanaged memory, grown by doubling, and makes one `vector<byte>` of exactly its size at the end: one managed allocation, the result. `async_read_all` reads into managed blocks instead (8 KB, then 32 KB each for a longer stream), which a read on the pool holds, and copies them once into its result.
 
 ### mixin::reader, mixin::writer, mixin::seeker
 
@@ -165,7 +166,8 @@ It seeks as a file does, for writing: the write position counts from the first b
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/async/async.h"
+#include "sgcl/io/io.h"
 #include <cctype>
 #include <cstring>
 
@@ -191,7 +193,7 @@ private:
 int main() {
     io::buffer greeting("hello, streams\n");
     upper_reader up(greeting);                                    // an io::reader holding the buffer (the table under reader, writer)
-    auto n = io::async_copy(io::stdout, up).wait();                    // a task, waited for by this thread: HELLO, STREAMS
+    auto n = io::async_copy(io::stdout, up).wait();                    // a task, waited for by this thread
     if (n) {
         println("{} bytes", *n);
     }

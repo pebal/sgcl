@@ -19,6 +19,7 @@ The descriptors of the `io` and `net` modules (a socket, a pipe) do not wait thi
 
 - A wait is one-shot: the event is set once, for the first readiness after the call. The next wait is a new `async::readable(fd)`. A wait left behind (a select that chose another case, a task that stopped) stays on the registration until the descriptor is ready, then fires and is dropped: nothing waits on it, the event garbage. A wait given up on a descriptor that may stay idle (a read with a short deadline in a loop, as `net` makes) is ended by setting its event: the reactor drops the set ones at later waits on the descriptor, and holds no more than about twice the waits still open. Several waits on one descriptor in one direction share one registration and are set together by its first readiness.
 - The event is readiness, not data, and it is set by the end of a wait too: what a read then gives is the read's business (bytes, zero for the end of the stream, an error, `EAGAIN` for a wait ended with nothing, after which it waits again). A descriptor the kernel cannot watch (a regular file, on kqueue) is set at once, and the read says what is what.
+- A wait ends when its event is set, whatever set it: the readiness, or the end of the wait with nothing (the descriptor closed through `cancel_waits`, a cancel, a stop of the reactor). After it `is_set()` is true either way ([event](event.md)), so the code that waited checks the result of its operation — the read, the write, the process's status — never the event alone.
 - The event is a handle ([event](event.md)): one word, a tracked word — on a stack, in a task, in a managed object; in a global or a std container, a `rooted<async::event>`. Its state lives as long as something holds it, the reactor's registration included ([The rules](../core/README.md#the-rules), 1).
 - The kernel's queue is made by the first wait; when it cannot be (`kqueue()` failing with the descriptors exhausted) that wait ends with nothing, and the next one tries again.
 - `async::scheduler::stop()` stops the reactor too: the waits still registered are ended with nothing (their events set), and so are the descriptors' parked waits (the operation fails with `ECANCELED`); the next wait starts it again and registers the descriptors again. A wait registered while the reactor is stopping ends the same way.
@@ -56,7 +57,8 @@ async::task<bool> read_one_within(int fd, duration d) {
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/async/async.h"
+#include "sgcl/io/io.h"
 #include <string>
 #include <unistd.h>
 
@@ -97,16 +99,16 @@ int main() {
         this_thread::sleep_for(5ms);
         [[maybe_unused]] auto n = ::write(fd[1], &c, 1);
     }
-    println("{}", reader.wait());                       // hello
+    println("{}", reader.wait());
     ::close(fd[0]);
     ::close(fd[1]);
     return reader.result() == "hello" ? 0 : 1;
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 hello
 ```
 

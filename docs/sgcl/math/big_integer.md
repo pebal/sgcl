@@ -14,27 +14,6 @@ namespace sgcl::math {
 
 `math::big_integer` is a whole number of any size: what Go's `math/big.Int` is, with the manners of an `int`. Operators and all — `a * 2 + 1` is written as it reads, `a < 10` and `a == 0` compare with the language's own integers, `/` cuts towards zero and `%` takes the sign of the dividend as they do for `int` — and the methods are `const` and hand back a new value: `a.to_string(16)`, `a.div_rem(d)`, `a.abs()`. Nothing overflows.
 
-```cpp
-using namespace sgcl;
-using namespace math::literals;
-
-math::big_integer f = 1;
-for (auto i : range(1, 101)) {
-    f *= i;
-}
-string digits = f.to_string();             // 100!, 158 digits
-string hex = f.to_string(16);
-string field = txt::format("{:>#60x}", f);
-
-auto n = 0xffff'ffff'ffff'ffff'ffff'ffff'ffff'ffff_big;
-auto [q, r] = n.div_rem(1'000'000'007);
-
-auto parsed = math::big_integer::parse(input, 16);
-if (!parsed) {
-    return parsed.error().message();       // "not a digit in base 16 at byte 3"
-}
-```
-
 ## Rules
 
 - **Sixteen bytes, and a small value allocates nothing.** Every value `int64_t` holds lives inside the `big_integer`, always — so equality and the hash need no normalizing, and arithmetic on two of them is the processor's own with a check for overflow. A larger one lives in a managed object of limbs (words of 64 bits), made the way the characters of a [`string`](../core/string.md) are: of the smallest size class that holds them, each class a pool of its own, past about 62 KB a buffer of a range of pages. The limbs are numbers, never traced, never zeroed.
@@ -114,17 +93,6 @@ static big_integer binomial(int64_t n, int64_t k);           // 0 when k > n; ne
 
 `factorial` multiplies the odd parts of `3 … n` in a balanced tree of products and shifts by the twos at the end, `n - popcount(n)` of them; `binomial` is Python's `math.comb`: `binomial(5, 7) == 0`, and a negative argument is `domain_error`.
 
-```cpp
-using namespace sgcl;
-
-auto m127 = math::big_integer(2).pow(127) - 1;
-bool prime = m127.is_probable_prime();                          // true
-auto root = math::big_integer(10).pow(100).sqrt();              // 10^50
-auto inverse = math::big_integer(3).mod_inverse(11);            // 4: 3 · 4 = 12 ≡ 1
-auto power = math::big_integer(4).mod_pow(13, 497);             // 445
-auto hands = math::big_integer::binomial(52, 5);                // 2598960
-```
-
 ### Bits
 
 ```cpp
@@ -169,11 +137,9 @@ double to_double() const noexcept;                           // nearest, a tie t
 ### The literal
 
 ```cpp
-using namespace math::literals;
-auto a = 123456789012345678901234567890_big;
-auto b = 0xffff'ffff'ffff'ffff'ffff_big;
-auto c = 0b1010_big;
-auto d = 017_big;                                            // 15: octal, as the language reads 017
+namespace math::literals {
+    template<char... Digits> big_integer operator""_big();   // 123_big, 0xff_big, 0b1010_big, 017_big
+}
 ```
 
 Decimal, hexadecimal after `0x`, binary after `0b`, octal after a leading `0`, and `'` between digits — the integer literals of C++, whose digits the compiler has checked before this sees them; the value is computed by the compiler too, and what is left for the run is the allocation of a value past `int64_t`. (`0o` is not there: C++ reads `0o17_big` as `0` with the suffix `o17_big`.)
@@ -196,22 +162,96 @@ The number theory runs in the time of its arithmetic: `sqrt` and `pow` of a few 
 
 The multiplication is the schoolbook one up to a few dozen limbs, Karatsuba's above that and Toom's in three parts above a hundred and more, each with a square of its own that takes fewer products (`a * a`, or two values sharing one object); Go's `math/big` has Karatsuba alone. The division is Knuth's up to a divisor or a quotient of a couple of dozen limbs and Burnikel and Ziegler's recursive one above, which costs a few multiplications. Text in a base that is not a power of two — decimal above all — is written and read by divide and conquer over the powers `10^(19·2^i)`, so a million digits either way take the time of a few long multiplications and never the square of the length: `parse` is safe on text from outside. The thresholds between the algorithms are set by measurement (`bench_math sgcl cross`). `bench_math` measures every case against Go's `math/big` (`benchmarks/go/math`).
 
-## Example
+## Examples
+
+A number past any integer of the language, grown in place:
 
 ```cpp
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 #include "sgcl/math/math.h"
-#include "sgcl/io/print.h"
+
+using namespace sgcl;
+
+int main() {
+    math::big_integer f = 1;
+    for (auto i : range(1, 101)) {
+        f *= i;
+    }
+    println("100! has {} digits, {} twos", f.to_string().size(), f.trailing_zeros());
+    println(f == math::big_integer::factorial(100));
+}
+```
+
+Output:
+
+```text
+100! has 158 digits, 97 twos
+true
+```
+
+The literal, in every base the language writes an integer in:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/math/math.h"
 
 using namespace sgcl;
 using namespace math::literals;
 
 int main() {
-    // 100!, and its digits
-    auto f = math::big_integer::factorial(100);
-    string digits = f.to_string();
-    println("{} digits, {} twos", digits.size(), f.trailing_zeros());
+    auto n = 0xffff'ffff'ffff'ffff'ffff'ffff'ffff'ffff_big;
+    auto [q, r] = n.div_rem(1'000'000'007);
+    println("{} {}", q, r);
+    println("{} {} {}", 123456789012345678901234567890_big, 0b1010_big, 017_big);
+}
+```
 
-    // A toy RSA: two primes, a key, a message there and back
+Output:
+
+```text
+340282364538961911690641225597 279632276
+123456789012345678901234567890 10 15
+```
+
+The number theory:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/math/math.h"
+
+using namespace sgcl;
+
+int main() {
+    auto m127 = math::big_integer(2).pow(127) - 1;
+    println(m127.is_probable_prime());
+    println("{}", math::big_integer(10).pow(100).sqrt() == math::big_integer(10).pow(50));
+    println("{}", *math::big_integer(3).mod_inverse(11));  // 3 · 4 = 12 ≡ 1
+    println("{}", math::big_integer(4).mod_pow(13, 497));
+    println("{}", math::big_integer::binomial(52, 5));
+}
+```
+
+Output:
+
+```text
+true
+true
+4
+445
+2598960
+```
+
+A toy RSA: two primes, a key, a message there and back:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/math/math.h"
+
+using namespace sgcl;
+using namespace math::literals;
+
+int main() {
     auto p = 0xd5bbb96d30086ec484eba3d7f9caeb07_big;
     auto q = 0xc9a92c4c5a2b8f6e2b8e7f2a3d9c1e05_big;
     while (!p.is_probable_prime()) {
@@ -226,11 +266,28 @@ int main() {
     if (!d) {
         return 1;
     }
-    math::big_integer text("hello", 36);                      // a literal: constructed
+    math::big_integer text("hello", 36);  // a literal: constructed
     math::big_integer sealed = text.mod_pow(e, n);
     math::big_integer opened = sealed.mod_pow(*d, n);
     println(opened.to_string(36));
+}
+```
 
+Output:
+
+```text
+hello
+```
+
+Text in and out:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/math/math.h"
+
+using namespace sgcl;
+
+int main() {
     // Text that may not be a number is parsed: an answer, not an exception
     auto bad = math::big_integer::parse("12x4");
     println(bad.error().message());
@@ -242,8 +299,6 @@ int main() {
 Output:
 
 ```text
-158 digits, 97 twos
-hello
 not a digit in base 10 at byte 2
 0x10000000000000000000000000 100000000000000000000
 ```

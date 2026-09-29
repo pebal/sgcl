@@ -37,7 +37,32 @@ auto fetch = [](async::semaphore& slots) -> async::task<> {
 
 ## Example
 
-The crawler on [wait_group](wait_group.md#example): at most three fetches at once.
+Two permits: a third taker finds none until one is given back:
+
+```cpp
+#include "sgcl/async/async.h"
+#include "sgcl/io/io.h"
+
+using namespace sgcl;
+
+int main() {
+    async::semaphore slots(2);
+    println("{}", slots.try_acquire());
+    println("{}", slots.try_acquire());
+    println("{}", slots.try_acquire());   // both taken
+    slots.release();
+    println("{} free", slots.available());
+}
+```
+
+Output:
+
+```text
+true
+true
+false
+1 free
+```
 
 ## See also
 

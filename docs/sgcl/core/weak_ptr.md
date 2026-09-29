@@ -162,7 +162,7 @@ template<class T> weak_ptr(const tracked_ptr<T>&) -> weak_ptr<T, tracked_ptr>;
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/io/io.h"
 #include <cassert>
 
 using namespace sgcl;
@@ -197,7 +197,7 @@ int main() {
     tracked_ptr root = make_tracked<Node>(0);
     tracked_ptr branch = add_child(root, 1);
     tracked_ptr leaf = add_child(branch, 2);
-    print_path(leaf);                           // 2 1 0
+    print_path(leaf);
 
     // The root dropped, the branch held: the branch's back pointer expires,
     // the leaf's still locks, since the branch owns the leaf
@@ -205,14 +205,14 @@ int main() {
     collector::force_collect(true);         // optional, for the demonstration only: the next cycle clears it anyway
     assert(branch->parent.expired());
     assert(leaf->parent.lock() == branch);
-    print_path(leaf);                           // 2 1
+    print_path(leaf);
     return 0;
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 2 1 0 
 2 1 
 ```

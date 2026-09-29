@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -30,7 +30,10 @@ namespace sgcl::io {
         exit_status,      // a process ended with a failure status: the code in the command's state
         process_done,     // the process was waited for or released already
         wait_delay,       // the wait ended by wait_delay with the child's pipes still open
-        unsupported       // a descriptor the reactor cannot watch: its number past the reactor's table
+        unsupported,      // a descriptor the reactor cannot watch: its number past the reactor's table
+        insecure_path,    // a name that would leave its directory once joined to it (path::under), as Go's ErrInsecurePath
+        invalid_argument, // flags: a command line the flags do not take (the text as Go's flag package writes it, in the path)
+        help_requested    // flags: -h or -help asked for the usage (Go's flag.ErrHelp)
     };
 
     namespace detail {
@@ -53,6 +56,9 @@ namespace sgcl::io {
                     case errc::process_done: return "process already finished";
                     case errc::wait_delay: return "wait delay expired";
                     case errc::unsupported: return "descriptor number past the reactor's table";
+                    case errc::insecure_path: return "insecure path";
+                    case errc::invalid_argument: return "invalid command line";
+                    case errc::help_requested: return "help requested";
                 }
                 return "unknown io error";
             }

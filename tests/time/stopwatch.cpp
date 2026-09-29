@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -11,6 +11,7 @@
 using namespace sgcl::async;
 
 #include <chrono>
+#include <stdexcept>
 #include <thread>
 
 namespace {
@@ -31,6 +32,22 @@ TEST(Stopwatch_Tests, FollowsTheManualClock) {
     EXPECT_EQ(sw.elapsed(), duration());
     clock.advance(2h);
     EXPECT_EQ(sw.elapsed(), 2 * hour);
+}
+
+// measure(f): the time f took, on the same clock; f's value dropped, its
+// exception passed through
+TEST(Stopwatch_Tests, MeasureOneCall) {
+    manual_clock clock;
+    clock.install();
+    int calls = 0;
+    EXPECT_EQ(time::stopwatch::measure([&] { clock.advance(250ms); ++calls; }), 250ms);
+    EXPECT_EQ(time::stopwatch::measure([&] { ++calls; return 7; }), duration());   // a value, dropped
+    auto named = [&] { clock.advance(1s); };
+    EXPECT_EQ(time::stopwatch::measure(named), 1s);                                // an lvalue
+    EXPECT_EQ(calls, 2);
+    EXPECT_THROW(time::stopwatch::measure([] { throw std::runtime_error("f's error"); }), std::runtime_error);
+    clock.uninstall();
+    EXPECT_GE(time::stopwatch::measure([] { std::this_thread::sleep_for(2ms); }), 2ms);   // the steady clock
 }
 
 TEST(Stopwatch_Tests, MeasuresRealTimeOtherwise) {

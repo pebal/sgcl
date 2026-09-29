@@ -81,7 +81,9 @@ assert(s.contains(2) && s.count_of([](int x) { return x > 1; }) == 1);
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/immutable/immutable.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -101,9 +103,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 step 0: 1 ids, 9 not yet
 step 1: 2 ids, 9 not yet
 step 2: 2 ids, 9 not yet

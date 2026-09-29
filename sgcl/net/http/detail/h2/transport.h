@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -378,6 +378,20 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         async::task<expected<void, io::error>> send_data(uint32_t id, slice<const byte> data, bool end_stream) override {
+            return _send_data(tracked_ptr<ClientH2>(this), id, std::move(data), end_stream, false);
+        }
+
+        // A request's body in memory as DATA in place: the frames' headers
+        // in the machine's output, their payloads pieces of `data` where it
+        // lies, written by the pump as the pieces of one write (TLS seals
+        // them there). The slice (its owner, the request's string or
+        // vector, never changed) is held until the write that takes them
+        // is done. A short piece is copied, as send_data copies
+        async::task<expected<void, io::error>> send_data_held(uint32_t id, slice<const byte> data, bool end_stream) {
+            return _send_data(tracked_ptr<ClientH2>(this), id, std::move(data), end_stream, true);
+        }
+
+        static async::task<expected<void, io::error>> _send_data(tracked_ptr<ClientH2> h, uint32_t id, slice<const byte> data, bool end_stream, bool in_place) {
             const uint8_t* p = reinterpret_cast<const uint8_t*>(data.data());
             size_t at = 0;
             for (;;) {
@@ -385,20 +399,28 @@ namespace sgcl::net::http::detail::h2 {
                 bool done = false;
                 bool dead = false;
                 {
-                    std::lock_guard<std::mutex> g(_lock);
-                    st = _find(id);
-                    if (!st || st->was_reset() || _m.failed() || !_m.sendable(id)) {
+                    std::lock_guard<std::mutex> g(h->_lock);
+                    st = h->_find(id);
+                    if (!st || st->was_reset() || h->_m.failed() || !h->_m.sendable(id)) {
                         dead = true;
                     } else {
-                        at += _m.send_data(id, p + at, data.size() - at, end_stream);
-                        done = at == data.size() && (!end_stream || !_m.sendable(id));
-                        if (done && end_stream) {
-                            _local_end(id);
+                        if (in_place && data.size() - at >= InPlaceMin) {
+                            const size_t k = h->_m.send_data_in_place(id, p + at, data.size() - at, end_stream);
+                            if (k) {
+                                h->_held.push_back(data);   // the owner kept until the pump's write of these pieces is done
+                            }
+                            at += k;
+                        } else {
+                            at += h->_m.send_data(id, p + at, data.size() - at, end_stream);
                         }
-                        _last_active = client_clock_ns();
+                        done = at == data.size() && (!end_stream || !h->_m.sendable(id));
+                        if (done && end_stream) {
+                            h->_local_end(id);
+                        }
+                        h->_last_active = client_clock_ns();
                     }
                 }
-                _kick();
+                h->_kick();
                 if (dead) {
                     co_return unexpected(st && st->expired.load() ? timed_out_error("write") : stream_reset_error("write", ErrorCode::cancel));
                 }
@@ -478,7 +500,13 @@ namespace sgcl::net::http::detail::h2 {
         map<uint32_t, tracked_ptr<ClientStream>> _streams;   // the streams the machine has, as it has them
         size_t _reserved = 0;
         std::string _block;                  // a field block being encoded (under the lock)
-        std::string _send;                   // the writer's copy of the output
+        std::string _send;                   // the output's own bytes, taken by the writer (swapped with the machine's)
+        std::vector<ClientConnection<ClientH2>::OutPiece> _send_pieces;   // the DATA payloads in place among them
+        vector<slice<const byte>> _parts;    // the write's pieces in order (the pump's, kept for its room)
+        vector<slice<const byte>> _held;     // the bodies sent in place, held until the pump's next write is done (under the lock)
+
+        // A body's piece shorter than this is copied into the output
+        static constexpr size_t InPlaceMin = 512;
         async::channel<void> _wake;          // something to send (a signal, one held)
         async::event _pump_done;
         function<void()> _on_closed;
@@ -496,6 +524,23 @@ namespace sgcl::net::http::detail::h2 {
 
         void _kick() {
             _wake.try_send();
+        }
+
+        // The pieces of the pump's write in order: the output's own bytes up
+        // to each payload in place, the payload, and the bytes after the last
+        void _gather() {
+            const byte* bytes = reinterpret_cast<const byte*>(_send.data());
+            size_t at = 0;
+            for (auto& q : _send_pieces) {
+                if (q.at > at) {
+                    _parts.push_back(slice<const byte>(bytes + at, q.at - at));
+                }
+                _parts.push_back(slice<const byte>(reinterpret_cast<const byte*>(q.p), q.n));
+                at = q.at;
+            }
+            if (_send.size() > at) {
+                _parts.push_back(slice<const byte>(bytes + at, _send.size() - at));
+            }
         }
 
         // Both sides ended: the machine has let the stream go, so does the
@@ -631,18 +676,22 @@ namespace sgcl::net::http::detail::h2 {
             (void)h->_c.close();
         }
 
-        // The one writer: the machine's output, taken under the lock, sent in order
+        // The one writer: the machine's output, taken under the lock, sent in
+        // order. Taken whole: its own bytes swapped out (no copy), the DATA
+        // payloads in place as pieces among them, one write of the pieces;
+        // the bodies they lie in held until that write is done
         static async::task<> _pump(tracked_ptr<ClientH2> h) {
             bool open = true;
             while (open) {
                 open = co_await h->_wake.receive();
                 for (;;) {
                     bool closing = false;
+                    vector<slice<const byte>> held;
                     {
                         std::lock_guard<std::mutex> g(h->_lock);
-                        auto o = h->_m.output();
-                        h->_send.assign(reinterpret_cast<const char*>(o.data()), o.size());
-                        h->_m.written(o.size());
+                        h->_m.take_output(h->_send, h->_send_pieces);
+                        held = std::move(h->_held);
+                        h->_held = vector<slice<const byte>>();
                         closing = h->_closed && h->_streams.empty();
                     }
                     if (h->_send.empty()) {
@@ -652,7 +701,21 @@ namespace sgcl::net::http::detail::h2 {
                         }
                         break;
                     }
-                    auto r = co_await h->_c.async_write(slice<const byte>(reinterpret_cast<const byte*>(h->_send.data()), h->_send.size()));
+                    expected<size_t, io::error> r;
+                    if (h->_send_pieces.empty()) {
+                        r = co_await h->_c.async_write(slice<const byte>(reinterpret_cast<const byte*>(h->_send.data()), h->_send.size()));
+                    } else {
+                        h->_gather();
+                        auto s = net::detail::ConnectionAccess::impl(h->_c).start_write_parts(h->_parts);
+                        if (s.rest) {
+                            r = co_await std::move(*s.rest);
+                        } else {
+                            r = std::move(s.done);
+                        }
+                        h->_parts.clear();
+                        h->_send_pieces.clear();
+                    }
+                    held.clear();   // the bodies' bytes written: their owners let go
                     if (!r) {
                         (void)h->_c.close();   // the reader wakes and ends the streams
                         open = false;

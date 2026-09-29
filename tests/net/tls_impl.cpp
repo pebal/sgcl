@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -226,4 +226,38 @@ TEST(TlsImpl_Tests, TryReadAndReadLine) {
     auto after = impl.try_read(buf, slow);
     EXPECT_TRUE(slow);
     (void)after;
+}
+
+// A server without TLS 1.3 (an AWS load balancer is one) answers a hello of
+// 1.3 alone with an alert in the clear, close_notify or another, before any
+// hello of its own: the error says so, the alert still there
+TEST(TlsImpl_Tests, AnAlertBeforeTheServersHello) {
+    for (uint8_t description : {uint8_t(0), uint8_t(70)}) {   // close_notify, protocol_version
+        auto l = sgcl::net::tcp::listen("127.0.0.1:0");
+        ASSERT_TRUE(l);
+        sgcl::net::listener listener = *l;
+        std::thread server([listener, description] {
+            auto c = listener.accept();
+            if (!c) {
+                return;
+            }
+            std::byte hello[512];
+            (void)c->read(hello);   // the ClientHello, or its start
+            const uint8_t level = description == 0 ? 1 : 2;
+            const uint8_t record[] = {0x15, 0x03, 0x03, 0x00, 0x02, level, description};
+            (void)c->write(sgcl::slice<const std::byte>(reinterpret_cast<const std::byte*>(record), sizeof(record)));
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            (void)c->close();
+        });
+        auto c = tls::connect(sgcl::string("127.0.0.1:" + std::to_string(listener.local_endpoint().port())));
+        server.join();
+        (void)listener.close();
+        ASSERT_FALSE(c) << int(description);
+        const std::string m(c.error().message().view());
+        EXPECT_NE(m.find("tls: the server closed the handshake before its hello (no TLS 1.3?)"), std::string::npos) << m;
+        EXPECT_TRUE(tls::is_remote(c.error()));
+        ASSERT_TRUE(tls::alert_of(c.error()));
+        EXPECT_EQ(int(*tls::alert_of(c.error())), int(description));
+        EXPECT_FALSE(tls::certificate_reason(c.error()));
+    }
 }

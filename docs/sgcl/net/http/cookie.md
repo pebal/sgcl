@@ -18,6 +18,8 @@ A cookie as a server sets it (`Set-Cookie`, RFC 6265 §4.1) and as a client read
 
 ## Members
 
+### Fields
+
 ```cpp
 string name;
 string value;
@@ -29,19 +31,28 @@ bool secure = false;
 bool http_only = false;
 bool partitioned = false;
 string same_site;                    // "Strict", "Lax", "None", or ""
+```
 
+The name and value, and the attributes of RFC 6265 by their names: empty, `nullopt` or `false` for an attribute not given. `same_site` is written as it is set.
+
+### Construction and text
+
+```cpp
 cookie();
 cookie(const string& name, const string& value);
-explicit cookie(const string& set_cookie);  // a Set-Cookie literal of the program; throws where parse fails
+explicit cookie(const string& field);      // a Set-Cookie literal of the program; throws where parse fails
 string to_string() const;
-static expected<cookie, io::error> parse(const string& set_cookie);
+static expected<cookie, io::error> parse(const string& field);
 ```
+
+A cookie of a name and a value, or of a `Set-Cookie` value written in the program; `to_string` and `parse` are the two directions of the field, by the rules above.
 
 ## Example
 
 ```cpp
-#include "sgcl/net/http/cookie.h"
-#include "sgcl/io/print.h"
+#include "sgcl/io/io.h"
+#include "sgcl/net/http/http.h"
+#include "sgcl/time/time.h"
 
 using namespace sgcl;
 
@@ -53,8 +64,10 @@ int main() {
     c.same_site = "Lax";
     println("{}", c.to_string());
 
-    net::http::cookie back("id=42; Domain=.Example.COM; Secure; Max-Age=oops; Expires=Wed, 09-Jun-2021 10:18:14 GMT");
-    println("{}={} {} {} {}", back.name, back.value, back.domain, back.secure, back.max_age.has_value());
+    net::http::cookie back("id=42; Domain=.Example.COM; Secure; Max-Age=oops; "
+                           "Expires=Wed, 09-Jun-2021 10:18:14 GMT");
+    println("{}={} {} {} {}", back.name, back.value, back.domain, back.secure,
+            back.max_age.has_value());
     println("{}", back.expires->format(time::rfc3339));
 }
 ```
@@ -69,4 +82,4 @@ id=42 example.com true false
 
 ## See also
 
-- [response_writer](response_writer.md) (`set_cookie`), [request](request.md) (`cookie`)
+- [response_writer](response_writer.md) (`add_cookie`), [request](request.md) (`cookie`)

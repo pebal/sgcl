@@ -64,7 +64,9 @@ while (running) {
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/async/async.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -98,14 +100,14 @@ int main() {
     }
     this_thread::sleep_for(50ms);                              // b's deadline passes
     server.request_stop();                                          // a stops; b already did
-    println("{} served", a.wait() + b.wait());                // 10 served
+    println("{} served", a.wait() + b.wait());
     return a.result() + b.result() == 10 ? 0 : 1;
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 10 served
 ```
 

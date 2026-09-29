@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -60,7 +60,7 @@ namespace sgcl::compress::detail {
 
             bool fail(errc code, const std::string& text) {
                 if (!failure) {
-                    failure = Failure{code, origin, text};
+                    failure = Failure{code, origin, text, false, {}, {}, {}};
                 }
                 return false;
             }

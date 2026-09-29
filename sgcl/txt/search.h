@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -74,11 +74,35 @@ namespace sgcl::txt {
             return _table.find({text.data(), text.size()}, _pattern.view(), from);
         }
 
+        // A C text — a literal among them, which a string and a slice
+        // would both take — as detail::c_text reads it
+        template<size_t N>
+        size_t find(const char (&text)[N], size_t from = 0) const noexcept {
+            return find(detail::c_text(text), from);
+        }
+
+        template<class P>
+        requires std::same_as<P, const char*> || std::same_as<P, char*>
+        size_t find(P text, size_t from = 0) const noexcept {
+            return find(detail::c_text(text), from);
+        }
+
         bool contains(const string& text) const noexcept {
             return find(text) != npos;
         }
 
         bool contains(const slice<const char>& text) const noexcept {
+            return find(text) != npos;
+        }
+
+        template<size_t N>
+        bool contains(const char (&text)[N]) const noexcept {
+            return find(text) != npos;
+        }
+
+        template<class P>
+        requires std::same_as<P, const char*> || std::same_as<P, char*>
+        bool contains(P text) const noexcept {
             return find(text) != npos;
         }
 
@@ -472,6 +496,20 @@ namespace sgcl::txt {
             , _mapped(map_text<Map>(text.view())) {
             }
 
+            // A C text — a literal among them, which a string and a
+            // slice would both take — as detail::c_text reads it, copied
+            // into a string the text holds: the matches are slices of it
+            template<size_t N>
+            explicit mapped_search(const char (&text)[N])
+            : mapped_search(c_string(text).as_slice()) {
+            }
+
+            template<class P>
+            requires std::same_as<P, const char*> || std::same_as<P, char*>
+            explicit mapped_search(P text)
+            : mapped_search(c_string(text).as_slice()) {
+            }
+
             // The byte position of the first occurrence at or after the
             // byte position `from` — in the text as it was given, not in
             // the mapped copy of it — or npos
@@ -657,6 +695,19 @@ namespace sgcl::txt {
             // managed buffer without a raw pointer into it
             match_range(const slice<const char>& text, searcher_type pattern)
             : match_range(string(text.data(), text.size()), std::move(pattern)) {
+            }
+
+            // A C text — a literal among them, which a string and a
+            // slice would both take — as detail::c_text reads it
+            template<size_t N>
+            match_range(const char (&text)[N], searcher_type pattern)
+            : match_range(c_string(text), std::move(pattern)) {
+            }
+
+            template<class P>
+            requires std::same_as<P, const char*> || std::same_as<P, char*>
+            match_range(P text, searcher_type pattern)
+            : match_range(c_string(text), std::move(pattern)) {
             }
 
             iterator begin() const noexcept {

@@ -46,13 +46,22 @@ static expected<uint64_t, io::error> of_file(const string& path);  static async:
 
 [`string`](../core/string.md) keeps a keyed hash of its own, the one `std::hash<sgcl::string>` and the library's containers take, and it is not `maphash`: a string hashes itself in one call and keeps the result in its header, which a hasher fed in pieces cannot do. A table keyed by strings needs nothing from this page. `maphash` is for a key the library has no hash for — a struct of numbers and names — and for a key hashed in pieces.
 
+## SGCL and Go
+
+| Go | sgcl::hash | note |
+|---|---|---|
+| `var h maphash.Hash` (a random seed of its own) | `maphash h` | the process's seed: every hasher agrees |
+| `maphash.MakeSeed()`, `h.SetSeed(s)` | `maphash(seed)` | a seed is a number; there is no random seed per hasher |
+| `maphash.Bytes(seed, b)`, `maphash.String(seed, s)` | `maphash::of(b, seed)`, `maphash::of(s)` | |
+| `maphash.Comparable(seed, v)`, `WriteComparable` | `update_value(v)` | only for types every byte of which is the value |
+| `h.Sum64()`, `h.Reset()` | `value()`, `reset()` | |
+
 ## Example
 
 ```cpp
-#include "sgcl/core/map.h"
-#include "sgcl/core/string.h"
-#include "sgcl/hash/maphash.h"
-#include "sgcl/io/print.h"
+#include "sgcl/core/core.h"
+#include "sgcl/hash/hash.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -101,16 +110,6 @@ bafa072f07db7937
 ```
 
 The last line is what XXH3-64 gives today; a later version may print another number, as the algorithm is not promised.
-
-## SGCL and Go
-
-| Go | sgcl::hash | note |
-|---|---|---|
-| `var h maphash.Hash` (a random seed of its own) | `maphash h` | the process's seed: every hasher agrees |
-| `maphash.MakeSeed()`, `h.SetSeed(s)` | `maphash(seed)` | a seed is a number; there is no random seed per hasher |
-| `maphash.Bytes(seed, b)`, `maphash.String(seed, s)` | `maphash::of(b, seed)`, `maphash::of(s)` | |
-| `maphash.Comparable(seed, v)`, `WriteComparable` | `update_value(v)` | only for types every byte of which is the value |
-| `h.Sum64()`, `h.Reset()` | `value()`, `reset()` | |
 
 ## See also
 

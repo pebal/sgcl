@@ -140,7 +140,8 @@ try {
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -179,9 +180,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 bob: ann
 ann: ann has no manager
 eve: no user eve

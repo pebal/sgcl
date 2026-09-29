@@ -20,7 +20,7 @@ HKDF, Go's `crypto/hkdf`: keys made from a secret that is not yet one — the ou
 - **`info`** binds the output to its use: two calls with different infos give unrelated keys. It may be empty.
 - **At most `max_size`** bytes from one PRK: 255 blocks of the digest (8160 bytes for SHA-256). Past it `std::invalid_argument`, a broken contract.
 - **The PRK is a secret**, held by `hkdf<H>::prk`: its bytes in the object, move-only, `clone()` for a copy meant, zeroed when it dies and when moved from. `bytes()` gives them where they lie, valid while the object lives, for a protocol that feeds one secret into the next (TLS 1.3): `expand` also takes a PRK as plain bytes.
-- **What `expand` and `derive` give is a `vector<byte>`**, a managed buffer that stays in memory until the collector reuses its space. For a key that must not linger, `expand_to` and `derive_to` write into a buffer of the caller's — a stack array, a key object's own storage — and [`secure_zero`](secure_zero.md) clears it when done.
+- **What `expand` and `derive` give is a [`secret_bytes`](secret.md#secret_bytes)**: up to 64 bytes in the object itself (no allocation), past that in plain memory zeroed when it goes, never in managed memory. `expand_to` and `derive_to` write into a buffer of the caller's instead: a stack array, a key object's own storage.
 - **Not for passwords**: HKDF assumes its input already has the entropy. A password goes through [`pbkdf2`](pbkdf2.md) (or Argon2id after version 1) first.
 
 ## Members
@@ -29,11 +29,11 @@ HKDF, Go's `crypto/hkdf`: keys made from a secret that is not yet one — the ou
 static constexpr size_t max_size = 255 * H::digest_size;
 
 static prk extract(const slice<const byte>& salt, const slice<const byte>& ikm) noexcept;
-static vector<byte> expand(const prk& key, const slice<const byte>& info, size_t n);
-static vector<byte> expand(const slice<const byte>& key, const slice<const byte>& info, size_t n);
+static secret_bytes expand(const prk& key, const slice<const byte>& info, size_t n);
+static secret_bytes expand(const slice<const byte>& key, const slice<const byte>& info, size_t n);
 static void expand_to(const slice<byte>& out, const prk& key, const slice<const byte>& info);
 static void expand_to(const slice<byte>& out, const slice<const byte>& key, const slice<const byte>& info);
-static vector<byte> derive(const slice<const byte>& salt, const slice<const byte>& ikm, const slice<const byte>& info, size_t n);
+static secret_bytes derive(const slice<const byte>& salt, const slice<const byte>& ikm, const slice<const byte>& info, size_t n);
 static void derive_to(const slice<byte>& out, const slice<const byte>& salt, const slice<const byte>& ikm, const slice<const byte>& info);
 
 class prk {
@@ -53,18 +53,19 @@ Every `slice<const byte>` takes bytes or text: a `vector<byte>`, a `string`, a l
 ## Example
 
 ```cpp
-#include "sgcl/crypto/hkdf.h"
-#include "sgcl/encoding/hex.h"
-#include "sgcl/io/print.h"
+#include "sgcl/crypto/crypto.h"
+#include "sgcl/encoding/encoding.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
 int main() {
     // the secret a key exchange gave both sides
-    auto shared_secret = encoding::hex::decode("4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742");
-    auto prk = crypto::hkdf_sha256::extract("my protocol v1", shared_secret);
-    auto client_key = crypto::hkdf_sha256::expand(prk, "client to server", 32);
-    auto server_key = crypto::hkdf_sha256::expand(prk, "server to client", 32);
+    auto shared_secret = encoding::hex::decode(
+        "4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742");
+    auto extracted = crypto::hkdf_sha256::extract("my protocol v1", shared_secret);
+    auto client_key = crypto::hkdf_sha256::expand(extracted, "client to server", 32);
+    auto server_key = crypto::hkdf_sha256::expand(extracted, "server to client", 32);
     println(encoding::hex::encode(client_key));
     println(encoding::hex::encode(server_key));
 }

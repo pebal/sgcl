@@ -42,11 +42,14 @@ async::task<expected<string, io::error>> async_read_all_text() const;
 expected<optional<string>, io::error> read_line() const;                // without "\n" and "\r\n"; nullopt at the end
 async::task<expected<optional<string>, io::error>> async_read_line() const;
 void set_max_line(size_t bytes) const;                         // 64 KB by default; longer: io::errc::line_too_long
+size_t max_line() const noexcept;
 
 expected<size_t, io::error> write(const slice<const byte>& data) const;   // everything, or the error
 async::task<expected<size_t, io::error>> async_write(const slice<const byte>& data) const;
 expected<size_t, io::error> write(const string& text) const;
 async::task<expected<size_t, io::error>> async_write(const string& text) const;   // holds the string while it runs
+expected<size_t, io::error> read_from(const io::file& f) const;         // the file from its position to its end, written here (what io::copy(c, f) calls): sendfile over TCP
+async::task<expected<size_t, io::error>> async_read_from(io::file f) const;
 expected<size_t, io::error> copy_to(const connection& other) const;     // to the end of this stream, written to other; an echo is c.copy_to(c)
 async::task<expected<size_t, io::error>> async_copy_to(const connection& other) const;
 
@@ -61,6 +64,8 @@ string path() const;                                           // a unix socket'
 void set_deadline(time_point t) const;                         // both directions; time_point() removes it
 void set_read_deadline(time_point t) const;
 void set_write_deadline(time_point t) const;
+time_point read_deadline() const;                              // time_point() when there is none
+time_point write_deadline() const;
 
 expected<void, io::error> set_no_delay(bool on) const;                  // TCP; on by default, as in Go; EOPNOTSUPP for anything else
 expected<void, io::error> set_keep_alive(duration idle) const;          // TCP; probes after 15 s by default, as in Go; zero turns them off
@@ -125,6 +130,8 @@ endpoint remote_endpoint() const;                               // the peer of a
 void set_deadline(time_point t) const;
 void set_read_deadline(time_point t) const;
 void set_write_deadline(time_point t) const;
+time_point read_deadline() const noexcept;                      // time_point() when there is none
+time_point write_deadline() const noexcept;
 ```
 
 A datagram is sent whole or not at all; `ENOBUFS` (the interface's queue full) is an error, as in Go, not a wait: the socket has room, so a wait for writability would come back at once. An empty buffer takes the next datagram and reports `size` 0, `truncated` when it had bytes (macOS alone would answer with a datagram of nothing and keep the real one queued). An IPv4 address given to `send_to` on a socket bound to both families goes through the mapping.

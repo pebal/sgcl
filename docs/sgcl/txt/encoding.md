@@ -1,19 +1,12 @@
-# txt::encoding
+# sgcl::txt::encoding
 
 ```cpp
-#include "sgcl/txt/encoding.h"
-```
+#include "sgcl/txt/encoding.h"   // or "sgcl/txt/txt.h"
 
-Getting text in and out of the shapes other people keep it in: the two other encodings of Unicode itself — UTF-16 at the edge of a Windows system call, UTF-32 where a code point is an integer — and the **27 single byte encodings the Encoding Standard of the WHATWG lists** — what a browser must understand, which is what a file or a web page may still arrive in. The library keeps text in UTF-8 and nothing here changes that: everything decodes to a [`string`](../core/string.md) and everything encodes from one.
-
-This is the one header of the module whose clearest use is the case where there is **no Unicode yet**: bytes in `iso-8859-2` announced by an HTTP header, a file written by a program from the nineties.
-
-## The names
-
-```cpp
 enum class encoding : uint8_t {
-    utf8, utf16le, utf16be, utf32le, utf32be,
-    ascii, latin1, latin2, windows1250, windows1252,
+    utf8, utf16le, utf16be, utf32le, utf32be, ascii, latin1,
+    ibm866, iso8859_2, /* … */ iso8859_16, koi8_r, koi8_u, macintosh,
+    windows874, windows1250, /* … */ windows1258, x_mac_cyrillic,
 };
 
 constexpr const char* name_of(encoding) noexcept;                  // the name a header would use
@@ -31,6 +24,10 @@ vector<char16_t> to_utf16(const string&);    string from_utf16(slice<const char1
 vector<char32_t> to_utf32(const string&);    string from_utf32(slice<const char32_t>);
 ```
 
+Getting text in and out of the shapes other people keep it in: the two other encodings of Unicode itself — UTF-16 at the edge of a Windows system call, UTF-32 where a code point is an integer — and the **27 single byte encodings the Encoding Standard of the WHATWG lists** — what a browser must understand, which is what a file or a web page may still arrive in. The library keeps text in UTF-8 and nothing here changes that: everything decodes to a [`string`](../core/string.md) and everything encodes from one.
+
+This is the one header of the module whose clearest use is the case where there is **no Unicode yet**: bytes in `iso-8859-2` announced by an HTTP header, a file written by a program from the nineties.
+
 An **encoding is a value, not a tag**, and this is the one place in the module where that is so. Elsewhere — the four normalization forms — the choice is made when the program is written, so a tag costs nothing and saves a table; here the name comes out of a header while the program runs, and nothing can be chosen beforehand.
 
 `encoding_from_name` reads a name as a header writes it: any case, with the dashes or without, under the aliases IANA lists and the ones that turn up in the wild (`utf8`, `ISO_8859-2`, `cp1250`, `iso8859_2`). A name nobody knows is `nullopt` — an ordinary answer, not a failure, so no `expected`.
@@ -47,50 +44,6 @@ The multi byte legacy encodings of the same list — **Shift_JIS, EUC-JP, GB1803
 
 A byte that means nothing in its encoding decodes to one `U+FFFD`, exactly as an invalid byte of UTF-8 does. A character an encoding cannot write is encoded as `'?'` — what every library that does this has always done, and what a reader can at least see. Neither throws, and neither stops the rest of the text from coming through.
 
-```cpp
-decode(one_byte(0x81), encoding::windows1250);   // U+FFFD: that byte is nothing there
-decode(one_byte(0x81), encoding::latin1);        // U+0081: in Latin-1 every byte is a code point
-decode(one_byte(0x81), encoding::windows1250, strict);   // decode_error at byte 0, for a program that must not store a changed text
-encode("日", encoding::iso8859_2);          // "?"
-encode("Ł", encoding::iso8859_2);           // one byte, 0xA3
-```
-
-## Example
-
-```cpp
-#include "sgcl/sgcl.h"
-
-using namespace sgcl;
-
-// A page arrives with a header saying what it is in, and a byte order
-// mark that may say something else
-int main() {
-    string text = "Zażółć gęślą jaźń — 日";
-    for (auto name : {"utf-8", "utf-16le", "iso-8859-2", "windows-1250", "us-ascii"}) {
-        auto e = txt::encoding_from_name(name);
-        auto bytes = txt::encode(text, *e);
-        println("{}: {} bajtów -> {}", txt::name_of(*e), bytes.size(), txt::decode(bytes, *e));
-    }
-
-    byte page[] = {byte(0xEF), byte(0xBB), byte(0xBF),
-                        byte('c'), byte('z'), byte(0xC5), byte(0x82)};
-    auto bom = txt::detect_bom(page);
-    println("znacznik mówi {}, treść: {}", (bom ? txt::name_of(*bom.says) : "nic"), txt::decode(slice<const byte>(page).subslice(bom.size), txt::encoding::utf8));
-    return 0;
-}
-```
-
-The output:
-
-```
-utf-8: 34 bajtów -> Zażółć gęślą jaźń — 日
-utf-16le: 42 bajtów -> Zażółć gęślą jaźń — 日
-iso-8859-2: 21 bajtów -> Zażółć gęślą jaźń ? ?
-windows-1250: 21 bajtów -> Zażółć gęślą jaźń — ?
-us-ascii: 21 bajtów -> Za???? g??l? ja?? ? ?
-znacznik mówi utf-8, treść: czł
-```
-
 ## What it is held to
 
 Python's own codecs, which reach the same answer by another road: the tables here are read from the `MAPPINGS` files of unicode.org, and Python's are built into the interpreter. Every one of the **256 bytes of every single byte encoding**, and **90 texts** encoded in each of the ten encodings and decoded back — the question mark for what an encoding cannot write included, since Python's `errors="replace"` writes the same one.
@@ -100,3 +53,115 @@ The tables are 32.6 KB, about 1.2 KB an encoding: 256 code points one way and th
 The tables come from the `MAPPINGS` files of unicode.org rather than from the Encoding Standard's own indexes. The set is the standard's, because that is the list of what still turns up; the tables are not, because the standard's indexes are a browser's compatibility rules and this is a library. The two differ in a handful of places, all of them positions no correct text uses. The enum, the preferred names, the aliases and the tables are written by one list in the generator, so none of them can drift from the others.
 
 Apple's two files (Mac OS Roman and Mac OS Cyrillic) begin at 0x20 and say in prose that the bytes below it are the ASCII controls; the generator fills those in and asserts that every byte below 0x80 of every encoding of the set maps to itself.
+
+## Examples
+
+A page arrives with a header saying what it is in:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    string text = "Zażółć gęślą jaźń — 日";
+    for (auto name : {"utf-8", "utf-16le", "iso-8859-2", "windows-1250", "us-ascii"}) {
+        auto e = txt::encoding_from_name(name);
+        auto bytes = txt::encode(text, *e);
+        println("{}: {} bajtów -> {}", txt::name_of(*e), bytes.size(), txt::decode(bytes, *e));
+    }
+    return 0;
+}
+```
+
+Output:
+
+```text
+utf-8: 34 bajtów -> Zażółć gęślą jaźń — 日
+utf-16le: 42 bajtów -> Zażółć gęślą jaźń — 日
+iso-8859-2: 21 bajtów -> Zażółć gęślą jaźń ? ?
+windows-1250: 21 bajtów -> Zażółć gęślą jaźń — ?
+us-ascii: 21 bajtów -> Za???? g??l? ja?? ? ?
+```
+
+And a byte order mark that may say something else:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    byte page[] = {byte(0xEF), byte(0xBB), byte(0xBF),
+                        byte('c'), byte('z'), byte(0xC5), byte(0x82)};
+    auto bom = txt::detect_bom(page);
+    println("znacznik mówi {}, treść: {}", (bom ? txt::name_of(*bom.says) : "nic"),
+            txt::decode(slice<const byte>(page).subslice(bom.size), txt::encoding::utf8));
+    return 0;
+}
+```
+
+Output:
+
+```text
+znacznik mówi utf-8, treść: czł
+```
+
+A byte that means nothing in its encoding, and the strict form for a program that must not store a changed text:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    byte one[] = {byte(0x81)};
+    for (auto e : {txt::encoding::windows1250, txt::encoding::latin1}) {
+        for (char32_t c : txt::decode(one, e).runes()) {
+            println("{}: U+{:04X}", txt::name_of(e), uint32_t(c));
+        }
+    }
+    auto checked = txt::decode(one, txt::encoding::windows1250, txt::strict);
+    println("strict: byte {}, {}", checked.error().offset(), checked.error().message());
+    return 0;
+}
+```
+
+Output:
+
+```text
+windows-1250: U+FFFD
+iso-8859-1: U+0081
+strict: byte 0, not windows-1250
+```
+
+That byte is nothing in windows-1250; in Latin-1 every byte is a code point.
+
+A character an encoding cannot write, and one it can:
+
+```cpp
+#include "sgcl/io/io.h"
+#include "sgcl/txt/txt.h"
+
+using namespace sgcl;
+
+int main() {
+    println("{::#04x}", txt::encode("日", txt::encoding::iso8859_2));
+    println("{::#04x}", txt::encode("Ł", txt::encoding::iso8859_2));
+    return 0;
+}
+```
+
+Output:
+
+```text
+[0x3f]
+[0xa3]
+```
+
+## See also
+
+[The module](README.md); [`utf8`](../core/utf8.md), the UTF-8 the library keeps text in; [`percent`](percent.md), whose decoding gives bytes that may need this; [`io`](../io/README.md), where the bytes come from.

@@ -4,7 +4,7 @@ The setup, the machine and how the timers are read are described with [the bench
 
 ## ML-KEM (FIPS 203)
 
-`bench_mlkem <case> <sgcl|openssl>` and `benchmarks/go/mlkem` (Go 1.27.1's `crypto/mlkem`, which has no ML-KEM-512), the same seed on every side; nanoseconds per operation, each process timed for about two seconds after a quarter of a second thrown away; three rounds, the sides alternated case by case, the median and the smallest and largest of the three (Apple silicon, 2026-09-27, the machine quiet):
+`bench_mlkem <case> <sgcl|openssl>` and `benchmarks/go/mlkem` (Go 1.27.1's `crypto/mlkem`, which has no ML-KEM-512), the same seed on every side; nanoseconds per operation, each process timed for about two seconds after a quarter of a second thrown away; three rounds, the sides alternated case by case, the median and the smallest and largest of the three (Apple silicon, 2026-09-29, a load of about 3 from the user's own programs; the run of 2026-09-27 on a quiet machine gave every side 3 to 4 % less, the ratios the same):
 
 - `keygen`: a decapsulation key from its seed of 64 bytes, and its encapsulation key (`decapsulation_key::from_seed` and `encapsulation_key()`, against `EVP_PKEY_generate` with the "seed" parameter and `EVP_PKEY_get_raw_public_key`, against `NewDecapsulationKey768`);
 - `import`: an encapsulation key read from its bytes (`encapsulation_key::from_bytes`, its check of §7.2 and the matrix Â it makes, against `EVP_PKEY_new_raw_public_key_ex`, against `NewEncapsulationKey768`);
@@ -13,18 +13,18 @@ The setup, the machine and how the timers are read are described with [the bench
 
 | case | SGCL | OpenSSL | Go | SGCL / OpenSSL | SGCL / Go |
 |---|---|---|---|---|---|
-| keygen512 | 14 888 (14 868–14 888) | 19 122 (19 106–19 219) | — | 0.78 | — |
-| import512 | 6 086 (6 062–6 094) | 6 440 (6 430–6 443) | — | 0.95 | — |
-| encaps512 | 11 584 (11 560–11 588) | 14 387 (14 373–14 394) | — | 0.81 | — |
-| decaps512 | 15 738 (15 738–15 745) | 22 656 (22 655–22 682) | — | 0.69 | — |
-| keygen768 | 22 660 (22 647–22 704) | 29 391 (29 386–29 413) | 34 101 (34 038–34 242) | 0.77 | 0.66 |
-| import768 | 11 335 (11 280–12 022) | 10 870 (10 827–11 494) | 10 391 (10 379–10 499) | 1.04 | 1.09 |
-| encaps768 | 15 013 (15 013–15 053) | 20 670 (20 652–20 698) | 29 911 (29 793–29 914) | 0.73 | 0.50 |
-| decaps768 | 21 144 (21 049–21 147) | 32 210 (32 206–32 213) | 43 779 (43 766–43 912) | 0.66 | 0.48 |
-| keygen1024 | 34 234 (34 203–34 249) | 43 027 (42 983–43 055) | 52 048 (52 027–52 084) | 0.80 | 0.66 |
-| import1024 | 18 759 (18 754–18 768) | 16 907 (16 902–16 947) | 17 452 (17 439–17 595) | 1.11 | 1.07 |
-| encaps1024 | 19 741 (19 672–19 811) | 28 233 (28 216–28 288) | 45 703 (45 693–45 774) | 0.70 | 0.43 |
-| decaps1024 | 28 201 (28 175–28 212) | 43 359 (43 328–43 364) | 69 047 (69 026–69 052) | 0.65 | 0.41 |
+| keygen512 | 15 390 (15 347–15 409) | 19 948 (19 924–20 025) | — | 0.77 | — |
+| keygen768 | 23 419 (23 372–23 494) | 30 750 (30 686–30 809) | 35 342 (35 178–35 380) | 0.76 | 0.66 |
+| keygen1024 | 35 523 (35 277–35 898) | 44 692 (44 608–44 857) | 54 245 (53 947–54 563) | 0.79 | 0.65 |
+| import512 | 6 316 (6 193–6 321) | 6 680 (6 471–6 708) | — | 0.95 | — |
+| import768 | 11 842 (11 418–11 875) | 11 258 (11 043–11 402) | 10 760 (10 758–10 993) | 1.05 | 1.10 |
+| import1024 | 19 565 (19 420–19 845) | 17 606 (17 574–17 706) | 18 179 (18 095–18 249) | 1.11 | 1.08 |
+| encaps512 | 10 466 (10 466–10 486) | 14 878 (14 860–14 878) | — | 0.70 | — |
+| encaps768 | 14 061 (14 058–14 177) | 21 475 (21 440–21 660) | 30 371 (29 936–30 949) | 0.65 | 0.46 |
+| encaps1024 | 19 032 (18 386–19 044) | 29 094 (28 862–29 919) | 47 556 (47 419–47 793) | 0.65 | 0.40 |
+| decaps512 | 16 337 (16 247–16 535) | 23 495 (23 406–23 544) | — | 0.70 | — |
+| decaps768 | 22 097 (21 937–22 119) | 33 556 (33 183–33 568) | 45 338 (45 038–45 505) | 0.66 | 0.49 |
+| decaps1024 | 29 315 (29 157–29 479) | 44 924 (44 819–45 112) | 72 068 (71 869–72 076) | 0.65 | 0.41 |
 
 The code is the portable one: plain C++ that the compiler vectorizes where it can, no intrinsics in the transform (NEON for it is deferred: the table above leaves it little to win, and intrinsics would need the constant-time review again). SHAKE and SHA-3 run on the processor's SHA-3 instructions.
 
@@ -39,4 +39,4 @@ The code is the portable one: plain C++ that the compiler vectorizes where it ca
 
 The cost moved to reading a key, where OpenSSL and Go pay it too: for a key used once, reading it and encapsulating costs what it did (ML-KEM-768 26.4 µs before, 26.3 µs after; ML-KEM-1024 38.5 µs both); every further encapsulation to the same key is the gain.
 
-**The system's random bytes.** An encapsulation takes 32 bytes from [`random`](random.md), a call into the system each time: with the message fixed instead (the test's derandomized form, `detail::mlkem::Access::encapsulate_with`) an encapsulation was 1.3 to 1.5 µs faster in every set (512: 15 146 → 13 640 ns, 768: 23 064 → 21 551, 1024: 34 027 → 32 749, measured before the matrix was kept). OpenSSL and Go draw theirs from a generator in the process, seeded from the system; a generator of that kind for `random` is a separate topic, not yet done.
+**The random bytes.** An encapsulation takes 32 bytes from [`random`](random.md). When that was a call into the system each time, fixing the message instead (the test's derandomized form, `detail::mlkem::Access::encapsulate_with`) made an encapsulation 1.3 to 1.5 µs faster in every set (512: 15 146 → 13 640 ns, 768: 23 064 → 21 551, 1024: 34 027 → 32 749, measured before the matrix was kept). Since 2026-09-27 `random` is a ChaCha20 generator in the process, one per thread, seeded from the system (DESIGN 273), as OpenSSL's and Go's are: the encapsulations above are 4 to 10 % under the run of 2026-09-27 while every other case is 3 to 4 % over it with the load.

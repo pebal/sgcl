@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -152,9 +152,35 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         wire.erase(0, *r);
     };
 
+    // a request's body sent in place (the client's bodies in memory,
+    // send_data_held): the output taken with take_output, its pieces put
+    // back among its bytes, each piece inside the payload it came from
+    // (the bit is shared with the stream count's, a choice either way)
+    const bool in_place = (pick & 0x20) != 0;
+    std::string taken_bytes;
+    std::vector<ClientConnection<Sink>::OutPiece> taken_pieces;
+    std::string whole;
+    auto output = [&]() -> slice<const byte> {
+        if (!in_place) {
+            return m.output();
+        }
+        m.take_output(taken_bytes, taken_pieces);
+        whole.clear();
+        size_t at = 0;
+        for (auto& q : taken_pieces) {
+            check(q.at >= at && q.at <= taken_bytes.size());
+            check(q.p >= payload.data() && q.p + q.n <= payload.data() + payload.size());
+            whole.append(taken_bytes, at, q.at - at);
+            whole.append(reinterpret_cast<const char*>(q.p), q.n);
+            at = q.at;
+        }
+        whole.append(taken_bytes, at, std::string::npos);
+        return slice<const byte>(reinterpret_cast<const byte*>(whole.data()), whole.size());
+    };
+
     // everything waiting read as frames and checked, then sent
     auto flush = [&]() {
-        auto o = m.output();
+        auto o = output();
         const uint8_t* p = reinterpret_cast<const uint8_t*>(o.data());
         size_t at = 0;
         if (!preface_seen) {
@@ -192,7 +218,9 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         if (failed) {
             check(goaway_last_frame || o.size() == 0);
         }
-        m.written(o.size());
+        if (!in_place) {
+            m.written(o.size());
+        }
     };
 
     // the server's SETTINGS first, most of the time
@@ -271,7 +299,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             const uint32_t id = sink.opened[in.byte() % sink.opened.size()];
             const size_t n = size_t(in.byte()) << 8;
             const int64_t before = m.connection_send_window();
-            const size_t taken = m.send_data(id, payload.data(), std::min(n, payload.size()), (op & 0x40) != 0);
+            const size_t k = std::min(n, payload.size());
+            const size_t taken = in_place ? m.send_data_in_place(id, payload.data(), k, (op & 0x40) != 0) : m.send_data(id, payload.data(), k, (op & 0x40) != 0);
             check(int64_t(taken) <= std::max<int64_t>(before, 0));
             break;
         }

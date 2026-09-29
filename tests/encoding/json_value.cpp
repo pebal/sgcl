@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -366,4 +366,18 @@ TEST(JsonValue_Tests, AccessorsWithAFallback) {
     EXPECT_FALSE((*j)["age"].as_bool(false));
     EXPECT_EQ((*j)["pi"].as_double(0), 2.5);
     EXPECT_EQ((*j)["name"].as_double(1.5), 1.5);
+}
+
+// A number whose exponent has more digits than an int holds (what
+// documents_fuzz found: 99e9999999991999 overflowed the exponent's int in
+// the fast path): read as from_chars reads it, an infinity refused as a
+// number past the range, a tiny one zero
+TEST(JsonValue_Tests, AnExponentLongerThanAnInt) {
+    EXPECT_FALSE(json::parse(sgcl::string("99e9999999991999")).has_value());
+    auto tiny = json::parse(sgcl::string("99e-9999999991999"));
+    ASSERT_TRUE(tiny.has_value());
+    EXPECT_EQ(tiny->as_double().value_or(1.0), 0.0);
+    auto fine = json::parse(sgcl::string("12e00000000000000000003"));
+    ASSERT_TRUE(fine.has_value());
+    EXPECT_EQ(fine->as_double().value_or(0.0), 12000.0);
 }

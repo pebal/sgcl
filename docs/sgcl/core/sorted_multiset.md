@@ -374,7 +374,8 @@ From an iterator pair or an initializer list, as for `std::multiset`; an initial
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -404,7 +405,7 @@ int main() {
 
     print("order:");
     for (const auto& task : queue) {
-        print(" {}", task->name);                             // build test lint deploy
+        print(" {}", task->name);
     }
     println();
 
@@ -421,9 +422,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 tasks, by priority
 order: build test lint deploy
 2 erased, 2 left, 8 live objects

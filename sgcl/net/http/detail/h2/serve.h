@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -40,6 +40,9 @@ namespace sgcl::net::http::detail::h2 {
     struct ServerStream final : StreamState {
         tracked_ptr<RequestImpl> req;
         bool started = false;
+        bool small_body = false;       // a body of at most SmallBody bytes declared, no Expect: its handler starts with its first bytes
+        bool deferred = false;         // its turn came before them: it starts when they come
+        bool body_came = false;        // DATA with bytes, or the end, came
         BodyCount count;               // the DATA against the content-length (§8.1.1)
         int64_t read_by = 0;           // the request's body whole by then (ns; 0: no limit, or it came)
         int64_t write_by = 0;          // the response whole by then (ns; 0: no limit)
@@ -48,6 +51,14 @@ namespace sgcl::net::http::detail::h2 {
         : StreamState(id, std::move(owner)) {
         }
     };
+
+    // A request whose declared body is at most this many bytes, and which
+    // does not ask Expect: 100-continue, has its handler started with the
+    // body's first bytes (or its end), not with its HEADERS: it does not
+    // start only to wait for a DATA that comes in the next record (the TLS
+    // POST profile: a park and a wake of the handler per request). Go starts
+    // the handler with the HEADERS; what the handler sees is the same
+    inline constexpr uint64_t SmallBody = 16 * 1024;
 
     // The streams of a connection whose handlers run or wait, by their
     // identifiers: open addressing in one managed array (it holds the
@@ -277,6 +288,7 @@ namespace sgcl::net::http::detail::h2 {
             st->count.declared = req->content_length;
             if (!end_stream) {
                 req->body = make_tracked<Body>(tracked_ptr<StreamState>(st), _cfg->max_body_bytes, false, req->content_length);
+                st->small_body = req->content_length && *req->content_length <= SmallBody && !HeadersAccess::count(req->fields, "expect");
             }
             // the server's read_timeout and write_timeout, per stream, from
             // its head (Go's ReadTimeout and WriteTimeout in HTTP/2)
@@ -289,13 +301,36 @@ namespace sgcl::net::http::detail::h2 {
             }
             _streams.insert_or_assign(id, st);
             if (start) {
-                _to_start.push_back(id);
+                _turn(*st);
             }
             return ErrorCode::no_error;
         }
 
         void on_start(uint32_t id) {
-            _to_start.push_back(id);
+            if (auto st = _find(id)) {
+                _turn(*st);
+            } else {
+                _to_start.push_back(id);   // gone: _start_waiting gives its place back
+            }
+        }
+
+        // A request's turn to run: now, or with its body's first bytes
+        // (SmallBody)
+        void _turn(ServerStream& st) {
+            if (st.small_body && !st.body_came) {
+                st.deferred = true;
+                return;
+            }
+            _to_start.push_back(st.id);
+        }
+
+        // Its body's first bytes (or its end) came: a deferred start is due
+        void _body_came(ServerStream& st) {
+            st.body_came = true;
+            if (st.deferred) {
+                st.deferred = false;
+                _to_start.push_back(st.id);
+            }
         }
 
         void on_trailers(uint32_t id, Block&& b) {
@@ -312,6 +347,7 @@ namespace sgcl::net::http::detail::h2 {
                 }
                 st->read_by = 0;
                 st->end_with(std::move(t));
+                _body_came(*st);
             }
         }
 
@@ -328,6 +364,9 @@ namespace sgcl::net::http::detail::h2 {
                     st->read_by = 0;
                 }
                 st->add(p, n, end_stream);
+                if (n || end_stream) {
+                    _body_came(*st);
+                }
             }
         }
 
@@ -335,7 +374,11 @@ namespace sgcl::net::http::detail::h2 {
             if (auto st = _find(id)) {
                 st->reset_by(code);
                 if (!st->started) {
+                    const bool held = st->deferred;
                     _streams.erase(id);   // waited its turn: it never starts (connection.h)
+                    if (held) {
+                        _to_start.push_back(id);   // its turn had come: _start_waiting gives the place back
+                    }
                 }
             }
         }
@@ -397,12 +440,20 @@ namespace sgcl::net::http::detail::h2 {
                         const size_t total = data ? data->size() : 0;
                         bool full = true;
                         if (data) {
-                            data->each([&](const slice<const byte>& s) {
+                            // the bytes inside the buffer copied (they are
+                            // the writer's), its blocks' in place (retire)
+                            auto small = data->small();
+                            if (!small.empty()) {
+                                const bool last = small.size() == total;
+                                taken = _m.send_data(id, reinterpret_cast<const uint8_t*>(small.data()), small.size(), end_stream && last);
+                                full = taken == small.size();
+                            }
+                            data->chunks().each([&](const slice<const byte>& s) {
                                 if (!full) {
                                     return;
                                 }
                                 const bool last = taken + s.size() == total;
-                                const size_t k = _m.send_data(id, reinterpret_cast<const uint8_t*>(s.data()), s.size(), end_stream && last);
+                                const size_t k = _send_block_now(id, s, end_stream && last);
                                 taken += k;
                                 full = k == s.size();
                             });
@@ -421,6 +472,45 @@ namespace sgcl::net::http::detail::h2 {
         }
 
         async::task<expected<void, io::error>> send_data(uint32_t id, slice<const byte> data, bool end_stream) override {
+            return _send_data(tracked_ptr<ServerH2>(this), id, std::move(data), end_stream, false);
+        }
+
+        async::task<expected<void, io::error>> send_block(uint32_t id, slice<const byte> data, bool end_stream) override {
+            return _send_data(tracked_ptr<ServerH2>(this), id, std::move(data), end_stream, true);
+        }
+
+        // The blocks kept until the write that sends them in place is done
+        // (the pump gives them back after its next write)
+        void retire(BodyBuffer& body) override {
+            tracked_ptr<ByteChunk> first;
+            tracked_ptr<ByteChunk> last;
+            body.detach(first, last);
+            if (!first) {
+                return;
+            }
+            {
+                std::lock_guard<std::mutex> g(_lock);
+                if (_retired_last) {
+                    _retired_last->next = std::move(first);
+                } else {
+                    _retired = std::move(first);
+                }
+                _retired_last = std::move(last);
+            }
+            _kick();
+        }
+
+        // Under the lock: a block's piece as DATA in place when it is worth
+        // a piece of the write of its own, else copied
+        size_t _send_block_now(uint32_t id, const slice<const byte>& s, bool end_stream) {
+            const uint8_t* p = reinterpret_cast<const uint8_t*>(s.data());
+            if (s.size() < InPlaceMin) {
+                return _m.send_data(id, p, s.size(), end_stream);
+            }
+            return _m.send_data_in_place(id, p, s.size(), end_stream);
+        }
+
+        static async::task<expected<void, io::error>> _send_data(tracked_ptr<ServerH2> h, uint32_t id, slice<const byte> data, bool end_stream, bool in_place) {
             const uint8_t* p = reinterpret_cast<const uint8_t*>(data.data());
             size_t at = 0;
             for (;;) {
@@ -428,16 +518,20 @@ namespace sgcl::net::http::detail::h2 {
                 bool done = false;
                 bool dead = false;
                 {
-                    std::lock_guard<std::mutex> g(_lock);
-                    st = _find(id);
-                    if (!st || st->was_reset() || _m.failed() || !_m.sendable(id)) {
+                    std::lock_guard<std::mutex> g(h->_lock);
+                    st = h->_find(id);
+                    if (!st || st->was_reset() || h->_m.failed() || !h->_m.sendable(id)) {
                         dead = true;
                     } else {
-                        at += _m.send_data(id, p + at, data.size() - at, end_stream);
-                        done = at == data.size() && (!end_stream || !_m.sendable(id));
+                        if (in_place) {
+                            at += h->_send_block_now(id, slice<const byte>(data.data() + at, data.size() - at), end_stream);
+                        } else {
+                            at += h->_m.send_data(id, p + at, data.size() - at, end_stream);
+                        }
+                        done = at == data.size() && (!end_stream || !h->_m.sendable(id));
                     }
                 }
-                _kick();
+                h->_kick();
                 if (dead) {
                     co_return unexpected(stream_reset_error("write", ErrorCode::cancel));
                 }
@@ -494,6 +588,7 @@ namespace sgcl::net::http::detail::h2 {
                         for (uint32_t id : h->_malformed) {
                             if (auto st = h->_find(id)) {
                                 st->reset_by(ErrorCode::protocol_error);
+                                h->_body_came(*st);   // a deferred handler started: it sees the reset and ends
                             }
                             h->_m.reset(id, ErrorCode::protocol_error);
                         }
@@ -584,7 +679,15 @@ namespace sgcl::net::http::detail::h2 {
         std::vector<uint32_t> _to_start;     // requests to start, gathered under the lock, started after it
         std::vector<uint32_t> _malformed;    // streams to reset PROTOCOL_ERROR once feed returns
         std::string _block;                  // a field block being encoded (under the lock)
-        std::string _send;                   // the writer's copy of the output
+        std::string _send;                   // the output's own bytes, taken by the writer (swapped with the machine's)
+        std::vector<ServerConnection<ServerH2>::OutPiece> _send_pieces;   // the DATA payloads in place among them
+        vector<slice<const byte>> _parts;    // the write's pieces in order (the writer's, kept for its room)
+        tracked_ptr<ByteChunk> _retired;     // body blocks queued in place, back to the pool after the next write (under the lock)
+        tracked_ptr<ByteChunk> _retired_last;
+
+        // A block's piece shorter than this is copied into the output, not
+        // sent as a piece of its own
+        static constexpr size_t InPlaceMin = 512;
         async::channel<void> _wake;          // something to send (a signal, one held)
         async::event _pump_done;
         async::wait_group _handlers;
@@ -604,6 +707,23 @@ namespace sgcl::net::http::detail::h2 {
 
         void _kick() {
             _wake.try_send();
+        }
+
+        // The pieces of the write in order: the output's own bytes up to
+        // each payload in place, the payload, and the bytes after the last
+        void _gather() {
+            const byte* bytes = reinterpret_cast<const byte*>(_send.data());
+            size_t at = 0;
+            for (auto& q : _send_pieces) {
+                if (q.at > at) {
+                    _parts.push_back(slice<const byte>(bytes + at, q.at - at));
+                }
+                _parts.push_back(slice<const byte>(reinterpret_cast<const byte*>(q.p), q.n));
+                at = q.at;
+            }
+            if (_send.size() > at) {
+                _parts.push_back(slice<const byte>(bytes + at, _send.size() - at));
+            }
         }
 
         // The requests whose turn came, started (after the lock: a handler
@@ -658,6 +778,7 @@ namespace sgcl::net::http::detail::h2 {
 
         // One request: routed, its handler run, its response finished
         static async::task<> _run(tracked_ptr<ServerH2> h, tracked_ptr<ServerStream> st) {
+            const auto start = sgcl::clock::now();
             tracked_ptr<RequestImpl> req = st->req;
             tracked_ptr w = make_tracked<WriterImpl>();
             w->h2 = tracked_ptr<StreamState>(st);
@@ -677,10 +798,8 @@ namespace sgcl::net::http::detail::h2 {
                 path = *fast;
                 req->url_later = true;
             } else if (!target.empty() && (target.front() == '/' || target == "*")) {
-                std::string text = "http://";
-                text += host_text.empty() ? std::string_view("localhost") : host_text;
-                text += target == "*" ? std::string_view("/") : target;
-                if (auto u = net::url::parse(string(text))) {
+                if (auto u = net::url::parse(string::concat("http://", host_text.empty() ? std::string_view("localhost") : host_text,
+                                                            target == "*" ? std::string_view("/") : target))) {
                     req->url = std::move(*u);
                     route_path = req->url->path();
                     path = route_path.view();
@@ -722,10 +841,12 @@ namespace sgcl::net::http::detail::h2 {
             // the rest of the response: at once when the windows take it
             // (one step of the connection, no frame), a task only for what
             // waits for window (as HTTP/1.1's finish_start)
+            const uint64_t body_bytes = w->body_bytes();   // before the finish gives the blocks back
             expected<void, io::error> sent;
             if (auto rest = w->finish_start(sent)) {
                 sent = co_await *rest;
             }
+            log_access(*h->_cfg, *req, *w, body_bytes, path, "HTTP/2.0", start);
             // a request whose body did not end: RST_STREAM NO_ERROR after a
             // whole response (§8.1), CANCEL after a broken one
             if (body && !body->done()) {
@@ -739,22 +860,43 @@ namespace sgcl::net::http::detail::h2 {
 
         // The one writer: the machine's output, taken under the lock, sent
         // in order; after the last GOAWAY with every stream closed, the
-        // connection closed (the reader waiting on it wakes)
+        // connection closed (the reader waiting on it wakes). The output is
+        // taken whole, its own bytes swapped out (no copy) and the DATA
+        // payloads in place as pieces among them: one write of the pieces
+        // (a sendmsg; over TLS sealed from where they lie). The body
+        // blocks retired before the take go back to the pool once that
+        // write is done: every piece of them was in it or in one before
         static async::task<> _pump(tracked_ptr<ServerH2> h) {
             bool open = true;
             while (open) {
                 open = co_await h->_wake.receive();
                 for (;;) {
                     bool finished = false;
+                    tracked_ptr<ByteChunk> giving;
                     {
                         std::lock_guard<std::mutex> g(h->_lock);
-                        auto o = h->_m.output();
-                        h->_send.assign(reinterpret_cast<const char*>(o.data()), o.size());
-                        h->_m.written(o.size());
+                        h->_m.take_output(h->_send, h->_send_pieces);
+                        giving = std::move(h->_retired);
+                        h->_retired = tracked_ptr<ByteChunk>();
+                        h->_retired_last = tracked_ptr<ByteChunk>();
                         finished = h->_m.finished();
                     }
                     if (!h->_send.empty()) {
-                        auto r = co_await h->_c.async_write(slice<const byte>(reinterpret_cast<const byte*>(h->_send.data()), h->_send.size()));
+                        expected<size_t, io::error> r;
+                        if (h->_send_pieces.empty()) {
+                            r = co_await h->_c.async_write(slice<const byte>(reinterpret_cast<const byte*>(h->_send.data()), h->_send.size()));
+                        } else {
+                            h->_gather();
+                            auto s = net::detail::ConnectionAccess::impl(h->_c).start_write_parts(h->_parts);
+                            if (s.rest) {
+                                r = co_await std::move(*s.rest);
+                            } else {
+                                r = std::move(s.done);
+                            }
+                            h->_parts.clear();
+                            h->_send_pieces.clear();
+                        }
+                        ByteChunks::give_back(std::move(giving));
                         if (!r) {
                             (void)h->_c.close();
                             open = false;
@@ -762,6 +904,7 @@ namespace sgcl::net::http::detail::h2 {
                         }
                         continue;
                     }
+                    ByteChunks::give_back(std::move(giving));
                     if (finished) {
                         (void)h->_c.close_write();
                     }
@@ -827,10 +970,12 @@ namespace sgcl::net::http::detail::h2 {
                     for (size_t i = 0; i < k && !failed; ++i) {
                         if (auto st = h->_find(late[i])) {
                             st->reset_by(why[i]);
+                            h->_body_came(*st);   // a deferred handler started: it sees the reset and ends
                         }
                         h->_m.reset(late[i], why[i]);
                     }
                 }
+                h->_start_waiting();
                 h->_kick();
                 if (failed) {
                     break;   // GOAWAY is in the output; the peer's close ends the reader

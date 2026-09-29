@@ -57,6 +57,23 @@ class level {
 
 How hard a compressor works, as zlib and Go count it: 0 stores the data in blocks as it is, 1 is the fastest, 9 the smallest, 6 the default everywhere; `huffman_only` codes the bytes without looking for repeats (for data that has none worth the search, such as the residuals of an image filter). An `int` converts to it, so options take `{.level = 9}`.
 
+DEFLATE's levels are two encoders: **levels 1–6 as Go's fast encoder, 7–9 zlib's chains; Go's 6 is our 6.** Levels 1 to 6 look each position up in tables of the latest position under a hash of four bytes (and of seven from level 3), with no chains; the default, 6, is as fast as Go's default and a little smaller. Levels 7 to 9 walk chains of earlier positions under a hash of three bytes with lazy matching, zlib's own 7 to 9: zlib's size, at zlib's pace. On text the default is some 3 % larger than zlib's 6 and three times as fast; on binary data (object files) 7 % larger at twice the speed, so an archive of binaries that should be small asks for 7 to 9.
+
+| level | encoder | hashes | a position looks at | lazy | positions inside a match |
+|---|---|---|---|---|---|
+| 0 | stored blocks, straight from the input | — | — | — | — |
+| 1 | table | 4 bytes, 2^14 | 1 candidate; a run of misses skipped faster | no | every 4th |
+| 2 | table | 4 bytes, 2^15 | 1 candidate; misses skipped faster | no | every 2nd |
+| 3 | table | 4 bytes 2^15, 7 bytes 2^15 | 2 candidates | no | every 2nd |
+| 4 | table | 4 bytes 2^16, 7 bytes 2^15 | 2 candidates | the next position | all |
+| 5 | table | 4 bytes 2^16, 7 bytes 2^16 | 2 candidates | the next position | all |
+| 6 (default) | table | 4 bytes 2^16, 7 bytes 2^16 (2 a bucket) | 3 candidates | the next position | all |
+| 7 | chains | 3 bytes, 2^16 | 256 of the chain (64 past a match of 8) | up to 32 | all |
+| 8 | chains | 3 bytes, 2^17 | 1024 (256 past 32) | up to 128 | all |
+| 9 | chains | 3 bytes, 2^17 | 4096 (1024 past 32) | up to 258 | all |
+
+From 1 to 9 the output does not grow and the time does not shrink (a test holds the order on text, PNG's filtered rows and binary data). Data an image filter left is compressed at 7 and up with zlib's filtered strategy, which the table levels have no need of: PNG's encoder writes at 7 unless asked.
+
 ## limits
 
 ```cpp
@@ -75,18 +92,22 @@ Data from outside may decompress a thousand times over. Every `decompress` of da
 
 ## Performance
 
-On an Apple M-series machine, 8 MB of English-like text (`benchmarks/compress`, the same bytes in `benchmarks/go/compress`), MB/s of the uncompressed side:
+On an Apple M-series machine, MB/s of the uncompressed side and the compressed size against the original. Compression over two corpora: **md8** is 8 MB of this repository's Markdown (every `*.md`, repeated past the window: text as people write it), **words** is `benchmarks/compress`'s 8 MB of words drawn from a list of 64 (the same bytes in `benchmarks/go/compress`), text far more repetitive than any written by hand, where the chains have the most to walk:
 
-| case | sgcl | zlib (C, the system's) | Go |
+| case | sgcl | zlib (C, the system's 1.2.12) | Go 1.27 |
 |---|---|---|---|
-| compress, level 1 | 163 | 138 | 269 |
-| compress, level 6 | 18–19 | 21 | 151 |
-| compress, level 9 | 11.4 | 14.2 | 12.2 |
+| compress md8, level 1 | 139 (0.402) | 123 (0.401) | 183 (0.400) |
+| compress md8, level 6 (default) | 95 (0.342) | 36 (0.332) | 104 (0.345) |
+| compress md8, level 9 | 25.7 (0.331) | 28.1 (0.331) | — |
+| compress words, level 1 | 197 (0.339) | 138 (0.339) | 262 (0.327) |
+| compress words, level 6 (default) | 124 (0.282) | 21 (0.265) | 148 (0.280) |
+| compress words, level 7 | 13.8 (0.262) | 17.3 (0.263) | — |
+| compress words, level 9 | 11.2 (0.262) | 14.3 (0.262) | 12.1 (0.263) |
 | decompress in memory | 1238 | 1574 | 270 |
 | gzip read as a stream, 64 KB a read | 1069 | 1279 | 249 |
 | a zip archive of 10 000 entries opened | 0.59 ms | — | 1.27 ms |
 
-These are DEFLATE's; LZMA's and xz's against liblzma are in [lzma](lzma.md#performance) and [xz](xz.md#performance). The compressed sizes are within 0.2% of zlib's at every level. Go's level 6 is a different matcher, eight times faster than zlib's and 5% larger on this text; the library keeps zlib's trade. The decoder is within 1.3× of Apple's zlib, which is hand-tuned, and four times Go's.
+These are DEFLATE's; LZMA's and xz's against liblzma are in [lzma](lzma.md#performance) and [xz](xz.md#performance). The default level is Go's kind of encoder, as fast as Go's default within some 10 % and no larger; zlib's level 6 is a chain walk three to six times slower for 3 % less. Levels 7 to 9 are zlib's chains, 0.8 to 0.9 of zlib's speed at zlib's size (the cost of a step of the chain is the next work, with SIMD). The decoder is within 1.3× of Apple's zlib, which is hand-tuned, and four times Go's.
 
 ## See also
 

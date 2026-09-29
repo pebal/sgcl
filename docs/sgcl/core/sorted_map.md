@@ -483,7 +483,8 @@ From an iterator pair or an initializer list, as for `std::map`; an initializer 
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 
 using namespace sgcl;
 
@@ -532,9 +533,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 a bank's accounts, by name
 bob still there, 2 balances
 1 account left, 10 live objects

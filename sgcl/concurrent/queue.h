@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -11,10 +11,18 @@
 #include "../core/make_tracked.h"
 #include "../core/tracked_ptr.h"
 
+#include <cassert>
 #include <utility>
 
 namespace sgcl::concurrent {
     namespace detail { using namespace sgcl::detail; }
+    namespace detail {
+        // The tag of a queue made without its first node: the node is a
+        // field of the queue's owner (queue::first_node), linked by
+        // link() once the owner has left make_tracked's unique_ptr and
+        // before anyone else sees the queue
+        struct QueueUnlinked {};
+    }
     // An unbounded lock-free FIFO queue shared by any number of producers
     // and consumers: the Michael–Scott queue (1996) in the form Java's
     // ConcurrentLinkedQueue gives it, written the way it is written for a
@@ -76,6 +84,35 @@ namespace sgcl::concurrent {
         : queue(make_tracked<Node>(typename Node::Taken{})) {
         }
 
+        // The first node kept in the owner's object instead of one of its
+        // own (the async module's channels: one managed object less per
+        // queue). The owner is a managed object: a tracked_ptr to a field
+        // is an alias that keeps the whole of it (tracked_ptr.h), and is
+        // made only once the owner has left make_tracked's unique_ptr
+        // (a tracked_ptr to an object still unique asserts): the queue is
+        // made unlinked in the owner's constructor and linked to the node
+        // by the code that made the owner, right after the release and
+        // before the owner is given to anyone. Nothing is linked late: a
+        // queue is used only after link(), and a use before it asserts.
+        // The node is the list's first as any first node is: passed by
+        // the head, it links to itself and holds nothing, and it never
+        // comes back to the list
+        class first_node {
+            friend class queue;
+            Node _node{typename Node::Taken{}};
+        };
+
+        explicit queue(detail::QueueUnlinked) noexcept {
+        }
+
+        void link(first_node& first) noexcept {
+            assert(!_head.load(std::memory_order_relaxed) && "a queue linked twice");
+            assert(sgcl::detail::Heap::contains(&first) && "the first node of a queue in an object off the managed heap");
+            tracked_ptr<Node> node(&first._node);
+            _head.store(node, std::memory_order_relaxed);
+            _tail.store(node, std::memory_order_release);
+        }
+
         queue(const queue&) = delete;
         queue& operator=(const queue&) = delete;
 
@@ -91,6 +128,7 @@ namespace sgcl::concurrent {
         void emplace(A&&... a) {
             tracked_ptr<Node> node = make_tracked<Node>(std::in_place, std::forward<A>(a)...);
             tracked_ptr<Node> tail = _tail.load(std::memory_order_acquire);
+            assert(tail && "a queue made unlinked, used before link()");
             tracked_ptr<Node> p = tail;
             for (;;) {
                 tracked_ptr<Node> q = p->next.load(std::memory_order_acquire);
@@ -261,6 +299,7 @@ namespace sgcl::concurrent {
         optional<T> _pop(tracked_ptr<Node>& last) {
         restart:
             tracked_ptr<Node> head = _head.load(std::memory_order_acquire);
+            assert(head && "a queue made unlinked, used before link()");
             tracked_ptr<Node> p = head;
             for (;;) {
                 if (!p->taken.load(std::memory_order_acquire)) {
@@ -304,6 +343,7 @@ namespace sgcl::concurrent {
         tracked_ptr<Node> _first() const noexcept {
         restart:
             tracked_ptr<Node> p = _head.load(std::memory_order_acquire);
+            assert(p && "a queue made unlinked, used before link()");
             for (;;) {
                 if (!p->taken.load(std::memory_order_acquire)) {
                     return p;

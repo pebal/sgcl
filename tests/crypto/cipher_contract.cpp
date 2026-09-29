@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -167,6 +167,7 @@ namespace {
     }
 }
 
+#if SGCL_TEST_OPENSSL
 TEST(CryptoContract_Tests, AesGcmRejectsDamage) {
     rejects_damage<crypto::aes_gcm>(16, EVP_aes_128_gcm(), 21);
     rejects_damage<crypto::aes_gcm>(32, EVP_aes_256_gcm(), 22);
@@ -175,6 +176,16 @@ TEST(CryptoContract_Tests, AesGcmRejectsDamage) {
 TEST(CryptoContract_Tests, ChachaPolyRejectsDamage) {
     rejects_damage<crypto::chacha20_poly1305>(32, EVP_chacha20_poly1305(), 23);
 }
+#else
+TEST(CryptoContract_Tests, AesGcmRejectsDamage) {
+    rejects_damage<crypto::aes_gcm>(16, no_oracle(), 21);
+    rejects_damage<crypto::aes_gcm>(32, no_oracle(), 22);
+}
+
+TEST(CryptoContract_Tests, ChachaPolyRejectsDamage) {
+    rejects_damage<crypto::chacha20_poly1305>(32, no_oracle(), 23);
+}
+#endif
 
 TEST(CryptoContract_Tests, XChachaPolyRejectsDamage) {
     rejects_damage<crypto::xchacha20_poly1305>(32, nullptr, 24);

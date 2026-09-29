@@ -395,7 +395,8 @@ owned.pop_back();                                  // the int is destroyed here,
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 #include <algorithm>
 
 using namespace sgcl;
@@ -439,9 +440,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 values and a graph in vectors
 10 nodes kept, 2 reachable through the cycle
 26 live objects

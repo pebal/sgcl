@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -246,7 +246,7 @@ TEST(Channel_Test, ManyProducersManyConsumers) {
 TEST(Channel_Test, ElementsHeldAndReclaimed) {
     const size_t before = collector::get_live_object_count();
     sgcl::async::channel<tracked_ptr<Baz>> ch(100);
-    const size_t empty = collector::get_live_object_count();   // the ring and the two waiter queues' first nodes
+    const size_t empty = collector::get_live_object_count();   // the state and its ring of 128 slots (the waiter lists' first nodes lie in the state)
     off_frame([&] {
         for (int i = 0; i < 100; ++i) {
             ch.send(make_tracked<Baz>(i)).wait();
@@ -261,7 +261,7 @@ TEST(Channel_Test, ElementsHeldAndReclaimed) {
         }
     });
     EXPECT_EQ(collector::get_live_object_count(), empty);
-    EXPECT_GE(empty, before + 3u);
+    EXPECT_GE(empty, before + 2u);
 }
 
 namespace {

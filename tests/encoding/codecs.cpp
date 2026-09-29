@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// SGCL: a C++20 application framework
+// SGCL: a C++20 application platform
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
@@ -481,4 +481,38 @@ TEST(Codecs_Tests, EncodeTakesTextAndBytes) {
     EXPECT_EQ(ascii85::encode("Hello"), "87cURDZ");
     sgcl::vector<byte> v(bytes.begin(), bytes.end());
     EXPECT_EQ(base32::standard.encode(v), base32::standard.encode("ala:sekret"));
+}
+
+// decode_to from characters that lie elsewhere (a slice of a buffer, no
+// string made), strict and lenient: the bytes of decode, the same errors
+TEST(Codecs_Tests, Base64DecodeToFromASlice) {
+    const std::string lines = "QUJD\r\nREVG\nR0g=";   // "ABCDEFGH" in lines
+    std::byte out[12];   // the bound of 14 characters (the line endings count)
+    auto strict = base64::standard.decode_to(slice<byte>(out, sizeof out), slice<const char>(lines.data(), lines.size()));
+    EXPECT_FALSE(strict);   // a line ending is not base64 in the strict codec
+    auto lenient = base64::standard.lenient().decode_to(slice<byte>(out, sizeof out), slice<const char>(lines.data(), lines.size()));
+    ASSERT_TRUE(lenient);
+    ASSERT_EQ(*lenient, 8u);
+    EXPECT_EQ(std::string(reinterpret_cast<const char*>(out), 8), "ABCDEFGH");
+    // the same as the string's overload, byte for byte, on every length
+    for (size_t n = 0; n < 64; ++n) {
+        std::string data(n, '\0');
+        for (size_t i = 0; i < n; ++i) {
+            data[i] = char(i * 37 + 11);
+        }
+        string text = base64::standard.encode(slice<const byte>(reinterpret_cast<const byte*>(data.data()), n));
+        std::byte a[64], b[64];
+        auto x = base64::standard.decode_to(slice<byte>(a, 64), text);
+        auto y = base64::standard.decode_to(slice<byte>(b, 64), slice<const char>(text.data(), text.size()));
+        ASSERT_TRUE(x && y) << n;
+        ASSERT_EQ(*x, n);
+        ASSERT_EQ(*y, n);
+        EXPECT_EQ(std::memcmp(a, b, n), 0) << n;
+    }
+    // a literal still goes to one overload
+    std::byte three[3];
+    auto r = base64::standard.decode_to(slice<byte>(three, 3), "QUJD");
+    ASSERT_TRUE(r);
+    EXPECT_EQ(*r, 3u);
+    EXPECT_EQ(error_of(base64::standard.decode_to(slice<byte>(three, 3), slice<const char>("QU*D", 4))).offset(), 2u);
 }

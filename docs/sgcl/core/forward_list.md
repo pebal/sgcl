@@ -408,7 +408,8 @@ owned.pop_front();                                 // the int is destroyed here,
 ## Example
 
 ```cpp
-#include "sgcl/sgcl.h"
+#include "sgcl/core/core.h"
+#include "sgcl/io/io.h"
 #include <ranges>
 
 using namespace sgcl;
@@ -458,9 +459,9 @@ int main() {
 }
 ```
 
-The output:
+Output:
 
-```
+```text
 values and a graph in forward lists
 3 numbers, vertex 99 with 50 edges, 9954 live objects
 3 live objects after the graph is gone
